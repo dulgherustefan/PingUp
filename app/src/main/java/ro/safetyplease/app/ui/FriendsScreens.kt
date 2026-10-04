@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,6 +33,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -62,6 +65,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,16 +74,11 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.zxing.BarcodeFormat
-import com.google.zxing.BinaryBitmap
-import com.google.zxing.DecodeHintType
 import com.google.zxing.EncodeHintType
-import com.google.zxing.MultiFormatReader
-import com.google.zxing.NotFoundException
-import com.google.zxing.PlanarYUVLuminanceSource
-import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeWriter
 import ro.safetyplease.app.R
 import ro.safetyplease.app.core.toHex
+import ro.safetyplease.app.crypto.QrDecoder
 import ro.safetyplease.app.data.Conversations
 import ro.safetyplease.app.data.Friend
 import ro.safetyplease.app.data.Group
@@ -249,20 +248,13 @@ fun MyQrScreen(vm: AppViewModel) {
 }
 
 private class QrAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis.Analyzer {
-    private val reader = MultiFormatReader().apply {
-        setHints(mapOf(DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE)))
-    }
-
     override fun analyze(image: ImageProxy) {
         try {
             val plane = image.planes[0]
             val data = ByteArray(plane.buffer.remaining()).also { plane.buffer.get(it) }
-            val source = PlanarYUVLuminanceSource(data, plane.rowStride, image.height, 0, 0, image.width, image.height, false)
-            onResult(reader.decodeWithState(BinaryBitmap(HybridBinarizer(source))).text)
-        } catch (_: NotFoundException) {
+            QrDecoder.decode(data, plane.rowStride, image.width, image.height)?.let(onResult)
         } catch (_: RuntimeException) {
         } finally {
-            reader.reset()
             image.close()
         }
     }
@@ -321,7 +313,7 @@ fun ScanScreen(vm: AppViewModel) {
 
     ScreenScaffold(title = stringResource(R.string.scan_title), onBack = { vm.back() }) { padding ->
         Column(
-            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+            Modifier.padding(padding).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (granted) QrCamera(::handle)
@@ -331,7 +323,10 @@ fun ScanScreen(vm: AppViewModel) {
                 value = manual,
                 onValueChange = { manual = it.trim() },
                 label = { Text(stringResource(R.string.scan_manual)) },
-                maxLines = 3,
+                singleLine = true,
+                // butonul de sub camp ramane sub tastatura; Done de pe tastatura trimite codul direct
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (manual.isNotBlank()) handle(manual) }),
                 modifier = Modifier.fillMaxWidth(),
             )
             Button(onClick = { handle(manual) }, enabled = manual.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
