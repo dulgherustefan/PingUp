@@ -7,7 +7,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,8 +77,8 @@ private fun CategoryPicker(vm: AppViewModel, onPick: (Int) -> Unit) {
         Text(stringResource(R.string.report_title), style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(R.string.report_subtitle), color = MaterialTheme.colorScheme.onSurfaceVariant)
         for (row in IncidentCategory.all.chunked(2)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                for (c in row) CategoryTile(c, Modifier.weight(1f)) { onPick(c) }
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                for (c in row) CategoryTile(c, Modifier.weight(1f).fillMaxHeight()) { onPick(c) }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
@@ -94,9 +97,9 @@ private fun CategoryTile(category: Int, modifier: Modifier, onClick: () -> Unit)
     Surface(
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = modifier.height(104.dp).clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick),
+        modifier = modifier.heightIn(min = 104.dp).clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick),
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.size(36.dp).clip(CircleShape).background(accent.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
                 Icon(AppIcons.category(category), null, tint = accent, modifier = Modifier.size(20.dp))
             }
@@ -163,10 +166,14 @@ private fun ReportForm(vm: AppViewModel, category: Int, onClose: () -> Unit) {
         }
 
         Text(stringResource(R.string.report_zone), style = MaterialTheme.typography.titleMedium)
-        if (autoZone != null) {
-            Text(stringResource(R.string.report_zone_auto, autoZone.name), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            Text(stringResource(R.string.report_zone_manual), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        when {
+            autoZone != null ->
+                Text(stringResource(R.string.report_zone_auto, autoZone.name), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // avem fix GPS, dar in afara zonelor: pozitia pleaca oricum cu raportul, deci nu spunem ca lipseste
+            position != null ->
+                Text(stringResource(R.string.report_zone_outside), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            else ->
+                Text(stringResource(R.string.report_zone_manual), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (z in vm.venue.zones) {

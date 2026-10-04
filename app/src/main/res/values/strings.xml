@@ -85,6 +85,7 @@
     <string name="report_zone">Zonă</string>
     <string name="report_zone_auto">Detectată din poziția ta: %1$s</string>
     <string name="report_zone_manual">Nu avem poziția ta. Alege zona dacă o știi.</string>
+    <string name="report_zone_outside">Poziția ta e în afara zonelor de pe hartă. O trimitem cu raportul; alege zona dacă o știi.</string>
     <string name="report_description">Descriere scurtă</string>
     <string name="report_anonymous">Raport anonim</string>
     <string name="report_anonymous_on">Nimeni nu vede cine a raportat, nici telefoanele prin care trece.</string>
