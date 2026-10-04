@@ -426,9 +426,12 @@ class MeshEngine(
     private fun registerFailure(address: String) {
         val failures = (addressFailures[address] ?: 0) + 1
         addressFailures[address] = failures
-        val backoff = minOf(5_000L shl minOf(failures - 1, 4), 60_000L)
+        val base = minOf(5_000L shl minOf(failures - 1, 4), 60_000L)
+        // Doua noduri care esueaza impreuna catre acelasi peer ar reincerca impreuna si s-ar incurca din nou.
+        // Asteptarea e aleatoare intre 0,5x si 1,5x din baza, cu aceeasi medie.
+        val backoff = base / 2 + random.nextLong(base)
         addressBlockedUntil[address] = clock.monoMs() + backoff
-        log.link(clock.wallMs(), address.takeLast(5), "connect failed, retry in ${backoff / 1000}s")
+        log.link(clock.wallMs(), address.takeLast(5), "connect failed, retry in ${backoff / 100 / 10.0}s")
     }
 
     private fun onFrame(linkId: Int, bytes: ByteArray) {
