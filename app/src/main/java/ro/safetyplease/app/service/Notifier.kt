@@ -1,6 +1,7 @@
 package ro.safetyplease.app.service
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -23,6 +24,8 @@ import ro.safetyplease.app.protocol.Severity
 import ro.safetyplease.app.ui.Labels
 import ro.safetyplease.app.venue.Venue
 
+// Fiecare notify() e precedat de canPost(); lint nu vede verificarea de permisiune printr-o functie ajutatoare.
+@SuppressLint("MissingPermission")
 class Notifier(private val context: Context, private val venue: Venue) {
     private val manager = NotificationManagerCompat.from(context)
 

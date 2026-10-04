@@ -39,6 +39,13 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    // Aplicatia isi fixeaza singura limba (romana); impartirea pe limbi a unui App Bundle nu are ce separa.
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
 }
 
 dependencies {

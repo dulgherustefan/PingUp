@@ -2,10 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application>
-        <!-- Comenzi de test prin adb; exista doar in build-ul debug. Vezi README. -->
+        <!-- Comenzi de test prin adb; exista doar in build-ul debug. Vezi README.
+             DUMP e o permisiune pe care o are shell-ul adb, nu aplicatiile obisnuite: alt program de pe
+             telefon nu poate trimite comenzi. -->
         <receiver
             android:name=".demo.DebugCommandReceiver"
-            android:exported="true" />
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
     </application>
 
 </manifest>

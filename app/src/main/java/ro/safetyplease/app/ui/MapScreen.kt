@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.toColorInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
 import ro.safetyplease.app.data.Role
@@ -66,7 +67,7 @@ import kotlin.math.min
 
 class MapPin(val point: GeoPoint, val color: Color, val key: String = "")
 
-fun parseColor(hex: String): Color = runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Gray)
+fun parseColor(hex: String): Color = runCatching { Color(hex.toColorInt()) }.getOrDefault(Color.Gray)
 
 /** Proiectie echirectangulara peste limitele venue-ului; la scara unui festival eroarea e neglijabila. */
 private class Projection(venue: Venue, size: Size) {
