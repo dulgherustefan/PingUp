@@ -137,6 +137,42 @@ class CryptoTest {
         assertNull(QrCodes.decodeStaff(text.dropLast(3)))
     }
 
+    @Test
+    fun staffQrFromPythonToolDecodesAndDerivesTheSameKeys() {
+        // produs de tools/gen_staff_keys.py pentru semintele 00..1f si 20..3f
+        val text = "SPS1.AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-PwIKQW5jb3JhIGJhcgNiYXI"
+        val card = QrCodes.decodeStaff(text)!!
+        assertEquals(StaffRole.ANCHOR, card.role)
+        assertEquals("Ancora bar", card.teamName)
+        assertEquals("bar", card.zone)
+        assertEquals(
+            "4701d08488451f545a409fb58ae3e58581ca40ac3f7f114698cd71deac73ca01",
+            crypto.boxKeyPairFromSeed(card.boxSeed).publicKey.toHex(),
+        )
+        assertEquals(
+            "29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7",
+            crypto.signKeyPairFromSeed(card.signSeed).publicKey.toHex(),
+        )
+        assertEquals(text, QrCodes.encodeStaff(card))
+    }
+
+    @Test
+    fun bundledDemoSeedsMatchBundledStaffPublicKeys() {
+        fun field(file: String, name: String): ByteArray {
+            val json = java.io.File(file).readText()
+            return Regex("\"$name\"\\s*:\\s*\"([0-9a-f]+)\"").find(json)!!.groupValues[1].hexToBytes()
+        }
+        val public = StaffPublicKeys(
+            field("src/main/assets/staff_public.json", "box"),
+            field("src/main/assets/staff_public.json", "sign"),
+        )
+        val secret = StaffCrypto(crypto, public).secretFromSeeds(
+            field("src/debug/assets/demo_staff.json", "boxSeed"),
+            field("src/debug/assets/demo_staff.json", "signSeed"),
+        )
+        assertNotNull("modul demo nu ar putea activa staff fara QR", secret)
+    }
+
     private fun staff(): Pair<StaffCrypto, StaffSecretKeys> {
         val boxSeed = crypto.random(32)
         val signSeed = crypto.random(32)

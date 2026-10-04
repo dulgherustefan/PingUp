@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Textele modului demo. Nu ajung in build-ul release. -->
+<resources>
+    <string name="demo_yes">da</string>
+    <string name="demo_no">nu</string>
+    <string name="demo_radio">Radio</string>
+    <string name="demo_radio_state">Bluetooth: %1$s · scanare: %2$s · advertising: %3$s · mod peripheral: %4$s</string>
+    <string name="demo_node">Nod %1$s · trimise %2$d · primite %3$d · relay %4$d · aruncate %5$d</string>
+    <string name="demo_peers">Peer-i (%1$d)</string>
+    <string name="demo_no_peers">Niciun telefon cu aplicația în rază.</string>
+    <string name="demo_link_out">legat (inițiat de noi)</string>
+    <string name="demo_link_in">legat (inițiat de el)</string>
+    <string name="demo_visible">vizibil, nelegat</string>
+    <string name="demo_ignore">Ignoră</string>
+    <string name="demo_actions">Acțiuni rapide</string>
+    <string name="demo_send_test">Trimite TEST</string>
+    <string name="demo_test_incident">Incident de test</string>
+    <string name="demo_role_participant">Participant</string>
+    <string name="demo_role_staff">Staff</string>
+    <string name="demo_role_anchor">Ancoră</string>
+    <string name="demo_keys_mismatch">Cheile de demo nu corespund cheilor publice din aplicație. Folosește codul QR de staff.</string>
+    <string name="demo_wipe">Șterge toate datele</string>
+    <string name="demo_wipe_text">Se șterg identitatea, prietenii, mesajele și incidentele. Aplicația se închide.</string>
+    <string name="demo_tests">Pachete TEST</string>
+    <string name="demo_tests_empty">Apasă „Trimite TEST”. Fiecare telefon care îl primește răspunde cu un ecou.</string>
+    <string name="demo_log">Jurnal de pachete (%1$d)</string>
+    <string name="demo_log_export">Exportă</string>
+</resources>

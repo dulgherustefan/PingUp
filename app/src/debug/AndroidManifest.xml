@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Comenzi de test prin adb; exista doar in build-ul debug. Vezi README. -->
+        <receiver
+            android:name=".demo.DebugCommandReceiver"
+            android:exported="true" />
+    </application>
+
+</manifest>
