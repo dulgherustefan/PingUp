@@ -1,0 +1,95 @@
+{
+  "name": "Festival (layout generic)",
+  "bounds": { "minLat": 43.9480, "minLon": 28.6320, "maxLat": 43.9512, "maxLon": 28.6382 },
+  "meetingPoint": { "lat": 43.94893, "lon": 28.63510 },
+  "zones": [
+    {
+      "id": "main-stage",
+      "name": "Scena principală",
+      "color": "#E5484D",
+      "polygon": [
+        { "lat": 43.9510, "lon": 28.6344 },
+        { "lat": 43.9510, "lon": 28.6358 },
+        { "lat": 43.9500, "lon": 28.6364 },
+        { "lat": 43.9500, "lon": 28.6338 }
+      ]
+    },
+    {
+      "id": "second-stage",
+      "name": "Scena 2",
+      "color": "#8E4EC6",
+      "polygon": [
+        { "lat": 43.9499, "lon": 28.6366 },
+        { "lat": 43.9499, "lon": 28.6380 },
+        { "lat": 43.9489, "lon": 28.6380 },
+        { "lat": 43.9489, "lon": 28.6366 }
+      ]
+    },
+    {
+      "id": "food",
+      "name": "Food court",
+      "color": "#F5A524",
+      "polygon": [
+        { "lat": 43.9499, "lon": 28.6322 },
+        { "lat": 43.9499, "lon": 28.6336 },
+        { "lat": 43.9490, "lon": 28.6336 },
+        { "lat": 43.9490, "lon": 28.6322 }
+      ]
+    },
+    {
+      "id": "bar",
+      "name": "Baruri",
+      "color": "#3E63DD",
+      "polygon": [
+        { "lat": 43.9499, "lon": 28.6340 },
+        { "lat": 43.9499, "lon": 28.6362 },
+        { "lat": 43.9491, "lon": 28.6362 },
+        { "lat": 43.9491, "lon": 28.6340 }
+      ]
+    },
+    {
+      "id": "medical",
+      "name": "Punct medical",
+      "color": "#30A46C",
+      "polygon": [
+        { "lat": 43.9488, "lon": 28.6354 },
+        { "lat": 43.9488, "lon": 28.6363 },
+        { "lat": 43.9482, "lon": 28.6363 },
+        { "lat": 43.9482, "lon": 28.6354 }
+      ]
+    },
+    {
+      "id": "entrance",
+      "name": "Intrare",
+      "color": "#889096",
+      "polygon": [
+        { "lat": 43.9488, "lon": 28.6337 },
+        { "lat": 43.9488, "lon": 28.6350 },
+        { "lat": 43.9481, "lon": 28.6350 },
+        { "lat": 43.9481, "lon": 28.6337 }
+      ]
+    },
+    {
+      "id": "camping",
+      "name": "Camping",
+      "color": "#46A758",
+      "polygon": [
+        { "lat": 43.9488, "lon": 28.6321 },
+        { "lat": 43.9488, "lon": 28.6334 },
+        { "lat": 43.9481, "lon": 28.6334 },
+        { "lat": 43.9481, "lon": 28.6321 }
+      ]
+    },
+    {
+      "id": "chill",
+      "name": "Zonă de relaxare",
+      "color": "#12A594",
+      "polygon": [
+        { "lat": 43.9487, "lon": 28.6367 },
+        { "lat": 43.9487, "lon": 28.6381 },
+        { "lat": 43.9481, "lon": 28.6381 },
+        { "lat": 43.9481, "lon": 28.6367 }
+      ]
+    }
+  ]
+}

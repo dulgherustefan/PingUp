@@ -18,7 +18,7 @@ class IncidentCache(
     private val traceMs: Long = 6 * 60 * 60_000L,
     private val maxTraces: Int = 2048,
 ) {
-    private class Stored(val packet: Packet, val atMs: Long)
+    private class Stored(val packet: Packet, val atMs: Long, val hops: Int = 0)
 
     private class Entry(val id8: Long) {
         var reportSeen = false
@@ -41,12 +41,12 @@ class IncidentCache(
     }
 
     /** Retine raportul daca incidentul e nou. [packet] trebuie sa aiba deja ttl-ul cu care va fi retrimis. */
-    fun offerReport(incidentId: ByteArray, packet: Packet, nowMs: Long): Boolean {
+    fun offerReport(incidentId: ByteArray, packet: Packet, nowMs: Long, hops: Int = 0): Boolean {
         purge(nowMs)
         val e = entry(incidentId.toLong(), nowMs)
         if (e.reportSeen) return false
         e.reportSeen = true
-        e.report = Stored(packet, nowMs)
+        e.report = Stored(packet, nowMs, hops)
         val stored = entries.values.filter { it.report != null }
         if (stored.size > maxReports) stored.minByOrNull { it.report!!.atMs }?.report = null
         return true
@@ -93,6 +93,9 @@ class IncidentCache(
     }
 
     fun report(id8: Long): Packet? = entries[id8]?.report?.packet
+
+    /** Rapoartele inca pastrate, cu numarul de hop-uri la care au fost primite. */
+    fun reports(): List<Pair<Packet, Int>> = entries.values.mapNotNull { e -> e.report?.let { it.packet to it.hops } }
 
     fun ack(id8: Long): Packet? = entries[id8]?.ack?.packet
 

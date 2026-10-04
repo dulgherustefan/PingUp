@@ -13,6 +13,7 @@ import ro.safetyplease.app.core.Clock
 import ro.safetyplease.app.core.nodePrefix
 import ro.safetyplease.app.core.shortHex
 import ro.safetyplease.app.core.toHex
+import ro.safetyplease.app.core.toLong
 import ro.safetyplease.app.protocol.Hello
 import ro.safetyplease.app.protocol.IncidentAck
 import ro.safetyplease.app.protocol.IncidentReportCodec
@@ -268,6 +269,11 @@ class MeshEngine(
 
     fun ackStatus(incidentId: ByteArray): Int = cache.ackStatus(incidentId)
 
+    fun cachedReports(): List<Pair<Packet, Int>> = cache.reports()
+
+    fun cachedAck(incidentId: ByteArray): IncidentAck? =
+        cache.ack(incidentId.toLong())?.let { IncidentAck.decode(it.payload) }
+
     private fun newPacket(type: Int, payload: ByteArray, recipient: Long?, encrypted: Boolean, anonymous: Boolean): Packet {
         require(payload.size <= PacketCodec.MAX_PAYLOAD) { "payload too large" }
         var id: Long
@@ -514,7 +520,7 @@ class MeshEngine(
             PacketType.INCIDENT_REPORT -> {
                 if (!IncidentReportCodec.isWellFormed(packet.payload)) return malformed(link, "raport invalid")
                 val incidentId = IncidentReportCodec.incidentId(packet.payload)
-                if (!cache.offerReport(incidentId, forwardable, now)) return drop(packet, link, "incident cunoscut")
+                if (!cache.offerReport(incidentId, forwardable, now, packet.hops)) return drop(packet, link, "incident cunoscut")
             }
             PacketType.INCIDENT_ACK -> {
                 val ack = IncidentAck.decode(packet.payload) ?: return malformed(link, "ACK invalid")
