@@ -34,6 +34,17 @@
         <item quantity="few">%d hop-uri</item>
         <item quantity="other">%d de hop-uri</item>
     </plurals>
+    <string name="time_now">chiar acum</string>
+    <plurals name="time_minutes_ago">
+        <item quantity="one">acum %d minut</item>
+        <item quantity="few">acum %d minute</item>
+        <item quantity="other">acum %d de minute</item>
+    </plurals>
+    <plurals name="time_hours_ago">
+        <item quantity="one">acum %d oră</item>
+        <item quantity="few">acum %d ore</item>
+        <item quantity="other">acum %d de ore</item>
+    </plurals>
     <plurals name="reports">
         <item quantity="one">%d raport</item>
         <item quantity="few">%d rapoarte</item>

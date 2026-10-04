@@ -1,5 +1,6 @@
 package ro.safetyplease.app
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
@@ -16,6 +17,8 @@ import ro.safetyplease.app.ui.AppViewModel
 
 class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
+
+    override fun attachBaseContext(newBase: Context) = super.attachBaseContext(AppLocale.wrap(newBase))
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

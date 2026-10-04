@@ -128,7 +128,7 @@ private fun ClusterCard(vm: AppViewModel, cluster: IncidentCluster) {
                     listOf(
                         stringResource(Labels.severity(cluster.severity)),
                         if (lead.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(lead.zone),
-                        Labels.ago(cluster.latestAt),
+                        agoText(cluster.latestAt),
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

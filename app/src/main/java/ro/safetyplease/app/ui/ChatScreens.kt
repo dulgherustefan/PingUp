@@ -173,7 +173,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
         group != null -> pluralStringResource(R.plurals.group_members, group.members.size, group.members.size)
         friend != null && vm.isInRange(friend, mesh) -> stringResource(R.string.friend_in_range)
         friend != null && friend.lastSeenAt > 0 -> stringResource(
-            R.string.friend_last_seen, Labels.ago(friend.lastSeenAt),
+            R.string.friend_last_seen, agoText(friend.lastSeenAt),
             pluralStringResource(R.plurals.hops, friend.lastHops, friend.lastHops),
         )
         else -> stringResource(R.string.friend_never_seen)
