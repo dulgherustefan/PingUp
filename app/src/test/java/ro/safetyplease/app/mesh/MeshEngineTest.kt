@@ -360,6 +360,45 @@ class MeshEngineTest {
     }
 
     @Test
+    fun radioRestartForgetsStalePeers() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        world.node("B", B)
+        // A il vede pe B fara sa aiba legatura cu el, ca testul sa prinda doar golirea de la oprirea radioului
+        a.engine.setIgnoredPrefixes(setOf(B.nodePrefix()))
+        world.net.start()
+        advanceTimeBy(5_000)
+        assertEquals(1, a.engine.state.value.seen.size)
+        assertTrue(a.engine.state.value.links.isEmpty())
+        a.radio.powerOff()
+        runCurrent()
+        assertTrue("dupa oprirea radioului nu mai ramane niciun candidat", a.engine.state.value.seen.isEmpty())
+        a.engine.setIgnoredPrefixes(emptySet())
+        a.radio.powerOn()
+        advanceTimeBy(5_000)
+        assertEquals("se conecteaza dupa advertising proaspat", 1, a.readyLinks)
+    }
+
+    @Test
+    fun lostPeerIsNotRetriedUntilSeenAgain() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        val b = world.node("B", B)
+        world.net.start()
+        advanceTimeBy(5_000)
+        assertEquals(1, a.readyLinks)
+        val attempts = a.radio.connectAttempts.size
+        world.net.cut("A", "B")
+        advanceTimeBy(14_000)
+        assertEquals("fara conectari in gol la un peer disparut", attempts, a.radio.connectAttempts.size)
+        assertTrue(a.engine.state.value.seen.isEmpty())
+        world.net.heal("A", "B")
+        advanceTimeBy(5_000)
+        assertEquals(1, a.readyLinks)
+        assertEquals(1, b.readyLinks)
+    }
+
+    @Test
     fun rotationEventuallyReachesEveryVisiblePeer() = runTest {
         val world = World(this)
         val hub = world.node("H", 0x0100_0000_0000_0001L)

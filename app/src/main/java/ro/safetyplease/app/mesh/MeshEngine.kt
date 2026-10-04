@@ -363,6 +363,11 @@ class MeshEngine(
             is RadioEvent.Frame -> onFrame(event.link, event.bytes)
             is RadioEvent.ConnectFailed -> onConnectFailed(event.address)
             is RadioEvent.Status -> {
+                // Cu radioul oprit, tot ce am vazut e expirat: dupa repornire asteptam advertising proaspat.
+                if (radioStatus.bluetoothOn && !event.status.bluetoothOn) {
+                    seen.clear()
+                    connecting = null
+                }
                 radioStatus = event.status
                 publishState()
             }
@@ -402,11 +407,10 @@ class MeshEngine(
         log.link(clock.wallMs(), link.label, "link down")
         // o legatura care pica inainte de HELLO (refuzata de peer, de exemplu) nu se reincearca imediat
         if (link.outgoing && link.peerId == 0L) registerFailure(link.address)
-        // fallback-ul pentru regula initiatorului porneste de la zero dupa o legatura pierduta
+        // Dupa o legatura pierduta uitam peer-ul: daca mai e in raza, il revedem in advertising intr-o secunda;
+        // daca a plecat, nu ne mai conectam in gol la ultima lui adresa.
         val prefix = if (link.peerId != 0L) link.peerId.nodePrefix() else link.advertisedPrefix
-        for ((address, c) in seen.entries.toList()) {
-            if (address == link.address || (prefix != null && c.prefix == prefix)) seen[address] = c.copy(sinceMs = now)
-        }
+        seen.entries.removeAll { (address, c) -> address == link.address || (prefix != null && c.prefix == prefix) }
         if (link.peerId != 0L && links.values.none { it.peerId == link.peerId && it.ready }) {
             _events.tryEmit(MeshEvent.PeerUnlinked(link.peerId))
         }

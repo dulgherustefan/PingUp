@@ -74,6 +74,9 @@ class BleRadio(
         var signal: CompletableDeferred<Boolean>? = null
         var setupJob: Job? = null
         val mutex = Mutex()
+
+        /** Cadre sosite cat timp legatura inca se configureaza; se predau imediat dupa LinkUp. */
+        val early = ArrayList<ByteArray>()
     }
 
     private class InLink(val id: Int, val device: BluetoothDevice, val mtu: Int)
@@ -120,6 +123,10 @@ class BleRadio(
 
     private var lastStatus: RadioStatus? = null
     private var waitingReason: String? = null
+
+    private companion object {
+        const val MAX_EARLY_FRAMES = 16
+    }
 
     private fun now() = SystemClock.elapsedRealtime()
 
@@ -275,7 +282,9 @@ class BleRadio(
             events.trySend(RadioEvent.ConnectFailed(address))
             return
         }
-        val device = scanned[address] ?: runCatching { adapter.getRemoteDevice(address) }.getOrNull()
+        // Doar dispozitive venite dintr-o scanare: getRemoteDevice() pe o adresa aleatoare nu stie tipul
+        // adresei, iar conectarea ramane agatata pana la timeout.
+        val device = scanned[address]
         if (device == null) {
             events.trySend(RadioEvent.ConnectFailed(address))
             return
@@ -284,9 +293,12 @@ class BleRadio(
         outgoing[address] = link
         link.setupJob = scope.launch {
             val ok = withTimeoutOrNull(BleConstants.SETUP_TIMEOUT_MS) { setUp(link, device) } ?: false
-            if (ok) {
+            if (ok && !link.closed) {
                 link.ready = true
                 events.trySend(RadioEvent.LinkUp(link.id, address, true, link.mtu - BleConstants.ATT_OVERHEAD))
+                // fara punct de suspendare intre LinkUp si cadrele timpurii, ca ordinea sa ramana cea de pe fir
+                for (frame in link.early) events.trySend(RadioEvent.Frame(link.id, frame))
+                link.early.clear()
             } else if (!link.closed) {
                 log("conectare esuata ${address.takeLast(5)}")
                 closeOut(link, failed = true)
@@ -339,7 +351,10 @@ class BleRadio(
             log("MTU nenegociat cu ${link.address.takeLast(5)}")
             return false
         }
-        if (!link.run(Op.DISCOVER, BleConstants.OPERATION_TIMEOUT_MS) { gatt.discoverServices() }) return false
+        if (!link.run(Op.DISCOVER, BleConstants.OPERATION_TIMEOUT_MS) { gatt.discoverServices() }) {
+            log("descoperirea serviciilor a esuat la ${link.address.takeLast(5)}")
+            return false
+        }
         val ch = gatt.getService(BleConstants.SERVICE)?.getCharacteristic(BleConstants.CHARACTERISTIC)
         val cccd = ch?.getDescriptor(BleConstants.CCCD)
         if (ch == null || cccd == null) {
@@ -347,10 +362,14 @@ class BleRadio(
             return false
         }
         link.characteristic = ch
-        if (!gatt.setCharacteristicNotification(ch, true)) return false
-        return link.run(Op.DESCRIPTOR, BleConstants.OPERATION_TIMEOUT_MS) {
+        if (!gatt.setCharacteristicNotification(ch, true)) {
+            log("notificarile nu au putut fi activate local pentru ${link.address.takeLast(5)}")
+            return false
+        }
+        var accepted = false
+        val subscribed = link.run(Op.DESCRIPTOR, BleConstants.OPERATION_TIMEOUT_MS) {
             val value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            accepted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 gatt.writeDescriptor(cccd, value) == BluetoothStatusCodes.SUCCESS
             } else {
                 @Suppress("DEPRECATION")
@@ -358,7 +377,16 @@ class BleRadio(
                 @Suppress("DEPRECATION")
                 gatt.writeDescriptor(cccd)
             }
+            accepted
         }
+        if (!subscribed) {
+            // Cele doua cazuri cer diagnostic diferit: stiva a refuzat scrierea, sau a trimis-o si confirmarea nu a venit.
+            log(
+                if (accepted) "abonarea trimisa, dar neconfirmata in ${BleConstants.OPERATION_TIMEOUT_MS / 1000}s de ${link.address.takeLast(5)}"
+                else "stiva a refuzat scrierea de abonare catre ${link.address.takeLast(5)}"
+            )
+        }
+        return subscribed
     }
 
     private suspend fun write(link: OutLink, frame: ByteArray): Boolean = link.mutex.withLock {
@@ -445,7 +473,14 @@ class BleRadio(
         }
 
         private fun received(value: ByteArray) = post {
-            if (link.closed || !link.ready) return@post
+            if (link.closed) return@post
+            if (!link.ready) {
+                // Serverul trimite HELLO imediat ce ne abonam, adesea inainte ca abonarea sa fie confirmata
+                // la noi. Aruncat aici, HELLO-ul s-ar pierde si legatura ar muri dupa timeout.
+                if (value.isEmpty()) closeOut(link, failed = true)
+                else if (link.early.size < MAX_EARLY_FRAMES) link.early += value
+                return@post
+            }
             // o notificare goala e semnalul serverului ca a inchis legatura
             if (value.isEmpty()) closeOut(link, failed = false) else events.trySend(RadioEvent.Frame(link.id, value))
         }
