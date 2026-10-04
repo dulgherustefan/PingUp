@@ -48,12 +48,12 @@ class TestPinger(private val c: AppContainer) {
             val originMs = r.i64()
             val hopsThere = r.u8()
             if (kind == PING) {
-                add("TEST #$number de la ${packet.sender.shortHex()}: ${packet.hops} hop-uri")
+                add("TEST #$number de la ${packet.sender.shortHex()}: hop-uri ${packet.hops}")
                 val echo = WireWriter().u8(ECHO).u32(number).i64(originMs).u8(packet.hops).toByteArray()
                 c.engine.unicast(PacketType.TEST, packet.sender, echo, encrypted = false)
             } else {
                 val rtt = c.clock.wallMs() - originMs
-                add("ecou #$number de la ${packet.sender.shortHex()}: dus $hopsThere hop-uri, intors ${packet.hops}, $rtt ms dus-intors")
+                add("ecou #$number de la ${packet.sender.shortHex()}: hop-uri dus $hopsThere, intors ${packet.hops}; $rtt ms dus-intors")
             }
         }
     }

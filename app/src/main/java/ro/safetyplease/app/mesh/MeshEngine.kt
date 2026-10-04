@@ -89,6 +89,9 @@ data class MeshState(
     val cachedReports: Int = 0,
 ) {
     val readyLinks: Int get() = links.count { it.peerId != 0L && !it.muted }
+
+    /** Telefoane, nu adrese: acelasi peer poate aparea scurt timp sub doua adrese dupa ce isi reporneste advertising-ul. */
+    val visiblePeers: Int get() = seen.map { it.prefix ?: it.address.hashCode() }.distinct().size
 }
 
 /**

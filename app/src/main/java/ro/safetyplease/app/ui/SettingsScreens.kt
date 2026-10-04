@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,6 +59,7 @@ fun SettingsScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val mesh by vm.mesh.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val relayed = mesh.relayed.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     var nickname by rememberSaveable { mutableStateOf(settings.nickname) }
     var confirmLeave by remember { mutableStateOf(false) }
 
@@ -100,7 +102,11 @@ fun SettingsScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
             Section(stringResource(R.string.settings_mesh)) {
                 Text(
-                    stringResource(R.string.settings_mesh_state, mesh.readyLinks, mesh.seen.size, mesh.relayed),
+                    listOf(
+                        pluralStringResource(R.plurals.mesh_links, mesh.readyLinks, mesh.readyLinks),
+                        pluralStringResource(R.plurals.visible_phones, mesh.visiblePeers, mesh.visiblePeers),
+                        pluralStringResource(R.plurals.relayed_packets, relayed, relayed),
+                    ).joinToString(" · "),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(stringResource(R.string.battery_text), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -156,7 +162,7 @@ fun AnchorScreen(vm: AppViewModel) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Counter(stringResource(R.string.anchor_cached), mesh.cachedReports.toString(), Modifier.weight(1f))
-                Counter(stringResource(R.string.anchor_visible), mesh.seen.size.toString(), Modifier.weight(1f))
+                Counter(stringResource(R.string.anchor_visible), mesh.visiblePeers.toString(), Modifier.weight(1f))
             }
             Spacer(Modifier.height(4.dp))
             Text(stringResource(R.string.anchor_text), color = MaterialTheme.colorScheme.onSurfaceVariant)

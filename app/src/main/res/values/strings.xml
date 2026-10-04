@@ -207,7 +207,16 @@
     <string name="settings_leave_staff">Revino la participant</string>
     <string name="settings_leave_staff_text">Telefonul nu va mai primi rapoarte și uită cheile de staff. Pentru a reveni ai nevoie din nou de codul QR.</string>
     <string name="settings_mesh">Rețea</string>
-    <string name="settings_mesh_state">%1$d legături active · %2$d telefoane vizibile · %3$d pachete retransmise</string>
+    <plurals name="visible_phones">
+        <item quantity="one">%d telefon vizibil</item>
+        <item quantity="few">%d telefoane vizibile</item>
+        <item quantity="other">%d de telefoane vizibile</item>
+    </plurals>
+    <plurals name="relayed_packets">
+        <item quantity="one">%d pachet retransmis</item>
+        <item quantity="few">%d pachete retransmise</item>
+        <item quantity="other">%d de pachete retransmise</item>
+    </plurals>
     <string name="settings_version">%1$s %2$s</string>
 
     <string name="anchor_title">Ancoră</string>
