@@ -110,6 +110,37 @@ class ChatManager(
         scope.launch { sendDirect(friendId, Inner.Ping(newId())) }
     }
 
+    /** Sterge mesajul doar de pe acest telefon; daca era al nostru si inca in drum, nu mai e retrimis. */
+    fun deleteMessage(message: ChatMessage) {
+        chat.update { data ->
+            data.copy(
+                messages = data.messages.filterNot {
+                    it.conversation == message.conversation && it.senderId == message.senderId && it.msgId == message.msgId
+                },
+                outbox = if (message.fromMe) data.outbox.filterNot { it.msgId == message.msgId } else data.outbox,
+            )
+        }
+    }
+
+    /** Ce mai e in outbox pleaca acum, fara sa astepte pauza dintre incercari; ce a expirat dupa 24 h pleaca din nou, ca mesaj nou. */
+    fun resend(message: ChatMessage) {
+        if (!message.fromMe || message.status == MsgStatus.DELIVERED) return
+        scope.launch {
+            val pending = chat.value.outbox.filter { it.msgId == message.msgId }
+            if (pending.isNotEmpty()) {
+                pending.forEach(::attempt)
+                return@launch
+            }
+            deleteMessage(message)
+            when (message.kind) {
+                MsgKind.TEXT -> sendText(message.conversation, message.text)
+                MsgKind.QUICK -> sendQuick(message.conversation, message.quickCode)
+                MsgKind.ZONE -> sendZone(message.conversation, message.zone, message.lat, message.lon)
+                MsgKind.SYSTEM -> Unit
+            }
+        }
+    }
+
     fun markRead(conversation: String) {
         if (chat.value.messages.none { it.conversation == conversation && !it.read }) return
         chat.update { data ->

@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import ro.safetyplease.app.AppLocale
 import ro.safetyplease.app.R
 import ro.safetyplease.app.protocol.AckStatus
@@ -28,11 +28,18 @@ object Labels {
     }
 
     @StringRes
-    fun severity(severity: Int): Int = when (severity) {
-        Severity.URGENT -> R.string.sev_urgent
-        Severity.MEDIUM -> R.string.sev_medium
-        else -> R.string.sev_low
+    fun categoryExample(category: Int): Int = when (category) {
+        IncidentCategory.MEDICAL -> R.string.cat_medical_example
+        IncidentCategory.VIOLENCE -> R.string.cat_violence_example
+        IncidentCategory.LOST_PERSON -> R.string.cat_lost_example
+        IncidentCategory.HARASSMENT -> R.string.cat_harassment_example
+        IncidentCategory.CROWD -> R.string.cat_crowd_example
+        IncidentCategory.FIRE -> R.string.cat_fire_example
+        else -> R.string.cat_other_example
     }
+
+    @StringRes
+    fun urgency(severity: Int): Int = if (severity == Severity.URGENT) R.string.sev_urgent else R.string.sev_normal
 
     @StringRes
     fun quick(code: Int): Int = when (code) {
@@ -45,14 +52,15 @@ object Labels {
     fun staffStatus(context: Context, status: Int, team: String): String = when (status) {
         AckStatus.RESOLVED -> context.getString(R.string.staff_status_resolved, team)
         AckStatus.ACKNOWLEDGED -> context.getString(R.string.staff_status_taken, team)
-        AckStatus.RECEIVED -> context.getString(R.string.staff_status_new)
         else -> context.getString(R.string.staff_status_new)
     }
 
     fun clock(timeMs: Long): String = SimpleDateFormat("HH:mm", AppLocale.ROMANIAN).format(Date(timeMs))
 
+    fun date(timeMs: Long): String = SimpleDateFormat("d MMMM, HH:mm", AppLocale.ROMANIAN).format(Date(timeMs))
+
     /**
-     * "acum 5 minute". Formatorul sistemului ar raspunde in limba telefonului, in mijlocul unei fraze in romana.
+     * "acum 5 min". Formatorul sistemului ar raspunde in limba telefonului, in mijlocul unei fraze in romana.
      * [resources] trebuie sa vina dintr-un context al aplicatiei, care e fixat pe romana.
      */
     fun ago(resources: Resources, timeMs: Long, nowMs: Long = System.currentTimeMillis()): String {
@@ -64,7 +72,15 @@ object Labels {
             else -> SimpleDateFormat("d MMM, HH:mm", AppLocale.ROMANIAN).format(Date(timeMs))
         }
     }
+
+    /** Drumul in cuvinte: un hop inseamna legatura directa, restul sunt telefoanele prin care a trecut pachetul. */
+    fun hops(resources: Resources, hops: Int): String =
+        if (hops <= 1) resources.getString(R.string.hop_direct)
+        else resources.getQuantityString(R.plurals.via_phones, hops - 1, hops - 1)
 }
 
 @Composable
-fun agoText(timeMs: Long): String = Labels.ago(LocalContext.current.resources, timeMs)
+fun agoText(timeMs: Long): String = Labels.ago(LocalResources.current, timeMs)
+
+@Composable
+fun hopsText(hops: Int): String = Labels.hops(LocalResources.current, hops)

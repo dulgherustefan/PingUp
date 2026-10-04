@@ -22,7 +22,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
+        // tema urmeaza telefonul, deci si iconitele barelor de sistem
+        enableEdgeToEdge(
+            SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+            SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+        )
         Demo.install(vm.c)
         intent?.getStringExtra(EXTRA_OPEN)?.let(vm::openTarget)
         setContent {

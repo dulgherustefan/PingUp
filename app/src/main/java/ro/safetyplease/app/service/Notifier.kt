@@ -87,7 +87,7 @@ class Notifier(private val context: Context, private val venue: Venue) {
         val title = context.getString(
             R.string.notif_incident_title,
             context.getString(Labels.category(incident.category)),
-            context.getString(Labels.severity(incident.severity)),
+            context.getString(Labels.urgency(incident.severity)),
         )
         val builder = NotificationCompat.Builder(context, if (urgent) CHANNEL_URGENT else CHANNEL_INCIDENT)
             .setSmallIcon(R.drawable.ic_notification)

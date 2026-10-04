@@ -363,6 +363,59 @@ class ScenarioTest {
         assertTrue(a.chatStore.value.outbox.isEmpty())
     }
 
+    @Test
+    fun resendAfterFailureSendsANewCopyInPlaceOfTheOldOne() = runTest {
+        val world = World(this)
+        val a = world.phone("A")
+        val c = world.phone("C")
+        a.befriend(c)
+        a.chat.sendText(Conversations.friend(c.nodeId), "nu ajunge")
+        advanceTimeBy(24 * 60 * 60_000L + 60_000)
+        val failed = a.messages.single()
+        assertEquals(MsgStatus.FAILED, failed.status)
+        world.net.start()
+        advanceTimeBy(10_000)
+        a.chat.resend(failed)
+        advanceTimeBy(40_000)
+        val again = a.messages.single()
+        assertTrue(again.msgId != failed.msgId)
+        assertEquals(MsgStatus.DELIVERED, again.status)
+        assertEquals("nu ajunge", c.messages.single().text)
+    }
+
+    @Test
+    fun resendRetriesAPendingMessageAtOnce() = runTest {
+        val w = chain()
+        w.a.befriend(w.c)
+        advanceTimeBy(3_000)
+        w.c.radio.powerOff()
+        advanceTimeBy(2_000)
+        w.a.chat.sendText(Conversations.friend(w.c.nodeId), "mai esti?")
+        // la un minut de la trimitere urmatoarea incercare programata e inca departe
+        advanceTimeBy(60_000)
+        val attempts = w.a.chatStore.value.outbox.single().attempts
+        w.a.chat.resend(w.a.messages.single())
+        advanceTimeBy(1_000)
+        assertEquals(attempts + 1, w.a.chatStore.value.outbox.single().attempts)
+        assertEquals(1, w.a.messages.size)
+    }
+
+    @Test
+    fun deletedMessageIsNotSentAnymore() = runTest {
+        val world = World(this)
+        val a = world.phone("A")
+        val c = world.phone("C")
+        a.befriend(c)
+        a.chat.sendText(Conversations.friend(c.nodeId), "m-am razgandit")
+        advanceTimeBy(2_000)
+        a.chat.deleteMessage(a.messages.single())
+        assertTrue(a.messages.isEmpty())
+        assertTrue(a.chatStore.value.outbox.isEmpty())
+        world.net.start()
+        advanceTimeBy(40_000)
+        assertTrue(c.messages.isEmpty())
+    }
+
     // --- grupuri ---
 
     @Test

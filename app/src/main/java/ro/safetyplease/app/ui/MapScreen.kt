@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,10 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,21 +39,23 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.toColorInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
-import ro.safetyplease.app.data.Role
+import ro.safetyplease.app.data.Role as AppRole
 import ro.safetyplease.app.data.StaffIncident
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.protocol.AckStatus
@@ -64,18 +65,20 @@ import ro.safetyplease.app.venue.Zone
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 class MapPin(val point: GeoPoint, val color: Color, val key: String = "")
 
-fun parseColor(hex: String): Color = runCatching { Color(hex.toColorInt()) }.getOrDefault(Color.Gray)
+private val MapInset = 12.dp
 
 /** Proiectie echirectangulara peste limitele venue-ului; la scara unui festival eroarea e neglijabila. */
-private class Projection(venue: Venue, size: Size) {
+private class Projection(venue: Venue, size: Size, pad: Float) {
     private val b = venue.bounds
     private val lonScale = cos(Math.toRadians((b.minLat + b.maxLat) / 2))
     private val worldW = (b.maxLon - b.minLon) * lonScale
     private val worldH = b.maxLat - b.minLat
-    private val scale = min(size.width / worldW, size.height / worldH)
+    // zonele nu ating marginea cardului
+    private val scale = min((size.width - 2 * pad) / worldW, (size.height - 2 * pad) / worldH)
     private val offX = (size.width - worldW * scale) / 2
     private val offY = (size.height - worldH * scale) / 2
     val topLeft = Offset(offX.toFloat(), offY.toFloat())
@@ -95,30 +98,41 @@ fun venueAspect(venue: Venue): Float {
     return (w / (b.maxLat - b.minLat)).toFloat()
 }
 
-/** Harta schematica a venue-ului, desenata direct pe Canvas: fara tile-uri, fara internet. */
+/** Distanta in metri intre doua puncte apropiate; suficient de exacta in interiorul unui eveniment. */
+fun distanceMeters(a: GeoPoint, b: GeoPoint): Int {
+    val metersPerDegree = 111_320.0
+    val dLat = (a.lat - b.lat) * metersPerDegree
+    val dLon = (a.lon - b.lon) * metersPerDegree * cos(Math.toRadians((a.lat + b.lat) / 2))
+    return hypot(dLat, dLon).roundToInt()
+}
+
+/**
+ * Harta schematica a venue-ului, desenata direct pe Canvas: fara tile-uri, fara internet.
+ * [myZone] primeste contur gros; [highlightZone] e zona atinsa.
+ */
 @Composable
 fun VenueMap(
     venue: Venue,
     modifier: Modifier = Modifier,
     position: GeoPoint? = null,
     pins: List<MapPin> = emptyList(),
-    selectedZone: String = "",
+    myZone: String = "",
+    highlightZone: String = "",
+    meetingFocused: Boolean = false,
     onTap: ((GeoPoint, Zone?) -> Unit)? = null,
     onPinTap: ((MapPin) -> Unit)? = null,
 ) {
+    val colors = LocalAppColors.current
     val measurer = rememberTextMeasurer()
-    val surface = MaterialTheme.colorScheme.surfaceContainer
-    val outline = MaterialTheme.colorScheme.outline
-    val labelStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-    val meetingLabel = stringResource(R.string.map_meeting_point)
+    val labelStyle = TextStyle(color = colors.text, fontSize = 11.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
     val currentPins by rememberUpdatedState(pins)
     val currentTap by rememberUpdatedState(onTap)
     val currentPinTap by rememberUpdatedState(onPinTap)
 
     Canvas(
-        modifier.fillMaxWidth().aspectRatio(venueAspect(venue)).pointerInput(venue) {
+        modifier.fillMaxWidth().aspectRatio(venueAspect(venue)).clip(CardShape).background(colors.card).pointerInput(venue) {
             detectTapGestures { offset ->
-                val projection = Projection(venue, Size(size.width.toFloat(), size.height.toFloat()))
+                val projection = Projection(venue, Size(size.width.toFloat(), size.height.toFloat()), MapInset.toPx())
                 val hit = currentPins.minByOrNull { (projection.project(it.point) - offset).getDistance() }
                 if (hit != null && currentPinTap != null && (projection.project(hit.point) - offset).getDistance() < 28.dp.toPx()) {
                     currentPinTap?.invoke(hit)
@@ -129,13 +143,12 @@ fun VenueMap(
             }
         }
     ) {
-        val projection = Projection(venue, size)
-        drawRoundRect(surface, projection.topLeft, projection.extent, CornerRadius(12.dp.toPx()))
-        drawRoundRect(outline, projection.topLeft, projection.extent, CornerRadius(12.dp.toPx()), style = Stroke(1.dp.toPx()))
-
-        for (zone in venue.zones) {
-            val color = parseColor(zone.color)
-            val selected = zone.id == selectedZone
+        val projection = Projection(venue, size, MapInset.toPx())
+        val marker = position?.let(projection::project)
+        venue.zones.forEachIndexed { index, zone ->
+            val color = colors.zones[index % colors.zones.size]
+            val mine = zone.id == myZone
+            val highlighted = zone.id == highlightZone
             val path = Path().apply {
                 zone.polygon.forEachIndexed { i, p ->
                     val o = projection.project(p)
@@ -143,24 +156,28 @@ fun VenueMap(
                 }
                 close()
             }
-            drawPath(path, color.copy(alpha = if (selected) 0.55f else 0.26f))
-            drawPath(path, color.copy(alpha = if (selected) 1f else 0.8f), style = Stroke((if (selected) 3f else 1.2f).dp.toPx()))
+            drawPath(path, color.copy(alpha = if (highlighted || mine) 0.46f else 0.24f))
+            drawPath(path, color.copy(alpha = 0.85f), style = Stroke(1.2.dp.toPx(), join = StrokeJoin.Round))
+            if (mine) drawPath(path, colors.accent, style = Stroke(3.dp.toPx(), join = StrokeJoin.Round))
             val xs = zone.polygon.map { projection.project(it).x }
-            val width = (xs.max() - xs.min() - 6.dp.toPx()).toInt().coerceAtLeast(1)
+            val width = (xs.max() - xs.min() - 8.dp.toPx()).toInt().coerceAtLeast(1)
             val text = measurer.measure(
                 zone.name, labelStyle, overflow = TextOverflow.Ellipsis, maxLines = 2,
                 constraints = Constraints(maxWidth = width),
             )
             val center = projection.project(zone.center)
-            drawText(text, topLeft = Offset(center.x - text.size.width / 2f, center.y - text.size.height / 2f))
+            // punctul „esti aici” nu acopera numele zonei: numele urca deasupra lui
+            val top = if (marker != null && (marker - center).getDistance() < 30.dp.toPx()) marker.y - 22.dp.toPx() - text.size.height
+            else center.y - text.size.height / 2f
+            drawText(text, topLeft = Offset(center.x - text.size.width / 2f, top))
         }
 
         venue.meetingPoint?.let { point ->
             val o = projection.project(point)
-            drawCircle(Color.White, 7.dp.toPx(), o, style = Stroke(2.dp.toPx()))
-            drawCircle(Color.White, 2.5.dp.toPx(), o)
-            val text = measurer.measure(meetingLabel, labelStyle.copy(fontSize = 9.sp))
-            drawText(text, topLeft = Offset(o.x - text.size.width / 2f, o.y + 9.dp.toPx()))
+            if (meetingFocused) drawCircle(colors.accent.copy(alpha = 0.3f), 20.dp.toPx(), o)
+            drawCircle(colors.card, 9.dp.toPx(), o)
+            drawCircle(colors.text, 7.dp.toPx(), o, style = Stroke(2.dp.toPx()))
+            drawCircle(colors.text, 2.5.dp.toPx(), o)
         }
 
         for (pin in pins) {
@@ -178,9 +195,9 @@ fun VenueMap(
 
         position?.let { point ->
             val o = projection.project(point)
-            drawCircle(Palette.Mesh.copy(alpha = 0.25f), 16.dp.toPx(), o)
-            drawCircle(Color.White, 7.dp.toPx(), o)
-            drawCircle(Palette.Mesh, 5.dp.toPx(), o)
+            drawCircle(colors.accent.copy(alpha = 0.26f), 16.dp.toPx(), o)
+            drawCircle(Color.White, 7.5.dp.toPx(), o)
+            drawCircle(colors.forest, 5.5.dp.toPx(), o)
         }
     }
 }
@@ -192,83 +209,130 @@ fun incidentPoint(venue: Venue, incident: StaffIncident): GeoPoint? {
     return venue.zone(incident.zone)?.center
 }
 
+private enum class MapFocus { NONE, MINE, MEETING, ZONE }
+
 @Composable
 fun MapScreen(vm: AppViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
     val incidents by vm.incidents.collectAsStateWithLifecycle()
+    val colors = LocalAppColors.current
     var simulate by rememberSaveable { mutableStateOf(false) }
+    var focus by rememberSaveable { mutableStateOf(MapFocus.MINE) }
+    var tapped by rememberSaveable { mutableStateOf("") }
     val simulated = settings.simLat != null
-    val zone = position?.let { vm.venue.zoneAt(it.lat, it.lon) }
+    val autoZone = position?.let { vm.venue.zoneAt(it.lat, it.lon) }
+    val myZoneId = autoZone?.id ?: vm.manualZone
+    val requestLocation = rememberLocationRequest(vm)
 
-    val pins = remember(incidents.staff, settings.role) {
-        if (settings.role != Role.STAFF) emptyList()
+    val pins = remember(incidents.staff, settings.role, colors) {
+        if (settings.role != AppRole.STAFF) emptyList()
         else incidents.staff.filter { it.status < AckStatus.RESOLVED }.mapNotNull { incident ->
-            incidentPoint(vm.venue, incident)?.let { MapPin(it, Palette.severity(incident.severity), incident.incidentId) }
+            incidentPoint(vm.venue, incident)?.let { MapPin(it, colors.severity(incident.severity), incident.incidentId) }
         }
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = LocalBottomClearance.current + 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterPill(stringResource(R.string.map_my_zone), focus == MapFocus.MINE, {
+                focus = MapFocus.MINE
+                if (position == null) requestLocation()
+            })
+            if (vm.venue.meetingPoint != null) {
+                FilterPill(stringResource(R.string.map_meeting_point), focus == MapFocus.MEETING, { focus = MapFocus.MEETING })
+            }
+        }
         VenueMap(
             venue = vm.venue,
             position = position,
             pins = pins,
-            selectedZone = zone?.id ?: vm.manualZone,
-            onTap = { point, tapped ->
-                if (simulate) vm.setSimulatedLocation(point) else if (position == null && tapped != null) vm.manualZone = tapped.id
+            myZone = myZoneId,
+            highlightZone = if (focus == MapFocus.ZONE) tapped else "",
+            meetingFocused = focus == MapFocus.MEETING,
+            onTap = { point, zone ->
+                if (simulate) vm.setSimulatedLocation(point)
+                else if (zone != null) {
+                    tapped = zone.id
+                    focus = MapFocus.ZONE
+                }
             },
             onPinTap = { vm.open(Dest.Incident(it.key)) },
         )
 
-        Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(AppIcons.MyLocation, null, tint = MaterialTheme.colorScheme.secondary)
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(stringResource(R.string.map_your_zone), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
+        AppCard(Modifier.fillMaxWidth()) {
+            when (focus) {
+                MapFocus.MEETING -> {
+                    val meeting = vm.venue.meetingPoint
+                    MapCardHeader(AppIcons.Flag, stringResource(R.string.map_meeting_point), stringResource(R.string.map_meeting_text))
+                    val here = position
+                    if (meeting != null && here != null) {
+                        Spacer(Modifier.size(8.dp))
+                        StateLabel(AppIcons.MyLocation, stringResource(R.string.map_distance, distanceMeters(here, meeting)), colors.textSecondary)
+                    }
+                }
+                MapFocus.ZONE -> {
+                    val zone = vm.venue.zone(tapped)
+                    MapCardHeader(
+                        AppIcons.Place, zone?.name ?: stringResource(R.string.zone_unknown),
                         when {
-                            zone != null -> zone.name
-                            position != null -> stringResource(R.string.map_outside)
-                            vm.manualZone.isNotEmpty() -> vm.venue.zoneName(vm.manualZone)
-                            else -> stringResource(R.string.map_pick_zone)
+                            tapped == myZoneId && autoZone != null -> stringResource(R.string.map_you_are_here)
+                            tapped == myZoneId -> stringResource(R.string.map_your_zone) + " · " + stringResource(R.string.map_source_manual)
+                            else -> null
                         },
-                        style = MaterialTheme.typography.titleMedium,
                     )
-                    Text(
-                        when {
-                            simulated -> stringResource(R.string.map_source_simulated)
-                            position != null -> stringResource(R.string.map_source_gps)
-                            else -> stringResource(R.string.map_source_manual)
-                        },
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    if (position == null && tapped != myZoneId) {
+                        Spacer(Modifier.size(12.dp))
+                        AppButton(stringResource(R.string.map_set_zone), { vm.manualZone = tapped }, compact = true)
+                    }
+                }
+                else -> when {
+                    autoZone != null -> MapCardHeader(
+                        AppIcons.MyLocation, autoZone.name,
+                        stringResource(R.string.map_your_zone) + " · " + stringResource(if (simulated) R.string.map_source_simulated else R.string.map_source_gps),
                     )
+                    position != null -> MapCardHeader(AppIcons.MyLocation, stringResource(R.string.map_outside), stringResource(R.string.map_outside_text))
+                    vm.manualZone.isNotEmpty() -> MapCardHeader(
+                        AppIcons.MyLocation, vm.venue.zoneName(vm.manualZone),
+                        stringResource(R.string.map_your_zone) + " · " + stringResource(R.string.map_source_manual),
+                    )
+                    else -> MapCardHeader(AppIcons.MyLocation, stringResource(R.string.map_pick_zone), stringResource(R.string.map_pick_zone_text))
                 }
             }
         }
 
         if (Demo.AVAILABLE) {
-            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.demo_simulate_location), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    if (simulated) TextButton(onClick = { vm.setSimulatedLocation(null) }) { Text(stringResource(R.string.clear)) }
-                    Switch(checked = simulate, onCheckedChange = { simulate = it })
+            AppCard(Modifier.fillMaxWidth(), padding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.demo_simulate_location), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (simulated) TextAction(stringResource(R.string.clear), { vm.setSimulatedLocation(null) })
+                    AppSwitch(simulate) { simulate = it }
                 }
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            for (z in vm.venue.zones) {
+        SectionLabel(stringResource(R.string.map_zones), Modifier.padding(start = 4.dp, top = 4.dp))
+        Column {
+            vm.venue.zones.forEachIndexed { index, z ->
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                        .clickable(enabled = position == null) { vm.manualZone = z.id }
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp))
+                        .clickable(role = Role.Button) {
+                            tapped = z.id
+                            focus = MapFocus.ZONE
+                        }
+                        .padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(12.dp).clip(CircleShape).background(parseColor(z.color)))
+                    Box(Modifier.size(12.dp).clip(CircleShape).background(colors.zones[index % colors.zones.size]))
                     Spacer(Modifier.width(12.dp))
-                    Text(z.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    if (z.id == (zone?.id ?: vm.manualZone)) Icon(AppIcons.Check, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
+                    Text(z.name, style = MaterialTheme.typography.bodyLarge, color = colors.text, modifier = Modifier.weight(1f))
+                    if (z.id == myZoneId) StateLabel(AppIcons.MyLocation, stringResource(R.string.map_your_zone), colors.textSecondary)
                 }
             }
         }
@@ -276,22 +340,47 @@ fun MapScreen(vm: AppViewModel) {
 }
 
 @Composable
+private fun MapCardHeader(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, text: String?) {
+    val colors = LocalAppColors.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(44.dp).clip(CircleShape).background(colors.accentSoft), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = colors.accent, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.titleLarge, color = colors.text)
+            if (text != null) Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
+        }
+    }
+}
+
+@Composable
 fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
     val position by vm.position.collectAsStateWithLifecycle()
+    val colors = LocalAppColors.current
     val lat = pin.lat
     val lon = pin.lon
     val point = if (lat != null && lon != null) GeoPoint(lat, lon) else vm.venue.zone(pin.zone)?.center
-    ScreenScaffold(title = pin.label, subtitle = vm.venue.zoneName(pin.zone).ifEmpty { null }, onBack = { vm.back() }) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val zoneName = vm.venue.zoneName(pin.zone)
+    ScreenScaffold(title = pin.label, subtitle = zoneName.ifEmpty { null }, onBack = { vm.back() }) { padding ->
+        Column(Modifier.padding(padding).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             VenueMap(
                 venue = vm.venue,
                 position = position,
-                pins = listOfNotNull(point?.let { MapPin(it, MaterialTheme.colorScheme.primary) }),
-                selectedZone = pin.zone,
+                pins = listOfNotNull(point?.let { MapPin(it, colors.forest) }),
+                highlightZone = pin.zone,
             )
-            if (point == null) Text(stringResource(R.string.map_no_position), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            else if (!vm.venue.bounds.contains(point.lat, point.lon)) {
-                Text(stringResource(R.string.map_pin_outside), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AppCard(Modifier.fillMaxWidth()) {
+                MapCardHeader(
+                    AppIcons.Place,
+                    if (zoneName.isEmpty()) stringResource(R.string.zone_unknown) else stringResource(R.string.map_pin_in, pin.label, zoneName),
+                    when {
+                        point == null -> stringResource(R.string.map_no_position)
+                        !vm.venue.bounds.contains(point.lat, point.lon) -> stringResource(R.string.map_pin_outside)
+                        position != null -> stringResource(R.string.map_distance, distanceMeters(position!!, point))
+                        else -> null
+                    },
+                )
             }
         }
     }

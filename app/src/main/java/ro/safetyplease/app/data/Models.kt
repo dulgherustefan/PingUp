@@ -16,6 +16,7 @@ data class Settings(
     val ignoredPrefixes: List<Int> = emptyList(),
     val simLat: Double? = null,
     val simLon: Double? = null,
+    val batteryHintDismissed: Boolean = false,
 )
 
 @Serializable

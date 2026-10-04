@@ -58,7 +58,7 @@ import ro.safetyplease.app.protocol.NodeFlags
 import ro.safetyplease.app.protocol.Severity
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.ConfirmDialog
-import ro.safetyplease.app.ui.Palette
+import ro.safetyplease.app.ui.LocalAppColors
 import ro.safetyplease.app.ui.ScreenScaffold
 
 /** Modul demo: exista doar in build-ul debug si aduce uneltele pentru prezentare si depanarea transportului. */
@@ -121,6 +121,7 @@ object Demo {
     fun Screen(vm: AppViewModel) {
         val c = vm.c
         val context = LocalContext.current
+        val colors = LocalAppColors.current
         val mesh by vm.mesh.collectAsStateWithLifecycle()
         val settings by vm.settings.collectAsStateWithLifecycle()
         val position by vm.position.collectAsStateWithLifecycle()
@@ -178,9 +179,9 @@ object Demo {
                             Box(
                                 Modifier.size(10.dp).clip(CircleShape).background(
                                     when {
-                                        ignored -> Palette.Urgent
-                                        peer.linked != null -> Palette.Mesh
-                                        else -> Palette.Muted
+                                        ignored -> colors.danger
+                                        peer.linked != null -> colors.ok
+                                        else -> colors.textSecondary
                                     }
                                 )
                             )
