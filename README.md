@@ -1,5 +1,5 @@
 # PingUp
-O aplicație Android pentru raportarea incidentelor și mesaje, care merge fără internet, fără date mobile, fără Wi-Fi, fără server.
+O aplicație Android pentru raportarea incidentelor și mesajelor, care merge fără internet, fără date mobile, fără Wi-Fi, fără server.
 Ideea de la care am pornit:  In timpul unui festival sau a unui eveniment aglomerat, trimiterea mesajelor este aproape imposibila din cauza lipsei de semnal.
 
 ## Cum funcționează, pe scurt
