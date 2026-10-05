@@ -2,6 +2,10 @@
 <!-- Numele aplicatiei (@string/app_name) vine din gradle.properties, nu de aici. -->
 <resources>
     <string name="back">Înapoi</string>
+    <string name="search">Caută</string>
+    <string name="more_options">Mai multe opțiuni</string>
+    <string name="open_settings">Deschide setările</string>
+    <string name="settings_title">Setări</string>
     <string name="next">Continuă</string>
     <string name="done">Gata</string>
     <string name="cancel">Renunță</string>
@@ -11,20 +15,17 @@
     <string name="clear">Șterge</string>
     <string name="send">Trimite</string>
     <string name="close">Închide</string>
-    <string name="yes">Da</string>
-    <string name="no">Nu</string>
     <string name="zone_unknown">Zonă necunoscută</string>
 
     <string name="tab_messages">Mesaje</string>
     <string name="tab_report">Raportează</string>
     <string name="tab_map">Hartă</string>
-    <string name="tab_me">Eu</string>
     <string name="tab_incidents">Incidente</string>
 
     <string name="status_bt_off">Bluetooth e oprit</string>
     <string name="status_bt_enable">Pornește</string>
     <string name="status_no_access">Aplicația nu are acces la Bluetooth</string>
-    <string name="status_alone">Nu e nimeni în apropiere încă. Mesajele pleacă singure când apare cineva.</string>
+    <string name="net_searching">Caut telefoane în apropiere</string>
     <plurals name="connected_phones">
         <item quantity="one">Conectat la un telefon</item>
         <item quantity="few">Conectat la %d telefoane</item>
@@ -37,6 +38,10 @@
         <item quantity="other">prin %d de telefoane</item>
     </plurals>
     <string name="time_now">chiar acum</string>
+    <string name="time_now_short">Acum</string>
+    <string name="time_minutes_short">%1$d min</string>
+    <string name="date_today">Azi</string>
+    <string name="date_yesterday">Ieri</string>
     <plurals name="time_minutes_ago">
         <item quantity="one">acum un minut</item>
         <item quantity="few">acum %d min</item>
@@ -61,6 +66,7 @@
     <string name="problem_access_title">Lipsește accesul la Bluetooth</string>
     <string name="problem_access_text">Fără el, telefonul nu poate trimite sau primi nimic.</string>
     <string name="problem_access_action">Dă acces</string>
+    <string name="problem_bt_text">Pornește-l ca telefonul să găsească telefoanele din jur.</string>
     <string name="problem_location_title">Pornește locația telefonului</string>
     <string name="problem_location_text">Pe acest Android, căutarea prin Bluetooth merge doar cu locația pornită.</string>
     <string name="problem_location_action">Deschide setările</string>
@@ -83,23 +89,33 @@
     <string name="perm_notifications_text">Pentru mesaje noi și pentru starea raportului tău. O notificare rămâne mereu, ca rețeaua să meargă și cu ecranul stins.</string>
     <string name="perm_location_title">Locație</string>
     <string name="perm_location_text">Pe acest Android, Bluetooth nu poate căuta telefoane fără permisiunea de locație.</string>
+    <string name="onboarding_permissions_text">Rețeaua se face din telefoanele oamenilor din jur. Ca să meargă, aplicația îți cere:</string>
     <string name="onboarding_later">Camera și locația le cerem doar când ai nevoie de ele.</string>
+    <string name="onboarding_not_now">Nu acum</string>
     <string name="onboarding_start">Pornește</string>
 
-    <string name="messages_search">Caută un prieten sau un grup</string>
     <string name="filter_all">Toate</string>
-    <string name="filter_unread">Necitite</string>
-    <string name="filter_groups">Grupuri</string>
+    <string name="filter_unread_only">Doar necitite</string>
+    <string name="filter_unread_active">Doar conversațiile necitite</string>
+    <string name="filter_clear">Arată toate</string>
+    <string name="section_friends">Prieteni</string>
     <string name="messages_empty_title">Niciun prieten încă</string>
     <string name="messages_empty_text">Scanați-vă codurile ca să vă puteți scrie. Merge fără internet.</string>
     <string name="messages_empty_action">Adaugă un prieten</string>
     <string name="messages_none_found">Nimic nu se potrivește cu „%1$s”.</string>
     <string name="messages_none_unread">Ai citit tot.</string>
-    <string name="messages_none_groups">Niciun grup încă.</string>
     <string name="messages_no_messages">Niciun mesaj încă</string>
-    <string name="menu_open">Adaugă</string>
     <string name="menu_add_friend">Adaugă prieten</string>
+    <string name="mark_all_read">Marchează tot ca citit</string>
+    <string name="new_chat">Mesaj nou</string>
+    <string name="new_chat_search">Caută un prieten</string>
+    <string name="new_chat_add_label">Scanați-vă codurile QR</string>
     <string name="menu_new_group">Grup nou</string>
+    <plurals name="tab_unread">
+        <item quantity="one">o conversație necitită</item>
+        <item quantity="few">%d conversații necitite</item>
+        <item quantity="other">%d de conversații necitite</item>
+    </plurals>
     <plurals name="unread_messages">
         <item quantity="one">%d mesaj necitit</item>
         <item quantity="few">%d mesaje necitite</item>
@@ -111,7 +127,9 @@
     <string name="presence_never">Nevăzut încă</string>
     <string name="open_profile">Deschide profilul</string>
 
-    <string name="chat_hint">Scrie un mesaj</string>
+    <string name="chat_hint">Mesaj</string>
+    <string name="chat_send_zone">Trimite zona mea</string>
+    <string name="chat_quick">Mesaje rapide</string>
     <string name="chat_empty_text">Mesajele ajung din telefon în telefon, chiar și fără semnal.</string>
     <string name="chat_zone_unknown">Nu știm unde ești. Alege o zonă în Hartă, apoi încearcă din nou.</string>
     <string name="quick_my_zone">Zona mea</string>
@@ -120,10 +138,8 @@
     <string name="quick_battery">Am baterie puțină</string>
     <string name="quick_meet">Hai la punctul de întâlnire</string>
     <string name="msg_zone">Sunt la: %1$s</string>
-    <string name="msg_zone_open">Vezi pe hartă</string>
     <string name="msg_group_invite">%1$s te-a adăugat în grup</string>
     <string name="msg_queued">Așteaptă un telefon în apropiere</string>
-    <string name="msg_queued_short">Așteaptă</string>
     <string name="msg_sent">În drum</string>
     <string name="msg_delivered">A ajuns</string>
     <string name="msg_failed">Nu știm dacă a ajuns</string>
@@ -134,6 +150,8 @@
     <string name="msg_you">Tu</string>
 
     <string name="add_friend_title">Adaugă prieten</string>
+    <string name="add_friend_tab_code">Codul meu</string>
+    <string name="add_friend_tab_scan">Scanează</string>
     <string name="add_friend_mine">Codul tău</string>
     <string name="add_friend_mine_hint">Arată-l prietenului tău. Atinge-l ca să îl mărești.</string>
     <string name="add_friend_enlarge">Mărește codul</string>
@@ -161,10 +179,10 @@
     <string name="group_pick">Alege cel mult %1$d prieteni</string>
     <string name="group_create">Creează grupul</string>
     <string name="group_no_friends">Adaugă întâi un prieten.</string>
+    <string name="profile_message">Mesaj</string>
     <string name="profile_added">Adăugat pe</string>
     <string name="profile_created">Creat pe</string>
     <string name="profile_last_seen">Văzut ultima dată</string>
-    <string name="profile_members">Membri</string>
     <string name="profile_remove_friend">Șterge prietenul</string>
     <string name="profile_leave_group">Ieși din grup</string>
     <string name="friend_remove_title">Ștergi pe %1$s?</string>
@@ -173,11 +191,14 @@
     <string name="group_leave_text">Grupul și mesajele lui dispar doar de pe acest telefon.</string>
 
     <string name="report_title">Ce se întâmplă?</string>
+    <string name="report_hint">Atinge ce vezi. Restul e opțional.</string>
     <string name="report_mine">Rapoartele mele</string>
-    <string name="report_details">Adaugă detalii (opțional)</string>
-    <string name="report_urgent">E urgent?</string>
+    <string name="report_details">Detalii (opțional)</string>
+    <string name="report_urgent">Urgent</string>
+    <string name="report_urgent_label">Staff-ul îl vede primul</string>
     <string name="report_zone">Zona</string>
-    <string name="report_zone_auto">Din poziția ta: %1$s</string>
+    <string name="report_zone_pick">Alege zona</string>
+    <string name="report_zone_none">Fără zonă</string>
     <string name="report_zone_manual">Nu avem poziția ta. Alege zona dacă o știi.</string>
     <string name="report_zone_outside">Ești în afara zonelor de pe hartă. Trimitem poziția cu raportul.</string>
     <string name="report_use_location">Folosește locația mea</string>
@@ -233,7 +254,7 @@
     <string name="map_zones">Zone</string>
     <string name="map_no_position">Mesajul nu conține o poziție.</string>
     <string name="map_pin_outside">Poziția e în afara hărții evenimentului.</string>
-    <string name="map_pin_in">%1$s e la: %2$s</string>
+    <string name="map_zone_tag">Zonă</string>
 
     <string name="filter_open">Noi</string>
     <string name="filter_taken">Preluate</string>
@@ -247,12 +268,14 @@
     <string name="incident_reporter">de %1$s</string>
     <string name="incident_anonymous">anonim</string>
     <string name="staff_status_new">Nepreluat</string>
+    <string name="incident_state_taken">Preluat</string>
     <string name="staff_status_taken">Preluat de %1$s</string>
     <string name="staff_status_resolved">Rezolvat de %1$s</string>
 
     <string name="me_edit_name">Schimbă numele</string>
+    <string name="me_note">Așa te văd prietenii</string>
     <string name="me_my_code">Codul meu</string>
-    <string name="me_role">Rol</string>
+    <string name="me_my_code_label">Arată-l prietenilor ca să te adauge</string>
     <string name="role_participant">Participant</string>
     <string name="role_staff">Staff · %1$s</string>
     <string name="role_anchor">Ancoră · %1$s</string>
@@ -268,8 +291,6 @@
     </plurals>
     <string name="me_battery">Baterie</string>
     <string name="battery_text">Samsung și Xiaomi opresc aplicațiile din fundal. Samsung: Setări › Baterie › Limite de utilizare în fundal, apoi scoate aplicația din „Aplicații în repaus”. Xiaomi: Setări › Aplicații › Economisire baterie › Fără restricții, plus Pornire automată.</string>
-    <string name="battery_open">Deschide setările bateriei</string>
-    <string name="me_about">Despre</string>
     <string name="me_version">Versiune</string>
     <string name="me_node_id">ID tehnic</string>
 

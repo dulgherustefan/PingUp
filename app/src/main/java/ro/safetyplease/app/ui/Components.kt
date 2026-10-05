@@ -1,83 +1,109 @@
 package ro.safetyplease.app.ui
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import ro.safetyplease.app.R
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.sin
+import ro.safetyplease.app.data.MsgStatus
 
-/** Cat loc trebuie lasat jos: bara plutitoare in taburi, bara de gesturi in rest. */
+/** Cat loc trebuie lasat jos: bara de taburi plutitoare in ecranele principale, bara de gesturi in rest. */
 val LocalBottomClearance = compositionLocalOf { 0.dp }
 
+/** Marginea laterala, ca pe iPhone. */
+val Gutter = 16.dp
+
+/** Inaltimea barei de sus, fara bara de stare. */
+val NavHeight = 52.dp
+
+/** Primary e albastrul plin, Secondary e gri, Danger e rosul pentru stergere. */
 enum class ButtonKind { Primary, Secondary, Danger }
 
+/** Butonul iOS 26: o capsula plina, text de 17 ingrosat. [compact] e varianta mica, pentru randuri si bannere. */
 @Composable
 fun AppButton(
     text: String,
@@ -85,116 +111,180 @@ fun AppButton(
     modifier: Modifier = Modifier,
     kind: ButtonKind = ButtonKind.Primary,
     enabled: Boolean = true,
-    icon: ImageVector? = null,
     compact: Boolean = false,
 ) {
-    val colors = LocalAppColors.current
-    val source = remember { MutableInteractionSource() }
-    val container = when {
-        !enabled -> colors.cardHigh
-        kind == ButtonKind.Primary -> colors.accent
-        kind == ButtonKind.Danger -> colors.danger.copy(alpha = 0.14f)
-        else -> colors.cardHigh
+    val c = AppTheme.colors
+    val fill = when {
+        !enabled -> c.fill
+        kind == ButtonKind.Primary -> c.accent
+        kind == ButtonKind.Danger -> c.red
+        else -> c.fill
     }
-    val content = when {
-        !enabled -> colors.textSecondary
-        kind == ButtonKind.Primary -> colors.onAccent
-        kind == ButtonKind.Danger -> colors.danger
-        else -> colors.text
+    val ink = when {
+        !enabled -> c.tertiaryLabel
+        kind == ButtonKind.Secondary -> c.label
+        else -> Color.White
     }
+    Box(
+        modifier.heightIn(min = if (compact) 36.dp else 50.dp).clip(CircleShape).background(fill)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = if (compact) 16.dp else 24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text, style = if (compact) MaterialTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold) else MaterialTheme.typography.headline,
+            color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** Butonul simplu iOS: doar textul albastru, cu loc de atins de 44. */
+@Composable
+fun TextLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = AppTheme.colors.accent) {
+    Box(
+        modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, style = MaterialTheme.typography.body, color = color)
+    }
+}
+
+/** O iconita care se poate atinge, fara fond. */
+@Composable
+fun IconBtn(icon: ImageVector, description: String?, onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = AppTheme.colors.label) {
+    Box(
+        modifier.size(44.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
+            .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, null, Modifier.size(22.dp), tint = tint) }
+}
+
+/** Butonul rotund de sticla din bara de sus: inapoi, inchide. */
+@Composable
+fun GlassIconButton(icon: ImageVector, description: String, onClick: () -> Unit, backdrop: Backdrop?, modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(44.dp).glass(backdrop, CircleShape).clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, null, Modifier.size(20.dp), tint = AppTheme.colors.label) }
+}
+
+/** O capsula de sticla cu mai multe iconite, ca grupul camera + scrie din Signal. */
+@Composable
+fun GlassCapsule(backdrop: Backdrop?, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
     Row(
-        modifier
-            .pressScale(source, enabled)
-            .heightIn(min = if (compact) 44.dp else 52.dp)
-            .clip(CircleShape)
-            .background(container)
-            .clickable(source, LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = if (compact) 18.dp else 24.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon != null) {
-            Icon(icon, null, tint = content, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-        }
-        Text(text, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+        modifier.height(44.dp).glass(backdrop, CircleShape).padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically, content = content,
+    )
 }
 
-/** Actiune secundara, doar text. Zona de atingere ramane de 48dp. */
+/** O iconita dintr-o capsula de sticla. */
 @Composable
-fun TextAction(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = LocalAppColors.current.accent) {
-    val source = remember { MutableInteractionSource() }
+fun CapsuleIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
     Box(
-        modifier.heightIn(min = 48.dp).pressScale(source).clip(CircleShape)
-            .clickable(source, LocalIndication.current, role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
+        Modifier.size(width = 46.dp, height = 44.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
-    ) { Text(text, style = MaterialTheme.typography.labelLarge, color = color) }
+    ) { Icon(icon, null, Modifier.size(22.dp), tint = AppTheme.colors.label) }
 }
 
+/** Textul din bara de sus creste cu setarile telefonului doar pana la 115%, ca pe iPhone: altfel nu mai incape in bara. */
 @Composable
-fun IconAction(
-    icon: ImageVector,
-    description: String,
-    onClick: () -> Unit,
+fun NavText(content: @Composable () -> Unit) {
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale.coerceAtMost(1.15f)), content = content)
+}
+
+/** Sub bara de sus, cand continutul a urcat sub ea: fundalul, plin pana la marginea barei, apoi se stinge. */
+@Composable
+fun TopEdge(top: Dp, color: Color, visible: Boolean) {
+    val edge by animateFloatAsState(if (visible) 1f else 0f, tween(Motion.QUICK), label = "edge")
+    val solid = top + NavHeight
+    val height = solid + 22.dp
+    Box(
+        Modifier.fillMaxWidth().height(height).graphicsLayer { alpha = edge }
+            .background(Brush.verticalGradient(0f to color, solid / height to color, 1f to color.copy(alpha = 0f))),
+    )
+}
+
+/**
+ * Ecranul iOS 26: continutul trece pe sub bara de sus, care are titlul centrat si butoane de sticla in colturi.
+ * Cand lista a coborat, sub bara apare o estompare spre culoarea fundalului, ca sa ramana titlul lizibil.
+ * [content] primeste spatiul de lasat sus si jos.
+ */
+@Composable
+fun NavScreen(
+    title: String,
     modifier: Modifier = Modifier,
-    tint: Color = LocalAppColors.current.text,
-    container: Color = Color.Transparent,
+    subtitle: String? = null,
+    background: Color = AppTheme.colors.background,
+    scrolled: Boolean = false,
+    leading: @Composable (Backdrop) -> Unit = {},
+    trailing: @Composable (Backdrop) -> Unit = {},
+    content: @Composable (PaddingValues) -> Unit,
 ) {
-    val source = remember { MutableInteractionSource() }
-    Box(
-        modifier.size(48.dp).pressScale(source, pressed = 0.9f).padding(4.dp).clip(CircleShape).background(container)
-            .clickable(source, LocalIndication.current, role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Icon(icon, description, tint = tint, modifier = Modifier.size(22.dp)) }
-}
-
-/** Pastila de filtru: cea aleasa ia culoarea de accent. */
-@Composable
-fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, count: Int? = null) {
-    val colors = LocalAppColors.current
-    val container by animateColorAsState(if (selected) colors.accent else colors.card, tween(Motion.QUICK), label = "pill")
-    val content by animateColorAsState(if (selected) colors.onAccent else colors.textSecondary, tween(Motion.QUICK), label = "pillText")
-    val source = remember { MutableInteractionSource() }
-    Box(
-        modifier.heightIn(min = 48.dp).pressScale(source)
-            .selectable(selected = selected, interactionSource = source, indication = null, role = Role.Tab, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Row(
-            Modifier.height(38.dp).clip(CircleShape).background(container).padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
-            if (count != null) {
-                Spacer(Modifier.width(6.dp))
-                Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = content.copy(alpha = 0.72f))
+    val backdrop = rememberBackdrop()
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val padding = PaddingValues(top = top + NavHeight + 4.dp, bottom = LocalBottomClearance.current + 16.dp)
+    Box(modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().backdropSource(backdrop).background(background)) { content(padding) }
+        TopEdge(top, background, scrolled)
+        // ca UINavigationBar: titlul sta pe centru cat timp incape intre butoane, altfel se muta spre partea libera
+        Layout(
+            content = {
+                Box { leading(backdrop) }
+                NavText {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (subtitle != null) {
+                            Text(
+                                subtitle, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+                Box { trailing(backdrop) }
+            },
+            modifier = Modifier.statusBarsPadding().fillMaxWidth().height(NavHeight).padding(horizontal = Gutter),
+        ) { measurables, constraints ->
+            val loose = constraints.copy(minWidth = 0, minHeight = 0)
+            val lead = measurables[0].measure(loose)
+            val trail = measurables[2].measure(loose)
+            val gap = 8.dp.roundToPx()
+            val width = constraints.maxWidth
+            val room = (width - lead.width - trail.width - 2 * gap).coerceAtLeast(0)
+            val text = measurables[1].measure(loose.copy(maxWidth = room))
+            val x = ((width - text.width) / 2).coerceIn(lead.width + gap, (width - trail.width - gap - text.width).coerceAtLeast(lead.width + gap))
+            layout(width, constraints.maxHeight) {
+                val height = constraints.maxHeight
+                lead.place(0, (height - lead.height) / 2)
+                text.place(x, (height - text.height) / 2)
+                trail.place(width - trail.width, (height - trail.height) / 2)
             }
         }
     }
 }
 
+/** Ecranul deschis peste taburi, cu sageata inapoi de sticla. Pastrat pentru ecranul demo. */
 @Composable
-fun AppCard(
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    selected: Boolean = false,
-    padding: PaddingValues = PaddingValues(16.dp),
-    content: @Composable ColumnScope.() -> Unit,
+fun ScreenScaffold(
+    title: String,
+    onBack: (() -> Unit)?,
+    subtitle: String? = null,
+    actions: @Composable RowScope.() -> Unit = {},
+    bottomBar: @Composable () -> Unit = {},
+    content: @Composable (PaddingValues) -> Unit,
 ) {
-    val colors = LocalAppColors.current
-    val border by animateColorAsState(if (selected) colors.accent else Color.Transparent, tween(Motion.QUICK), label = "cardBorder")
-    val source = remember { MutableInteractionSource() }
-    Column(
-        modifier
-            .then(if (onClick != null) Modifier.pressScale(source, pressed = 0.985f) else Modifier)
-            .clip(CardShape)
-            .background(colors.card)
-            .border(1.5.dp, border, CardShape)
-            .then(if (onClick != null) Modifier.clickable(source, LocalIndication.current, onClick = onClick) else Modifier)
-            .padding(padding),
-        content = content,
-    )
+    Box(Modifier.fillMaxSize()) {
+        NavScreen(
+            title, subtitle = subtitle, background = AppTheme.colors.grouped, scrolled = true,
+            leading = { b -> if (onBack != null) GlassIconButton(Sym.Back, stringResource(R.string.back), onBack, b) },
+            trailing = { Row(content = actions) },
+            content = content,
+        )
+        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar() }
+    }
 }
 
 fun initials(name: String): String {
@@ -206,218 +296,377 @@ fun initials(name: String): String {
     }
 }
 
-/** Cerc cu initiale. Prietenul aflat in apropiere are cercul verde. */
+/**
+ * Bula unui om, ca in Signal: initialele pe o culoare pastel aleasa dupa nume, deci acelasi prieten arata la fel peste tot.
+ * Un grup are iconita de grup; cine e in apropiere are un punct verde pe margine.
+ */
 @Composable
-fun Avatar(name: String, size: Dp = 48.dp, near: Boolean = false, group: Boolean = false, onDark: Boolean = false) {
-    val colors = LocalAppColors.current
-    val container = when {
-        onDark -> Color.White.copy(alpha = 0.16f)
-        near -> colors.forest
-        else -> colors.avatar
-    }
-    val content = if (near || onDark) Color.White else colors.onAvatar
-    // literele tin de marimea cercului, nu de marimea textului din setari
-    val fontSize = with(LocalDensity.current) { (size * 0.36f).toSp() }
-    Box(Modifier.size(size).clip(CircleShape).background(container), contentAlignment = Alignment.Center) {
-        if (group) Icon(AppIcons.People, null, tint = content, modifier = Modifier.size(size * 0.46f))
-        else Text(initials(name), color = content, fontSize = fontSize, fontWeight = FontWeight.SemiBold, maxLines = 1)
-    }
-}
-
-@Composable
-fun TopBar(
-    title: String,
-    onBack: (() -> Unit)?,
-    subtitle: String? = null,
-    leading: (@Composable () -> Unit)? = null,
-    onTitleClick: (() -> Unit)? = null,
-    actions: @Composable RowScope.() -> Unit = {},
-) {
-    val colors = LocalAppColors.current
-    Row(
-        Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 64.dp).padding(start = if (onBack != null) 4.dp else 16.dp, end = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (onBack != null) IconAction(AppIcons.Back, stringResource(R.string.back), onBack)
-        val profileLabel = stringResource(R.string.open_profile)
-        Row(
-            Modifier.weight(1f)
-                .then(
-                    if (onTitleClick != null) Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClickLabel = profileLabel, onClick = onTitleClick)
-                    else Modifier
-                )
-                .padding(horizontal = 4.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (leading != null) {
-                leading()
-                Spacer(Modifier.width(12.dp))
-            }
-            Column {
-                Text(title, style = MaterialTheme.typography.titleLarge, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (subtitle != null) {
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
+fun Avatar(name: String, size: Dp = 56.dp, near: Boolean = false, group: Boolean = false) {
+    val colors = AppTheme.colors
+    val (fill, ink) = colors.avatars[(name.hashCode() and 0x7fffffff) % colors.avatars.size]
+    // literele tin de marimea bulei, nu de marimea textului din setari
+    val fontSize = with(LocalDensity.current) { (size * 0.42f).toSp() }
+    Box {
+        Box(Modifier.size(size).clip(CircleShape).background(fill), contentAlignment = Alignment.Center) {
+            if (group) Icon(Sym.Group, null, tint = ink, modifier = Modifier.size(size * 0.5f))
+            else Text(
+                initials(name), color = ink, fontSize = fontSize, lineHeight = fontSize, fontFamily = TextFont,
+                fontWeight = FontWeight.Medium, maxLines = 1,
+            )
         }
-        actions()
+        if (near) {
+            val dot = (size * 0.26f).coerceAtLeast(12.dp)
+            Box(
+                Modifier.align(Alignment.BottomEnd).size(dot).clip(CircleShape).background(colors.background).padding(2.dp)
+                    .clip(CircleShape).background(colors.green),
+            )
+        }
     }
 }
 
+/** Numarul de necitite: cerc albastru cu cifra alba, cat creste numarul se lungeste. */
 @Composable
-fun ScreenScaffold(
-    title: String,
-    onBack: (() -> Unit)?,
-    subtitle: String? = null,
-    actions: @Composable RowScope.() -> Unit = {},
-    bottomBar: @Composable () -> Unit = {},
-    content: @Composable (PaddingValues) -> Unit,
-) {
-    Scaffold(
-        topBar = { TopBar(title, onBack, subtitle, actions = actions) },
-        bottomBar = bottomBar,
-        containerColor = LocalAppColors.current.background,
-        content = content,
-    )
+fun UnreadBadge(count: Int, modifier: Modifier = Modifier, color: Color = AppTheme.colors.accent) {
+    Box(
+        modifier.defaultMinSize(minWidth = 20.dp, minHeight = 20.dp).clip(CircleShape).background(color).padding(horizontal = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        val style = MaterialTheme.typography.footnote
+        Text(if (count > 99) "99+" else count.toString(), style = style.copy(lineHeight = style.fontSize), color = Color.White, maxLines = 1)
+    }
 }
 
+/** Campul de cautare: o capsula gri, cu lupa in fata. Pe fundalul gri al setarilor ia umplerea translucida, ca sa se vada. */
 @Composable
-fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(text, style = MaterialTheme.typography.titleMedium, color = LocalAppColors.current.text, modifier = modifier)
-}
-
-/** Camp de text in forma de pastila; creste in inaltime cand textul trece pe mai multe randuri. */
-@Composable
-fun PillTextField(
+fun SearchField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
-    leading: ImageVector? = null,
-    maxLines: Int = 1,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    keyboardActions: KeyboardActions = KeyboardActions.Default,
-    container: Color = LocalAppColors.current.card,
-    trailing: (@Composable () -> Unit)? = null,
+    fill: Color = AppTheme.colors.searchFill,
+    trailing: @Composable () -> Unit = {},
 ) {
-    val colors = LocalAppColors.current
+    val c = AppTheme.colors
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.semantics { contentDescription = placeholder },
-        singleLine = maxLines == 1,
-        maxLines = maxLines,
-        textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.text),
-        cursorBrush = SolidColor(colors.accent),
-        keyboardOptions = keyboardOptions,
-        keyboardActions = keyboardActions,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.body.copy(color = c.label),
+        cursorBrush = SolidColor(c.accent),
         decorationBox = { inner ->
             Row(
-                Modifier.heightIn(min = 52.dp).clip(RoundedCornerShape(26.dp)).background(container)
-                    .padding(start = 18.dp, end = if (trailing != null) 4.dp else 18.dp, top = 8.dp, bottom = 8.dp),
+                Modifier.height(42.dp).clip(CircleShape).background(fill).padding(start = 13.dp, end = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (leading != null) {
-                    Icon(leading, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                }
+                Icon(Sym.Search, null, Modifier.size(18.dp), tint = c.secondaryLabel)
+                Spacer(Modifier.width(8.dp))
                 Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    if (value.isEmpty()) {
-                        Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+                    if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.body, color = c.secondaryLabel, maxLines = 1)
                     inner()
                 }
-                if (trailing != null) trailing()
+                trailing()
             }
         },
     )
 }
 
-/** Doua sau trei variante pe un rand; cea aleasa e plina. */
+/** Campul unui formular: un dreptunghi gri, rotunjit, cu textul de ajutor dedesubt. */
 @Composable
-fun <T> Segmented(
-    options: List<Pair<T, String>>,
-    selected: T,
-    onSelect: (T) -> Unit,
+fun InputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
     modifier: Modifier = Modifier,
-    selectedColor: (T) -> Color? = { null },
+    maxLines: Int = 1,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    supporting: String? = null,
+    background: Color = AppTheme.colors.fill,
 ) {
-    val colors = LocalAppColors.current
-    Row(modifier.clip(CircleShape).background(colors.cardHigh).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        for ((value, label) in options) {
-            val isSelected = value == selected
-            val fill = selectedColor(value)
-            val container by animateColorAsState(
-                if (isSelected) fill ?: colors.accent else Color.Transparent, tween(Motion.QUICK), label = "segment",
+    val c = AppTheme.colors
+    Column(modifier) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
+            singleLine = maxLines == 1,
+            maxLines = maxLines,
+            textStyle = MaterialTheme.typography.body.copy(color = c.label),
+            cursorBrush = SolidColor(c.accent),
+            keyboardOptions = keyboardOptions,
+            keyboardActions = keyboardActions,
+            decorationBox = { inner ->
+                Box(
+                    Modifier.fillMaxWidth().heightIn(min = 50.dp).clip(RoundedCornerShape(if (maxLines == 1) 25.dp else 20.dp))
+                        .background(background).padding(horizontal = 16.dp, vertical = 14.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (value.isEmpty()) Text(label, style = MaterialTheme.typography.body, color = c.secondaryLabel, maxLines = 1)
+                    inner()
+                }
+            },
+        )
+        if (supporting != null) {
+            Text(
+                supporting, style = MaterialTheme.typography.footnote, color = c.secondaryLabel,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp),
             )
-            val content by animateColorAsState(
-                when {
-                    !isSelected -> colors.textSecondary
-                    fill != null -> if (colors.dark) Color(0xFF1A1F1C) else Color.White
-                    else -> colors.onAccent
-                },
-                tween(Motion.QUICK), label = "segmentText",
-            )
-            val source = remember { MutableInteractionSource() }
-            Box(
-                Modifier.weight(1f).heightIn(min = 44.dp).clip(CircleShape).background(container)
-                    .selectable(selected = isSelected, interactionSource = source, indication = null, role = Role.RadioButton, onClick = { onSelect(value) }),
-                contentAlignment = Alignment.Center,
-            ) { Text(label, style = MaterialTheme.typography.labelLarge, color = content) }
         }
     }
 }
 
-/** Card care apare doar cand ceva nu merge: spune ce lipseste si ofera butonul care rezolva. */
+/** Titlul unui grup de randuri, ca in setarile iOS 26: ingrosat, gri, aliniat cu textul randurilor. */
 @Composable
-fun ProblemCard(
-    icon: ImageVector,
+fun SectionTitle(text: String, modifier: Modifier = Modifier, color: Color = AppTheme.colors.secondaryLabel) {
+    Text(
+        text, style = MaterialTheme.typography.headline, color = color,
+        modifier = modifier.fillMaxWidth().padding(start = Gutter * 2, end = Gutter * 2, top = 24.dp, bottom = 8.dp),
+    )
+}
+
+/** Grupul de randuri al iOS-ului: un card cu colturi mari, pe fundalul gri al ecranului. */
+@Composable
+fun InsetGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = Gutter).clip(RoundedCornerShape(26.dp)).background(AppTheme.colors.cell),
+        content = content,
+    )
+}
+
+/** Linia subtire dintre doua randuri, care incepe de unde incepe textul. */
+@Composable
+fun GroupDivider(start: Dp = 56.dp) {
+    val hairline = with(LocalDensity.current) { 1.toDp() }
+    Box(Modifier.fillMaxWidth().padding(start = start).height(hairline).background(AppTheme.colors.separator))
+}
+
+/**
+ * Un rand dintr-un grup: iconita, titlul cu o lamurire dedesubt, apoi valoarea si sageata in dreapta.
+ * Fara [onClick] randul nu se poate atinge.
+ */
+@Composable
+fun GroupRow(
     title: String,
-    text: String,
     modifier: Modifier = Modifier,
-    tone: Color = LocalAppColors.current.wait,
-    action: String? = null,
-    onAction: () -> Unit = {},
-    dismiss: String? = null,
-    onDismiss: () -> Unit = {},
+    subtitle: String? = null,
+    value: String? = null,
+    icon: ImageVector? = null,
+    tint: Color = AppTheme.colors.label,
+    chevron: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
-    val colors = LocalAppColors.current
-    AppCard(modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.Top) {
-            Box(Modifier.size(40.dp).clip(CircleShape).background(tone.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = tone, modifier = Modifier.size(20.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = colors.text)
-                Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
-            }
+    val c = AppTheme.colors
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 52.dp)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .padding(horizontal = Gutter, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            Icon(icon, null, Modifier.size(24.dp), tint = tint)
+            Spacer(Modifier.width(16.dp))
         }
-        if (action != null || dismiss != null) {
-            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                if (dismiss != null) TextAction(dismiss, onDismiss, color = colors.textSecondary)
-                if (action != null) {
-                    Spacer(Modifier.width(4.dp))
-                    AppButton(action, onAction, compact = true)
+        if (leading != null) {
+            leading()
+            Spacer(Modifier.width(12.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.body, color = tint)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.footnote, color = c.secondaryLabel)
+        }
+        if (value != null) {
+            Spacer(Modifier.width(12.dp))
+            Text(value, style = MaterialTheme.typography.body, color = c.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End)
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(12.dp))
+            trailing()
+        }
+        if (chevron) {
+            Spacer(Modifier.width(8.dp))
+            Icon(Sym.Chevron, null, Modifier.size(14.dp), tint = c.tertiaryLabel)
+        }
+    }
+}
+
+/** Comutatorul iOS: sina verde cand e pornit, gri cand e oprit, cu bila alba care aluneca. */
+@Composable
+fun IosSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
+    val c = AppTheme.colors
+    val off = if (c.dark) Color(0xFF39393D) else Color(0xFFE9E9EA)
+    val track by animateColorAsState(if (checked) c.green else off, tween(Motion.STANDARD), label = "track")
+    val x by animateDpAsState(if (checked) 22.dp else 2.dp, spring(dampingRatio = 0.75f, stiffness = 500f), label = "thumb")
+    Box(
+        modifier.size(width = 51.dp, height = 31.dp).clip(CircleShape).background(track)
+            .then(if (onCheckedChange != null) Modifier.toggleable(checked, role = Role.Switch, onValueChange = onCheckedChange) else Modifier),
+    ) {
+        Box(
+            Modifier.offset { IntOffset(x.roundToPx(), 2.dp.roundToPx()) }.size(27.dp).shadow(3.dp, CircleShape, ambientColor = Color(0x1F000000), spotColor = Color(0x29000000))
+                .clip(CircleShape).background(Color.White),
+        )
+    }
+}
+
+/** Randul cu comutator: tot randul se poate atinge. */
+@Composable
+fun SwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier, subtitle: String? = null, icon: ImageVector? = null) {
+    GroupRow(
+        title, modifier.toggleable(checked, role = Role.Switch, onValueChange = onCheckedChange), subtitle = subtitle, icon = icon,
+        trailing = { IosSwitch(checked, null) },
+    )
+}
+
+/** Comutatorul cu segmente al iOS-ului: o sina gri si pastila alba sub varianta aleasa. */
+@Composable
+fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
+    val c = AppTheme.colors
+    val index = options.indexOfFirst { it.first == selected }.coerceAtLeast(0)
+    BoxWithConstraints(modifier.fillMaxWidth().height(36.dp).clip(CircleShape).background(c.fill).padding(2.dp).selectableGroup()) {
+        val w = maxWidth / options.size
+        val x by animateDpAsState(w * index, spring(dampingRatio = 0.85f, stiffness = 500f), label = "segment")
+        Box(
+            Modifier.offset { IntOffset(x.roundToPx(), 0) }.width(w).fillMaxHeight().shadow(2.dp, CircleShape, ambientColor = Color(0x14000000), spotColor = Color(0x1F000000))
+                .clip(CircleShape).background(if (c.dark) Color(0xFF636366) else Color.White),
+        )
+        Row(Modifier.fillMaxSize()) {
+            options.forEach { (value, label) ->
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().clip(CircleShape)
+                        .selectable(selected = value == selected, role = Role.Tab, onClick = { onSelect(value) }),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label, style = MaterialTheme.typography.footnote, fontWeight = if (value == selected) FontWeight.SemiBold else FontWeight.Medium,
+                        color = c.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
     }
 }
 
+/**
+ * O actiune cu iconita, ca butoanele de sub antetul unui contact in Signal: un dreptunghi rotunjit
+ * cu iconita si eticheta in el. Aleasa, se umple cu albastru.
+ */
 @Composable
-fun EmptyState(title: String, text: String, modifier: Modifier = Modifier, action: @Composable () -> Unit = {}) {
-    val colors = LocalAppColors.current
+fun ActionTile(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false, background: Color = AppTheme.colors.fill) {
+    val c = AppTheme.colors
+    val fill by animateColorAsState(if (selected) c.accent else background, tween(Motion.QUICK), label = "tile")
+    val ink = if (selected) Color.White else c.label
     Column(
-        modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier.heightIn(min = 64.dp).clip(RoundedCornerShape(16.dp)).background(fill)
+            .selectable(selected = selected, role = Role.Button, onClick = onClick).padding(horizontal = 6.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
-        HopLine(Modifier.width(132.dp).padding(bottom = 10.dp))
-        Text(title, style = MaterialTheme.typography.titleLarge, color = colors.text, textAlign = TextAlign.Center)
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(6.dp))
+        Icon(icon, null, Modifier.size(24.dp), tint = ink)
+        TileLabel(label, ink, if (selected) FontWeight.SemiBold else FontWeight.Medium)
+    }
+}
+
+/** Eticheta unei placi: se micsoreaza cat sa incapa pe un rand cel mai lung cuvant, ca sa nu se rupa la jumatate. */
+@Composable
+private fun TileLabel(text: String, color: Color, weight: FontWeight) {
+    val measurer = rememberTextMeasurer()
+    val base = MaterialTheme.typography.caption1.copy(fontWeight = weight, textAlign = TextAlign.Center, color = color)
+    var laidOut by remember { mutableStateOf<TextLayoutResult?>(null) }
+    // Layout simplu, nu BoxWithConstraints: placile stau si in randuri care le cer inaltimea intrinseca
+    Layout(
+        modifier = Modifier.padding(top = 6.dp).semantics { contentDescription = text }.drawBehind { laidOut?.let { drawText(it) } },
+    ) { _, constraints ->
+        val room = if (constraints.hasBoundedWidth) constraints.maxWidth else Int.MAX_VALUE
+        fun widest(style: TextStyle) = text.split(' ').maxOf { measurer.measure(it, style, maxLines = 1).size.width }
+        var style = base
+        while (widest(style) > room && style.fontSize.value > 8f) {
+            style = style.copy(fontSize = style.fontSize * 0.92f, lineHeight = style.lineHeight * 0.92f)
+        }
+        val result = measurer.measure(text, style, TextOverflow.Ellipsis, maxLines = 2, constraints = Constraints(maxWidth = room))
+        laidOut = result
+        layout(result.size.width, result.size.height) {}
+    }
+}
+
+/** Mesajul de deasupra listei cand ceva nu merge: ce lipseste si butonul care rezolva. */
+@Composable
+fun Banner(
+    title: String,
+    text: String,
+    modifier: Modifier = Modifier,
+    warning: Boolean = false,
+    action: String? = null,
+    onAction: () -> Unit = {},
+    dismiss: String? = null,
+    onDismiss: () -> Unit = {},
+) {
+    val c = AppTheme.colors
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.searchFill).padding(16.dp)) {
+        Row(verticalAlignment = Alignment.Top) {
+            Icon(if (warning) Sym.Report else Sym.Info, null, Modifier.size(22.dp), tint = if (warning) c.orange else c.accent)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.headline)
+                Text(text, style = MaterialTheme.typography.subheadline, color = c.secondaryLabel, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+        if (action != null || dismiss != null) {
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                if (dismiss != null) AppButton(dismiss, onDismiss, kind = ButtonKind.Secondary, compact = true)
+                if (action != null) AppButton(action, onAction, compact = true)
+            }
+        }
+    }
+}
+
+/** Ecranul gol, ca pe iPhone: iconita gri, titlul, o fraza si, de obicei, butonul care il umple. */
+@Composable
+fun EmptyState(title: String, text: String, modifier: Modifier = Modifier, icon: ImageVector? = null, action: @Composable () -> Unit = {}) {
+    val c = AppTheme.colors
+    Column(modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (icon != null) {
+            Icon(icon, null, Modifier.size(48.dp), tint = c.secondaryLabel)
+            Spacer(Modifier.height(16.dp))
+        }
+        Text(title, style = MaterialTheme.typography.title2, textAlign = TextAlign.Center)
+        Text(
+            text, style = MaterialTheme.typography.subheadline, color = c.secondaryLabel, textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        Spacer(Modifier.height(20.dp))
         action()
+    }
+}
+
+/** Alerta iOS 26: un card rotunjit in mijloc, titlul si mesajul centrate, butoanele ca doua capsule. */
+@Composable
+fun AppDialog(
+    onDismiss: () -> Unit,
+    title: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    dismissLabel: String? = stringResource(R.string.cancel),
+    confirmEnabled: Boolean = true,
+    destructive: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit = {},
+) {
+    val c = AppTheme.colors
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier.widthIn(max = 320.dp).fillMaxWidth().clip(RoundedCornerShape(34.dp)).background(if (c.dark) Color(0xFF2C2C2E) else Color.White)
+                .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 16.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.headline, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 18.dp), content = content)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (dismissLabel != null) AppButton(dismissLabel, onDismiss, Modifier.weight(1f), kind = ButtonKind.Secondary)
+                AppButton(
+                    confirmLabel, onConfirm, Modifier.weight(1f), enabled = confirmEnabled,
+                    kind = if (destructive) ButtonKind.Danger else ButtonKind.Primary,
+                )
+            }
+        }
     }
 }
 
@@ -430,124 +679,118 @@ fun ConfirmDialog(
     destructive: Boolean = false,
     onConfirm: () -> Unit,
 ) {
-    val colors = LocalAppColors.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = colors.card,
-        titleContentColor = colors.text,
-        textContentColor = colors.textSecondary,
-        shape = RoundedCornerShape(28.dp),
-        title = { Text(title, style = MaterialTheme.typography.titleLarge) },
-        text = { Text(text, style = MaterialTheme.typography.bodyMedium) },
-        confirmButton = {
-            TextAction(
-                confirmLabel,
-                onClick = {
-                    onConfirm()
-                    onDismiss()
-                },
-                color = if (destructive) colors.danger else colors.accent,
-            )
+    AppDialog(
+        onDismiss, title, confirmLabel,
+        onConfirm = {
+            onConfirm()
+            onDismiss()
         },
-        dismissButton = { TextAction(stringResource(R.string.cancel), onDismiss, color = colors.textSecondary) },
+        destructive = destructive,
+    ) {
+        Text(
+            text, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/** Meniul contextual iOS: un card rotunjit cu randuri; iconita sta in dreapta textului. */
+@Composable
+fun AppMenu(expanded: Boolean, onDismiss: () -> Unit, offset: DpOffset = DpOffset(0.dp, 4.dp), content: @Composable ColumnScope.() -> Unit) {
+    val c = AppTheme.colors
+    DropdownMenu(
+        expanded = expanded, onDismissRequest = onDismiss, offset = offset, modifier = Modifier.widthIn(min = 240.dp),
+        shape = RoundedCornerShape(22.dp), containerColor = if (c.dark) Color(0xFF2C2C2E) else Color(0xFFF9F9F9),
+        // o umbra mai mare iese din fereastra meniului si se vede taiata drept
+        tonalElevation = 0.dp, shadowElevation = 6.dp, border = BorderStroke(0.5.dp, c.glassRim), content = content,
     )
 }
 
 @Composable
-fun InfoRow(label: String, value: String, modifier: Modifier = Modifier) {
-    val colors = LocalAppColors.current
-    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(12.dp))
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = colors.text, textAlign = TextAlign.End)
+fun MenuRow(label: String, onClick: () -> Unit, icon: ImageVector? = null, danger: Boolean = false) {
+    val c = AppTheme.colors
+    val color = if (danger) c.red else c.label
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.body, color = color, modifier = Modifier.weight(1f))
+        if (icon != null) Icon(icon, null, Modifier.size(20.dp), tint = color)
     }
 }
 
-/**
- * Semnul aplicatiei: puncte legate intre ele, cu un impuls care trece din punct in punct, cum trece
- * un mesaj din telefon in telefon.
- */
+/** Un rand mic de stare: iconita si cuvintele ei. */
 @Composable
-fun HopLine(
-    modifier: Modifier = Modifier,
-    dots: Int = 5,
-    dotSize: Dp = 9.dp,
-    base: Color = LocalAppColors.current.cardHigh,
-    highlight: Color = LocalAppColors.current.accent,
-) {
-    val last = dots - 1
-    val progress = if (LocalReduceMotion.current) last.toFloat() else {
-        val transition = rememberInfiniteTransition(label = "hop")
-        transition.animateFloat(
-            initialValue = -0.5f, targetValue = last + 1.4f,
-            animationSpec = infiniteRepeatable(tween(dots * 560, easing = LinearEasing), RepeatMode.Restart),
-            label = "hopProgress",
-        ).value
-    }
-    Canvas(modifier.height(dotSize * 2)) {
-        val radius = dotSize.toPx() / 2
-        val gap = (size.width - radius * 4) / last
-        val y = size.height / 2
-        val stroke = 2.dp.toPx()
-        // la capatul ciclului impulsul se stinge, ca reluarea sa nu fie o taietura
-        val fade = (1f - (progress - last) / 1.2f).coerceIn(0f, 1f)
-        val lit = highlight.copy(alpha = highlight.alpha * fade)
-        fun x(index: Int) = radius * 2 + gap * index
-        for (i in 0 until last) {
-            drawLine(base, Offset(x(i), y), Offset(x(i + 1), y), stroke, StrokeCap.Round)
-            val fill = (progress - i).coerceIn(0f, 1f)
-            if (fill > 0f) drawLine(lit, Offset(x(i), y), Offset(x(i) + gap * fill, y), stroke, StrokeCap.Round)
-        }
-        for (i in 0..last) {
-            val near = (1f - abs(progress - i)).coerceIn(0f, 1f)
-            drawCircle(base, radius, Offset(x(i), y))
-            if (progress >= i) drawCircle(lit, radius * (1f + 0.45f * near), Offset(x(i), y))
-        }
-    }
-}
-
-/** Bifa care se deseneaza singura: momentul de confirmare dupa un raport trimis sau un prieten adaugat. */
-@Composable
-fun SuccessCheck(modifier: Modifier = Modifier, size: Dp = 72.dp, color: Color = LocalAppColors.current.ok) {
-    val progress = remember { Animatable(0f) }
-    val reduce = LocalReduceMotion.current
-    LaunchedEffect(Unit) {
-        if (reduce) progress.snapTo(1f) else progress.animateTo(1f, tween(560, easing = Motion.Enter))
-    }
-    Canvas(modifier.size(size)) {
-        val p = progress.value
-        val pop = (p / 0.55f).coerceIn(0f, 1f)
-        val scale = 0.7f + 0.3f * pop + 0.05f * sin(pop * PI).toFloat()
-        val center = Offset(this.size.width / 2, this.size.height / 2)
-        drawCircle(color.copy(alpha = 0.16f * pop), this.size.minDimension / 2 * scale, center)
-        val draw = ((p - 0.3f) / 0.7f).coerceIn(0f, 1f)
-        if (draw > 0f) {
-            val w = this.size.width
-            val h = this.size.height
-            val full = Path().apply {
-                moveTo(w * 0.30f, h * 0.52f)
-                lineTo(w * 0.44f, h * 0.66f)
-                lineTo(w * 0.71f, h * 0.37f)
-            }
-            val measure = PathMeasure().apply { setPath(full, false) }
-            val part = Path()
-            measure.getSegment(0f, measure.length * draw, part, true)
-            drawPath(part, color, style = Stroke(w * 0.07f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        }
-    }
-}
-
-/** Iconita si cuvant pentru o stare: culoarea singura nu spune niciodata nimic. */
-@Composable
-fun StateLabel(icon: ImageVector, text: String, tone: Color, modifier: Modifier = Modifier) {
+fun StatusLabel(text: String, modifier: Modifier = Modifier, icon: ImageVector? = null, color: Color = AppTheme.colors.secondaryLabel) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = tone, modifier = Modifier.size(15.dp))
-        Spacer(Modifier.width(5.dp))
-        Text(text, style = MaterialTheme.typography.labelMedium, color = tone, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (icon != null) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(text, style = MaterialTheme.typography.subheadline, color = color, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Randul de lamurire de sub un titlu. */
+@Composable
+fun Hint(text: String, modifier: Modifier = Modifier, color: Color = AppTheme.colors.secondaryLabel) {
+    Text(text, style = MaterialTheme.typography.subheadline, color = color, modifier = modifier)
+}
+
+/** Iconita intr-un cerc colorat, in fata unui rand: categoria unui incident, o actiune. */
+@Composable
+fun IconCircle(icon: ImageVector, container: Color, content: Color, size: Dp = 40.dp) {
+    Box(Modifier.size(size).clip(CircleShape).background(container), contentAlignment = Alignment.Center) {
+        Icon(icon, null, tint = content, modifier = Modifier.size(size * 0.52f))
     }
 }
 
 @Composable
 fun FullScreen(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(modifier.fillMaxSize().background(LocalAppColors.current.background)) { content() }
+    Box(modifier.fillMaxSize().background(AppTheme.colors.background)) { content() }
+}
+
+/**
+ * Starea unui mesaj trimis, desenata ca in Signal: ceasul cat asteapta un telefon, un cerc cu bifa cand a plecat,
+ * doua cercuri cand a ajuns, semnul exclamarii cand n-a mers. [behind] e culoarea de sub iconita,
+ * cu care al doilea cerc il acopera pe primul.
+ */
+@Composable
+fun DeliveryIcon(status: MsgStatus, tint: Color, behind: Color, modifier: Modifier = Modifier, iconSize: Dp = 13.dp) {
+    val wide = status == MsgStatus.DELIVERED
+    Canvas(modifier.size(width = if (wide) iconSize * 1.45f else iconSize, height = iconSize)) {
+        val s = iconSize.toPx()
+        val stroke = Stroke(width = s * 0.09f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        val r = s * 0.42f
+        val center = Offset(s / 2, s / 2)
+        when (status) {
+            MsgStatus.QUEUED -> {
+                drawCircle(tint, r, center, style = stroke)
+                drawLine(tint, center, Offset(center.x, center.y - r * 0.6f), stroke.width, StrokeCap.Round)
+                drawLine(tint, center, Offset(center.x + r * 0.45f, center.y + r * 0.2f), stroke.width, StrokeCap.Round)
+            }
+            MsgStatus.SENT -> checkCircle(tint, center, r, stroke)
+            MsgStatus.DELIVERED -> {
+                checkCircle(tint, center, r, stroke)
+                val second = Offset(center.x + s * 0.45f, center.y)
+                drawCircle(behind, r + stroke.width, second)
+                checkCircle(tint, second, r, stroke)
+            }
+            else -> {
+                drawCircle(tint, r, center, style = stroke)
+                drawLine(tint, Offset(center.x, center.y - r * 0.5f), Offset(center.x, center.y + r * 0.1f), stroke.width, StrokeCap.Round)
+                drawCircle(tint, stroke.width * 0.7f, Offset(center.x, center.y + r * 0.45f))
+            }
+        }
+    }
+}
+
+private fun DrawScope.checkCircle(tint: Color, center: Offset, r: Float, stroke: Stroke) {
+    drawCircle(tint, r, center, style = stroke)
+    val check = Path().apply {
+        moveTo(center.x - r * 0.45f, center.y + r * 0.02f)
+        lineTo(center.x - r * 0.12f, center.y + r * 0.34f)
+        lineTo(center.x + r * 0.48f, center.y - r * 0.3f)
+    }
+    drawPath(check, tint, style = stroke)
 }

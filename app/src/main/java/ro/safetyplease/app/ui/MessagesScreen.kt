@@ -2,45 +2,27 @@ package ro.safetyplease.app.ui
 
 import android.content.Intent
 import android.provider.Settings
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.background
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,20 +31,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
@@ -73,8 +55,6 @@ import ro.safetyplease.app.data.Group
 import ro.safetyplease.app.data.MsgKind
 import ro.safetyplease.app.data.MsgStatus
 import ro.safetyplease.app.mesh.MeshState
-
-private enum class MessageFilter { ALL, UNREAD, GROUPS }
 
 private class ConversationRow(
     val id: String,
@@ -97,18 +77,13 @@ fun messagePreview(vm: AppViewModel, message: ChatMessage): String = when (messa
 fun zoneLabel(vm: AppViewModel, message: ChatMessage): String =
     if (message.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(message.zone)
 
-/** Iconita, cuvantul si culoarea pentru starea unui mesaj trimis de noi. */
-class MessageState(val icon: ImageVector, val label: Int, val shortLabel: Int, val tone: Color)
-
-@Composable
-fun messageState(status: MsgStatus): MessageState {
-    val colors = LocalAppColors.current
-    return when (status) {
-        MsgStatus.QUEUED -> MessageState(AppIcons.Clock, R.string.msg_queued, R.string.msg_queued_short, colors.wait)
-        MsgStatus.SENT -> MessageState(AppIcons.Check, R.string.msg_sent, R.string.msg_sent, colors.textSecondary)
-        MsgStatus.DELIVERED -> MessageState(AppIcons.CheckCircle, R.string.msg_delivered, R.string.msg_delivered, colors.ok)
-        else -> MessageState(AppIcons.Question, R.string.msg_failed, R.string.msg_failed, colors.wait)
-    }
+/** Cuvintele pentru starea unui mesaj trimis de noi. */
+@StringRes
+fun messageStateLabel(status: MsgStatus): Int = when (status) {
+    MsgStatus.QUEUED -> R.string.msg_queued
+    MsgStatus.SENT -> R.string.msg_sent
+    MsgStatus.DELIVERED -> R.string.msg_delivered
+    else -> R.string.msg_failed
 }
 
 @Composable
@@ -119,6 +94,36 @@ fun presenceText(vm: AppViewModel, friend: Friend, mesh: MeshState): String = wh
     else -> stringResource(R.string.presence_never)
 }
 
+/** Starea retelei, scrisa sub titlul ecranului: cu cate telefoane esti legat acum. */
+@Composable
+fun networkText(mesh: MeshState, gate: RadioGate): String {
+    val links = mesh.readyLinks
+    return when {
+        !gate.hasAccess -> stringResource(R.string.status_no_access)
+        !gate.bluetoothOn -> stringResource(R.string.status_bt_off)
+        links == 0 -> stringResource(R.string.net_searching)
+        else -> pluralStringResource(R.plurals.connected_phones, links, links)
+    }
+}
+
+/** Bula ta din stanga sus: deschide meniul cu setarile si filtrul, ca in Signal. */
+@Composable
+fun MeButton(name: String, content: @Composable () -> Unit = {}, onClick: () -> Unit) {
+    val label = stringResource(R.string.open_settings)
+    Box {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).clickable(onClickLabel = label, role = Role.Button, onClick = onClick)
+                .semantics { contentDescription = label },
+            contentAlignment = Alignment.Center,
+        ) { Avatar(name, 40.dp) }
+        content()
+    }
+}
+
+/**
+ * Lista de conversatii, ca in Signal pe iPhone: titlul centrat, bula ta in stanga, capsula de sticla cu
+ * „adauga prieten” si „mesaj nou” in dreapta, cautarea dedesubt, apoi randurile fara linii intre ele.
+ */
 @Composable
 fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val friends by vm.friends.collectAsStateWithLifecycle()
@@ -127,13 +132,15 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val mesh by vm.mesh.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val gate = rememberRadioGate(vm, mesh, onStartMesh)
-    val context = LocalContext.current
-    val colors = LocalAppColors.current
+    val focus = LocalFocusManager.current
+    val colors = AppTheme.colors
 
     var query by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf(MessageFilter.ALL) }
-    var menuOpen by remember { mutableStateOf(false) }
-    BackHandler(enabled = menuOpen) { menuOpen = false }
+    var unreadOnly by rememberSaveable { mutableStateOf(false) }
+    var searching by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
 
     val rows = remember(friends, groups, chat.messages) {
         val byConversation = chat.messages.groupBy { it.conversation }
@@ -145,264 +152,242 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             groups.map { row(Conversations.group(it.id), it.name, null, it) })
             .sortedWith(compareByDescending<ConversationRow> { it.last?.timeMs ?: 0L }.thenBy { it.title.lowercase() })
     }
-    val shown = rows.filter { row ->
-        when (filter) {
-            MessageFilter.ALL -> true
-            MessageFilter.UNREAD -> row.unread > 0
-            MessageFilter.GROUPS -> row.group != null
-        } && (query.isBlank() || row.title.contains(query.trim(), ignoreCase = true))
-    }
+    val shown = rows.filter { (!unreadOnly || it.unread > 0) && (query.isBlank() || it.title.contains(query.trim(), ignoreCase = true)) }
 
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 8.dp, bottom = LocalBottomClearance.current + 84.dp),
-        ) {
-            item(key = "search") {
-                PillTextField(
-                    query, { query = it }, stringResource(R.string.messages_search),
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp), leading = AppIcons.Search,
-                    trailing = if (query.isEmpty()) null else {
-                        { IconAction(AppIcons.Close, stringResource(R.string.clear), { query = "" }, tint = colors.textSecondary) }
-                    },
-                )
+    NavScreen(
+        title = stringResource(R.string.tab_messages),
+        subtitle = networkText(mesh, gate),
+        scrolled = scrolled,
+        leading = {
+            MeButton(settings.nickname, content = {
+                AppMenu(menu, { menu = false }) {
+                    MenuRow(stringResource(R.string.settings_title), {
+                        menu = false
+                        vm.open(Dest.Me)
+                    }, icon = Sym.Settings)
+                    MenuRow(stringResource(if (unreadOnly) R.string.filter_clear else R.string.filter_unread_only), {
+                        menu = false
+                        unreadOnly = !unreadOnly
+                    }, icon = Sym.Notes)
+                    if (rows.any { it.unread > 0 }) {
+                        MenuRow(stringResource(R.string.mark_all_read), {
+                            menu = false
+                            rows.filter { it.unread > 0 }.forEach { vm.c.chat.markRead(it.id) }
+                        }, icon = Sym.ChatFill)
+                    }
+                    MenuRow(stringResource(R.string.menu_new_group), {
+                        menu = false
+                        vm.open(Dest.NewGroup)
+                    }, icon = Sym.Group)
+                }
+            }) { menu = true }
+        },
+        trailing = { backdrop ->
+            GlassCapsule(backdrop) {
+                CapsuleIcon(Sym.QrScan, stringResource(R.string.menu_add_friend)) { vm.open(Dest.AddFriend) }
+                CapsuleIcon(Sym.Compose, stringResource(R.string.new_chat)) { vm.open(Dest.NewChat) }
             }
-            item(key = "status") { StatusLine(mesh, gate, Modifier.padding(start = 20.dp, end = 12.dp, top = 6.dp)) }
-            item(key = "filters") {
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilterPill(stringResource(R.string.filter_all), filter == MessageFilter.ALL, { filter = MessageFilter.ALL }, count = rows.size)
-                    FilterPill(
-                        stringResource(R.string.filter_unread), filter == MessageFilter.UNREAD, { filter = MessageFilter.UNREAD },
-                        count = rows.count { it.unread > 0 },
-                    )
-                    FilterPill(
-                        stringResource(R.string.filter_groups), filter == MessageFilter.GROUPS, { filter = MessageFilter.GROUPS },
-                        count = groups.size,
-                    )
+        },
+    ) { padding ->
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
+            if (rows.isNotEmpty()) {
+                item(key = "search") {
+                    Row(Modifier.padding(start = Gutter, end = if (searching) 4.dp else Gutter, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        SearchField(
+                            query, { query = it }, stringResource(R.string.search),
+                            Modifier.weight(1f).onFocusChanged { searching = it.isFocused },
+                        )
+                        if (searching) {
+                            TextLink(stringResource(R.string.cancel), {
+                                query = ""
+                                focus.clearFocus()
+                            })
+                        }
+                    }
                 }
             }
-            item(key = "problem") {
-                val cardModifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
-                when {
-                    !gate.hasAccess -> ProblemCard(
-                        AppIcons.Bluetooth, stringResource(R.string.problem_access_title), stringResource(R.string.problem_access_text),
-                        cardModifier, tone = colors.danger, action = stringResource(R.string.problem_access_action), onAction = gate.requestAccess,
-                    )
-                    gate.locationOff -> ProblemCard(
-                        AppIcons.Place, stringResource(R.string.problem_location_title), stringResource(R.string.problem_location_text),
-                        cardModifier, action = stringResource(R.string.problem_location_action),
-                        onAction = { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) },
-                    )
-                    mesh.radio.bluetoothOn && !mesh.radio.canAdvertise -> ProblemCard(
-                        AppIcons.Info, stringResource(R.string.problem_leaf_title), stringResource(R.string.problem_leaf_text), cardModifier,
-                    )
-                    !settings.batteryHintDismissed && needsBatteryHint(context) -> ProblemCard(
-                        AppIcons.Battery, stringResource(R.string.problem_battery_title), stringResource(R.string.problem_battery_text),
-                        cardModifier, action = stringResource(R.string.problem_battery_action),
-                        onAction = { runCatching { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } },
-                        dismiss = stringResource(R.string.problem_dismiss), onDismiss = { vm.dismissBatteryHint() },
-                    )
+            item(key = "problem") { NetworkProblem(vm, mesh, gate, settings.batteryHintDismissed, Modifier.padding(horizontal = Gutter, vertical = 6.dp)) }
+            if (unreadOnly) {
+                item(key = "filter") {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.filter_unread_active), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, modifier = Modifier.weight(1f))
+                        TextLink(stringResource(R.string.filter_clear), { unreadOnly = false })
+                    }
                 }
             }
             when {
                 rows.isEmpty() -> item(key = "empty") {
-                    EmptyState(stringResource(R.string.messages_empty_title), stringResource(R.string.messages_empty_text)) {
-                        AppButton(stringResource(R.string.messages_empty_action), { vm.open(Dest.AddFriend) }, icon = AppIcons.QrCode)
+                    EmptyState(stringResource(R.string.messages_empty_title), stringResource(R.string.messages_empty_text), icon = Sym.Chat) {
+                        AppButton(stringResource(R.string.messages_empty_action), { vm.open(Dest.AddFriend) }, compact = true)
                     }
                 }
                 shown.isEmpty() -> item(key = "none") {
                     Text(
-                        when {
-                            query.isNotBlank() -> stringResource(R.string.messages_none_found, query.trim())
-                            filter == MessageFilter.UNREAD -> stringResource(R.string.messages_none_unread)
-                            else -> stringResource(R.string.messages_none_groups)
-                        },
-                        style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 28.dp),
+                        if (query.isNotBlank()) stringResource(R.string.messages_none_found, query.trim()) else stringResource(R.string.messages_none_unread),
+                        style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 40.dp),
                     )
                 }
                 else -> items(shown, key = { it.id }) { row -> ConversationItem(vm, row, mesh, Modifier.animateItem()) }
             }
         }
-
-        AnimatedVisibility(menuOpen, enter = fadeIn(tween(Motion.QUICK)), exit = fadeOut(tween(100))) {
-            Box(
-                Modifier.fillMaxSize().background(colors.background.copy(alpha = 0.72f))
-                    .clickable(remember { MutableInteractionSource() }, indication = null) { menuOpen = false },
-            )
-        }
-        if (rows.isNotEmpty()) {
-            AddMenu(
-                open = menuOpen,
-                onToggle = { menuOpen = !menuOpen },
-                onAddFriend = {
-                    menuOpen = false
-                    vm.open(Dest.AddFriend)
-                },
-                onNewGroup = {
-                    menuOpen = false
-                    vm.open(Dest.NewGroup)
-                },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = LocalBottomClearance.current + 4.dp),
-            )
-        }
     }
 }
 
-/** Linia de stare a retelei: iconita, cuvinte si, cand Bluetooth e oprit, butonul care il porneste. */
+/** Primul lucru care lipseste ca reteaua sa mearga, cu butonul care il rezolva. */
 @Composable
-fun StatusLine(mesh: MeshState, gate: RadioGate, modifier: Modifier = Modifier) {
-    val colors = LocalAppColors.current
-    val links = mesh.readyLinks
-    Row(modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
-        val textStyle = MaterialTheme.typography.bodySmall
-        when {
-            !gate.hasAccess -> {
-                Icon(AppIcons.Bluetooth, null, tint = colors.danger, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.status_no_access), style = textStyle, color = colors.textSecondary, modifier = Modifier.weight(1f))
-            }
-            !gate.bluetoothOn -> {
-                Icon(AppIcons.Bluetooth, null, tint = colors.danger, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.status_bt_off), style = textStyle, color = colors.textSecondary)
-                TextAction(stringResource(R.string.status_bt_enable), gate.enableBluetooth)
-            }
-            links == 0 -> {
-                Icon(AppIcons.Signal, null, tint = colors.wait, modifier = Modifier.size(18.dp).pulse())
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.status_alone), style = textStyle, color = colors.textSecondary, modifier = Modifier.weight(1f))
-            }
-            else -> {
-                Icon(AppIcons.Signal, null, tint = colors.ok, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    pluralStringResource(R.plurals.connected_phones, links, links), style = textStyle, color = colors.textSecondary,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
+private fun NetworkProblem(vm: AppViewModel, mesh: MeshState, gate: RadioGate, batteryDismissed: Boolean, modifier: Modifier) {
+    val context = LocalContext.current
+    when {
+        !gate.hasAccess -> Banner(
+            stringResource(R.string.problem_access_title), stringResource(R.string.problem_access_text), modifier, warning = true,
+            action = stringResource(R.string.problem_access_action), onAction = gate.requestAccess,
+        )
+        !gate.bluetoothOn -> Banner(
+            stringResource(R.string.status_bt_off), stringResource(R.string.problem_bt_text), modifier, warning = true,
+            action = stringResource(R.string.status_bt_enable), onAction = gate.enableBluetooth,
+        )
+        gate.locationOff -> Banner(
+            stringResource(R.string.problem_location_title), stringResource(R.string.problem_location_text), modifier, warning = true,
+            action = stringResource(R.string.problem_location_action),
+            onAction = { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) },
+        )
+        mesh.radio.bluetoothOn && !mesh.radio.canAdvertise -> Banner(
+            stringResource(R.string.problem_leaf_title), stringResource(R.string.problem_leaf_text), modifier,
+        )
+        !batteryDismissed && needsBatteryHint(context) -> Banner(
+            stringResource(R.string.problem_battery_title), stringResource(R.string.problem_battery_text), modifier,
+            action = stringResource(R.string.problem_battery_action),
+            onAction = { runCatching { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } },
+            dismiss = stringResource(R.string.problem_dismiss), onDismiss = { vm.dismissBatteryHint() },
+        )
     }
 }
 
+/**
+ * Randul unei conversatii, ca in Signal pe iPhone: bula de 56, numele ingrosat si ora pe primul rand,
+ * ultimul mesaj pe doua randuri dedesubt; necititele intr-un cerc albastru sub ora.
+ */
 @Composable
 private fun ConversationItem(vm: AppViewModel, row: ConversationRow, mesh: MeshState, modifier: Modifier = Modifier) {
-    val colors = LocalAppColors.current
     val friend = row.friend
-    val near = friend != null && vm.isInRange(friend, mesh)
-    val source = remember { MutableInteractionSource() }
-    val unreadLabel = if (row.unread > 0) pluralStringResource(R.plurals.unread_messages, row.unread, row.unread) else ""
-    Row(
-        modifier.fillMaxWidth().pressScale(source, pressed = 0.985f)
-            .clickable(source, LocalIndication.current, role = Role.Button) { vm.open(Dest.Conversation(row.id)) }
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Avatar(row.title, 52.dp, near = near, group = row.group != null)
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    row.title, style = MaterialTheme.typography.titleMedium, color = colors.text,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                )
-                row.last?.let {
-                    Spacer(Modifier.width(8.dp))
-                    Text(Labels.clock(it.timeMs), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
-                }
+    val last = row.last
+    val colors = AppTheme.colors
+    val unreadLabel = if (row.unread > 0) pluralStringResource(R.plurals.unread_messages, row.unread, row.unread) else null
+    val you = stringResource(R.string.msg_you)
+    val snippet = when {
+        last == null -> buildAnnotatedString { append(stringResource(R.string.messages_no_messages)) }
+        else -> {
+            val prefix = when {
+                last.kind == MsgKind.SYSTEM -> null
+                row.group != null && last.fromMe -> you
+                row.group != null -> vm.c.chat.nameOf(last.senderId)
+                else -> null
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (near) {
-                    Box(Modifier.size(7.dp).clip(CircleShape).background(colors.ok))
-                    Spacer(Modifier.width(6.dp))
+            val preview = messagePreview(vm, last)
+            buildAnnotatedString {
+                if (prefix != null) {
+                    withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(prefix) }
+                    append(": ")
                 }
-                Text(
-                    when {
-                        friend != null -> if (near) stringResource(R.string.presence_near)
-                        else if (friend.lastSeenAt > 0) stringResource(R.string.presence_seen, agoText(friend.lastSeenAt))
-                        else stringResource(R.string.presence_never)
-                        else -> row.group?.let { pluralStringResource(R.plurals.group_members, it.members.size, it.members.size) }.orEmpty()
-                    },
-                    style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val last = row.last
-                if (last != null && last.fromMe && last.kind != MsgKind.SYSTEM) {
-                    val state = messageState(last.status)
-                    Icon(state.icon, null, tint = state.tone, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                }
-                Text(
-                    when {
-                        last == null -> stringResource(R.string.messages_no_messages)
-                        last.fromMe && last.kind != MsgKind.SYSTEM ->
-                            stringResource(messageState(last.status).shortLabel) + " · " + messagePreview(vm, last)
-                        row.group != null && last.kind != MsgKind.SYSTEM -> vm.c.chat.nameOf(last.senderId) + ": " + messagePreview(vm, last)
-                        else -> messagePreview(vm, last)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (row.unread > 0) colors.text else colors.textSecondary,
-                    fontWeight = if (row.unread > 0) FontWeight.Medium else FontWeight.Normal,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-                )
-                if (row.unread > 0) {
-                    Spacer(Modifier.width(8.dp))
-                    CountBadge(row.unread, colors.accent, colors.onAccent, Modifier.semantics { contentDescription = unreadLabel })
-                }
+                append(preview)
             }
         }
     }
-}
-
-/** „+”: un cerc de accent jos-dreapta, cu meniul „Adauga prieten” si „Grup nou”. */
-@Composable
-private fun AddMenu(open: Boolean, onToggle: () -> Unit, onAddFriend: () -> Unit, onNewGroup: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = LocalAppColors.current
-    val rotation by animateFloatAsState(if (open) 45f else 0f, tween(Motion.QUICK, easing = Motion.Standard), label = "plus")
-    Column(modifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        AnimatedVisibility(
-            open,
-            enter = fadeIn(tween(Motion.QUICK)) + scaleIn(tween(Motion.QUICK, easing = Motion.Enter), initialScale = 0.86f, transformOrigin = TransformOrigin(1f, 1f)),
-            exit = fadeOut(tween(100)) + scaleOut(tween(100), targetScale = 0.92f, transformOrigin = TransformOrigin(1f, 1f)),
-        ) {
-            Column(
-                Modifier.shadow(16.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.3f), spotColor = Color.Black.copy(alpha = 0.3f))
-                    .clip(RoundedCornerShape(24.dp)).background(colors.cardHigh).width(IntrinsicSize.Max).padding(6.dp),
-            ) {
-                MenuRow(AppIcons.QrCode, stringResource(R.string.menu_add_friend), onAddFriend)
-                MenuRow(AppIcons.People, stringResource(R.string.menu_new_group), onNewGroup)
-            }
-        }
-        val source = remember { MutableInteractionSource() }
-        Box(
-            Modifier.size(58.dp).pressScale(source, pressed = 0.93f)
-                .shadow(12.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.35f))
-                .clip(CircleShape).background(colors.accent)
-                .clickable(source, LocalIndication.current, role = Role.Button, onClick = onToggle),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                AppIcons.Add, stringResource(if (open) R.string.close else R.string.menu_open), tint = colors.onAccent,
-                modifier = Modifier.size(26.dp).rotate(rotation),
-            )
-        }
-    }
-}
-
-@Composable
-fun MenuRow(icon: ImageVector, label: String, onClick: () -> Unit, tint: Color = LocalAppColors.current.text) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(18.dp)).clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 14.dp),
+        modifier.fillMaxWidth().clickable { vm.open(Dest.Conversation(row.id)) }
+            .padding(horizontal = Gutter, vertical = 12.dp)
+            .then(if (unreadLabel != null) Modifier.semantics { contentDescription = row.title + ", " + unreadLabel } else Modifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+        Avatar(row.title, 56.dp, near = friend != null && vm.isInRange(friend, mesh), group = row.group != null)
         Spacer(Modifier.width(12.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, color = tint, maxLines = 1)
-        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    row.title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (last != null) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(listTime(last.timeMs), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, maxLines = 1)
+                }
+            }
+            Row(Modifier.padding(top = 1.dp), verticalAlignment = Alignment.Top) {
+                Text(
+                    snippet, style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                    minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+                when {
+                    row.unread > 0 -> UnreadBadge(row.unread, Modifier.padding(start = 6.dp))
+                    last != null && last.fromMe && last.kind != MsgKind.SYSTEM -> DeliveryIcon(
+                        last.status, if (last.status == MsgStatus.FAILED) colors.red else colors.secondaryLabel, colors.background,
+                        Modifier.padding(start = 6.dp, top = 3.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Mesaj nou, ca foaia din Signal: grup nou, prieten nou, apoi prietenii pe care ii ai deja. */
+@Composable
+fun NewChatScreen(vm: AppViewModel) {
+    val friends by vm.friends.collectAsStateWithLifecycle()
+    val mesh by vm.mesh.collectAsStateWithLifecycle()
+    var query by rememberSaveable { mutableStateOf("") }
+    val sorted = remember(friends) { friends.sortedBy { it.nickname.lowercase() } }
+    val shown = sorted.filter { query.isBlank() || it.nickname.contains(query.trim(), ignoreCase = true) }
+    val colors = AppTheme.colors
+    val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+
+    NavScreen(
+        title = stringResource(R.string.new_chat), background = colors.grouped, scrolled = scrolled,
+        trailing = { backdrop -> GlassIconButton(Sym.Close, stringResource(R.string.close), { vm.back() }, backdrop) },
+    ) { padding ->
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())) {
+            if (sorted.isNotEmpty()) {
+                item(key = "search") {
+                    SearchField(
+                        query, { query = it }, stringResource(R.string.new_chat_search),
+                        Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp),
+                        fill = AppTheme.colors.fill,
+                    )
+                }
+            }
+            item(key = "actions") {
+                InsetGroup(Modifier.padding(top = 8.dp)) {
+                    GroupRow(
+                        stringResource(R.string.menu_new_group), onClick = { vm.open(Dest.NewGroup) },
+                        leading = { IconCircle(Sym.Group, colors.fill, colors.label, 36.dp) },
+                    )
+                    GroupDivider(start = 64.dp)
+                    GroupRow(
+                        stringResource(R.string.menu_add_friend), subtitle = stringResource(R.string.new_chat_add_label), onClick = { vm.open(Dest.AddFriend) },
+                        leading = { IconCircle(Sym.QrCode, colors.fill, colors.label, 36.dp) },
+                    )
+                }
+            }
+            if (shown.isNotEmpty()) {
+                item(key = "header") { SectionTitle(stringResource(R.string.section_friends)) }
+                item(key = "friends") {
+                    InsetGroup {
+                        shown.forEachIndexed { index, friend ->
+                            GroupRow(
+                                friend.nickname, subtitle = presenceText(vm, friend, mesh),
+                                onClick = {
+                                    vm.back()
+                                    vm.open(Dest.Conversation(Conversations.friend(friend.nodeId)))
+                                },
+                                leading = { Avatar(friend.nickname, 36.dp, near = vm.isInRange(friend, mesh)) },
+                            )
+                            if (index < shown.lastIndex) GroupDivider(start = 64.dp)
+                        }
+                    }
+                }
+            }
+            item { Spacer(Modifier.height(24.dp)) }
+        }
     }
 }

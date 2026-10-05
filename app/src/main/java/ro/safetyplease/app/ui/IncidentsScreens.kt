@@ -1,36 +1,31 @@
 package ro.safetyplease.app.ui
 
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.background
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,10 +33,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,172 +52,234 @@ import ro.safetyplease.app.incidents.StatusFilter
 import ro.safetyplease.app.protocol.AckStatus
 import ro.safetyplease.app.protocol.Severity
 
-/** Eticheta starii: iconita si cuvinte, in culoarea starii. */
+/** Iconita si culoarea starii: nepreluat e portocaliu, preluat e albastru, rezolvat e verde. */
 @Composable
-private fun StaffStatus(status: Int, team: String) {
-    val colors = LocalAppColors.current
-    val tone = when (status) {
-        AckStatus.RESOLVED -> colors.textSecondary
-        AckStatus.ACKNOWLEDGED -> colors.ok
-        else -> colors.wait
+private fun statusLook(status: Int): Pair<ImageVector, Color> {
+    val colors = AppTheme.colors
+    return when (status) {
+        AckStatus.RESOLVED -> Sym.CheckCircle to colors.green
+        AckStatus.ACKNOWLEDGED -> Sym.Check to colors.accent
+        else -> Sym.Bell to colors.orange
     }
-    val icon = when (status) {
-        AckStatus.RESOLVED -> AppIcons.CheckCircle
-        AckStatus.ACKNOWLEDGED -> AppIcons.Check
-        else -> AppIcons.Clock
-    }
-    StateLabel(icon, Labels.staffStatus(LocalContext.current, status, team), tone)
 }
 
+/** Starea intr-un singur cuvant, pentru randurile din lista. */
+@StringRes
+private fun statusWord(status: Int): Int = when (status) {
+    AckStatus.RESOLVED -> R.string.status_resolved
+    AckStatus.ACKNOWLEDGED -> R.string.incident_state_taken
+    else -> R.string.staff_status_new
+}
+
+/** Starea cu numele echipei: „Preluat de Echipa 2”. */
+@Composable
+private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier) {
+    val (icon, color) = statusLook(status)
+    StatusLabel(Labels.staffStatus(LocalContext.current, status, team), modifier, icon = icon, color = color)
+}
+
+/**
+ * Tabul Incidente, ca tabul de apeluri din Signal pe iPhone: bula ta in stanga sus, filtrul cu segmente sub bara,
+ * apoi cate un rand pe incident, fara linii intre ele: categoria in cerc, locul si vechimea dedesubt, starea in dreapta.
+ */
 @Composable
 fun IncidentsScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
     var filter by rememberSaveable { mutableStateOf(StatusFilter.OPEN) }
     val clusters = remember(incidents.staff) { Clustering.cluster(incidents.staff) }
     // urgentele nepreluate stau primele, rezolvatele la coada
-    val shown = clusters.filter { Clustering.matches(it, filter) }.sortedWith(
-        compareByDescending<IncidentCluster> { it.severity == Severity.URGENT && it.status < AckStatus.ACKNOWLEDGED }
-            .thenBy { it.status >= AckStatus.RESOLVED }
-            .thenByDescending { it.severity }
-            .thenByDescending { it.latestAt }
-    )
-
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            for ((value, label) in listOf(
-                StatusFilter.OPEN to R.string.filter_open, StatusFilter.TAKEN to R.string.filter_taken,
-                StatusFilter.RESOLVED to R.string.filter_resolved, StatusFilter.ALL to R.string.filter_all,
-            )) {
-                FilterPill(stringResource(label), filter == value, { filter = value }, count = clusters.count { Clustering.matches(it, value) })
-            }
-        }
-        if (shown.isEmpty()) {
-            EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), Modifier.padding(top = 40.dp))
-        } else {
-            LazyColumn(
-                Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = LocalBottomClearance.current + 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(shown, key = { it.lead.incidentId }) { cluster -> ClusterCard(vm, cluster, Modifier.animateItem()) }
-            }
-        }
+    val shown = remember(clusters, filter) {
+        clusters.filter { Clustering.matches(it, filter) }.sortedWith(
+            compareByDescending<IncidentCluster> { it.severity == Severity.URGENT && it.status < AckStatus.ACKNOWLEDGED }
+                .thenBy { it.status >= AckStatus.RESOLVED }
+                .thenByDescending { it.severity }
+                .thenByDescending { it.latestAt },
+        )
     }
-}
+    val openCount = clusters.count { Clustering.matches(it, StatusFilter.OPEN) }
+    val openLabel = stringResource(R.string.filter_open)
+    val options = listOf(
+        StatusFilter.OPEN to if (openCount > 0) "$openLabel · $openCount" else openLabel,
+        StatusFilter.TAKEN to stringResource(R.string.filter_taken),
+        StatusFilter.RESOLVED to stringResource(R.string.filter_resolved),
+        StatusFilter.ALL to stringResource(R.string.filter_all),
+    )
+    val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
 
-@Composable
-private fun ClusterCard(vm: AppViewModel, cluster: IncidentCluster, modifier: Modifier = Modifier) {
-    val colors = LocalAppColors.current
-    val lead = cluster.lead
-    val team = cluster.incidents.firstOrNull { it.status == cluster.status }?.teamName.orEmpty()
-    val tone = colors.severity(cluster.severity)
-    val source = remember { MutableInteractionSource() }
-    Row(
-        modifier.fillMaxWidth().pressScale(source, pressed = 0.985f).height(IntrinsicSize.Min).clip(CardShape).background(colors.card)
-            .clickable(source, LocalIndication.current, role = Role.Button) { vm.open(Dest.Incident(lead.incidentId)) },
-    ) {
-        Box(Modifier.width(5.dp).fillMaxHeight().background(tone))
-        Column(Modifier.weight(1f).padding(start = 14.dp, end = 16.dp, top = 14.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(AppIcons.category(lead.category), null, tint = colors.text, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    stringResource(Labels.category(lead.category)), style = MaterialTheme.typography.titleMedium, color = colors.text,
-                    modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                if (cluster.count > 1) {
-                    Text(
-                        pluralStringResource(R.plurals.reports, cluster.count, cluster.count), style = MaterialTheme.typography.labelMedium,
-                        color = colors.text, modifier = Modifier.clip(CircleShape).background(colors.cardHigh).padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
+    NavScreen(
+        title = stringResource(R.string.tab_incidents),
+        scrolled = scrolled,
+        leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
+    ) { padding ->
+        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
+            if (clusters.isNotEmpty()) {
+                item(key = "filters") {
+                    SegmentedControl(options, filter, { filter = it }, Modifier.padding(start = Gutter, end = Gutter, top = 6.dp, bottom = 10.dp))
                 }
             }
-            Text(
-                if (lead.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(lead.zone),
-                style = MaterialTheme.typography.bodyLarge, color = colors.text,
-            )
-            Text(
-                agoText(cluster.latestAt) + " · " + hopsText(lead.hops),
-                style = MaterialTheme.typography.bodySmall, color = colors.textSecondary,
-            )
-            if (lead.description.isNotEmpty()) {
-                Text(lead.description, style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (cluster.severity == Severity.URGENT) StateLabel(AppIcons.Warning, stringResource(R.string.sev_urgent), colors.danger)
-                StaffStatus(cluster.status, team)
+            if (shown.isEmpty()) {
+                item(key = "empty") {
+                    EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), icon = Sym.Bell)
+                }
+            } else {
+                items(shown, key = { it.lead.incidentId }) { cluster -> ClusterRow(vm, cluster, Modifier.animateItem()) }
             }
         }
     }
 }
 
+/**
+ * Randul unui incident: cercul de 44 cu categoria (rosu cat timp o urgenta nu e preluata), categoria si starea
+ * pe primul rand, locul, vechimea si drumul pe al doilea, apoi descrierea pe cel mult doua randuri.
+ */
+@Composable
+private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, modifier: Modifier = Modifier) {
+    val lead = cluster.lead
+    val colors = AppTheme.colors
+    val alarm = cluster.severity == Severity.URGENT && cluster.status < AckStatus.ACKNOWLEDGED
+    val place = if (lead.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(lead.zone)
+    val title = stringResource(Labels.category(lead.category)) +
+        if (cluster.count > 1) " · " + pluralStringResource(R.plurals.reports, cluster.count, cluster.count) else ""
+    val (statusIcon, statusColor) = statusLook(cluster.status)
+    Row(
+        modifier.fillMaxWidth().clickable(role = Role.Button) { vm.open(Dest.Incident(lead.incidentId)) }
+            .padding(horizontal = Gutter, vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        IconCircle(
+            categoryIcon(lead.category), if (alarm) colors.red.copy(alpha = 0.15f) else colors.fill,
+            if (alarm) colors.red else colors.label, size = 44.dp,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                Icon(statusIcon, null, Modifier.size(16.dp), tint = statusColor)
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    stringResource(statusWord(cluster.status)), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
+                    color = statusColor, maxLines = 1,
+                )
+            }
+            Text(
+                listOf(place, agoText(cluster.latestAt), hopsText(lead.hops)).joinToString(" · "),
+                style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp),
+            )
+            if (lead.description.isNotEmpty()) {
+                Text(
+                    lead.description, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Un incident, ca pagina unui contact din Signal: categoria mare sus, actiunile staff-ului in doua placi,
+ * starea, harta cu rapoartele, apoi rapoartele intr-un grup. Numele categoriei apare in bara abia cand antetul iese din ecran.
+ */
 @Composable
 fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
-    val colors = LocalAppColors.current
+    val colors = AppTheme.colors
     val haptics = rememberHaptics()
-    val cluster = Clustering.cluster(incidents.staff).firstOrNull { c -> c.incidents.any { it.incidentId == incidentId } }
+    val scroll = rememberScrollState()
+    var headerPx by remember { mutableIntStateOf(0) }
+    val scrolled by remember { derivedStateOf { scroll.value > 0 } }
+    val pastHeader by remember { derivedStateOf { headerPx > 0 && scroll.value >= headerPx } }
+    val cluster = remember(incidents.staff, incidentId) {
+        Clustering.cluster(incidents.staff).firstOrNull { c -> c.incidents.any { it.incidentId == incidentId } }
+    }
     if (cluster == null) {
         LaunchedEffect(Unit) { vm.back() }
         return
     }
     val lead = cluster.lead
+    val canTake = cluster.status < AckStatus.ACKNOWLEDGED
+    val canResolve = cluster.status < AckStatus.RESOLVED
     val pins = cluster.incidents.mapNotNull { incident ->
         incidentPoint(vm.venue, incident)?.let { MapPin(it, colors.severity(incident.severity), incident.incidentId) }
     }
-    ScreenScaffold(
-        title = stringResource(Labels.category(lead.category)),
-        subtitle = if (lead.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(lead.zone),
-        onBack = { vm.back() },
-        bottomBar = {
-            // Scaffold nu adauga singur spatiul barei de gesturi pentru un bottomBar propriu
-            Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                AppButton(
-                    stringResource(R.string.incident_resolve),
+    val place = if (lead.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(lead.zone)
+    val reports = cluster.incidents.sortedByDescending { it.reportedAt }
+
+    NavScreen(
+        title = if (pastHeader) stringResource(Labels.category(lead.category)) else "",
+        background = colors.grouped,
+        scrolled = scrolled,
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+    ) { padding ->
+        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding)) {
+            IncidentHeader(
+                lead.category, cluster.severity == Severity.URGENT, place + " · " + agoText(cluster.latestAt),
+                Modifier.onSizeChanged { headerPx = it.height },
+            )
+            // a doua atingere pe o actiune deja facuta nu mai trimite nimic
+            Row(Modifier.fillMaxWidth().padding(horizontal = Gutter), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ActionTile(
+                    Sym.Check, stringResource(R.string.incident_take),
                     {
-                        cluster.incidents.filter { it.status < AckStatus.RESOLVED }.forEach { vm.resolve(it.incidentId) }
-                        haptics.confirm()
+                        if (canTake) {
+                            cluster.incidents.filter { it.status < AckStatus.ACKNOWLEDGED }.forEach { vm.acknowledge(it.incidentId) }
+                            haptics.confirm()
+                        }
                     },
-                    Modifier.weight(1f).height(56.dp), kind = ButtonKind.Secondary, enabled = cluster.status < AckStatus.RESOLVED,
+                    Modifier.weight(1f), selected = !canTake, background = colors.cell,
                 )
-                AppButton(
-                    stringResource(R.string.incident_take),
+                ActionTile(
+                    Sym.CheckCircle, stringResource(R.string.incident_resolve),
                     {
-                        cluster.incidents.filter { it.status < AckStatus.ACKNOWLEDGED }.forEach { vm.acknowledge(it.incidentId) }
-                        haptics.confirm()
+                        if (canResolve) {
+                            cluster.incidents.filter { it.status < AckStatus.RESOLVED }.forEach { vm.resolve(it.incidentId) }
+                            haptics.confirm()
+                        }
                     },
-                    Modifier.weight(1f).height(56.dp), enabled = cluster.status < AckStatus.ACKNOWLEDGED,
+                    Modifier.weight(1f), selected = !canResolve, background = colors.cell,
                 )
             }
-        },
-    ) { padding ->
-        Column(
-            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            VenueMap(venue = vm.venue, position = position, pins = pins, highlightZone = lead.zone)
-            for (incident in cluster.incidents.sortedByDescending { it.reportedAt }) IncidentCard(incident)
+            StaffStatus(
+                cluster.status, cluster.incidents.firstOrNull { it.status == cluster.status }?.teamName.orEmpty(),
+                Modifier.align(Alignment.CenterHorizontally).padding(start = Gutter, end = Gutter, top = 16.dp),
+            )
+            VenueMap(
+                venue = vm.venue,
+                modifier = Modifier.padding(start = Gutter, end = Gutter, top = 20.dp).clip(RoundedCornerShape(26.dp)),
+                position = position,
+                pins = pins,
+                highlightZone = lead.zone,
+            )
+            SectionTitle(pluralStringResource(R.plurals.reports, cluster.count, cluster.count))
+            InsetGroup {
+                reports.forEachIndexed { index, incident ->
+                    StaffReportBlock(incident)
+                    if (index < reports.lastIndex) GroupDivider(start = Gutter)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
         }
     }
 }
 
+/** Un raport din grup: ce a scris omul, cand si de la cine a venit, apoi starea lui. */
 @Composable
-private fun IncidentCard(incident: StaffIncident) {
-    val colors = LocalAppColors.current
-    AppCard(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (incident.severity == Severity.URGENT) StateLabel(AppIcons.Warning, stringResource(R.string.sev_urgent), colors.danger)
-            StaffStatus(incident.status, incident.teamName)
-        }
+private fun StaffReportBlock(incident: StaffIncident) {
+    val colors = AppTheme.colors
+    val empty = incident.description.isEmpty()
+    Column(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 12.dp)) {
         Text(
-            if (incident.description.isEmpty()) stringResource(R.string.incident_no_description) else incident.description,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (incident.description.isEmpty()) colors.textSecondary else colors.text,
-            modifier = Modifier.padding(top = 10.dp, bottom = 8.dp),
+            if (empty) stringResource(R.string.incident_no_description) else incident.description,
+            style = MaterialTheme.typography.body, color = if (empty) colors.secondaryLabel else colors.label,
+            fontWeight = if (incident.severity == Severity.URGENT) FontWeight.Medium else null,
+            maxLines = 6, overflow = TextOverflow.Ellipsis,
         )
         Text(
             listOf(
@@ -226,7 +287,8 @@ private fun IncidentCard(incident: StaffIncident) {
                 incident.nickname?.let { stringResource(R.string.incident_reporter, it) } ?: stringResource(R.string.incident_anonymous),
                 hopsText(incident.hops),
             ).joinToString(" · "),
-            style = MaterialTheme.typography.bodySmall, color = colors.textSecondary,
+            style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 2.dp),
         )
+        StaffStatus(incident.status, incident.teamName, Modifier.padding(top = 8.dp))
     }
 }

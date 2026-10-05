@@ -1,61 +1,61 @@
 package ro.safetyplease.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
@@ -70,129 +70,147 @@ private fun urgentByDefault(category: Int): Boolean =
     category == IncidentCategory.MEDICAL || category == IncidentCategory.VIOLENCE ||
         category == IncidentCategory.FIRE || category == IncidentCategory.CROWD
 
+/** Banda in care lista se estompeaza deasupra butoanelor care plutesc jos. */
+private val FadeZone = 24.dp
+
+fun categoryIcon(category: Int): ImageVector = when (category) {
+    IncidentCategory.MEDICAL -> Sym.Medical
+    IncidentCategory.VIOLENCE -> Sym.Fight
+    IncidentCategory.LOST_PERSON -> Sym.PersonSearch
+    IncidentCategory.HARASSMENT -> Sym.NoTouch
+    IncidentCategory.CROWD -> Sym.Groups
+    IncidentCategory.FIRE -> Sym.Fire
+    else -> Sym.MoreHoriz
+}
+
+/**
+ * Tabul Raporteaza: „Ce se intampla?” si o grila de categorii, apoi detaliile optionale intr-un grup ca in setarile iOS.
+ * Butonul de trimis pluteste deasupra barei de taburi si urca deasupra tastaturii cat scrii descrierea.
+ */
 @Composable
 fun ReportScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
-    val colors = LocalAppColors.current
+    val settings by vm.settings.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
+    val colors = AppTheme.colors
 
     var category by rememberSaveable { mutableIntStateOf(0) }
-    var details by rememberSaveable { mutableStateOf(false) }
     var urgent by rememberSaveable { mutableStateOf(false) }
     var urgentChosen by rememberSaveable { mutableStateOf(false) }
     var description by rememberSaveable { mutableStateOf("") }
     var anonymous by rememberSaveable { mutableStateOf(true) }
+    var pickZone by remember { mutableStateOf(false) }
     val autoZone = position?.let { vm.venue.zoneAt(it.lat, it.lon) }
     var zone by rememberSaveable(autoZone?.id) { mutableStateOf(autoZone?.id ?: vm.manualZone) }
     val waitMs = vm.rateLimitWaitMs()
     val requestLocation = rememberLocationRequest(vm)
+    val scroll = rememberScrollState()
+    val scrolled by remember { derivedStateOf { scroll.value > 0 } }
+    val more by remember { derivedStateOf { scroll.canScrollForward } }
+    var footer by remember { mutableStateOf(0.dp) }
+    val clearance = LocalBottomClearance.current
+    val keyboard = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    // tastatura acopera bara de taburi, deci butonul se aseaza deasupra ei
+    val typing = keyboard > clearance
 
-    Box(Modifier.fillMaxSize().imePadding()) {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = LocalBottomClearance.current + 84.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.report_title), style = MaterialTheme.typography.headlineMedium, color = colors.text,
-                    modifier = Modifier.weight(1f).padding(start = 4.dp),
-                )
-                if (incidents.mine.isNotEmpty()) TextAction(stringResource(R.string.report_mine), { vm.open(Dest.MyReports) })
-            }
-            for (c in IncidentCategory.all) {
-                CategoryCard(c, selected = category == c) {
-                    category = if (category == c) 0 else c
-                    if (!urgentChosen) urgent = category != 0 && urgentByDefault(category)
+    Box(Modifier.fillMaxSize()) {
+        NavScreen(
+            title = stringResource(R.string.tab_report),
+            background = colors.grouped,
+            scrolled = scrolled,
+            leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
+            trailing = { backdrop ->
+                if (incidents.mine.isNotEmpty()) {
+                    GlassIconButton(Sym.History, stringResource(R.string.report_mine), { vm.open(Dest.MyReports) }, backdrop)
                 }
-            }
-
-            val chevron by animateFloatAsState(if (details) 180f else 0f, tween(Motion.QUICK, easing = Motion.Standard), label = "chevron")
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button) { details = !details }
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            },
+        ) { padding ->
+            Column(
+                Modifier.fillMaxSize()
+                    // cu tastatura deschisa lista se opreste deasupra butonului, ca descrierea sa ramana la vedere
+                    .padding(bottom = if (typing) (footer - FadeZone).coerceAtLeast(0.dp) else 0.dp)
+                    .verticalScroll(scroll)
+                    .padding(top = padding.calculateTopPadding(), bottom = if (typing) FadeZone + 8.dp else footer + 8.dp),
             ) {
-                Text(stringResource(R.string.report_details), style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.weight(1f))
-                Icon(AppIcons.ChevronDown, null, tint = colors.textSecondary, modifier = Modifier.size(22.dp).rotate(chevron))
-            }
-            AnimatedVisibility(
-                details,
-                enter = fadeIn(tween(Motion.STANDARD)) + expandVertically(tween(Motion.STANDARD, easing = Motion.Enter)),
-                exit = fadeOut(tween(100)) + shrinkVertically(tween(Motion.QUICK, easing = Motion.Exit)),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AppCard(Modifier.fillMaxWidth()) {
-                        SectionLabel(stringResource(R.string.report_urgent))
-                        Spacer(Modifier.height(10.dp))
-                        Segmented(
-                            listOf(false to stringResource(R.string.no), true to stringResource(R.string.yes)), urgent,
-                            {
-                                urgent = it
-                                urgentChosen = true
-                            },
-                            Modifier.fillMaxWidth(), selectedColor = { if (it) colors.danger else null },
-                        )
-                    }
-                    AppCard(Modifier.fillMaxWidth()) {
-                        SectionLabel(stringResource(R.string.report_zone))
-                        Text(
-                            when {
-                                autoZone != null -> stringResource(R.string.report_zone_auto, autoZone.name)
-                                // avem fix GPS, dar in afara zonelor: pozitia pleaca oricum cu raportul
-                                position != null -> stringResource(R.string.report_zone_outside)
-                                else -> stringResource(R.string.report_zone_manual)
-                            },
-                            style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp),
-                        )
-                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for (z in vm.venue.zones) {
-                                ZoneChip(z.name, selected = zone == z.id) { zone = if (zone == z.id) "" else z.id }
-                            }
-                        }
-                        if (position == null && !vm.c.location.hasPermission()) {
-                            TextAction(stringResource(R.string.report_use_location), requestLocation)
-                        }
-                    }
-                    Column {
-                        PillTextField(
-                            description, { description = it.take(Limits.DESCRIPTION_CHARS) }, stringResource(R.string.report_description),
-                            Modifier.fillMaxWidth(), maxLines = 4,
-                        )
-                        Text(
-                            "${description.length}/${Limits.DESCRIPTION_CHARS}", style = MaterialTheme.typography.labelMedium,
-                            color = colors.textSecondary, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth().padding(top = 4.dp, end = 12.dp),
-                        )
-                    }
-                    AppCard(Modifier.fillMaxWidth()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                SectionLabel(stringResource(R.string.report_anonymous))
-                                Text(
-                                    stringResource(if (anonymous) R.string.report_anonymous_on else R.string.report_anonymous_off),
-                                    style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary,
+                Text(
+                    stringResource(R.string.report_title), style = MaterialTheme.typography.title1, color = colors.label,
+                    modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp),
+                )
+                Text(
+                    stringResource(R.string.report_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                    modifier = Modifier.padding(start = Gutter, end = Gutter, top = 4.dp, bottom = 20.dp),
+                )
+                Column(Modifier.padding(horizontal = Gutter), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IncidentCategory.all.chunked(4).forEach { row ->
+                        // placile dintr-un rand iau inaltimea celei cu eticheta pe doua randuri
+                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (c in row) {
+                                ActionTile(
+                                    categoryIcon(c), stringResource(Labels.category(c)),
+                                    {
+                                        category = if (category == c) 0 else c
+                                        if (!urgentChosen) urgent = category != 0 && urgentByDefault(category)
+                                    },
+                                    Modifier.weight(1f).fillMaxHeight(), selected = category == c, background = colors.cell,
                                 )
                             }
-                            AppSwitch(anonymous) { anonymous = it }
+                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
-            }
-            if (waitMs > 0) {
-                Text(
-                    stringResource(R.string.report_rate_limited, (waitMs / 60_000 + 1).toInt()),
-                    style = MaterialTheme.typography.bodyMedium, color = colors.danger, modifier = Modifier.padding(horizontal = 4.dp),
+                if (category != 0) {
+                    Text(
+                        stringResource(Labels.categoryExample(category)).replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                        modifier = Modifier.padding(start = Gutter, end = Gutter, top = 12.dp),
+                    )
+                }
+
+                SectionTitle(stringResource(R.string.report_details))
+                InsetGroup {
+                    SwitchRow(
+                        stringResource(R.string.report_urgent), urgent,
+                        {
+                            urgent = it
+                            urgentChosen = true
+                        },
+                        subtitle = stringResource(R.string.report_urgent_label), icon = Sym.Priority,
+                    )
+                    GroupDivider()
+                    GroupRow(
+                        stringResource(R.string.report_zone),
+                        subtitle = when {
+                            zone.isNotEmpty() -> if (autoZone?.id == zone) stringResource(R.string.map_source_gps).replaceFirstChar { it.uppercase() } else null
+                            // avem fix GPS, dar in afara zonelor: pozitia pleaca oricum cu raportul
+                            position != null -> stringResource(R.string.report_zone_outside)
+                            else -> stringResource(R.string.report_zone_manual)
+                        },
+                        value = if (zone.isNotEmpty()) vm.venue.zoneName(zone) else null,
+                        icon = Sym.Place, chevron = true, onClick = { pickZone = true },
+                    )
+                    GroupDivider()
+                    SwitchRow(
+                        stringResource(R.string.report_anonymous), anonymous, { anonymous = it },
+                        subtitle = stringResource(if (anonymous) R.string.report_anonymous_on else R.string.report_anonymous_off), icon = Sym.Hidden,
+                    )
+                }
+                InputField(
+                    description, { description = it.take(Limits.DESCRIPTION_CHARS) }, stringResource(R.string.report_description),
+                    Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 20.dp), maxLines = 4,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    supporting = "${description.length}/${Limits.DESCRIPTION_CHARS}", background = colors.cell,
                 )
             }
         }
 
-        // butonul sta lipit jos, deasupra barei; fundalul se estompeaza sub el ca lista sa nu se bata cu textul
-        Box(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, colors.background), endY = 60f))
-                .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = LocalBottomClearance.current + 8.dp),
-        ) {
+        FloatingFooter((if (typing) keyboard else clearance) + 8.dp, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
+            if (waitMs > 0) {
+                StatusLabel(
+                    stringResource(R.string.report_rate_limited, (waitMs / 60_000 + 1).toInt()), Modifier.padding(bottom = 8.dp),
+                    icon = Sym.Info, color = colors.red,
+                )
+            }
             AppButton(
                 stringResource(R.string.report_send),
                 {
@@ -201,9 +219,9 @@ fun ReportScreen(vm: AppViewModel) {
                         if (autoZone == null) vm.manualZone = zone
                         haptics.confirm()
                         category = 0
-                        details = false
                         description = ""
                         urgentChosen = false
+                        urgent = false
                         vm.open(Dest.ReportSent(id))
                     }
                 },
@@ -211,60 +229,79 @@ fun ReportScreen(vm: AppViewModel) {
             )
         }
     }
-}
 
-@Composable
-private fun CategoryCard(category: Int, selected: Boolean, onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    AppCard(Modifier.fillMaxWidth(), onClick = onClick, selected = selected, padding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(44.dp).clip(CircleShape).background(if (selected) colors.accentSoft else colors.cardHigh),
-                contentAlignment = Alignment.Center,
-            ) { Icon(AppIcons.category(category), null, tint = if (selected) colors.accent else colors.text, modifier = Modifier.size(22.dp)) }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(Labels.category(category)), style = MaterialTheme.typography.titleMedium, color = colors.text)
-                Text(stringResource(Labels.categoryExample(category)), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
-            }
-            Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
-                androidx.compose.animation.AnimatedVisibility(
-                    selected,
-                    enter = scaleIn(tween(Motion.QUICK, easing = Motion.Enter), initialScale = 0.6f) + fadeIn(tween(Motion.QUICK)),
-                    exit = scaleOut(tween(100), targetScale = 0.6f) + fadeOut(tween(100)),
-                ) {
-                    Box(Modifier.size(26.dp).clip(CircleShape).background(colors.accent), contentAlignment = Alignment.Center) {
-                        Icon(AppIcons.Check, null, tint = colors.onAccent, modifier = Modifier.size(16.dp))
-                    }
+    if (pickZone) {
+        var choice by remember { mutableStateOf(zone) }
+        AppDialog(
+            onDismiss = { pickZone = false },
+            title = stringResource(R.string.report_zone_pick),
+            confirmLabel = stringResource(R.string.save),
+            onConfirm = {
+                zone = choice
+                pickZone = false
+            },
+        ) {
+            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()).selectableGroup()) {
+                ZoneOption(stringResource(R.string.report_zone_none), choice.isEmpty()) { choice = "" }
+                for (z in vm.venue.zones) {
+                    GroupDivider(start = 4.dp)
+                    ZoneOption(z.name, choice == z.id) { choice = z.id }
                 }
             }
+            if (position == null && !vm.c.location.hasPermission()) {
+                TextLink(
+                    stringResource(R.string.report_use_location),
+                    {
+                        pickZone = false
+                        requestLocation()
+                    },
+                    Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
+                )
+            }
         }
     }
 }
 
+/** O optiune din lista de zone: numele, cu bifa albastra in dreapta cand e aleasa. */
 @Composable
-private fun ZoneChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    Box(Modifier.heightIn(min = 48.dp).clickable(role = Role.Checkbox, onClick = onClick), contentAlignment = Alignment.Center) {
+private fun ZoneOption(name: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(name, style = MaterialTheme.typography.body, color = colors.label, modifier = Modifier.weight(1f))
+        if (selected) Icon(Sym.Check, null, Modifier.size(20.dp), tint = colors.accent)
+    }
+}
+
+/**
+ * Butoanele care plutesc jos, peste lista. Cand lista trece pe sub ele, fundalul se estompeaza in spatele lor,
+ * ca marginea de derulare din iOS. [onHeight] primeste cat ocupa, cu estomparea si [bottom] cu tot.
+ */
+@Composable
+private fun FloatingFooter(
+    bottom: Dp,
+    fade: Boolean,
+    onHeight: (Dp) -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = AppTheme.colors
+    val density = LocalDensity.current
+    val edge by animateFloatAsState(if (fade) 1f else 0f, tween(Motion.QUICK), label = "footerEdge")
+    Box(modifier.fillMaxWidth().onSizeChanged { onHeight(with(density) { it.height.toDp() }) }) {
         Box(
-            Modifier.height(38.dp).clip(CircleShape).background(if (selected) colors.accent else colors.cardHigh).padding(horizontal = 14.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, color = if (selected) colors.onAccent else colors.text, maxLines = 1)
-        }
+            Modifier.matchParentSize().graphicsLayer { alpha = edge }.background(
+                Brush.verticalGradient(listOf(colors.grouped.copy(alpha = 0f), colors.grouped), endY = with(density) { FadeZone.toPx() }),
+            ),
+        )
+        Column(
+            Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = FadeZone, bottom = bottom),
+            horizontalAlignment = Alignment.CenterHorizontally, content = content,
+        )
     }
-}
-
-@Composable
-fun AppSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    val colors = LocalAppColors.current
-    Switch(
-        checked = checked, onCheckedChange = onCheckedChange,
-        colors = SwitchDefaults.colors(
-            checkedThumbColor = colors.onAccent, checkedTrackColor = colors.accent,
-            uncheckedThumbColor = colors.textSecondary, uncheckedTrackColor = colors.cardHigh, uncheckedBorderColor = colors.textSecondary.copy(alpha = 0.5f),
-        ),
-    )
 }
 
 /** Pasul la care a ajuns raportul, de la 0 (asteapta un telefon) la 4 (rezolvat). */
@@ -286,55 +323,42 @@ private fun stepLabels(report: MyReport): List<String> = listOf(
     stringResource(R.string.status_resolved),
 )
 
-/** Drumul raportului, pas cu pas, cu starea scrisa. */
+/**
+ * Drumul raportului, ca urmarirea unei comenzi pe iPhone: pasii facuti au bifa albastra, pasul curent un inel
+ * albastru cu punct si ora, cei care urmeaza doar un inel gri; intre ei, o linie subtire.
+ */
 @Composable
 fun ReportTimeline(report: MyReport, modifier: Modifier = Modifier) {
-    val colors = LocalAppColors.current
     val current = reportStep(report)
     val labels = stepLabels(report)
-    val tone = if (current == 0) colors.wait else colors.ok
+    val colors = AppTheme.colors
     Column(modifier) {
         labels.forEachIndexed { index, label ->
-            val done = index < current
-            val isCurrent = index == current
+            val done = index < current || current == labels.lastIndex
+            val isCurrent = index == current && !done
+            val last = index == labels.lastIndex
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                Column(Modifier.width(28.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        // cat raportul e inca pe drum, pasul curent respira usor
-                        Modifier.size(28.dp).then(if (isCurrent && current < 2) Modifier.pulse() else Modifier).clip(CircleShape)
-                            .then(
-                                when {
-                                    isCurrent -> Modifier.background(tone)
-                                    done -> Modifier.background(colors.ok.copy(alpha = 0.18f))
-                                    else -> Modifier.border(1.5.dp, colors.textSecondary.copy(alpha = 0.35f), CircleShape)
-                                }
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
+                Column(Modifier.width(24.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    // inelele au 20, cat cercul desenat in iconita de 24 cu bifa
+                    Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
                         when {
-                            isCurrent -> Icon(
-                                if (current == 0) AppIcons.Clock else AppIcons.Check, null,
-                                tint = if (colors.dark) Color(0xFF1A1F1C) else Color.White, modifier = Modifier.size(16.dp),
-                            )
-                            done -> Icon(AppIcons.Check, null, tint = colors.ok, modifier = Modifier.size(16.dp))
+                            done -> Icon(Sym.CheckCircle, null, Modifier.size(24.dp), tint = colors.accent)
+                            isCurrent -> Box(Modifier.size(20.dp).border(2.dp, colors.accent, CircleShape), contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(8.dp).clip(CircleShape).background(colors.accent))
+                            }
+                            else -> Box(Modifier.size(20.dp).border(1.5.dp, colors.tertiaryLabel, CircleShape))
                         }
                     }
-                    if (index < labels.lastIndex) {
-                        Box(
-                            Modifier.padding(vertical = 3.dp).width(2.dp).weight(1f).heightIn(min = 14.dp).clip(CircleShape)
-                                .background(if (done) colors.ok.copy(alpha = 0.5f) else colors.cardHigh),
-                        )
-                    }
+                    if (!last) Box(Modifier.width(1.5.dp).weight(1f).background(if (index < current) colors.accent else colors.separator))
                 }
                 Spacer(Modifier.width(14.dp))
-                Column(Modifier.padding(top = 3.dp, bottom = if (index < labels.lastIndex) 14.dp else 0.dp)) {
+                Column(Modifier.weight(1f).padding(top = 1.dp, bottom = if (last) 0.dp else 22.dp)) {
                     Text(
-                        label,
-                        style = if (isCurrent) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
-                        color = if (done || isCurrent) colors.text else colors.textSecondary,
+                        label, style = if (isCurrent) MaterialTheme.typography.headline else MaterialTheme.typography.body,
+                        color = if (done || isCurrent) colors.label else colors.secondaryLabel,
                     )
                     if (isCurrent && report.updatedAt > 0) {
-                        Text(agoText(report.updatedAt), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+                        Text(agoText(report.updatedAt), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
                     }
                 }
             }
@@ -342,98 +366,120 @@ fun ReportTimeline(report: MyReport, modifier: Modifier = Modifier) {
     }
 }
 
+/** Cercul categoriei: rosu pal cu iconita rosie cand e urgent, gri cu iconita neagra in rest. */
+@Composable
+private fun CategoryCircle(category: Int, urgent: Boolean, size: Dp) {
+    val colors = AppTheme.colors
+    IconCircle(
+        categoryIcon(category), if (urgent) colors.red.copy(alpha = 0.15f) else colors.fill,
+        if (urgent) colors.red else colors.label, size,
+    )
+}
+
+/** Antetul unui raport sau incident, ca antetul unui contact in Signal: cercul categoriei, numele si unde. Rosu cand e urgent. */
+@Composable
+fun IncidentHeader(category: Int, urgent: Boolean, subtitle: String, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    Column(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        CategoryCircle(category, urgent, 88.dp)
+        Text(
+            stringResource(Labels.category(category)), style = MaterialTheme.typography.title2, color = colors.label, textAlign = TextAlign.Center,
+            modifier = Modifier.padding(start = Gutter, end = Gutter, top = 12.dp),
+        )
+        Text(
+            subtitle, style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, textAlign = TextAlign.Center,
+            modifier = Modifier.padding(start = Gutter, end = Gutter, top = 2.dp),
+        )
+        if (urgent) {
+            StatusLabel(stringResource(R.string.sev_urgent), Modifier.padding(top = 8.dp), icon = Sym.Priority, color = colors.red)
+        }
+    }
+}
+
+@Composable
+private fun reportSubtitle(vm: AppViewModel, report: MyReport): String =
+    listOfNotNull(report.zone.takeIf { it.isNotEmpty() }?.let { vm.venue.zoneName(it) }, Labels.clock(report.createdAt)).joinToString(" · ")
+
+/** Dupa trimitere: ce ai raportat, drumul raportului pana la staff si, jos, butonul de gata. */
 @Composable
 fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
-    val colors = LocalAppColors.current
     val report = incidents.mine.firstOrNull { it.incidentId == incidentId }
+    val colors = AppTheme.colors
+    val scroll = rememberScrollState()
+    val scrolled by remember { derivedStateOf { scroll.value > 0 } }
+    val more by remember { derivedStateOf { scroll.canScrollForward } }
+    var footer by remember { mutableStateOf(0.dp) }
     if (report == null) {
         LaunchedEffect(Unit) { vm.back() }
         return
     }
-    ScreenScaffold(
-        title = stringResource(R.string.report_next_title), onBack = { vm.back() },
-        bottomBar = {
-            Column(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = LocalBottomClearance.current + 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                AppButton(stringResource(R.string.done), { vm.back() }, Modifier.fillMaxWidth())
-                TextAction(stringResource(R.string.report_mine), {
+    Box(Modifier.fillMaxSize()) {
+        NavScreen(
+            title = stringResource(R.string.report_next_title),
+            background = colors.grouped,
+            scrolled = scrolled,
+            leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        ) { padding ->
+            Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = padding.calculateTopPadding(), bottom = footer + 8.dp)) {
+                IncidentHeader(report.category, report.severity == Severity.URGENT, reportSubtitle(vm, report))
+                Text(
+                    stringResource(R.string.report_next_text), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+                )
+                InsetGroup(Modifier.padding(top = 20.dp)) {
+                    ReportTimeline(report, Modifier.padding(horizontal = Gutter, vertical = 16.dp))
+                }
+            }
+        }
+        // TextLink are 44 de atins, deci loc destul sub el
+        FloatingFooter(LocalBottomClearance.current, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
+            AppButton(stringResource(R.string.done), { vm.back() }, Modifier.fillMaxWidth())
+            TextLink(
+                stringResource(R.string.report_mine),
+                {
                     vm.back()
                     vm.open(Dest.MyReports)
-                })
-            }
-        },
-    ) { padding ->
-        Column(
-            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Column(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                HopLine(Modifier.width(210.dp), dots = 6, dotSize = 11.dp)
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    stringResource(R.string.report_next_text), style = MaterialTheme.typography.bodyLarge, color = colors.textSecondary,
-                    textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp),
-                )
-            }
-            AppCard(Modifier.fillMaxWidth().enter(delayMs = 60)) {
-                ReportHeader(vm, report)
-                Spacer(Modifier.height(18.dp))
-                ReportTimeline(report)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReportHeader(vm: AppViewModel, report: MyReport) {
-    val colors = LocalAppColors.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(40.dp).clip(CircleShape).background(colors.cardHigh), contentAlignment = Alignment.Center) {
-            Icon(AppIcons.category(report.category), null, tint = colors.text, modifier = Modifier.size(20.dp))
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(Labels.category(report.category)), style = MaterialTheme.typography.titleMedium, color = colors.text)
-            Text(
-                listOfNotNull(report.zone.takeIf { it.isNotEmpty() }?.let { vm.venue.zoneName(it) }, Labels.clock(report.createdAt)).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall, color = colors.textSecondary,
+                },
+                Modifier.padding(top = 4.dp),
             )
         }
-        if (report.severity == Severity.URGENT) StateLabel(AppIcons.Warning, stringResource(R.string.sev_urgent), colors.danger)
     }
 }
 
+/** Rapoartele trimise, cele noi sus, intr-un grup: categoria, unde si cand, si pasul la care au ajuns. */
 @Composable
 fun MyReportsScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
-    val colors = LocalAppColors.current
     val mine = incidents.mine.sortedByDescending { it.createdAt }
-    ScreenScaffold(title = stringResource(R.string.report_mine), onBack = { vm.back() }) { padding ->
+    val colors = AppTheme.colors
+    val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.canScrollBackward } }
+    NavScreen(
+        title = stringResource(R.string.report_mine),
+        background = colors.grouped,
+        scrolled = scrolled,
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+    ) { padding ->
         if (mine.isEmpty()) {
-            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                EmptyState(stringResource(R.string.report_mine_empty_title), stringResource(R.string.report_mine_empty_text))
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                EmptyState(stringResource(R.string.report_mine_empty_title), stringResource(R.string.report_mine_empty_text), icon = Sym.Report)
             }
-        } else LazyColumn(
-            Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(mine, key = { it.incidentId }) { report ->
-                val step = reportStep(report)
-                val tone = if (step == 0) colors.wait else colors.ok
-                AppCard(Modifier.fillMaxWidth().animateItem(), onClick = { vm.open(Dest.ReportSent(report.incidentId)) }) {
-                    ReportHeader(vm, report)
-                    Spacer(Modifier.height(14.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        repeat(5) { index ->
-                            Box(Modifier.weight(1f).height(5.dp).clip(CircleShape).background(if (index <= step) tone else colors.cardHigh))
+        } else {
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
+                item(key = "reports") {
+                    InsetGroup(Modifier.padding(top = 8.dp)) {
+                        mine.forEachIndexed { index, report ->
+                            GroupRow(
+                                stringResource(Labels.category(report.category)),
+                                subtitle = reportSubtitle(vm, report) + " · " + stepLabels(report)[reportStep(report)],
+                                chevron = true,
+                                onClick = { vm.open(Dest.ReportSent(report.incidentId)) },
+                                leading = { CategoryCircle(report.category, report.severity == Severity.URGENT, 36.dp) },
+                            )
+                            if (index < mine.lastIndex) GroupDivider(start = 64.dp)
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
-                    StateLabel(if (step == 0) AppIcons.Clock else AppIcons.CheckCircle, stepLabels(report)[step], tone)
                 }
             }
         }

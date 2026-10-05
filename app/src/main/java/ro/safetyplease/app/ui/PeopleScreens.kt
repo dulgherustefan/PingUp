@@ -1,11 +1,8 @@
 package ro.safetyplease.app.ui
 
 import android.Manifest
-import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Context
-import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -33,26 +30,31 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -66,7 +68,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,23 +81,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.zxing.BarcodeFormat
@@ -105,9 +110,10 @@ import ro.safetyplease.app.data.Conversations
 import ro.safetyplease.app.protocol.Limits
 import java.util.concurrent.Executors
 
-fun qrBitmap(text: String, size: Int = 640): Bitmap {
-    val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, mapOf(EncodeHintType.MARGIN to 2))
-    val pixels = IntArray(size * size) { i -> if (matrix[i % size, i / size]) android.graphics.Color.BLACK else android.graphics.Color.WHITE }
+/** Codul QR, cu modulele in [ink] pe alb si fara margine: marginea alba o da cardul pe care sta. */
+fun qrBitmap(text: String, size: Int = 640, ink: Int = android.graphics.Color.BLACK): Bitmap {
+    val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, mapOf(EncodeHintType.MARGIN to 0))
+    val pixels = IntArray(size * size) { i -> if (matrix[i % size, i / size]) ink else android.graphics.Color.WHITE }
     return Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
 }
 
@@ -171,8 +177,8 @@ private fun ScanFrame(modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val inset = size.width * 0.14f
         val arm = size.width * 0.1f
-        val stroke = 3.dp.toPx()
-        val color = Brand.Sage
+        val stroke = 4.dp.toPx()
+        val color = Color.White
         val left = inset
         val right = size.width - inset
         val top = inset
@@ -185,29 +191,65 @@ private fun ScanFrame(modifier: Modifier = Modifier) {
         }
         if (!reduce) {
             val y = size.height * sweep
-            drawLine(color.copy(alpha = 0.7f), Offset(left + arm * 0.4f, y), Offset(right - arm * 0.4f, y), 2.dp.toPx(), StrokeCap.Round)
+            drawLine(color.copy(alpha = 0.8f), Offset(left + arm * 0.4f, y), Offset(right - arm * 0.4f, y), 3.dp.toPx(), StrokeCap.Round)
         }
     }
 }
 
-/** Un singur ecran: codul tau sus, camera pentru codul prietenului dedesubt. Tot aici se scaneaza si codul de staff. */
+private val QrBorder = Color(0xFF506ECD)
+private val QrInk = 0xFF2449C0.toInt()
+
+/** Latimea cardului cu cod; butoanele de sub el se aliniaza cu el. */
+private val CardWidth = 296.dp
+
+/**
+ * Codul tau pe un card albastru, ca in Signal: patratul alb cu codul si numele tau dedesubt, in alb.
+ * Atins, se deschide mare, pe tot ecranul.
+ */
+@Composable
+private fun QrBadge(code: String, name: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val bitmap = remember(code) { qrBitmap(code, ink = QrInk).asImageBitmap() }
+    Column(
+        modifier.widthIn(max = CardWidth).fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(QrBorder)
+            .clickable(onClickLabel = stringResource(R.string.add_friend_enlarge), role = Role.Button, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // alb pe orice tema: orice camera trebuie sa il poata citi
+        Image(
+            bitmap, stringResource(R.string.add_friend_mine),
+            Modifier.padding(start = 40.dp, end = 40.dp, top = 32.dp).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp))
+                .background(Color.White).border(2.dp, Color(0xFFE9E9E9), RoundedCornerShape(12.dp)).padding(16.dp),
+        )
+        Text(
+            name, style = MaterialTheme.typography.title3, color = Color.White, textAlign = TextAlign.Center,
+            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 16.dp, bottom = 28.dp),
+        )
+    }
+}
+
+/**
+ * Adauga prieten, ca ecranul cu codul QR din Signal: comutatorul sus, apoi cardul albastru cu codul tau
+ * sau camera pentru codul altcuiva.
+ */
 @Composable
 fun AddFriendScreen(vm: AppViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val colors = LocalAppColors.current
     val haptics = rememberHaptics()
+    val colors = AppTheme.colors
     val code = remember(settings.nickname) { vm.myQrText() }
-    val bitmap = remember(code) { qrBitmap(code).asImageBitmap() }
+    var tab by rememberSaveable { mutableIntStateOf(0) }
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
-    LaunchedEffect(Unit) { if (!granted) launcher.launch(Manifest.permission.CAMERA) }
+    LaunchedEffect(tab) { if (tab == 1 && !granted) launcher.launch(Manifest.permission.CAMERA) }
     var outcome by remember { mutableStateOf<ScanOutcome?>(null) }
     var lastText by remember { mutableStateOf("") }
     var sheet by remember { mutableStateOf(false) }
     var bigCode by remember { mutableStateOf(false) }
+    val scroll = rememberScrollState()
+    val scrolled by remember { derivedStateOf { scroll.value > 0 } }
 
     fun handle(text: String) {
         // camera vede acelasi cod de multe ori pe secunda
@@ -219,109 +261,114 @@ fun AddFriendScreen(vm: AppViewModel) {
     }
 
     val success = outcome?.takeIf { it.success }
-    ScreenScaffold(title = stringResource(R.string.add_friend_title), onBack = { vm.back() }) { padding ->
+    NavScreen(
+        title = stringResource(R.string.add_friend_title),
+        background = colors.grouped,
+        scrolled = scrolled,
+        trailing = { backdrop -> GlassIconButton(Sym.Close, stringResource(R.string.close), { vm.back() }, backdrop) },
+    ) { padding ->
         Column(
-            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier.fillMaxSize().verticalScroll(scroll).padding(padding).padding(horizontal = Gutter),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            AppCard(Modifier.fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // alb pe ambele teme: orice camera trebuie sa il poata citi
-                    Image(
-                        bitmap, stringResource(R.string.add_friend_mine),
-                        Modifier.size(148.dp).clip(RoundedCornerShape(16.dp)).background(Color.White)
-                            .clickable(onClickLabel = stringResource(R.string.add_friend_enlarge), role = Role.Button) { bigCode = true },
+            SegmentedControl(
+                listOf(0 to stringResource(R.string.add_friend_tab_code), 1 to stringResource(R.string.add_friend_tab_scan)),
+                tab, { tab = it }, Modifier.padding(top = 8.dp),
+            )
+            if (tab == 0) {
+                QrBadge(code, settings.nickname, { bigCode = true }, Modifier.padding(top = 24.dp))
+                Text(
+                    stringResource(R.string.add_friend_mine_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = CardWidth).padding(top = 16.dp),
+                )
+                Row(
+                    Modifier.widthIn(max = CardWidth).fillMaxWidth().height(IntrinsicSize.Min).padding(top = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    ActionTile(
+                        Sym.QrScan, stringResource(R.string.add_friend_tab_scan), { tab = 1 },
+                        Modifier.weight(1f).fillMaxHeight(), background = colors.cell,
                     )
-                    Spacer(Modifier.width(16.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(stringResource(R.string.add_friend_mine), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
-                        Text(settings.nickname, style = MaterialTheme.typography.titleLarge, color = colors.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(stringResource(R.string.add_friend_mine_hint), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
-                    }
+                    ActionTile(
+                        Sym.Copy, stringResource(R.string.add_friend_text_link), { sheet = true },
+                        Modifier.weight(1f).fillMaxHeight(), background = colors.cell,
+                    )
                 }
-            }
-
-            if (success != null) {
-                AppCard(Modifier.fillMaxWidth().enter()) {
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SuccessCheck(size = 64.dp)
-                        Text(
-                            when (success) {
-                                is ScanOutcome.FriendAdded -> stringResource(R.string.add_friend_done, success.name)
-                                ScanOutcome.AnchorOn -> stringResource(R.string.scan_anchor_on)
-                                else -> stringResource(R.string.scan_staff_on)
-                            },
-                            style = MaterialTheme.typography.bodyLarge, color = colors.text, textAlign = TextAlign.Center,
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (success is ScanOutcome.FriendAdded) {
-                                AppButton(stringResource(R.string.add_friend_again), {
-                                    outcome = null
-                                    lastText = ""
-                                }, kind = ButtonKind.Secondary, compact = true)
-                            }
-                            AppButton(stringResource(R.string.done), {
-                                when (success) {
-                                    ScanOutcome.StaffOn -> vm.home(Tab.INCIDENTS)
-                                    ScanOutcome.AnchorOn -> vm.stack.clear()
-                                    else -> vm.back()
-                                }
-                            }, compact = true)
+            } else if (success != null) {
+                Icon(Sym.CheckCircle, null, Modifier.padding(top = 48.dp).size(64.dp), tint = colors.accent)
+                Text(
+                    when (success) {
+                        is ScanOutcome.FriendAdded -> stringResource(R.string.add_friend_done, success.name)
+                        ScanOutcome.AnchorOn -> stringResource(R.string.scan_anchor_on)
+                        else -> stringResource(R.string.scan_staff_on)
+                    },
+                    style = MaterialTheme.typography.body, color = colors.label, textAlign = TextAlign.Center,
+                    modifier = Modifier.widthIn(max = 320.dp).padding(top = 16.dp),
+                )
+                Column(
+                    Modifier.widthIn(max = CardWidth).fillMaxWidth().padding(top = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    AppButton(stringResource(R.string.done), {
+                        when (success) {
+                            ScanOutcome.StaffOn -> vm.home(Tab.INCIDENTS)
+                            ScanOutcome.AnchorOn -> vm.stack.clear()
+                            else -> vm.back()
                         }
+                    }, Modifier.fillMaxWidth())
+                    if (success is ScanOutcome.FriendAdded) {
+                        AppButton(stringResource(R.string.add_friend_again), {
+                            outcome = null
+                            lastText = ""
+                        }, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary)
                     }
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(start = 4.dp, top = 4.dp)) {
-                    SectionLabel(stringResource(R.string.add_friend_scan))
-                    Text(stringResource(R.string.add_friend_scan_hint), style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
-                }
                 if (granted) {
-                    Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(CardShape).background(Color.Black)) {
+                    Box(
+                        Modifier.padding(top = 24.dp).widthIn(max = 360.dp).fillMaxWidth().aspectRatio(1f)
+                            .clip(RoundedCornerShape(26.dp)).background(Color.Black),
+                    ) {
                         QrCamera(::handle, Modifier.fillMaxSize())
                         ScanFrame(Modifier.fillMaxSize())
                     }
                 } else {
-                    ProblemCard(
-                        AppIcons.Camera, stringResource(R.string.add_friend_scan), stringResource(R.string.add_friend_no_camera),
-                        action = stringResource(R.string.add_friend_allow_camera), onAction = { launcher.launch(Manifest.permission.CAMERA) },
+                    NoCamera({ launcher.launch(Manifest.permission.CAMERA) }, Modifier.padding(top = 24.dp))
+                }
+                Text(
+                    stringResource(R.string.add_friend_scan_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 320.dp).padding(top = 16.dp),
+                )
+                AnimatedVisibility(outcome != null, enter = fadeIn(tween(Motion.QUICK)) + expandVertically(), exit = fadeOut(tween(100)) + shrinkVertically()) {
+                    StatusLabel(
+                        stringResource(
+                            when (outcome) {
+                                ScanOutcome.OwnCode -> R.string.scan_own_code
+                                ScanOutcome.WrongEvent -> R.string.scan_wrong_event
+                                else -> R.string.scan_unknown
+                            }
+                        ),
+                        Modifier.padding(top = 12.dp), icon = Sym.Info, color = colors.red,
                     )
                 }
-                AnimatedVisibility(outcome != null, enter = fadeIn(tween(Motion.QUICK)) + expandVertically(), exit = fadeOut(tween(100)) + shrinkVertically()) {
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.danger.copy(alpha = 0.14f)).padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(AppIcons.Info, null, tint = colors.danger, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            stringResource(
-                                when (outcome) {
-                                    ScanOutcome.OwnCode -> R.string.scan_own_code
-                                    ScanOutcome.WrongEvent -> R.string.scan_wrong_event
-                                    else -> R.string.scan_unknown
-                                }
-                            ),
-                            style = MaterialTheme.typography.bodyMedium, color = colors.text,
-                        )
-                    }
-                }
+                TextLink(stringResource(R.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
             }
-            TextAction(stringResource(R.string.add_friend_text_link), { sheet = true }, Modifier.align(Alignment.CenterHorizontally))
         }
     }
     if (bigCode) {
         // codul mare, pe alb: de aproape sau in lumina slaba se citeste mai usor
+        val bitmap = remember(code) { qrBitmap(code).asImageBitmap() }
         Dialog(onDismissRequest = { bigCode = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Column(
-                Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, indication = null) { bigCode = false }.padding(24.dp),
+                Modifier.fillMaxSize().clickable(onClickLabel = stringResource(R.string.close)) { bigCode = false }.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
             ) {
                 Image(
                     bitmap, stringResource(R.string.add_friend_mine),
-                    Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(28.dp)).background(Color.White).padding(8.dp),
+                    Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(24.dp)).background(Color.White).padding(20.dp),
                 )
-                Spacer(Modifier.height(20.dp))
-                Text(settings.nickname, style = MaterialTheme.typography.headlineMedium, color = Color.White, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(24.dp))
+                Text(settings.nickname, style = MaterialTheme.typography.title1, color = Color.White, textAlign = TextAlign.Center)
             }
         }
     }
@@ -330,6 +377,7 @@ fun AddFriendScreen(vm: AppViewModel) {
             myCode = code,
             onUse = {
                 sheet = false
+                tab = 1
                 handle(it)
             },
             onDismiss = { sheet = false },
@@ -340,53 +388,174 @@ fun AddFriendScreen(vm: AppViewModel) {
 private val ScanOutcome.success: Boolean
     get() = this is ScanOutcome.FriendAdded || this == ScanOutcome.StaffOn || this == ScanOutcome.AnchorOn
 
+/** In locul camerei, cand nu avem voie la ea: acelasi patrat, cu explicatia si butonul care cere accesul. */
+@Composable
+private fun NoCamera(onAllow: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    Column(
+        modifier.widthIn(max = 360.dp).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(26.dp)).background(colors.cell).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(Sym.QrScan, null, Modifier.size(44.dp), tint = colors.secondaryLabel)
+        Text(
+            stringResource(R.string.add_friend_scan), style = MaterialTheme.typography.headline, color = colors.label,
+            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp),
+        )
+        Text(
+            stringResource(R.string.add_friend_no_camera), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp),
+        )
+        AppButton(stringResource(R.string.add_friend_allow_camera), onAllow, Modifier.padding(top = 16.dp), compact = true)
+    }
+}
+
+/** Foaia pentru codul ca text: codul tau de copiat, sus, si campul pentru codul prietenului, jos. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CodeSheet(myCode: String, onUse: (String) -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val colors = LocalAppColors.current
+    val colors = AppTheme.colors
     var copied by remember { mutableStateOf(false) }
     var manual by rememberSaveable { mutableStateOf("") }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.card, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp).imePadding(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            SectionLabel(stringResource(R.string.code_sheet_mine))
-            Text(myCode, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            AppButton(
-                stringResource(if (copied) R.string.code_sheet_copied else R.string.code_sheet_copy),
-                {
-                    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("cod", myCode))
-                    copied = true
-                },
-                kind = ButtonKind.Secondary, icon = if (copied) AppIcons.Check else AppIcons.Copy, compact = true,
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+        containerColor = colors.grouped,
+        contentColor = colors.label,
+        dragHandle = {
+            Box(Modifier.padding(vertical = 6.dp).size(width = 36.dp, height = 5.dp).clip(CircleShape).background(colors.tertiaryLabel))
+        },
+    ) {
+        Column(Modifier.fillMaxWidth().padding(bottom = 24.dp).imePadding()) {
+            Text(
+                stringResource(R.string.add_friend_text_link), style = MaterialTheme.typography.headline, color = colors.label,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 4.dp),
             )
-            Spacer(Modifier.height(6.dp))
-            SectionLabel(stringResource(R.string.code_sheet_theirs))
-            PillTextField(
-                manual, { manual = it.trim() }, stringResource(R.string.code_sheet_placeholder),
-                Modifier.fillMaxWidth(), container = colors.cardHigh,
+            SectionTitle(stringResource(R.string.code_sheet_mine))
+            InsetGroup {
+                Text(
+                    myCode, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, maxLines = 3,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = Gutter, vertical = 12.dp),
+                )
+                GroupDivider(start = Gutter)
+                GroupRow(
+                    stringResource(if (copied) R.string.code_sheet_copied else R.string.code_sheet_copy),
+                    icon = if (copied) Sym.Check else Sym.Copy, tint = colors.accent,
+                    onClick = {
+                        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("cod", myCode))
+                        copied = true
+                    },
+                )
+            }
+            SectionTitle(stringResource(R.string.code_sheet_theirs))
+            InputField(
+                manual, { manual = it.trim() }, stringResource(R.string.code_sheet_placeholder), Modifier.fillMaxWidth().padding(horizontal = Gutter),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { if (manual.isNotBlank()) onUse(manual) }),
+                background = colors.cell,
             )
-            AppButton(stringResource(R.string.code_sheet_use), { onUse(manual) }, Modifier.fillMaxWidth(), enabled = manual.isNotBlank())
+            AppButton(
+                stringResource(R.string.code_sheet_use), { onUse(manual) },
+                Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 16.dp), enabled = manual.isNotBlank(),
+            )
         }
     }
 }
 
+/**
+ * Grup nou, ca in Signal: numele sus, prietenii alesi ca bule deasupra listei, apoi prietenii intr-un card,
+ * fiecare cu bifa lui. Butonul de creare pluteste jos, deasupra tastaturii cand e deschisa.
+ */
 @Composable
 fun NewGroupScreen(vm: AppViewModel) {
     val friends by vm.friends.collectAsStateWithLifecycle()
-    val colors = LocalAppColors.current
+    val mesh by vm.mesh.collectAsStateWithLifecycle()
+    val colors = AppTheme.colors
+    val haptics = rememberHaptics()
     var name by rememberSaveable { mutableStateOf("") }
     val selected = remember { mutableStateListOf<Long>() }
     val max = Limits.GROUP_MAX_MEMBERS - 1
     val sorted = remember(friends) { friends.sortedBy { it.nickname.lowercase() } }
-    ScreenScaffold(
-        title = stringResource(R.string.group_new), onBack = { vm.back() },
-        bottomBar = {
-            Box(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+    // tastatura acopera si bara de gesturi: conteaza doar cea mai inalta dintre ele
+    val bottom = maxOf(WindowInsets.ime.asPaddingValues().calculateBottomPadding(), LocalBottomClearance.current)
+    val fade = with(LocalDensity.current) { 24.dp.toPx() }
+
+    NavScreen(
+        title = stringResource(R.string.group_new),
+        background = colors.grouped,
+        scrolled = scrolled,
+        trailing = { backdrop -> GlassIconButton(Sym.Close, stringResource(R.string.close), { vm.back() }, backdrop) },
+    ) { padding ->
+        Box(Modifier.fillMaxSize()) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                state = listState,
+                contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = bottom + 8.dp + 50.dp + 24.dp),
+            ) {
+                item(key = "name") {
+                    InputField(
+                        name, { name = it.take(24) }, stringResource(R.string.group_name),
+                        Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 8.dp), background = colors.cell,
+                    )
+                }
+                item(key = "selected") {
+                    AnimatedVisibility(
+                        selected.isNotEmpty(),
+                        enter = fadeIn(tween(Motion.QUICK)) + expandVertically(), exit = fadeOut(tween(100)) + shrinkVertically(),
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = Gutter, end = Gutter, top = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            for (friend in sorted.filter { it.nodeId in selected }) {
+                                SelectedMember(friend.nickname) { selected.remove(friend.nodeId) }
+                            }
+                        }
+                    }
+                }
+                if (sorted.isEmpty()) {
+                    item(key = "empty") {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                stringResource(R.string.group_no_friends), style = MaterialTheme.typography.subheadline,
+                                color = colors.secondaryLabel, textAlign = TextAlign.Center,
+                            )
+                            TextLink(stringResource(R.string.menu_add_friend), { vm.open(Dest.AddFriend) }, Modifier.padding(top = 4.dp))
+                        }
+                    }
+                } else {
+                    item(key = "header") { SectionTitle(stringResource(R.string.group_pick, max)) }
+                    item(key = "friends") {
+                        InsetGroup {
+                            sorted.forEachIndexed { index, friend ->
+                                val checked = friend.nodeId in selected
+                                GroupRow(
+                                    friend.nickname,
+                                    Modifier.toggleable(checked, role = Role.Checkbox) {
+                                        when {
+                                            checked -> selected.remove(friend.nodeId)
+                                            selected.size < max -> selected.add(friend.nodeId)
+                                            else -> haptics.reject()
+                                        }
+                                    },
+                                    subtitle = presenceText(vm, friend, mesh),
+                                    leading = { Avatar(friend.nickname, 36.dp, near = vm.isInRange(friend, mesh)) },
+                                    trailing = { RoundCheck(checked) },
+                                )
+                                if (index < sorted.lastIndex) GroupDivider(start = 64.dp)
+                            }
+                        }
+                    }
+                }
+            }
+            // randurile trec pe sub buton printr-o estompare spre fundal, ca sub bara de sus
+            Box(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(colors.grouped.copy(alpha = 0f), colors.grouped), endY = fade))
+                    .padding(start = Gutter, end = Gutter, top = 24.dp, bottom = bottom + 8.dp),
+            ) {
                 AppButton(
                     stringResource(R.string.group_create),
                     {
@@ -396,156 +565,140 @@ fun NewGroupScreen(vm: AppViewModel) {
                     Modifier.fillMaxWidth(), enabled = selected.isNotEmpty() && name.isNotBlank(),
                 )
             }
-        },
-    ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            PillTextField(
-                name, { name = it.take(24) }, stringResource(R.string.group_name),
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp), leading = AppIcons.People,
-            )
-            AnimatedVisibility(selected.isNotEmpty(), enter = fadeIn(tween(Motion.QUICK)) + expandVertically(), exit = fadeOut(tween(100)) + shrinkVertically()) {
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    for (friend in sorted.filter { it.nodeId in selected }) {
-                        Column(
-                            Modifier.width(56.dp).clip(RoundedCornerShape(14.dp)).clickable(role = Role.Button) { selected.remove(friend.nodeId) },
-                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Avatar(friend.nickname, 48.dp, near = true)
-                            Text(friend.nickname, style = MaterialTheme.typography.labelMedium, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-            }
-            Text(
-                stringResource(if (sorted.isEmpty()) R.string.group_no_friends else R.string.group_pick, max),
-                style = MaterialTheme.typography.bodySmall, color = colors.textSecondary,
-                modifier = Modifier.padding(start = 20.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
-            )
-            LazyColumn(Modifier.weight(1f)) {
-                items(sorted, key = { it.nodeId }) { friend ->
-                    val checked = friend.nodeId in selected
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 60.dp).clickable(role = Role.Checkbox) {
-                            if (checked) selected.remove(friend.nodeId) else if (selected.size < max) selected.add(friend.nodeId)
-                        }.padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Avatar(friend.nickname, 44.dp)
-                        Spacer(Modifier.width(14.dp))
-                        Text(friend.nickname, style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.weight(1f))
-                        Box(
-                            Modifier.size(26.dp).clip(CircleShape)
-                                .then(if (checked) Modifier.background(colors.accent) else Modifier.border(1.5.dp, colors.textSecondary.copy(alpha = 0.5f), CircleShape)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (checked) Icon(AppIcons.Check, null, tint = colors.onAccent, modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-            }
         }
     }
 }
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
-
-/** Antetul profilului e verde inchis pe ambele teme, deci iconitele barei de stare trebuie sa fie deschise cat e pe ecran. */
+/** Un prieten ales, deasupra listei: bula lui cu un x mic in colt; atinsa, il scoate din grup. */
 @Composable
-private fun LightStatusBarIcons() {
-    val view = LocalView.current
-    val dark = LocalAppColors.current.dark
-    DisposableEffect(view, dark) {
-        val window = view.context.findActivity()?.window
-        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
-        controller?.isAppearanceLightStatusBars = false
-        onDispose { controller?.isAppearanceLightStatusBars = !dark }
+private fun SelectedMember(name: String, onRemove: () -> Unit) {
+    val colors = AppTheme.colors
+    Column(
+        Modifier.width(64.dp).clip(RoundedCornerShape(12.dp))
+            .clickable(onClickLabel = stringResource(R.string.remove), role = Role.Button, onClick = onRemove).padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box {
+            Avatar(name, 48.dp)
+            // inelul in culoarea fundalului desparte x-ul de bula
+            Box(
+                Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp).size(22.dp).clip(CircleShape).background(colors.grouped)
+                    .padding(2.dp).clip(CircleShape).background(colors.secondaryLabel),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Sym.Close, null, Modifier.size(10.dp), tint = colors.cell) }
+        }
+        Text(
+            name, style = MaterialTheme.typography.caption1, color = colors.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp),
+        )
     }
 }
 
+/** Bifa rotunda din lista de alegere: cerc gol, sau plin albastru cu bifa alba. */
+@Composable
+private fun RoundCheck(checked: Boolean) {
+    val colors = AppTheme.colors
+    Box(
+        Modifier.size(24.dp).clip(CircleShape)
+            .then(if (checked) Modifier.background(colors.accent) else Modifier.border(1.5.dp, colors.tertiaryLabel, CircleShape)),
+        contentAlignment = Alignment.Center,
+    ) { if (checked) Icon(Sym.Check, null, Modifier.size(14.dp), tint = Color.White) }
+}
+
+/** Antetul unui om sau al unui grup, ca in Signal: bula mare centrata, numele si un rand de lamurire. */
+@Composable
+fun PersonHeader(name: String, note: String, modifier: Modifier = Modifier, near: Boolean = false, group: Boolean = false, size: Dp = 80.dp) {
+    val colors = AppTheme.colors
+    Column(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Avatar(name, size, near = near, group = group)
+        Text(
+            name, style = MaterialTheme.typography.title1, color = colors.label, textAlign = TextAlign.Center,
+            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Gutter, end = Gutter, top = 12.dp),
+        )
+        Text(
+            note, style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, textAlign = TextAlign.Center,
+            modifier = Modifier.padding(start = Gutter, end = Gutter, top = 2.dp),
+        )
+    }
+}
+
+/**
+ * Profilul unui prieten sau al unui grup, ca setarile unei conversatii din Signal: antetul, butonul de mesaj,
+ * detaliile in carduri, membrii grupului, apoi, separat, ce se poate sterge.
+ */
 @Composable
 fun ProfileScreen(vm: AppViewModel, conversation: String) {
     val friends by vm.friends.collectAsStateWithLifecycle()
     val groups by vm.groups.collectAsStateWithLifecycle()
     val mesh by vm.mesh.collectAsStateWithLifecycle()
-    val colors = LocalAppColors.current
+    val colors = AppTheme.colors
+    val density = LocalDensity.current
     val friend = friends.firstOrNull { Conversations.friend(it.nodeId) == conversation }
     val group = groups.firstOrNull { Conversations.group(it.id) == conversation }
     var confirm by remember { mutableStateOf(false) }
+    val scroll = rememberScrollState()
+    val scrolled by remember { derivedStateOf { scroll.value > 0 } }
+    // numele urca in bara de sus abia cand cel din antet a trecut pe sub ea
+    val nameUnderBar by remember { derivedStateOf { scroll.value > with(density) { 150.dp.toPx() } } }
     if (friend == null && group == null) {
         LaunchedEffect(Unit) { vm.back() }
         return
     }
-    LightStatusBarIcons()
     val title = friend?.nickname ?: group!!.name
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)).background(colors.forest)
-                .statusBarsPadding().padding(bottom = 28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp)) {
-                IconAction(AppIcons.Back, stringResource(R.string.back), { vm.back() }, tint = Color.White)
-            }
-            Avatar(title, 96.dp, group = group != null, onDark = true)
-            Spacer(Modifier.height(14.dp))
-            Text(
-                title, style = MaterialTheme.typography.headlineMedium, color = Color.White, textAlign = TextAlign.Center,
-                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 24.dp),
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
+    NavScreen(
+        title = if (nameUnderBar) title else "",
+        background = colors.grouped,
+        scrolled = scrolled,
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+    ) { padding ->
+        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding)) {
+            PersonHeader(
+                title,
                 if (friend != null) presenceText(vm, friend, mesh)
                 else pluralStringResource(R.plurals.group_members, group!!.members.size, group.members.size),
-                style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.82f),
+                near = friend != null && vm.isInRange(friend, mesh), group = group != null, size = 88.dp,
             )
-        }
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (friend != null) {
-                AppCard(Modifier.fillMaxWidth()) {
-                    InfoRow(stringResource(R.string.profile_added), Labels.date(friend.addedAt))
-                    Spacer(Modifier.height(12.dp))
-                    InfoRow(
+            ActionTile(
+                Sym.Chat, stringResource(R.string.profile_message), { vm.back() },
+                Modifier.align(Alignment.CenterHorizontally).width(80.dp), background = colors.cell,
+            )
+            InsetGroup(Modifier.padding(top = 24.dp)) {
+                if (friend != null) {
+                    GroupRow(stringResource(R.string.profile_added), value = Labels.date(friend.addedAt), icon = Sym.PersonAdd)
+                    GroupDivider()
+                    // drumul sta sub titlu: valoarea din dreapta ramane scurta si pe ecranele inguste
+                    GroupRow(
                         stringResource(R.string.profile_last_seen),
-                        if (friend.lastSeenAt > 0) agoText(friend.lastSeenAt) + " · " + hopsText(friend.lastHops) else stringResource(R.string.presence_never),
+                        subtitle = if (friend.lastSeenAt > 0) hopsText(friend.lastHops) else null,
+                        value = if (friend.lastSeenAt > 0) agoText(friend.lastSeenAt) else stringResource(R.string.presence_never),
+                        icon = Sym.History,
                     )
+                } else if (group != null) {
+                    GroupRow(stringResource(R.string.profile_created), value = Labels.date(group.createdAt), icon = Sym.Clock)
                 }
-            } else if (group != null) {
-                AppCard(Modifier.fillMaxWidth()) { InfoRow(stringResource(R.string.profile_created), Labels.date(group.createdAt)) }
-                AppCard(Modifier.fillMaxWidth()) {
-                    SectionLabel(stringResource(R.string.profile_members))
-                    Spacer(Modifier.height(6.dp))
-                    for (member in group.members) {
+            }
+            if (group != null) {
+                SectionTitle(pluralStringResource(R.plurals.group_members, group.members.size, group.members.size))
+                InsetGroup {
+                    group.members.forEachIndexed { index, member ->
                         val known = friends.firstOrNull { it.nodeId == member.nodeId }
                         val me = member.nodeId == vm.c.identity.nodeId
-                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Avatar(member.nickname, 40.dp, near = known != null && vm.isInRange(known, mesh))
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    if (me) stringResource(R.string.msg_you) else known?.nickname ?: member.nickname,
-                                    style = MaterialTheme.typography.titleMedium, color = colors.text,
-                                )
-                                if (known != null) {
-                                    Text(presenceText(vm, known, mesh), style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
-                                }
-                            }
-                        }
+                        GroupRow(
+                            if (me) stringResource(R.string.msg_you) else known?.nickname ?: member.nickname,
+                            subtitle = known?.let { presenceText(vm, it, mesh) },
+                            leading = { Avatar(member.nickname, 36.dp, near = known != null && vm.isInRange(known, mesh)) },
+                        )
+                        if (index < group.members.lastIndex) GroupDivider(start = 64.dp)
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            AppButton(
-                stringResource(if (friend != null) R.string.profile_remove_friend else R.string.profile_leave_group), { confirm = true },
-                Modifier.fillMaxWidth(), kind = ButtonKind.Danger, icon = if (friend != null) AppIcons.Delete else AppIcons.Leave,
-            )
+            InsetGroup(Modifier.padding(top = 24.dp)) {
+                GroupRow(
+                    stringResource(if (friend != null) R.string.profile_remove_friend else R.string.profile_leave_group),
+                    icon = if (friend != null) Sym.Delete else Sym.Logout, tint = colors.red, onClick = { confirm = true },
+                )
+            }
         }
     }
 

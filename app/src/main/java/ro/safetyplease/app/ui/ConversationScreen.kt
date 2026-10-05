@@ -3,49 +3,65 @@ package ro.safetyplease.app.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -53,14 +69,35 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
@@ -72,10 +109,43 @@ import ro.safetyplease.app.data.MsgKind
 import ro.safetyplease.app.data.MsgStatus
 import ro.safetyplease.app.protocol.Limits
 import ro.safetyplease.app.protocol.QuickCode
+import ro.safetyplease.app.venue.GeoPoint
+import kotlin.math.max
 
-/** Mesajele aceluiasi om, la mai putin de atat unul de altul, stau sub un singur antet cu nume si ora. */
-private const val GROUP_WINDOW_MS = 3 * 60_000L
+/** Mesajele aceluiasi om, la mai putin de atat unul de altul, fac un singur sir de baloane lipite. */
+private const val RUN_WINDOW_MS = 3 * 60_000L
 
+private val Bubble = 18.dp
+private val BubbleTight = 4.dp
+
+/** Ce sta in lista conversatiei: antetul unei zile sau un mesaj, cu locul lui in sirul de baloane. */
+private sealed interface ChatItem {
+    val key: String
+
+    class Day(val timeMs: Long) : ChatItem {
+        override val key = "day:$timeMs"
+    }
+
+    class Message(val message: ChatMessage, val first: Boolean, val last: Boolean) : ChatItem {
+        override val key = "${message.senderId}:${message.msgId}"
+    }
+}
+
+private fun chatItems(messages: List<ChatMessage>): List<ChatItem> = buildList {
+    messages.forEachIndexed { index, message ->
+        val previous = messages.getOrNull(index - 1)
+        val next = messages.getOrNull(index + 1)
+        if (previous == null || Labels.daysBetween(previous.timeMs, message.timeMs) != 0) add(ChatItem.Day(message.timeMs))
+        fun joined(a: ChatMessage?, b: ChatMessage?) = a != null && b != null && a.kind != MsgKind.SYSTEM && b.kind != MsgKind.SYSTEM &&
+            a.senderId == b.senderId && b.timeMs - a.timeMs <= RUN_WINDOW_MS && Labels.daysBetween(a.timeMs, b.timeMs) == 0
+        add(ChatItem.Message(message, first = !joined(previous, message), last = !joined(message, next)))
+    }
+}
+
+/**
+ * Conversatia, ca in Signal pe iPhone: mesajele trec pe sub bara de sus si pe sub bara de scris;
+ * sus e cercul de sticla pentru inapoi, bula si numele omului, apoi capsula de sticla cu actiuni.
+ */
 @Composable
 fun ConversationScreen(vm: AppViewModel, conversation: String) {
     val friends by vm.friends.collectAsStateWithLifecycle()
@@ -83,21 +153,30 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     val chat by vm.chat.collectAsStateWithLifecycle()
     val mesh by vm.mesh.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val colors = LocalAppColors.current
     val haptics = rememberHaptics()
+    val focus = LocalFocusManager.current
+    val density = LocalDensity.current
+    val colors = AppTheme.colors
 
     val friend: Friend? = friends.firstOrNull { Conversations.friend(it.nodeId) == conversation }
     val group: Group? = groups.firstOrNull { Conversations.group(it.id) == conversation }
     val messages = remember(chat.messages, conversation) { chat.messages.filter { it.conversation == conversation } }
+    val items = remember(messages) { chatItems(messages) }
     var draft by rememberSaveable { mutableStateOf("") }
+    var quick by rememberSaveable { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    var composerPx by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
+    val backdrop = rememberBackdrop()
+    val scrolled by remember { derivedStateOf { listState.canScrollBackward } }
+    BackHandler(enabled = quick) { quick = false }
 
     DisposableEffect(conversation) {
         vm.enterConversation(conversation, friend?.nodeId)
         onDispose { vm.leaveConversation(conversation) }
     }
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+    LaunchedEffect(items.size, composerPx) {
+        if (items.isNotEmpty()) listState.animateScrollToItem(items.lastIndex)
         vm.c.chat.markRead(conversation)
     }
     if (friend == null && group == null) {
@@ -105,110 +184,225 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
         return
     }
     val title = friend?.nickname ?: group!!.name
-    val near = friend != null && vm.isInRange(friend, mesh)
     val subtitle = when {
         friend != null -> presenceText(vm, friend, mesh)
         else -> pluralStringResource(R.plurals.group_members, group!!.members.size, group.members.size)
     }
     val lastMine = messages.lastOrNull { it.fromMe && it.kind != MsgKind.SYSTEM }
-
-    Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
-        TopBar(
-            title = title, subtitle = subtitle, onBack = { vm.back() },
-            leading = { Avatar(title, 40.dp, near = near, group = group != null) },
-            onTitleClick = { vm.open(Dest.Profile(conversation)) },
-        )
-        if (messages.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                EmptyState(stringResource(R.string.messages_no_messages), stringResource(R.string.chat_empty_text))
-            }
-        } else {
-            LazyColumn(
-                Modifier.weight(1f).fillMaxWidth(),
-                state = listState,
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            ) {
-                itemsIndexed(messages, key = { _, it -> "${it.senderId}:${it.msgId}" }) { index, message ->
-                    val previous = messages.getOrNull(index - 1)
-                    val startsRun = previous == null || previous.kind == MsgKind.SYSTEM || previous.senderId != message.senderId ||
-                        message.timeMs - previous.timeMs > GROUP_WINDOW_MS
-                    MessageItem(
-                        vm, message,
-                        showHeader = startsRun,
-                        verboseState = message === lastMine,
-                        onCopy = { text ->
-                            context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("mesaj", text))
-                        },
-                        modifier = Modifier.animateItem().padding(top = if (startsRun) 10.dp else 3.dp),
-                    )
-                }
-            }
-        }
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            QuickPill(stringResource(R.string.quick_my_zone), AppIcons.Place) {
-                if (vm.sendMyZone(conversation)) haptics.confirm()
-                else Toast.makeText(context, R.string.chat_zone_unknown, Toast.LENGTH_LONG).show()
-            }
-            for (code in QuickCode.all) {
-                QuickPill(stringResource(Labels.quick(code))) {
-                    vm.sendQuick(conversation, code)
-                    haptics.confirm()
-                }
-            }
-        }
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp), verticalAlignment = Alignment.Bottom) {
-            PillTextField(
-                draft, { draft = it.take(Limits.TEXT_BYTES / 2) }, stringResource(R.string.chat_hint),
-                Modifier.weight(1f), maxLines = 4,
-            )
-            Spacer(Modifier.width(8.dp))
-            SendButton(enabled = draft.isNotBlank()) {
-                vm.sendText(conversation, draft)
-                draft = ""
-                haptics.confirm()
-            }
-        }
+    val sendZone = {
+        if (vm.sendMyZone(conversation)) haptics.confirm()
+        else Toast.makeText(context, R.string.chat_zone_unknown, Toast.LENGTH_LONG).show()
     }
-}
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val composerHeight = with(density) { composerPx.toDp() }
 
-@Composable
-private fun QuickPill(label: String, icon: ImageVector? = null, onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    val source = remember { MutableInteractionSource() }
-    Box(
-        Modifier.heightIn(min = 48.dp).pressScale(source).clickable(source, indication = null, role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().backdropSource(backdrop).background(colors.background)) {
+            if (messages.isEmpty()) {
+                EmptyState(
+                    stringResource(R.string.messages_no_messages), stringResource(R.string.chat_empty_text),
+                    Modifier.align(Alignment.Center), icon = Sym.Chat,
+                )
+            } else {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(top = top + NavHeight + 16.dp, bottom = composerHeight + 8.dp),
+                ) {
+                    items(items, key = { it.key }) { item ->
+                        when (item) {
+                            is ChatItem.Day -> DayHeader(item.timeMs, Modifier.animateItem())
+                            is ChatItem.Message -> MessageItem(
+                                vm, item.message, item.first, item.last, inGroup = group != null,
+                                detail = item.message === lastMine,
+                                onCopy = { text ->
+                                    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("mesaj", text))
+                                },
+                                modifier = Modifier.animateItem().padding(top = if (item.first) 12.dp else 2.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        TopEdge(top, colors.background, scrolled)
         Row(
-            Modifier.height(38.dp).clip(CircleShape).border(1.dp, colors.textSecondary.copy(alpha = 0.4f), CircleShape).padding(horizontal = 14.dp),
+            Modifier.statusBarsPadding().fillMaxWidth().height(NavHeight).padding(horizontal = Gutter),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (icon != null) {
-                Icon(icon, null, tint = colors.accent, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
+            GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop)
+            Spacer(Modifier.width(10.dp))
+            Row(
+                Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                    .clickable(onClickLabel = stringResource(R.string.open_profile), role = Role.Button) { vm.open(Dest.Profile(conversation)) }
+                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Avatar(title, 40.dp, near = friend != null && vm.isInRange(friend, mesh), group = group != null)
+                Spacer(Modifier.width(12.dp))
+                NavText {
+                    Column {
+                        Text(title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            subtitle, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium, color = colors.secondaryLabel,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
-            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = colors.text, maxLines = 1)
+            Box {
+                GlassCapsule(backdrop) {
+                    CapsuleIcon(Sym.Place, stringResource(R.string.chat_send_zone)) { sendZone() }
+                    CapsuleIcon(Sym.More, stringResource(R.string.more_options)) { menu = true }
+                }
+                AppMenu(menu, { menu = false }) {
+                    MenuRow(stringResource(R.string.open_profile), {
+                        menu = false
+                        vm.open(Dest.Profile(conversation))
+                    }, icon = Sym.Person)
+                    MenuRow(stringResource(R.string.chat_send_zone), {
+                        menu = false
+                        sendZone()
+                    }, icon = Sym.Place)
+                }
+            }
+        }
+
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { composerPx = it.height }
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
+        ) {
+            AnimatedVisibility(
+                quick,
+                enter = fadeIn(tween(Motion.STANDARD)) + expandVertically(tween(Motion.STANDARD, easing = Motion.Enter)),
+                exit = fadeOut(tween(100)) + shrinkVertically(tween(Motion.QUICK, easing = Motion.Exit)),
+            ) {
+                QuickPanel(
+                    backdrop,
+                    onZone = {
+                        sendZone()
+                        quick = false
+                    },
+                    onQuick = { code ->
+                        vm.sendQuick(conversation, code)
+                        haptics.confirm()
+                        quick = false
+                    },
+                )
+            }
+            Composer(
+                backdrop = backdrop,
+                draft = draft,
+                onDraft = { draft = it.take(Limits.TEXT_BYTES / 2) },
+                quickOpen = quick,
+                onToggleQuick = {
+                    quick = !quick
+                    if (quick) focus.clearFocus()
+                },
+                onFocused = { quick = false },
+                onZone = sendZone,
+                onSend = {
+                    vm.sendText(conversation, draft)
+                    draft = ""
+                    haptics.confirm()
+                },
+            )
         }
     }
 }
 
+/** Ziua, centrata deasupra primului ei mesaj, in gri, fara fond. */
 @Composable
-private fun SendButton(enabled: Boolean, onClick: () -> Unit) {
-    val colors = LocalAppColors.current
-    val source = remember { MutableInteractionSource() }
-    Box(
-        Modifier.size(52.dp).pressScale(source, enabled, pressed = 0.9f).clip(CircleShape)
-            .background(if (enabled) colors.accent else colors.card)
-            .clickable(source, LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
+private fun DayHeader(timeMs: Long, modifier: Modifier = Modifier) {
+    Text(
+        Labels.dayLabel(LocalResources.current, timeMs), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
+        color = AppTheme.colors.secondaryLabel, textAlign = TextAlign.Center,
+        modifier = modifier.fillMaxWidth().padding(horizontal = 28.dp).padding(top = 16.dp, bottom = 4.dp),
+    )
+}
+
+/**
+ * Bara de scris din iOS 26: fara fond, doar bucati de sticla. Plusul intr-un cerc, campul ca o capsula
+ * cu butonul pentru zona ta in el; cand scrii, apare cercul albastru de trimis.
+ */
+@Composable
+private fun Composer(
+    backdrop: Backdrop,
+    draft: String,
+    onDraft: (String) -> Unit,
+    quickOpen: Boolean,
+    onToggleQuick: () -> Unit,
+    onFocused: () -> Unit,
+    onZone: () -> Unit,
+    onSend: () -> Unit,
+) {
+    val colors = AppTheme.colors
+    val hasText = draft.isNotBlank()
+    val hint = stringResource(R.string.chat_hint)
+    val turn by animateFloatAsState(if (quickOpen) 45f else 0f, tween(Motion.STANDARD, easing = Motion.Standard), label = "plus")
+    Row(Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
+        Box(
+            Modifier.size(40.dp).glass(backdrop, CircleShape).clickable(role = Role.Button, onClick = onToggleQuick),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Sym.Add, stringResource(R.string.chat_quick), Modifier.size(20.dp).rotate(turn), tint = colors.label) }
+        Spacer(Modifier.width(12.dp))
+        Row(
+            Modifier.weight(1f).heightIn(min = 40.dp).glass(backdrop, RoundedCornerShape(20.dp)),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            BasicTextField(
+                value = draft,
+                onValueChange = onDraft,
+                modifier = Modifier.weight(1f).padding(start = 14.dp, end = 8.dp, top = 9.dp, bottom = 9.dp)
+                    .onFocusChanged { if (it.isFocused) onFocused() }.semantics { contentDescription = hint },
+                textStyle = MaterialTheme.typography.body.copy(color = colors.label),
+                cursorBrush = SolidColor(colors.accent),
+                maxLines = 5,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                decorationBox = { inner ->
+                    Box {
+                        if (draft.isEmpty()) Text(hint, style = MaterialTheme.typography.body, color = colors.secondaryLabel, maxLines = 1)
+                        inner()
+                    }
+                },
+            )
+            if (!hasText) IconBtn(Sym.Place, stringResource(R.string.chat_send_zone), onZone, Modifier.size(40.dp))
+        }
+        AnimatedContent(
+            hasText,
+            transitionSpec = { (fadeIn(tween(Motion.QUICK)) + scaleIn(tween(Motion.QUICK), 0.6f)) togetherWith (fadeOut(tween(90)) + scaleOut(tween(90), 0.6f)) },
+            label = "send",
+        ) { text ->
+            if (text) {
+                Box(
+                    Modifier.padding(start = 12.dp).size(40.dp).clip(CircleShape).background(if (colors.dark) Color(0xFF1655ED) else Color(0xFF1D6DF1))
+                        .clickable(onClickLabel = stringResource(R.string.send), role = Role.Button, onClick = onSend),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Sym.Send, stringResource(R.string.send), Modifier.size(20.dp), tint = Color.White) }
+            } else {
+                Spacer(Modifier.width(0.dp))
+            }
+        }
+    }
+}
+
+/** Mesajele rapide, intr-un card de sticla deasupra barei de scris: zona ta si frazele scurte. */
+@Composable
+private fun QuickPanel(backdrop: Backdrop, onZone: () -> Unit, onQuick: (Int) -> Unit) {
+    val icons = mapOf(
+        QuickCode.WHERE_ARE_YOU to Sym.Help, QuickCode.COMING to Sym.Walk, QuickCode.LOW_BATTERY to Sym.Battery, QuickCode.MEET_AT_POINT to Sym.Flag,
+    )
+    Row(
+        Modifier.padding(horizontal = Gutter).fillMaxWidth().glass(backdrop, RoundedCornerShape(26.dp))
+            .horizontalScroll(rememberScrollState()).padding(10.dp).height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(
-            AppIcons.Send, stringResource(R.string.send),
-            tint = if (enabled) colors.onAccent else colors.textSecondary, modifier = Modifier.size(22.dp),
-        )
+        val tile = Modifier.width(88.dp).fillMaxHeight()
+        ActionTile(Sym.Place, stringResource(R.string.quick_my_zone), onZone, tile)
+        for (code in QuickCode.all) {
+            ActionTile(icons[code] ?: Sym.Chat, stringResource(Labels.quick(code)), { onQuick(code) }, tile)
+        }
     }
 }
 
@@ -217,130 +411,197 @@ private fun SendButton(enabled: Boolean, onClick: () -> Unit) {
 private fun MessageItem(
     vm: AppViewModel,
     message: ChatMessage,
-    showHeader: Boolean,
-    verboseState: Boolean,
+    first: Boolean,
+    last: Boolean,
+    inGroup: Boolean,
+    detail: Boolean,
     onCopy: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = LocalAppColors.current
     val haptics = rememberHaptics()
     val preview = messagePreview(vm, message)
+    val colors = AppTheme.colors
     if (message.kind == MsgKind.SYSTEM) {
         Text(
-            preview, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary,
-            textAlign = TextAlign.Center, modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+            preview, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, textAlign = TextAlign.Center,
+            modifier = modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp),
         )
         return
     }
     val mine = message.fromMe
     var menu by remember { mutableStateOf(false) }
-    // doar mesajele abia trimise sau primite intra animat; istoricul apare pe loc
-    val fresh = remember(message.msgId) { System.currentTimeMillis() - message.timeMs < 1_500 }
+    val ink = if (mine) colors.onBubbleOut else colors.label
+    val meta = if (mine) colors.onBubbleOutSecondary else colors.secondaryLabel
+    // colturile dinspre margine se strang cand baloanele aceluiasi om stau lipite
+    val shape = if (mine) {
+        RoundedCornerShape(topStart = Bubble, bottomStart = Bubble, topEnd = if (first) Bubble else BubbleTight, bottomEnd = if (last) Bubble else BubbleTight)
+    } else {
+        RoundedCornerShape(topEnd = Bubble, bottomEnd = Bubble, topStart = if (first) Bubble else BubbleTight, bottomStart = if (last) Bubble else BubbleTight)
+    }
+    val sender = if (!mine && inGroup) vm.c.chat.nameOf(message.senderId) else null
+    val clock = Labels.clock(message.timeMs)
+    val stateWords = if (mine) stringResource(messageStateLabel(message.status)) else null
+    // gradientul baloanelor trimise se intinde pe tot ecranul, ca in Signal: sus mai inchis, jos mai deschis
+    val screenHeight = LocalWindowInfo.current.containerSize.height.toFloat()
+    var topInWindow by remember { mutableFloatStateOf(0f) }
 
     Column(modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
-        if (!mine && showHeader) {
-            Row(Modifier.padding(start = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(vm.c.chat.nameOf(message.senderId), style = MaterialTheme.typography.labelMedium, color = colors.text)
-                Spacer(Modifier.width(6.dp))
-                Text(Labels.clock(message.timeMs), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+        Row(
+            Modifier.padding(start = if (mine) 48.dp else if (inGroup) 12.dp else Gutter, end = if (mine) Gutter else 48.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            if (!mine && inGroup) {
+                // bula expeditorului sta langa ultimul balon din sir; celelalte pastreaza locul gol
+                if (last) Avatar(sender.orEmpty(), 28.dp) else Spacer(Modifier.width(28.dp))
+                Spacer(Modifier.width(8.dp))
             }
-        }
-        Box {
-            val shape = RoundedCornerShape(
-                topStart = 20.dp, topEnd = 20.dp, bottomEnd = if (mine) 6.dp else 20.dp, bottomStart = if (mine) 20.dp else 6.dp,
-            )
-            val bubbleText = if (mine) colors.onForest else colors.text
-            Box(
-                Modifier.then(if (fresh) Modifier.bubbleEnter(fromEnd = mine) else Modifier)
-                    .widthIn(max = 296.dp).clip(shape).background(if (mine) colors.forest else colors.bubbleOther)
-                    .then(if (mine) Modifier else Modifier.border(1.dp, colors.hairline, shape))
-                    .combinedClickable(
-                        onClick = {
-                            if (message.kind == MsgKind.ZONE) {
-                                vm.open(Dest.Pin(message.lat, message.lon, message.zone, vm.c.chat.nameOf(message.senderId)))
+            if (mine && message.status == MsgStatus.FAILED) {
+                DeliveryIcon(MsgStatus.FAILED, colors.red, colors.background, Modifier.padding(end = 8.dp, bottom = 10.dp), iconSize = 20.dp)
+            }
+            Box {
+                Column(
+                    Modifier.widthIn(max = if (inGroup) 285.dp else 317.dp)
+                        .onGloballyPositioned { topInWindow = it.positionInWindow().y }
+                        .drawBehind {
+                            val outline = shape.createOutline(size, layoutDirection, this)
+                            if (mine) {
+                                drawOutline(
+                                    outline,
+                                    Brush.verticalGradient(listOf(colors.bubbleOutTop, colors.bubbleOutBottom), startY = -topInWindow, endY = screenHeight - topInWindow),
+                                )
+                            } else {
+                                drawOutline(outline, colors.bubbleIn)
                             }
-                        },
-                        onLongClick = {
-                            haptics.longPress()
-                            menu = true
-                        },
-                    )
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-            ) {
-                if (message.kind == MsgKind.ZONE) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.size(36.dp).clip(CircleShape).background(if (mine) Color.White.copy(alpha = 0.16f) else colors.accentSoft),
-                            contentAlignment = Alignment.Center,
-                        ) { Icon(AppIcons.Place, null, tint = if (mine) Color.White else colors.accent, modifier = Modifier.size(20.dp)) }
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(preview, style = MaterialTheme.typography.bodyLarge, color = bubbleText)
+                        }
+                        .clip(shape)
+                        .combinedClickable(
+                            onClick = {
+                                if (message.kind == MsgKind.ZONE) {
+                                    vm.open(Dest.Pin(message.lat, message.lon, message.zone, vm.c.chat.nameOf(message.senderId)))
+                                }
+                            },
+                            onLongClick = {
+                                haptics.longPress()
+                                menu = true
+                            },
+                        ),
+                ) {
+                    if (message.kind == MsgKind.ZONE) ZoneMap(vm, message)
+                    Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 7.dp, bottom = 7.dp)) {
+                        if (sender != null && first) {
                             Text(
-                                stringResource(R.string.msg_zone_open), style = MaterialTheme.typography.labelMedium,
-                                color = if (mine) Brand.Sage else colors.accent,
+                                sender, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.SemiBold,
+                                color = colors.names[(message.senderId.hashCode() and 0x7fffffff) % colors.names.size],
+                                modifier = Modifier.padding(bottom = 1.dp),
                             )
                         }
+                        BubbleText(preview, ink, bold = message.kind == MsgKind.ZONE) {
+                            Row(
+                                Modifier.clearAndSetSemantics { contentDescription = listOfNotNull(stateWords, clock).joinToString(", ") },
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(clock, style = MaterialTheme.typography.caption1, color = meta)
+                                if (mine) {
+                                    Spacer(Modifier.width(4.dp))
+                                    DeliveryIcon(message.status, meta, colors.bubbleOutBottom, iconSize = 12.dp)
+                                }
+                            }
+                        }
                     }
-                } else {
-                    Text(preview, style = MaterialTheme.typography.bodyLarge, color = bubbleText)
                 }
-            }
-            DropdownMenu(
-                expanded = menu, onDismissRequest = { menu = false },
-                containerColor = colors.cardHigh, shape = RoundedCornerShape(22.dp),
-            ) {
-                Column(Modifier.padding(horizontal = 6.dp).width(220.dp)) {
-                    MenuRow(AppIcons.Copy, stringResource(R.string.msg_copy), {
+                AppMenu(menu, { menu = false }) {
+                    MenuRow(stringResource(R.string.msg_copy), {
                         menu = false
                         onCopy(preview)
-                    })
+                    }, icon = Sym.Copy)
                     if (mine && message.status != MsgStatus.DELIVERED) {
-                        MenuRow(AppIcons.Retry, stringResource(R.string.msg_resend), {
+                        MenuRow(stringResource(R.string.msg_resend), {
                             menu = false
                             vm.resend(message)
-                        })
+                        }, icon = Sym.Refresh)
                     }
-                    MenuRow(AppIcons.Delete, stringResource(R.string.msg_delete), {
+                    MenuRow(stringResource(R.string.msg_delete), {
                         menu = false
                         vm.deleteMessage(message)
-                    }, tint = colors.danger)
+                    }, icon = Sym.Delete, danger = true)
                 }
             }
         }
-        if (mine) OwnState(message, verboseState, onResend = { vm.resend(message) })
+        if (mine) OwnState(message, detail, onResend = { vm.resend(message) })
     }
 }
 
-/** Starea de sub balon: mereu iconita si ora; scrisa in cuvinte la ultimul mesaj trimis si la cele cu probleme. */
+/**
+ * Textul balonului cu ora in coltul de jos. Daca ultimul rand lasa loc, ora sta pe acelasi rand;
+ * altfel coboara pe unul nou.
+ */
 @Composable
-private fun OwnState(message: ChatMessage, verbose: Boolean, onResend: () -> Unit) {
-    val colors = LocalAppColors.current
-    AnimatedContent(
-        targetState = message.status to message.delivered,
-        transitionSpec = { fadeIn(tween(Motion.STANDARD)) togetherWith fadeOut(tween(100)) },
-        label = "messageState",
-    ) { (status, delivered) ->
-        val state = messageState(status)
-        val problem = status == MsgStatus.QUEUED || status == MsgStatus.FAILED
-        val words = when {
-            problem -> stringResource(state.label)
-            !verbose -> null
-            message.recipients > 1 -> stringResource(R.string.msg_group_delivered, delivered, message.recipients)
-            else -> stringResource(state.label)
-        }
-        Row(Modifier.padding(top = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(state.icon, if (words == null) stringResource(state.label) else null, tint = state.tone, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(4.dp))
-            if (words != null) {
-                Text(words, style = MaterialTheme.typography.labelMedium, color = if (status == MsgStatus.SENT) colors.textSecondary else state.tone)
-                Text(" · ", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
+private fun BubbleText(text: String, color: Color, bold: Boolean, footer: @Composable () -> Unit) {
+    val holder = remember { arrayOfNulls<TextLayoutResult>(1) }
+    Layout(
+        content = {
+            Text(
+                text, style = MaterialTheme.typography.body, color = color, fontWeight = if (bold) FontWeight.SemiBold else null,
+                onTextLayout = { holder[0] = it },
+            )
+            footer()
+        },
+    ) { measurables, constraints ->
+        val text = measurables[0].measure(constraints.copy(minWidth = 0))
+        val foot = measurables[1].measure(Constraints())
+        val gap = 6.dp.roundToPx()
+        val lastRight = holder[0]?.let { it.getLineRight(it.lineCount - 1).toInt() } ?: text.width
+        val inline = lastRight + gap + foot.width <= constraints.maxWidth
+        if (inline) {
+            val width = max(text.width, lastRight + gap + foot.width)
+            val height = max(text.height, foot.height)
+            layout(width, height) {
+                text.place(0, 0)
+                foot.place(width - foot.width, height - foot.height)
             }
-            Text(Labels.clock(message.timeMs), style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
-            if (status == MsgStatus.FAILED) {
-                Spacer(Modifier.width(4.dp))
-                TextAction(stringResource(R.string.msg_resend), onResend)
+        } else {
+            val width = max(text.width, foot.width)
+            val down = 3.dp.roundToPx()
+            layout(width, text.height + down + foot.height) {
+                text.place(0, 0)
+                foot.place(width - foot.width, text.height + down)
             }
         }
+    }
+}
+
+/** Harta mica din balonul unei zone trimise, cu punctul acolo unde era omul. */
+@Composable
+private fun ZoneMap(vm: AppViewModel, message: ChatMessage) {
+    val lat = message.lat
+    val lon = message.lon
+    val point = if (lat != null && lon != null) GeoPoint(lat, lon) else vm.venue.zone(message.zone)?.center
+    VenueMap(
+        venue = vm.venue,
+        modifier = Modifier.width(240.dp),
+        pins = listOfNotNull(point?.let { MapPin(it, AppTheme.colors.accent) }),
+        highlightZone = message.zone,
+        compact = true,
+    )
+}
+
+/** Sub ultimul mesaj trimis: unde a ajuns, in cuvinte. Mesajul nereusit isi are aici butonul de retrimitere. */
+@Composable
+private fun OwnState(message: ChatMessage, detail: Boolean, onResend: () -> Unit) {
+    val colors = AppTheme.colors
+    when {
+        message.status == MsgStatus.FAILED -> Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.msg_failed), style = MaterialTheme.typography.footnote, color = colors.red)
+            TextLink(stringResource(R.string.msg_resend), onResend)
+        }
+        !detail -> Unit
+        message.status == MsgStatus.QUEUED -> Text(
+            stringResource(R.string.msg_queued), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+            modifier = Modifier.padding(top = 4.dp, end = Gutter),
+        )
+        message.recipients > 1 -> Text(
+            stringResource(R.string.msg_group_delivered, message.delivered, message.recipients), style = MaterialTheme.typography.footnote,
+            color = colors.secondaryLabel, modifier = Modifier.padding(top = 4.dp, end = Gutter),
+        )
     }
 }

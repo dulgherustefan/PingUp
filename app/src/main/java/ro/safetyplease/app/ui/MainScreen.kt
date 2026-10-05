@@ -12,40 +12,38 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -56,12 +54,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -155,29 +157,40 @@ fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}):
     }
 }
 
+/** Ecranele care urca de jos, ca foile din iOS; restul intra din dreapta. */
+private fun Dest?.isSheet() = this == Dest.Me || this == Dest.NewChat || this == Dest.AddFriend || this == Dest.NewGroup
+
+/** Curba iOS pentru intrarea unui ecran: porneste repede si se aseaza lin. */
+private val PushEasing = CubicBezierEasing(0.25f, 0.9f, 0.3f, 1f)
+
 @Composable
 fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val reduce = LocalReduceMotion.current
     BackHandler(enabled = vm.stack.isNotEmpty()) { vm.back() }
 
     FullScreen {
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         if (!settings.onboarded) OnboardingScreen(vm, onStartMesh)
         else AnimatedContent(
-            targetState = vm.stack.lastOrNull(),
-            transitionSpec = { fadeIn(tween(Motion.QUICK)) togetherWith fadeOut(tween(90)) },
+            targetState = vm.stack.size to vm.stack.lastOrNull(),
+            transitionSpec = {
+                val forward = targetState.first >= initialState.first
+                screenTransition(forward, if (forward) targetState.second else initialState.second, reduce)
+            },
             label = "screen",
-        ) { dest ->
+        ) { (_, dest) ->
             CompositionLocalProvider(LocalBottomClearance provides navBottom) {
                 when (dest) {
                     is Dest.Conversation -> ConversationScreen(vm, dest.id)
                     is Dest.Profile -> ProfileScreen(vm, dest.conversation)
                     Dest.AddFriend -> AddFriendScreen(vm)
                     Dest.NewGroup -> NewGroupScreen(vm)
+                    Dest.NewChat -> NewChatScreen(vm)
                     is Dest.ReportSent -> ReportSentScreen(vm, dest.incidentId)
                     Dest.MyReports -> MyReportsScreen(vm)
                     is Dest.Incident -> IncidentDetailScreen(vm, dest.id)
-                    Dest.Me -> MeScreen(vm, onStartMesh, onBack = { vm.back() })
+                    Dest.Me -> MeScreen(vm, onStartMesh)
                     Dest.Demo -> Demo.Screen(vm)
                     is Dest.Pin -> PinScreen(vm, dest)
                     null -> if (settings.role == AppRole.ANCHOR) AnchorScreen(vm) else MainTabs(vm, settings.role == AppRole.STAFF, onStartMesh)
@@ -187,106 +200,110 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
     }
 }
 
-private class TabItem(val tab: Tab, val icon: ImageVector, val label: Int, val badge: Int = 0)
+/**
+ * Trecerile din iOS: ecranul nou intra din dreapta peste cel vechi, care se da putin la stanga;
+ * foile urca de jos. Inapoi, totul se intoarce pe acelasi drum.
+ */
+private fun screenTransition(forward: Boolean, moving: Dest?, reduce: Boolean): ContentTransform {
+    if (reduce) return fadeIn(tween(Motion.QUICK)) togetherWith fadeOut(tween(90))
+    val spec = tween<IntOffset>(380, easing = PushEasing)
+    // ecranul de dedesubt sta pe loc cat urca sau coboara foaia
+    val stay = tween<Float>(380)
+    return if (moving.isSheet()) {
+        if (forward) slideInVertically(spec) { it } togetherWith fadeOut(stay, targetAlpha = 0.99f)
+        else (fadeIn(stay, initialAlpha = 0.99f) togetherWith slideOutVertically(spec) { it }).apply { targetContentZIndex = -1f }
+    } else {
+        if (forward) slideInHorizontally(spec) { it } togetherWith slideOutHorizontally(spec) { -it / 3 }
+        else (slideInHorizontally(spec) { -it / 3 } togetherWith slideOutHorizontally(spec) { it }).apply { targetContentZIndex = -1f }
+    }
+}
 
-private val BarHeight = 68.dp
+private class TabItem(val tab: Tab, val label: Int, val icon: ImageVector, val badge: Int = 0)
+
+private val TabWidth = 84.dp
+private val TabBarHeight = 62.dp
 
 @Composable
 private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) {
     val chat by vm.chat.collectAsStateWithLifecycle()
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     if (!staff && vm.tab == Tab.INCIDENTS) vm.tab = Tab.MESSAGES
-    val unread = chat.messages.count { !it.read }
+    // pe bara: cate conversatii au ceva necitit, nu cate mesaje
+    val unreadChats = chat.messages.filter { !it.read }.map { it.conversation }.distinct().size
     val openIncidents = incidents.staff.count { it.status < AckStatus.ACKNOWLEDGED }
     val items = buildList {
-        add(TabItem(Tab.MESSAGES, AppIcons.Chat, R.string.tab_messages, unread))
-        add(TabItem(Tab.REPORT, AppIcons.Warning, R.string.tab_report))
-        add(TabItem(Tab.MAP, AppIcons.Map, R.string.tab_map))
-        if (staff) add(TabItem(Tab.INCIDENTS, AppIcons.Shield, R.string.tab_incidents, openIncidents))
-        add(TabItem(Tab.ME, AppIcons.Person, R.string.tab_me))
+        add(TabItem(Tab.MESSAGES, R.string.tab_messages, Sym.ChatFill, unreadChats))
+        add(TabItem(Tab.REPORT, R.string.tab_report, Sym.ReportFill))
+        add(TabItem(Tab.MAP, R.string.tab_map, Sym.MapFill))
+        if (staff) add(TabItem(Tab.INCIDENTS, R.string.tab_incidents, Sym.BellFill, openIncidents))
     }
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val barBottom = navBottom + 6.dp
+    val backdrop = rememberBackdrop()
 
     Box(Modifier.fillMaxSize()) {
-        CompositionLocalProvider(LocalBottomClearance provides navBottom + BarHeight + 24.dp) {
-            AnimatedContent(
-                targetState = vm.tab,
-                modifier = Modifier.fillMaxSize().statusBarsPadding(),
-                transitionSpec = { fadeIn(tween(Motion.QUICK)) togetherWith fadeOut(tween(90)) },
-                label = "tab",
-            ) { tab ->
-                when (tab) {
-                    Tab.MESSAGES -> MessagesScreen(vm, onStartMesh)
-                    Tab.REPORT -> ReportScreen(vm)
-                    Tab.MAP -> MapScreen(vm)
-                    Tab.ME -> MeScreen(vm, onStartMesh, onBack = null)
-                    Tab.INCIDENTS -> IncidentsScreen(vm)
+        Box(Modifier.fillMaxSize().backdropSource(backdrop).background(AppTheme.colors.background)) {
+            CompositionLocalProvider(LocalBottomClearance provides barBottom + TabBarHeight + 8.dp) {
+                // pe iPhone tabul se schimba pe loc; aici doar o estompare foarte scurta
+                AnimatedContent(vm.tab, transitionSpec = { fadeIn(tween(120)) togetherWith fadeOut(tween(80)) }, label = "tab") { tab ->
+                    when (tab) {
+                        Tab.MESSAGES -> MessagesScreen(vm, onStartMesh)
+                        Tab.REPORT -> ReportScreen(vm)
+                        Tab.MAP -> MapScreen(vm)
+                        Tab.INCIDENTS -> IncidentsScreen(vm)
+                    }
                 }
             }
         }
-        BottomBar(
-            items, vm.tab, onSelect = { vm.tab = it },
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-        )
+        GlassTabBar(items, vm.tab, { vm.tab = it }, backdrop, Modifier.align(Alignment.BottomCenter).padding(bottom = barBottom))
     }
 }
 
-/** Bara plutitoare: aceeasi pastila inchisa pe ambele teme, cu tabul ales intr-o pastila salvie care aluneca intre taburi. */
+/**
+ * Bara de taburi din iOS 26: o capsula de sticla care pluteste deasupra listei, cat de lata cer taburile ei.
+ * Iconitele si etichetele raman negre (albe noaptea); tabul ales sta pe o pastila mai deschisa,
+ * iar necititele sunt o insigna rosie pe coltul iconitei.
+ */
 @Composable
-private fun BottomBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> Unit, modifier: Modifier = Modifier) {
+private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> Unit, backdrop: Backdrop, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
     val index = items.indexOfFirst { it.tab == current }.coerceAtLeast(0)
-    BoxWithConstraints(
-        modifier.fillMaxWidth().height(BarHeight)
-            .shadow(18.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.45f), spotColor = Color.Black.copy(alpha = 0.45f))
-            .clip(CircleShape).background(Brand.Bar).border(1.dp, Color.White.copy(alpha = 0.07f), CircleShape).padding(6.dp),
-    ) {
-        val itemWidth = maxWidth / items.size
-        val indicatorX by animateDpAsState(itemWidth * index, tween(Motion.STANDARD, easing = Motion.Standard), label = "tabIndicator")
-        Box(Modifier.offset { IntOffset(indicatorX.roundToPx(), 0) }.width(itemWidth).fillMaxHeight().clip(CircleShape).background(Brand.Sage))
-        Row(Modifier.fillMaxSize()) {
+    val x by animateDpAsState(TabWidth * index, spring(dampingRatio = 0.82f, stiffness = 420f), label = "tabPill")
+    // ca pe iPhone, textul barei nu creste cu marimea textului din setari: n-ar mai incapea in capsula
+    val unscaled = 1f / LocalDensity.current.fontScale
+    Box(modifier.height(TabBarHeight).width(TabWidth * items.size + 8.dp).glass(backdrop, CircleShape).padding(4.dp).selectableGroup()) {
+        Box(Modifier.offset { IntOffset(x.roundToPx(), 0) }.width(TabWidth).fillMaxHeight().clip(CircleShape).background(colors.glassPill))
+        Row(Modifier.fillMaxHeight()) {
             for (item in items) {
                 val selected = item.tab == current
-                val content by animateColorAsState(if (selected) Brand.OnSage else Brand.BarMuted, tween(Motion.QUICK), label = "tabContent")
-                val source = remember { MutableInteractionSource() }
+                val badgeText = if (item.badge > 0) pluralStringResource(R.plurals.tab_unread, item.badge, item.badge) else null
                 Column(
-                    Modifier.weight(1f).fillMaxHeight().pressScale(source, pressed = 0.94f).clip(CircleShape)
-                        .selectable(selected = selected, interactionSource = source, indication = null, role = Role.Tab) { onSelect(item.tab) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
+                    Modifier.width(TabWidth).fillMaxHeight().clip(CircleShape)
+                        .selectable(selected, interactionSource = null, indication = null, role = Role.Tab) { onSelect(item.tab) }
+                        .then(if (badgeText != null) Modifier.semantics { stateDescription = badgeText } else Modifier),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                 ) {
                     Box {
-                        Icon(item.icon, null, tint = content, modifier = Modifier.size(22.dp))
+                        Icon(item.icon, null, Modifier.size(25.dp), tint = colors.label)
                         if (item.badge > 0) {
-                            CountBadge(
-                                item.badge,
-                                container = if (selected) Brand.OnSage else Brand.Sage,
-                                content = if (selected) Brand.Sage else Brand.OnSage,
-                                modifier = Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-5).dp),
-                            )
+                            Box(
+                                Modifier.align(Alignment.TopEnd).offset(x = 11.dp, y = (-5).dp).defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
+                                    .clip(CircleShape).background(colors.red).padding(horizontal = 5.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    if (item.badge > 99) "99+" else item.badge.toString(), color = Color.White, fontSize = (11 * unscaled).sp,
+                                    lineHeight = (13 * unscaled).sp, fontFamily = TextFont, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                                )
+                            }
                         }
                     }
-                    Spacer(Modifier.height(3.dp))
-                    // cu textul marit din setari si cinci taburi, eticheta se micsoreaza cat sa incapa, nu se taie
                     Text(
-                        stringResource(item.label), style = MaterialTheme.typography.labelSmall, color = content,
-                        maxLines = 1, softWrap = false, modifier = Modifier.padding(horizontal = 2.dp),
-                        autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
+                        stringResource(item.label), color = colors.label, fontSize = (10 * unscaled).sp, lineHeight = (12 * unscaled).sp,
+                        fontFamily = TextFont, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
         }
-    }
-}
-
-@Composable
-fun CountBadge(count: Int, container: Color, content: Color, modifier: Modifier = Modifier) {
-    Box(
-        modifier.defaultMinSize(minWidth = 18.dp, minHeight = 18.dp).clip(CircleShape).background(container).padding(horizontal = 5.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            if (count > 99) "99+" else count.toString(), color = content, fontSize = 11.sp, lineHeight = 12.sp,
-            style = MaterialTheme.typography.labelSmall, maxLines = 1,
-        )
     }
 }

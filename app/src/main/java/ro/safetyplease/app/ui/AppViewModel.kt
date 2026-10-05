@@ -25,18 +25,21 @@ import ro.safetyplease.app.mesh.MeshState
 import ro.safetyplease.app.venue.GeoPoint
 import ro.safetyplease.app.venue.Zone
 
-enum class Tab { MESSAGES, REPORT, MAP, ME, INCIDENTS }
+enum class Tab { MESSAGES, REPORT, MAP, INCIDENTS }
 
 sealed interface Dest {
     data class Conversation(val id: String) : Dest
     data class Profile(val conversation: String) : Dest
     data object AddFriend : Dest
     data object NewGroup : Dest
+
+    /** Mesaj nou: grup nou, prieten nou sau unul dintre prieteni. */
+    data object NewChat : Dest
     data class ReportSent(val incidentId: String) : Dest
     data object MyReports : Dest
     data class Incident(val id: String) : Dest
 
-    /** Tabul Eu ca ecran separat: ancora nu are bara de jos. */
+    /** Setarile, deschise din bula ta din bara de sus. */
     data object Me : Dest
     data object Demo : Dest
     data class Pin(val lat: Double?, val lon: Double?, val zone: String, val label: String) : Dest

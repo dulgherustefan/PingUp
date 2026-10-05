@@ -12,6 +12,7 @@ import ro.safetyplease.app.protocol.IncidentCategory
 import ro.safetyplease.app.protocol.QuickCode
 import ro.safetyplease.app.protocol.Severity
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 
 /** Legatura dintre constantele de protocol si textele din strings.xml. */
@@ -73,6 +74,37 @@ object Labels {
         }
     }
 
+    /** Ora din lista de conversatii: „Acum”, minutele din ultima ora, ora de azi, ziua din saptamana, apoi data. */
+    fun listTime(resources: Resources, timeMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+        val minutes = ((nowMs - timeMs) / 60_000L).toInt()
+        return when {
+            minutes < 1 -> resources.getString(R.string.time_now_short)
+            minutes < 60 -> resources.getString(R.string.time_minutes_short, minutes)
+            daysBetween(timeMs, nowMs) == 0 -> clock(timeMs)
+            daysBetween(timeMs, nowMs) < 6 -> SimpleDateFormat("EEE", AppLocale.ROMANIAN).format(Date(timeMs))
+            else -> SimpleDateFormat("d MMM", AppLocale.ROMANIAN).format(Date(timeMs))
+        }
+    }
+
+    /** Antetul unei zile din conversatie: „Azi”, „Ieri” sau data. */
+    fun dayLabel(resources: Resources, timeMs: Long, nowMs: Long = System.currentTimeMillis()): String = when (daysBetween(timeMs, nowMs)) {
+        0 -> resources.getString(R.string.date_today)
+        1 -> resources.getString(R.string.date_yesterday)
+        else -> SimpleDateFormat("EEEE, d MMMM", AppLocale.ROMANIAN).format(Date(timeMs))
+    }
+
+    /** Cate miezuri de noapte sunt intre doua momente, dupa ceasul telefonului. */
+    fun daysBetween(earlierMs: Long, laterMs: Long): Int {
+        fun midnight(ms: Long) = Calendar.getInstance().apply {
+            timeInMillis = ms
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        return ((midnight(laterMs) - midnight(earlierMs) + 3_600_000L) / 86_400_000L).toInt()
+    }
+
     /** Drumul in cuvinte: un hop inseamna legatura directa, restul sunt telefoanele prin care a trecut pachetul. */
     fun hops(resources: Resources, hops: Int): String =
         if (hops <= 1) resources.getString(R.string.hop_direct)
@@ -84,3 +116,6 @@ fun agoText(timeMs: Long): String = Labels.ago(LocalResources.current, timeMs)
 
 @Composable
 fun hopsText(hops: Int): String = Labels.hops(LocalResources.current, hops)
+
+@Composable
+fun listTime(timeMs: Long): String = Labels.listTime(LocalResources.current, timeMs)
