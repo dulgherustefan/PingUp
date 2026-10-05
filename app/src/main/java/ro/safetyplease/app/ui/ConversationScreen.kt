@@ -220,7 +220,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     val composerHeight = with(density) { composerPx.toDp() }
 
     Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().backdropSource(backdrop).background(colors.background)) {
+        Box(Modifier.fillMaxSize().backdropSource(backdrop).screenBackground(colors.background)) {
             if (messages.isEmpty()) {
                 EmptyState(
                     stringResource(R.string.messages_no_messages), stringResource(R.string.chat_empty_text),

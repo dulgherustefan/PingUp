@@ -58,8 +58,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -202,9 +204,15 @@ fun TopEdge(top: Dp, color: Color, visible: Boolean) {
     val edge by animateFloatAsState(if (visible) 1f else 0f, tween(Motion.QUICK), label = "edge")
     val solid = top + NavHeight
     val height = solid + 22.dp
+    val glow = AppTheme.colors.glow
+    // aceeasi lumina ca fundalul de dedesubt, plina pana la marginea barei, apoi stinsa printr-o masca
     Box(
-        Modifier.fillMaxWidth().height(height).graphicsLayer { alpha = edge }
-            .background(Brush.verticalGradient(0f to color, solid / height to color, 1f to color.copy(alpha = 0f))),
+        Modifier.fillMaxWidth().height(height)
+            .graphicsLayer { alpha = edge; compositingStrategy = CompositingStrategy.Offscreen }
+            .drawBehind {
+                drawRect(screenGlow(size.width, color, glow))
+                drawRect(Brush.verticalGradient(0f to Color.Black, solid / height to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+            },
     )
 }
 
@@ -229,7 +237,7 @@ fun NavScreen(
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val padding = PaddingValues(top = top + NavHeight + 4.dp, bottom = LocalBottomClearance.current + 16.dp)
     Box(modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().backdropSource(backdrop).background(background)) { content(padding) }
+        Box(Modifier.fillMaxSize().backdropSource(backdrop).screenBackground(background)) { content(padding) }
         TopEdge(top, background, scrolled)
         // ca UINavigationBar: titlul sta pe centru cat timp incape intre butoane, altfel se muta spre partea libera
         Layout(

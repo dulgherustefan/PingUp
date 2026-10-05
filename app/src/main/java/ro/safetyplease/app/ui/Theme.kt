@@ -15,6 +15,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.TextStyle
@@ -81,6 +85,8 @@ class AppColors(
     val sage: Color,
     /** Ce sta pe verdele plin: alb ziua, noaptea verde-negru, ca textul sa se citeasca pe verdele viu. */
     val onAccent: Color,
+    /** Lumina din capul ecranelor, ca reflectorul din placa logo-ului. */
+    val glow: Color,
     /** Culorile numelor in grupuri, cate una pe om. */
     val names: List<Color>,
 ) {
@@ -89,8 +95,8 @@ class AppColors(
 
     /** Culorile zonelor de pe harta, in ordinea din venue.json. Noaptea, ca pe Apple Maps: zona intunecata, numele deschis. */
     val zones: List<Color> =
-        if (dark) AvatarPairs.map { it.second.copy(alpha = 0.34f).compositeOver(Night.cell) } else AvatarPairs.map { it.first }
-    val zoneInk: List<Color> = if (dark) AvatarPairs.map { it.first } else AvatarPairs.map { it.second }
+        if (dark) ZonePairs.map { it.second.copy(alpha = 0.34f).compositeOver(Night.cell) } else ZonePairs.map { it.first }
+    val zoneInk: List<Color> = if (dark) ZonePairs.map { it.first } else ZonePairs.map { it.second }
 
     // nume pastrate pentru ecranul demo
     val ok: Color get() = green
@@ -106,7 +112,24 @@ class AppColors(
     }
 }
 
+// avatarele iau tonurile logo-ului: menta, salvie, padure, kaki, pamant
 private val AvatarPairs = listOf(
+    Color(0xFFD2F0DC) to Color(0xFF17642A),
+    Color(0xFFE4E8CF) to Color(0xFF55601F),
+    Color(0xFFD9E7DF) to Color(0xFF2B5E45),
+    Color(0xFFCFE9E5) to Color(0xFF0F6A62),
+    Color(0xFFEFE7C9) to Color(0xFF6C5A14),
+    Color(0xFFE0EBC8) to Color(0xFF46651A),
+    Color(0xFFDCE3DE) to Color(0xFF3E4B43),
+    Color(0xFFF1DED1) to Color(0xFF8A4A24),
+    Color(0xFFD6E6EE) to Color(0xFF2A5A70),
+    Color(0xFFF3EBD8) to Color(0xFF7A6431),
+    Color(0xFFE6EEDB) to Color(0xFF4D6B2E),
+    Color(0xFFE3E3DC) to Color(0xFF57584F),
+)
+
+// zonele hartii raman distincte intre ele, ca sa se deosebeasca dintr-o privire
+private val ZonePairs = listOf(
     Color(0xFFE3E3FE) to Color(0xFF3838F5),
     Color(0xFFDDE7FC) to Color(0xFF1251D3),
     Color(0xFFD8E8F0) to Color(0xFF086DA0),
@@ -157,6 +180,7 @@ private val LightColors = AppColors(
     brandDeep = Color(0xFF2B5E45),
     sage = Color(0xFFD3D8B2),
     onAccent = Color.White,
+    glow = Color(0xFFE2ECD3),
     names = listOf(
         0xFF006DA3, 0xFF067906, 0xFFB814B8, 0xFFC13215, 0xFF5B6976, 0xFFCC0066, 0xFF2E51FF, 0xFF007575,
         0xFF9C5711, 0xFFD00B4D, 0xFF8F2AF4, 0xFF3D7406, 0xFFD00B0B, 0xFF007A3D, 0xFF5151F6, 0xFF866118,
@@ -198,6 +222,7 @@ private val DarkColors = AppColors(
     brandDeep = Color(0xFF2B5E45),
     sage = Color(0xFFD3D8B2),
     onAccent = Night.background,
+    glow = Color(0xFF262F28),
     names = listOf(
         0xFF00A7FA, 0xFF0AB80A, 0xFFF65AF6, 0xFFFF6F52, 0xFF8BA1B6, 0xFFF76EB2, 0xFF8599FF, 0xFF00B2B2,
         0xFFD5920B, 0xFFFF6B9C, 0xFFBF80FF, 0xFF5EB309, 0xFFFF7070, 0xFF00B85C, 0xFF9494FF, 0xFFD68F00,
@@ -211,6 +236,20 @@ private object Night {
 }
 
 val LocalAppColors = staticCompositionLocalOf { LightColors }
+
+/**
+ * Fundalul ecranelor: culoarea de baza, cu o lumina moale care coboara de sus, din afara ecranului,
+ * cum cade reflectorul pe pin in iconita. Depinde doar de latime, ca bara de sus sa o poata repeta exact.
+ */
+fun screenGlow(width: Float, base: Color, glow: Color): Brush =
+    Brush.radialGradient(0f to glow, 1f to base, center = Offset(width / 2f, -width * 0.25f), radius = width * 1.1f)
+
+/** Fundalul unui ecran intreg, cu lumina de sus. */
+@Composable
+fun Modifier.screenBackground(base: Color): Modifier {
+    val glow = AppTheme.colors.glow
+    return drawBehind { drawRect(screenGlow(size.width, base, glow)) }
+}
 
 private fun inter(opticalSize: TextUnit) = FontFamily(
     listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold).map { weight ->
