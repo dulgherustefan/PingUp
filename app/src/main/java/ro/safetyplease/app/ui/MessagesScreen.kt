@@ -106,6 +106,23 @@ fun networkText(links: Int, gate: RadioGate): String {
     }
 }
 
+/** Punctul din fata starii retelei: verde si cu ping cand esti legat, gri si cu ping cat cauta, rosu cand radioul nu merge. */
+@Composable
+private fun NetworkPing(links: Int, gate: RadioGate) {
+    val colors = AppTheme.colors
+    val working = gate.hasAccess && gate.bluetoothOn
+    PingDot(
+        color = when {
+            !working -> colors.red
+            links > 0 -> colors.brand
+            else -> colors.secondaryLabel
+        },
+        active = working,
+        size = 7.dp,
+        modifier = Modifier.padding(end = 2.dp),
+    )
+}
+
 /** Bula ta din stanga sus: deschide meniul cu setarile si filtrul, ca in Signal. */
 @Composable
 fun MeButton(name: String, content: @Composable () -> Unit = {}, onClick: () -> Unit) {
@@ -158,6 +175,7 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     NavScreen(
         title = stringResource(R.string.tab_messages),
         subtitle = networkText(nearby.readyLinks, gate),
+        subtitleLeading = { NetworkPing(nearby.readyLinks, gate) },
         scrolled = scrolled,
         leading = {
             MeButton(settings.nickname, content = {
@@ -218,7 +236,10 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             }
             when {
                 rows.isEmpty() -> item(key = "empty") {
-                    EmptyState(stringResource(R.string.messages_empty_title), stringResource(R.string.messages_empty_text), icon = Sym.Chat) {
+                    EmptyState(
+                        stringResource(R.string.messages_empty_title), stringResource(R.string.messages_empty_text),
+                        illustration = { PinMascot(120.dp) },
+                    ) {
                         AppButton(stringResource(R.string.messages_empty_action), { vm.open(Dest.AddFriend) }, compact = true)
                     }
                 }

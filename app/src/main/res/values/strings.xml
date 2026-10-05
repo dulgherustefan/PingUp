@@ -322,4 +322,5 @@
     <string name="open_zone">Vezi pe hartă</string>
     <string name="location_open_settings">Permite locația din setări</string>
     <string name="location_precise_needed">Ai permis doar locația aproximativă. Pentru zona ta e nevoie de locația precisă.</string>
+    <string name="app_tagline">Mesaje care sar din telefon în telefon</string>
 </resources>

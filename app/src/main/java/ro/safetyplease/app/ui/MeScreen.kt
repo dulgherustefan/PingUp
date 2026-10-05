@@ -141,6 +141,19 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     GroupRow(stringResource(R.string.demo_title), icon = Sym.Science, chevron = true, onClick = { vm.open(Dest.Demo) })
                 }
             }
+
+            // semnatura aplicatiei la capatul setarilor, ca pe iPhone
+            Column(
+                Modifier.fillMaxWidth().padding(top = 36.dp, bottom = 24.dp).semantics(mergeDescendants = true) {},
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                PinMascot(72.dp)
+                Text(
+                    stringResource(R.string.app_name), style = MaterialTheme.typography.title3, color = colors.label,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+                Text(stringResource(R.string.app_tagline), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
+            }
         }
     }
 

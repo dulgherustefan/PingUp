@@ -104,18 +104,19 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 onBack = null,
                 bottom = { AppButton(stringResource(R.string.next), next, Modifier.fillMaxWidth(), enabled = name.isNotBlank()) },
             ) {
+                AppLogo(96.dp, Modifier.padding(bottom = 20.dp))
                 Text(stringResource(R.string.onboarding_welcome), style = MaterialTheme.typography.largeTitle, color = colors.label)
                 Text(
                     stringResource(R.string.onboarding_intro), style = MaterialTheme.typography.body, color = colors.secondaryLabel,
                     modifier = Modifier.padding(top = 12.dp),
                 )
-                Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 28.dp), contentAlignment = Alignment.Center) {
                     if (name.isBlank()) {
-                        Box(Modifier.size(88.dp).clip(CircleShape).background(colors.fill), contentAlignment = Alignment.Center) {
-                            Icon(Sym.Person, null, Modifier.size(44.dp), tint = colors.secondaryLabel)
+                        Box(Modifier.size(72.dp).clip(CircleShape).background(colors.fill), contentAlignment = Alignment.Center) {
+                            Icon(Sym.Person, null, Modifier.size(36.dp), tint = colors.secondaryLabel)
                         }
                     } else {
-                        Avatar(name, 88.dp)
+                        Avatar(name, 72.dp)
                     }
                 }
                 InputField(
@@ -174,12 +175,12 @@ private fun StepPage(onBack: (() -> Unit)?, bottom: @Composable ColumnScope.() -
     }
 }
 
-/** O permisiune: iconita alba in cercul albastru, ce e si de ce o cerem. */
+/** O permisiune: iconita in cercul verde, ce e si de ce o cerem. */
 @Composable
 private fun Reason(icon: ImageVector, title: String, text: String) {
     val colors = AppTheme.colors
     Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-        IconCircle(icon, colors.accent, Color.White, size = 44.dp)
+        IconCircle(icon, colors.accent, colors.onAccent, size = 44.dp)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.headline, color = colors.label)

@@ -378,7 +378,7 @@ fun MapScreen(vm: AppViewModel) {
                             GroupRow(
                                 title, subtitle = subtitle,
                                 leading = {
-                                    IconCircle(Sym.MyLocation, if (known) colors.accent else colors.fill, if (known) Color.White else colors.secondaryLabel, 36.dp)
+                                    IconCircle(Sym.MyLocation, if (known) colors.accent else colors.fill, if (known) colors.onAccent else colors.secondaryLabel, 36.dp)
                                 },
                             )
                         }

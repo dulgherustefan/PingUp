@@ -18,6 +18,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -326,8 +327,8 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
 
 /**
  * Bara de taburi din iOS 26: o capsula de sticla care pluteste deasupra listei, cat de lata cer taburile ei.
- * Iconitele si etichetele raman negre (albe noaptea); tabul ales sta pe o pastila mai deschisa,
- * iar necititele sunt o insigna rosie pe coltul iconitei.
+ * Tabul ales se face verde, ca pinul din logo, si sta pe o pastila verde translucida; celelalte raman
+ * in culoarea textului, iar necititele sunt o insigna rosie pe coltul iconitei.
  */
 @Composable
 private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> Unit, backdrop: Backdrop, modifier: Modifier = Modifier) {
@@ -341,6 +342,7 @@ private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> U
         Row(Modifier.fillMaxHeight()) {
             for (item in items) {
                 val selected = item.tab == current
+                val tint by animateColorAsState(if (selected) colors.accent else colors.label, tween(Motion.QUICK), label = "tabTint")
                 val badgeText = if (item.badge > 0) pluralStringResource(R.plurals.tab_unread, item.badge, item.badge) else null
                 Column(
                     Modifier.width(TabWidth).fillMaxHeight().clip(CircleShape)
@@ -349,7 +351,7 @@ private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> U
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                 ) {
                     Box {
-                        Icon(item.icon, null, Modifier.size(25.dp), tint = colors.label)
+                        Icon(item.icon, null, Modifier.size(25.dp), tint = tint)
                         if (item.badge > 0) {
                             Box(
                                 Modifier.align(Alignment.TopEnd).offset(x = 11.dp, y = (-5).dp).defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
@@ -364,7 +366,7 @@ private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> U
                         }
                     }
                     Text(
-                        stringResource(item.label), color = colors.label, fontSize = (10 * unscaled).sp, lineHeight = (12 * unscaled).sp,
+                        stringResource(item.label), color = tint, fontSize = (10 * unscaled).sp, lineHeight = (12 * unscaled).sp,
                         fontFamily = TextFont, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(top = 4.dp),
                     )
                 }

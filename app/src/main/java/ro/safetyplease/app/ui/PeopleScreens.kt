@@ -629,7 +629,7 @@ private fun RoundCheck(checked: Boolean) {
         Modifier.size(24.dp).clip(CircleShape)
             .then(if (checked) Modifier.background(colors.accent) else Modifier.border(1.5.dp, colors.tertiaryLabel, CircleShape)),
         contentAlignment = Alignment.Center,
-    ) { if (checked) Icon(Sym.Check, null, Modifier.size(14.dp), tint = Color.White) }
+    ) { if (checked) Icon(Sym.Check, null, Modifier.size(14.dp), tint = colors.onAccent) }
 }
 
 /** Antetul unui om sau al unui grup, ca in Signal: bula mare centrata, numele si un rand de lamurire. */

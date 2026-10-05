@@ -123,6 +123,7 @@ fun AppButton(
     val ink = when {
         !enabled -> c.tertiaryLabel
         kind == ButtonKind.Secondary -> c.label
+        kind == ButtonKind.Primary -> c.onAccent
         else -> Color.White
     }
     Box(
@@ -219,6 +220,7 @@ fun NavScreen(
     subtitle: String? = null,
     background: Color = AppTheme.colors.background,
     scrolled: Boolean = false,
+    subtitleLeading: (@Composable () -> Unit)? = null,
     leading: @Composable (Backdrop) -> Unit = {},
     trailing: @Composable (Backdrop) -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
@@ -237,10 +239,13 @@ fun NavScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (subtitle != null) {
-                            Text(
-                                subtitle, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                subtitleLeading?.invoke()
+                                Text(
+                                    subtitle, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                 }
@@ -332,7 +337,7 @@ fun UnreadBadge(count: Int, modifier: Modifier = Modifier, color: Color = AppThe
         contentAlignment = Alignment.Center,
     ) {
         val style = MaterialTheme.typography.footnote
-        Text(if (count > 99) "99+" else count.toString(), style = style.copy(lineHeight = style.fontSize), color = Color.White, maxLines = 1)
+        Text(if (count > 99) "99+" else count.toString(), style = style.copy(lineHeight = style.fontSize), color = if (color == AppTheme.colors.accent) AppTheme.colors.onAccent else Color.White, maxLines = 1)
     }
 }
 
@@ -549,13 +554,13 @@ fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: 
 
 /**
  * O actiune cu iconita, ca butoanele de sub antetul unui contact in Signal: un dreptunghi rotunjit
- * cu iconita si eticheta in el. Aleasa, se umple cu albastru.
+ * cu iconita si eticheta in el. Aleasa, se umple cu verde.
  */
 @Composable
 fun ActionTile(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false, background: Color = AppTheme.colors.fill) {
     val c = AppTheme.colors
     val fill by animateColorAsState(if (selected) c.accent else background, tween(Motion.QUICK), label = "tile")
-    val ink = if (selected) Color.White else c.label
+    val ink = if (selected) c.onAccent else c.label
     Column(
         modifier.heightIn(min = 64.dp).clip(RoundedCornerShape(16.dp)).background(fill)
             .selectable(selected = selected, role = Role.Button, onClick = onClick).padding(horizontal = 6.dp, vertical = 10.dp),
@@ -621,10 +626,20 @@ fun Banner(
 
 /** Ecranul gol, ca pe iPhone: iconita gri, titlul, o fraza si, de obicei, butonul care il umple. */
 @Composable
-fun EmptyState(title: String, text: String, modifier: Modifier = Modifier, icon: ImageVector? = null, action: @Composable () -> Unit = {}) {
+fun EmptyState(
+    title: String,
+    text: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    illustration: (@Composable () -> Unit)? = null,
+    action: @Composable () -> Unit = {},
+) {
     val c = AppTheme.colors
     Column(modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (icon != null) {
+        if (illustration != null) {
+            illustration()
+            Spacer(Modifier.height(20.dp))
+        } else if (icon != null) {
             Icon(icon, null, Modifier.size(48.dp), tint = c.secondaryLabel)
             Spacer(Modifier.height(16.dp))
         }

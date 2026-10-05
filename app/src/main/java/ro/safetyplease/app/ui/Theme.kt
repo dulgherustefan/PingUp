@@ -32,8 +32,8 @@ import ro.safetyplease.app.protocol.AckStatus
 import ro.safetyplease.app.protocol.Severity
 
 /**
- * Culorile aplicatiei, dupa Signal pe iPhone (iOS 26): fundal alb sau negru, text in trei trepte de gri,
- * albastrul Signal ca accent si sticla pentru barele care plutesc peste continut.
+ * Culorile aplicatiei: asezarea Signal pe iPhone (iOS 26), cu paleta logo-ului. Verdele pinului e accentul,
+ * noaptea verde-neagra e fundalul temei inchise, iar salvia capacului da caldura temei deschise.
  */
 @Immutable
 class AppColors(
@@ -75,6 +75,12 @@ class AppColors(
     val segmentPill: Color,
     /** Cercul de trimis din conversatie. */
     val send: Color,
+    /** Culorile pinului din logo: verdele viu, verdele de padure si salvia capacului. */
+    val brand: Color,
+    val brandDeep: Color,
+    val sage: Color,
+    /** Ce sta pe verdele plin: alb ziua, noaptea verde-negru, ca textul sa se citeasca pe verdele viu. */
+    val onAccent: Color,
     /** Culorile numelor in grupuri, cate una pe om. */
     val names: List<Color>,
 ) {
@@ -83,7 +89,7 @@ class AppColors(
 
     /** Culorile zonelor de pe harta, in ordinea din venue.json. Noaptea, ca pe Apple Maps: zona intunecata, numele deschis. */
     val zones: List<Color> =
-        if (dark) AvatarPairs.map { it.second.copy(alpha = 0.34f).compositeOver(Color(0xFF1C1C1E)) } else AvatarPairs.map { it.first }
+        if (dark) AvatarPairs.map { it.second.copy(alpha = 0.34f).compositeOver(Night.cell) } else AvatarPairs.map { it.first }
     val zoneInk: List<Color> = if (dark) AvatarPairs.map { it.first } else AvatarPairs.map { it.second }
 
     // nume pastrate pentru ecranul demo
@@ -118,33 +124,39 @@ private val AvatarPairs = listOf(
 private val LightColors = AppColors(
     dark = false,
     background = Color.White,
-    grouped = Color(0xFFEFEFF0),
+    // gri-ul iOS, tras spre salvia capacului din logo
+    grouped = Color(0xFFF1F3EC),
     cell = Color.White,
-    label = Color.Black,
-    secondaryLabel = Color(0xB83C3C43),
-    tertiaryLabel = Color(0x4D3C3C43),
-    separator = Color(0xFFC6C6C8),
-    fill = Color(0x1F767680),
-    searchFill = Color(0xFFF3F3F3),
-    pressed = Color(0xFFD4D4D6),
-    accent = Color(0xFF2267F5),
+    label = Color(0xFF0E110F),
+    secondaryLabel = Color(0xB83B4338),
+    tertiaryLabel = Color(0x4D3B4338),
+    separator = Color(0xFFD0D5C8),
+    fill = Color(0x1F6F7D67),
+    searchFill = Color(0xFFF1F3EC),
+    pressed = Color(0xFFDEE2D7),
+    // verdele cu contrast de text pe alb (5,1:1); cel viu ramane pentru suprafete pline
+    accent = Color(0xFF1A7F37),
     red = Color(0xFFFF3B30),
-    green = Color(0xFF34C759),
+    green = Color(0xFF30D158),
     orange = Color(0xFFFF9500),
-    bubbleIn = Color(0xFFE9E9E9),
-    bubbleOutTop = Color(0xFF0552F0),
-    bubbleOutBottom = Color(0xFF2C6BED),
+    bubbleIn = Color(0xFFEDF0E8),
+    bubbleOutTop = Color(0xFF17642A),
+    bubbleOutBottom = Color(0xFF1E8238),
     onBubbleOut = Color.White,
     onBubbleOutSecondary = Color(0xCCFFFFFF),
     glass = Color(0xB3FFFFFF),
-    glassSolid = Color(0xF5FCFCFC),
-    glassRim = Color(0x14000000),
-    glassPill = Color(0x14000000),
+    glassSolid = Color(0xF5FBFCF8),
+    glassRim = Color(0x1A2B5E45),
+    glassPill = Color(0x2430D158),
     dialog = Color.White,
-    menu = Color(0xFFF9F9F9),
-    switchOff = Color(0xFFE9E9EA),
+    menu = Color(0xFFF8FAF4),
+    switchOff = Color(0xFFE6E9E0),
     segmentPill = Color.White,
-    send = Color(0xFF1D6DF1),
+    send = Color(0xFF1E8238),
+    brand = Color(0xFF30D158),
+    brandDeep = Color(0xFF2B5E45),
+    sage = Color(0xFFD3D8B2),
+    onAccent = Color.White,
     names = listOf(
         0xFF006DA3, 0xFF067906, 0xFFB814B8, 0xFFC13215, 0xFF5B6976, 0xFFCC0066, 0xFF2E51FF, 0xFF007575,
         0xFF9C5711, 0xFFD00B4D, 0xFF8F2AF4, 0xFF3D7406, 0xFFD00B0B, 0xFF007A3D, 0xFF5151F6, 0xFF866118,
@@ -153,39 +165,50 @@ private val LightColors = AppColors(
 
 private val DarkColors = AppColors(
     dark = true,
-    background = Color.Black,
-    grouped = Color.Black,
-    cell = Color(0xFF1C1C1E),
-    label = Color.White,
-    secondaryLabel = Color(0xB3EBEBF5),
-    tertiaryLabel = Color(0x4DEBEBF5),
-    separator = Color(0xFF38383A),
-    fill = Color(0x3D767680),
-    searchFill = Color(0xFF1C1C1E),
-    pressed = Color(0xFF3A3A3D),
-    accent = Color(0xFF2D70FA),
+    // noaptea din fundalul logo-ului, nu negrul pur
+    background = Night.background,
+    grouped = Night.background,
+    cell = Night.cell,
+    label = Color(0xFFF4F6F0),
+    secondaryLabel = Color(0xB3E3E9DE),
+    tertiaryLabel = Color(0x4DE3E9DE),
+    separator = Color(0xFF2F3530),
+    fill = Color(0x3D7C8A7F),
+    searchFill = Night.cell,
+    pressed = Color(0xFF2B312C),
+    accent = Color(0xFF30D158),
     red = Color(0xFFFF453A),
     green = Color(0xFF30D158),
     orange = Color(0xFFFF9F0A),
-    bubbleIn = Color(0xFF2C2C2E),
-    bubbleOutTop = Color(0xFF0552F0),
-    bubbleOutBottom = Color(0xFF2C6BED),
-    onBubbleOut = Color(0xFFE9E9E9),
+    bubbleIn = Color(0xFF262B27),
+    bubbleOutTop = Color(0xFF145A2A),
+    bubbleOutBottom = Color(0xFF1E8238),
+    onBubbleOut = Color(0xFFF4F6F0),
     onBubbleOutSecondary = Color(0x99FFFFFF),
-    glass = Color(0xA6202020),
-    glassSolid = Color(0xF5181818),
-    glassRim = Color(0x24FFFFFF),
-    glassPill = Color(0x26FFFFFF),
-    dialog = Color(0xFF2C2C2E),
-    menu = Color(0xFF2C2C2E),
-    switchOff = Color(0xFF39393D),
-    segmentPill = Color(0xFF636366),
-    send = Color(0xFF1655ED),
+    glass = Color(0xA6151816),
+    glassSolid = Color(0xF5151816),
+    glassRim = Color(0x26D3D8B2),
+    glassPill = Color(0x3330D158),
+    dialog = Color(0xFF222723),
+    menu = Color(0xFF222723),
+    switchOff = Color(0xFF343A35),
+    segmentPill = Color(0xFF4A524B),
+    send = Color(0xFF25A345),
+    brand = Color(0xFF30D158),
+    brandDeep = Color(0xFF2B5E45),
+    sage = Color(0xFFD3D8B2),
+    onAccent = Night.background,
     names = listOf(
         0xFF00A7FA, 0xFF0AB80A, 0xFFF65AF6, 0xFFFF6F52, 0xFF8BA1B6, 0xFFF76EB2, 0xFF8599FF, 0xFF00B2B2,
         0xFFD5920B, 0xFFFF6B9C, 0xFFBF80FF, 0xFF5EB309, 0xFFFF7070, 0xFF00B85C, 0xFF9494FF, 0xFFD68F00,
     ).map { Color(it) },
 )
+
+/** Fundalurile temei inchise, folosite si pentru zonele hartii. */
+private object Night {
+    val background = Color(0xFF0E110F)
+    val cell = Color(0xFF1A1E1B)
+}
 
 val LocalAppColors = staticCompositionLocalOf { LightColors }
 
@@ -241,7 +264,7 @@ val Typography.caption1: TextStyle get() = labelMedium
 val Typography.caption2: TextStyle get() = labelSmall
 
 private fun scheme(c: AppColors) = (if (c.dark) darkColorScheme() else lightColorScheme()).copy(
-    primary = c.accent, onPrimary = Color.White, primaryContainer = c.accent, onPrimaryContainer = Color.White,
+    primary = c.accent, onPrimary = c.onAccent, primaryContainer = c.accent, onPrimaryContainer = c.onAccent,
     secondary = c.secondaryLabel, onSecondary = Color.White, secondaryContainer = c.fill, onSecondaryContainer = c.label,
     tertiary = c.green, onTertiary = Color.White,
     background = c.background, onBackground = c.label, surface = c.background, onSurface = c.label,
