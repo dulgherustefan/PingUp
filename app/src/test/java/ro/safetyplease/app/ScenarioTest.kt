@@ -19,11 +19,14 @@ import ro.safetyplease.app.crypto.testCrypto
 import ro.safetyplease.app.data.Conversations
 import ro.safetyplease.app.data.MsgKind
 import ro.safetyplease.app.data.MsgStatus
+import ro.safetyplease.app.incidents.IncidentManager
 import ro.safetyplease.app.incidents.ReportDraft
 import ro.safetyplease.app.mesh.SimNet
 import ro.safetyplease.app.mesh.TestClock
 import ro.safetyplease.app.protocol.AckStatus
+import ro.safetyplease.app.protocol.IncidentCancel
 import ro.safetyplease.app.protocol.IncidentCategory
+import ro.safetyplease.app.protocol.NodeFlags
 import ro.safetyplease.app.protocol.PacketCodec
 import ro.safetyplease.app.protocol.PacketType
 import ro.safetyplease.app.protocol.QuickCode
@@ -217,6 +220,204 @@ class ScenarioTest {
         advanceTimeBy(10_000)
         assertTrue(w.d.staffIncidents.isEmpty())
         assertEquals(AckStatus.NONE, w.a.myReports.single().status)
+    }
+
+    // --- anulare si stergere ---
+
+    @Test
+    fun reporterCancelsAndBothSidesSeeItCancelled() = runTest {
+        val w = chain()
+        val seen = mutableListOf<ByteArray>()
+        w.b.radio.tamper = { frame -> frame.also { seen += it } }
+        w.a.incidents.report(medical())
+        advanceTimeBy(10_000)
+        val id = w.a.myReports.single().incidentId
+        assertEquals(AckStatus.RECEIVED, w.d.staffIncidents.single().status)
+
+        w.a.incidents.cancel(id)
+        assertTrue("cererea se vede imediat", w.a.myReports.single().cancelled)
+        advanceTimeBy(10_000)
+
+        val atStaff = w.d.staffIncidents.single()
+        assertEquals(AckStatus.CANCELLED, atStaff.status)
+        assertEquals("Medical 1", atStaff.teamName)
+        assertEquals(1, w.d.alerts.size)
+        assertEquals("notificarea de staff dispare", listOf(id), w.d.clearedAlerts)
+        val mine = w.a.myReports.single()
+        assertEquals(AckStatus.CANCELLED, mine.status)
+        assertTrue(mine.cancelled)
+        assertEquals(listOf(AckStatus.RECEIVED, AckStatus.CANCELLED), w.a.reportUpdates.map { it.status })
+        assertEquals("ACK-ul circula ca oricare altul", AckStatus.CANCELLED, w.c.engine.ackStatus(id.hexToBytes()))
+
+        val cancels = seen.mapNotNull { PacketCodec.decode(it)?.packet }.filter { it.type == PacketType.INCIDENT_CANCEL }
+        assertTrue(cancels.isNotEmpty())
+        assertTrue("fara expeditor", cancels.all { it.sender == 0L })
+    }
+
+    @Test
+    fun cancelWithAWrongTokenIsIgnored() = runTest {
+        val w = chain()
+        w.a.incidents.report(medical())
+        advanceTimeBy(10_000)
+        val id = w.a.myReports.single().incidentId
+        w.b.engine.publishCancel(id.hexToBytes(), testCrypto.random(IncidentCancel.TOKEN_SIZE))
+        advanceTimeBy(10_000)
+        assertEquals(AckStatus.RECEIVED, w.d.staffIncidents.single().status)
+        assertEquals(AckStatus.RECEIVED, w.a.myReports.single().status)
+        assertTrue(w.d.clearedAlerts.isEmpty())
+
+        w.a.incidents.cancel(id)
+        advanceTimeBy(10_000)
+        assertEquals(AckStatus.CANCELLED, w.d.staffIncidents.single().status)
+    }
+
+    @Test
+    fun cancelThatOvertakesTheReportIsAppliedWhenTheReportArrives() = runTest {
+        val w = chain()
+        var holdReports = true
+        var cancelsToD = 0
+        w.c.radio.tamper = { frame ->
+            when (frame[1].toInt()) {
+                PacketType.INCIDENT_REPORT -> if (holdReports) null else frame
+                PacketType.INCIDENT_CANCEL -> frame.also { cancelsToD++ }
+                else -> frame
+            }
+        }
+        w.a.incidents.report(medical())
+        advanceTimeBy(5_000)
+        w.a.incidents.cancel(w.a.myReports.single().incidentId)
+        advanceTimeBy(5_000)
+        assertTrue("anularea a trecut de C, raportul nu", cancelsToD > 0 && w.d.staffIncidents.isEmpty())
+
+        holdReports = false
+        advanceTimeBy(70_000)
+        assertEquals(AckStatus.CANCELLED, w.d.staffIncidents.single().status)
+        assertTrue("fara alerta pentru un raport deja anulat", w.d.alerts.isEmpty())
+        assertEquals("fara RECEIVED inainte", listOf(AckStatus.CANCELLED), w.a.reportUpdates.map { it.status })
+    }
+
+    @Test
+    fun staffThatFindsAnAlreadyCancelledReportRaisesNoAlert() = runTest {
+        val w = chain()
+        w.a.incidents.report(medical())
+        advanceTimeBy(10_000)
+        w.a.incidents.cancel(w.a.myReports.single().incidentId)
+        advanceTimeBy(10_000)
+        w.c.staffSecret = w.world.event.secret
+        w.c.team = "Medical 2"
+        w.c.incidents.reprocessCached()
+        advanceTimeBy(5_000)
+        assertEquals(AckStatus.CANCELLED, w.c.staffIncidents.single().status)
+        assertTrue(w.c.alerts.isEmpty())
+    }
+
+    @Test
+    fun staffPhoneCancelsItsOwnReport() = runTest {
+        val w = chain()
+        w.d.incidents.report(medical())
+        advanceTimeBy(1_000)
+        w.d.incidents.cancel(w.d.myReports.single().incidentId)
+        advanceTimeBy(1_000)
+        assertEquals(AckStatus.CANCELLED, w.d.staffIncidents.single().status)
+        assertEquals(AckStatus.CANCELLED, w.d.myReports.single().status)
+    }
+
+    @Test
+    fun resolvedReportCannotBeCancelled() = runTest {
+        val w = chain()
+        w.a.incidents.report(medical())
+        advanceTimeBy(10_000)
+        val id = w.a.myReports.single().incidentId
+        w.d.incidents.resolve(id)
+        advanceTimeBy(10_000)
+        w.a.incidents.cancel(id)
+        advanceTimeBy(10_000)
+        assertFalse(w.a.myReports.single().cancelled)
+        assertEquals(AckStatus.RESOLVED, w.d.staffIncidents.single().status)
+    }
+
+    @Test
+    fun cancelIsRepeatedUntilStaffConfirmsItThenStops() = runTest {
+        val w = chain()
+        w.d.radio.powerOff()
+        advanceTimeBy(2_000)
+        var cancelsSent = 0
+        w.a.radio.tamper = { frame -> frame.also { if (it[1].toInt() == PacketType.INCIDENT_CANCEL) cancelsSent++ } }
+        w.a.incidents.report(medical())
+        advanceTimeBy(5_000)
+        assertTrue(w.a.radio.flags and NodeFlags.PENDING_INCIDENT != 0)
+        w.a.incidents.cancel(w.a.myReports.single().incidentId)
+        advanceTimeBy(1_000)
+        assertEquals("un raport retras nu mai e in asteptare", 0, w.a.radio.flags and NodeFlags.PENDING_INCIDENT)
+
+        advanceTimeBy(3 * 60_000L)
+        assertTrue("retrimisa cat timp staff-ul lipseste: $cancelsSent", cancelsSent >= 3)
+        w.d.radio.powerOn()
+        advanceTimeBy(3 * 60_000L)
+        assertEquals(AckStatus.CANCELLED, w.a.myReports.single().status)
+        assertEquals(AckStatus.CANCELLED, w.d.staffIncidents.single().status)
+        val confirmedAt = cancelsSent
+        advanceTimeBy(10 * 60_000L)
+        assertEquals("dupa confirmare nu mai pleaca nimic", confirmedAt, cancelsSent)
+    }
+
+    @Test
+    fun unconfirmedCancelGivesUpAfterThirtyMinutes() = runTest {
+        val w = chain()
+        w.d.radio.powerOff()
+        advanceTimeBy(2_000)
+        var cancelsSent = 0
+        w.a.radio.tamper = { frame -> frame.also { if (it[1].toInt() == PacketType.INCIDENT_CANCEL) cancelsSent++ } }
+        w.a.incidents.report(medical())
+        advanceTimeBy(5_000)
+        w.a.incidents.cancel(w.a.myReports.single().incidentId)
+        advanceTimeBy(IncidentManager.CANCEL_RETRY_MS + 2 * 60_000L)
+        val total = cancelsSent
+        assertTrue(total > 20)
+        advanceTimeBy(10 * 60_000L)
+        assertEquals(total, cancelsSent)
+        assertTrue(w.a.myReports.single().cancelled)
+        assertEquals(AckStatus.NONE, w.a.myReports.single().status)
+    }
+
+    @Test
+    fun deletingAnOpenReportCancelsItFirst() = runTest {
+        val w = chain()
+        w.a.incidents.report(medical())
+        advanceTimeBy(10_000)
+        w.a.incidents.delete(w.a.myReports.single().incidentId)
+        assertTrue(w.a.myReports.isEmpty())
+        advanceTimeBy(10_000)
+        assertEquals(AckStatus.CANCELLED, w.d.staffIncidents.single().status)
+        assertTrue(w.a.myReports.isEmpty())
+    }
+
+    @Test
+    fun deletedReportsStillCountForTheRateLimit() = runTest {
+        val w = chain()
+        repeat(3) { w.a.incidents.report(medical("r$it")) }
+        w.a.myReports.map { it.incidentId }.forEach { w.a.incidents.delete(it) }
+        assertTrue(w.a.myReports.isEmpty())
+        assertFalse(w.a.incidents.report(medical("al patrulea")))
+        advanceTimeBy(10 * 60_000L + 1_000)
+        assertTrue(w.a.incidents.report(medical("dupa fereastra")))
+    }
+
+    @Test
+    fun dismissedIncidentLeavesOnlyThisStaffListAndDoesNotComeBack() = runTest {
+        val w = chain()
+        w.a.incidents.report(medical())
+        advanceTimeBy(10_000)
+        val id = w.d.staffIncidents.single().incidentId
+        w.d.incidents.dismiss(id)
+        assertTrue(w.d.staffIncidents.isEmpty())
+        assertEquals(listOf(id), w.d.clearedAlerts)
+
+        w.d.incidents.reprocessCached()
+        advanceTimeBy(70_000)
+        assertTrue(w.d.staffIncidents.isEmpty())
+        assertEquals(1, w.d.alerts.size)
+        assertEquals("nimic nu pleaca in retea", AckStatus.RECEIVED, w.a.myReports.single().status)
     }
 
     // --- chat (pasul 5) ---

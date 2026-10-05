@@ -67,6 +67,7 @@ class TestPhone(
     var team = "Echipa $name"
     val incoming = mutableListOf<ChatMessage>()
     val alerts = mutableListOf<StaffIncident>()
+    val clearedAlerts = mutableListOf<String>()
     val reportUpdates = mutableListOf<MyReport>()
 
     val chat = ChatManager(
@@ -76,7 +77,8 @@ class TestPhone(
     val incidents = IncidentManager(
         bg, engine, testCrypto, event.staffCrypto, incidentStore, clock,
         staffSecret = { staffSecret }, teamName = { team },
-        onStaffAlert = { alerts += it }, onReportUpdate = { reportUpdates += it },
+        onStaffAlert = { alerts += it }, onStaffAlertCleared = { clearedAlerts += it },
+        onReportUpdate = { reportUpdates += it },
     )
 
     init {

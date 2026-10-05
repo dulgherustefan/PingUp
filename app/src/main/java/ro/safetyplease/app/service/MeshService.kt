@@ -27,7 +27,6 @@ import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.data.Role
 import ro.safetyplease.app.incidents.IncidentManager
 import ro.safetyplease.app.mesh.PowerPolicy
-import ro.safetyplease.app.protocol.AckStatus
 
 /**
  * Tine mesh-ul pornit cu ecranul stins. Android cere pentru asta un serviciu in prim-plan,
@@ -94,9 +93,7 @@ class MeshService : Service() {
 
     private fun hasPending(): Boolean {
         val now = container.clock.wallMs()
-        return container.incidentStore.value.mine.any {
-            it.status == AckStatus.NONE && now - it.createdAt < IncidentManager.PENDING_MS
-        }
+        return container.incidentStore.value.mine.any { IncidentManager.isPending(it, now) }
     }
 
     private fun applyPower() {

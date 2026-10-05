@@ -93,6 +93,10 @@ data class MyReport(
     val teamName: String = "",
     val updatedAt: Long = 0,
     val sent: Boolean = false,
+    /** Gol la rapoartele de dinainte de anulare: acelea nu se pot anula. */
+    val cancelToken: String = "",
+    /** Anularea a fost ceruta; e confirmata abia cand [status] devine CANCELLED. */
+    val cancelled: Boolean = false,
 )
 
 @Serializable
@@ -111,12 +115,17 @@ data class StaffIncident(
     val status: Int = 0,
     val teamName: String = "",
     val statusAt: Long = 0,
+    val cancelHash: String = "",
 )
 
 @Serializable
 data class IncidentData(
     val mine: List<MyReport> = emptyList(),
     val staff: List<StaffIncident> = emptyList(),
+    /** Incidente scoase de staff din lista lui; nu se mai deschid daca raportul ajunge din nou din retea. */
+    val dismissed: List<String> = emptyList(),
+    /** Cand au fost scrise rapoartele proprii sterse, cat timp mai conteaza la limita de rapoarte. */
+    val deletedReportTimes: List<Long> = emptyList(),
 )
 
 object Conversations {

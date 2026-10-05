@@ -9,6 +9,7 @@ object PacketType {
     const val REQUEST = 0x03
     const val INCIDENT_REPORT = 0x10
     const val INCIDENT_ACK = 0x11
+    const val INCIDENT_CANCEL = 0x12
     const val PRIVATE = 0x20
     const val TEST = 0x7F
 
@@ -18,6 +19,7 @@ object PacketType {
         REQUEST -> "REQUEST"
         INCIDENT_REPORT -> "INCIDENT"
         INCIDENT_ACK -> "ACK"
+        INCIDENT_CANCEL -> "CANCEL"
         PRIVATE -> "PRIVATE"
         TEST -> "TEST"
         else -> "0x%02x".format(type)
@@ -84,7 +86,8 @@ object PacketCodec {
 
     private val knownTypes = setOf(
         PacketType.HELLO, PacketType.SUMMARY, PacketType.REQUEST,
-        PacketType.INCIDENT_REPORT, PacketType.INCIDENT_ACK, PacketType.PRIVATE, PacketType.TEST,
+        PacketType.INCIDENT_REPORT, PacketType.INCIDENT_ACK, PacketType.INCIDENT_CANCEL,
+        PacketType.PRIVATE, PacketType.TEST,
     )
 
     fun encodedSize(p: Packet): Int =

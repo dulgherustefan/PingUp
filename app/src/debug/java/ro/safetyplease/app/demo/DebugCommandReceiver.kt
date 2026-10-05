@@ -74,6 +74,12 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 if (cmd == "take") c.incidents.acknowledge(open.incidentId) else c.incidents.resolve(open.incidentId)
                 "$cmd ${open.incidentId.take(8)}"
             }
+            "cancel" -> {
+                val open = c.incidentStore.value.mine.lastOrNull { !it.cancelled && it.status < AckStatus.RESOLVED }
+                    ?: error("niciun raport deschis")
+                c.incidents.cancel(open.incidentId)
+                "cancel ${open.incidentId.take(8)}"
+            }
             "text" -> {
                 c.chat.sendText(Conversations.friend(arg("to").hexToBytes().toLong()), arg("msg"))
                 "pus in outbox"

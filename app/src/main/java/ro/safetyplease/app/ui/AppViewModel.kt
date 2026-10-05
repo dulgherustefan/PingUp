@@ -268,6 +268,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun resolve(incidentId: String) = c.incidents.resolve(incidentId)
 
+    fun cancelReport(incidentId: String) = c.incidents.cancel(incidentId)
+
+    fun deleteReport(incidentId: String) = c.incidents.delete(incidentId)
+
+    fun dismissIncident(incidentId: String) = c.incidents.dismiss(incidentId)
+
     fun retryRadio() {
         c.meshScope.launch { c.radio.retry() }
     }

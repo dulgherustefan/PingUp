@@ -63,9 +63,10 @@ class MeshPartsTest {
         q.offer(Outbound(packet(PacketType.PRIVATE, 2), true))
         q.offer(Outbound(packet(PacketType.INCIDENT_ACK, 3), true))
         q.offer(Outbound(packet(PacketType.INCIDENT_REPORT, 4), true))
+        q.offer(Outbound(packet(PacketType.INCIDENT_CANCEL, 7), true))
         q.offer(Outbound(packet(PacketType.INCIDENT_REPORT, 5), true))
         q.offer(Outbound(packet(PacketType.HELLO, 6), true))
-        assertEquals(listOf(6L, 4L, 5L, 3L, 2L, 1L), List(6) { q.poll()!!.packet.id })
+        assertEquals(listOf(6L, 4L, 5L, 3L, 7L, 2L, 1L), List(7) { q.poll()!!.packet.id })
         assertNull(q.poll())
     }
 
@@ -162,6 +163,35 @@ class MeshPartsTest {
         assertNull(c.report(1L))
         assertTrue(c.missing(listOf(SummaryEntry(1L, true, AckStatus.NONE)), later).isEmpty())
         assertFalse(c.offerReport(id(1), packet(PacketType.INCIDENT_REPORT), later))
+    }
+
+    @Test
+    fun cancelledAckReplacesEveryOtherAndStopsTheReportSpreading() {
+        val c = IncidentCache()
+        c.offerReport(id(1), packet(PacketType.INCIDENT_REPORT), 0)
+        c.offerAck(ack(1, AckStatus.RESOLVED), packet(PacketType.INCIDENT_ACK, 1), 0)
+        assertTrue(c.offerAck(ack(1, AckStatus.CANCELLED), packet(PacketType.INCIDENT_ACK, 2), 0))
+        assertFalse(c.offerAck(ack(1, AckStatus.RESOLVED, ts = 1), packet(PacketType.INCIDENT_ACK, 3), 0))
+        assertEquals(AckStatus.CANCELLED, c.ackStatus(id(1)))
+        assertEquals(listOf(SummaryEntry(1L, true, AckStatus.CANCELLED)), c.summary(0))
+
+        val remote = c.missing(listOf(SummaryEntry(2L, true, AckStatus.CANCELLED)), 0).single()
+        assertFalse("un raport anulat nu mai e cerut", remote.wantReport)
+        assertTrue(remote.wantAck)
+        c.offerAck(ack(3, AckStatus.CANCELLED), packet(PacketType.INCIDENT_ACK), 0)
+        assertTrue(c.missing(listOf(SummaryEntry(3L, true, AckStatus.RECEIVED)), 0).isEmpty())
+    }
+
+    @Test
+    fun forgottenReportIsNotServedNorRequestedAgain() {
+        val c = IncidentCache()
+        c.offerReport(id(1), packet(PacketType.INCIDENT_REPORT), 0)
+        c.forgetReport(id(1), 10)
+        assertNull(c.report(1L))
+        assertEquals(0, c.reportCount)
+        assertTrue(c.summary(10).isEmpty())
+        assertTrue(c.missing(listOf(SummaryEntry(1L, true, AckStatus.NONE)), 10).isEmpty())
+        assertFalse(c.offerReport(id(1), packet(PacketType.INCIDENT_REPORT), 20))
     }
 
     @Test

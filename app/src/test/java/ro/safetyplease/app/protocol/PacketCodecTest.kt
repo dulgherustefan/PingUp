@@ -34,6 +34,15 @@ class PacketCodecTest {
     }
 
     @Test
+    fun cancelIsAKnownType() {
+        val p = Packet(PacketType.INCIDENT_CANCEL, 7, 5L, 0L, 1L, null, false, ByteArray(IncidentCancel.SIZE) { 1 })
+        val back = PacketCodec.decode(PacketCodec.encode(p))!!.packet
+        assertEquals(PacketType.INCIDENT_CANCEL, back.type)
+        assertEquals(0L, back.sender)
+        assertEquals("CANCEL", PacketType.name(back.type))
+    }
+
+    @Test
     fun roundTripWithRecipient() {
         val bytes = PacketCodec.encode(packet(recipient = 42L))
         assertEquals(26 + 8 + 3, bytes.size)

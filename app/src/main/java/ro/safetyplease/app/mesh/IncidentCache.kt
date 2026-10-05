@@ -52,6 +52,14 @@ class IncidentCache(
         return true
     }
 
+    /** Nu mai serveste raportul, dar pastreaza urma, ca sa nu fie cerut sau primit din nou. */
+    fun forgetReport(incidentId: ByteArray, nowMs: Long) {
+        purge(nowMs)
+        val e = entry(incidentId.toLong(), nowMs)
+        e.reportSeen = true
+        e.report = null
+    }
+
     /** Retine ACK-ul doar daca e mai bun decat cel cunoscut: status mai mare, apoi cel mai vechi, apoi echipa. */
     fun offerAck(ack: IncidentAck, packet: Packet, nowMs: Long): Boolean {
         purge(nowMs)
@@ -86,7 +94,9 @@ class IncidentCache(
         purge(nowMs)
         return remote.mapNotNull { r ->
             val local = entries[r.id8]
-            val wantReport = r.hasReport && (local == null || !local.reportSeen)
+            // un raport anulat nu mai trebuie dus nicaieri; ajunge ACK-ul care il inchide
+            val cancelled = r.ackStatus == AckStatus.CANCELLED || local?.ackStatus == AckStatus.CANCELLED
+            val wantReport = r.hasReport && !cancelled && (local == null || !local.reportSeen)
             val wantAck = r.ackStatus > (local?.ackStatus ?: AckStatus.NONE)
             if (wantReport || wantAck) RequestEntry(r.id8, wantReport, wantAck) else null
         }

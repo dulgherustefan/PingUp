@@ -1,6 +1,7 @@
 package ro.safetyplease.app.protocol
 
 import ro.safetyplease.app.core.utf8
+import ro.safetyplease.app.crypto.sha256
 import kotlin.math.roundToInt
 
 object NodeFlags {
@@ -52,6 +53,9 @@ object AckStatus {
     const val RECEIVED = 1
     const val ACKNOWLEDGED = 2
     const val RESOLVED = 3
+
+    /** Autorul si-a retras raportul, iar staff-ul a confirmat; e cel mai mare, deci inlocuieste orice ACK. */
+    const val CANCELLED = 4
 }
 
 /** Ce are un nod in cache pentru un incident; [id8] sunt primii 8 octeti din incidentId. */
@@ -75,7 +79,7 @@ object SummaryCodec {
             val id8 = r.i64()
             val state = r.u8()
             val status = state and REPORT_BIT.inv()
-            if (status > AckStatus.RESOLVED) throw MalformedException("ack status")
+            if (status > AckStatus.CANCELLED) throw MalformedException("ack status")
             SummaryEntry(id8, state and REPORT_BIT != 0, status)
         }
         r.expectEnd()
@@ -132,7 +136,10 @@ object Severity {
 
 const val INCIDENT_ID_SIZE = 16
 
-/** Continutul unui raport. Circula doar criptat sealed-box catre cheia de staff. */
+/**
+ * Continutul unui raport. Circula doar criptat sealed-box catre cheia de staff. [cancelHash] lipseste
+ * in rapoartele scrise inainte sa existe anularea.
+ */
 class IncidentBody(
     val category: Int,
     val severity: Int,
@@ -142,6 +149,7 @@ class IncidentBody(
     val lon: Double?,
     val description: String,
     val nickname: String?,
+    val cancelHash: ByteArray? = null,
 ) {
     fun encode(): ByteArray {
         val zoneBytes = zone.utf8()
@@ -149,20 +157,24 @@ class IncidentBody(
         val nickBytes = nickname?.utf8()
         require(zoneBytes.size <= Limits.ZONE_BYTES && descBytes.size <= Limits.DESCRIPTION_BYTES)
         require(nickBytes == null || nickBytes.size <= Limits.NICK_BYTES)
+        require(cancelHash == null || cancelHash.size == IncidentCancel.HASH_SIZE)
         val hasCoords = lat != null && lon != null
-        val flags = (if (hasCoords) FLAG_COORDS else 0) or (if (nickBytes != null) FLAG_NICK else 0)
+        val flags = (if (hasCoords) FLAG_COORDS else 0) or (if (nickBytes != null) FLAG_NICK else 0) or
+            (if (cancelHash != null) FLAG_CANCEL else 0)
         val w = WireWriter(32 + zoneBytes.size + descBytes.size)
         w.u8(category).u8(severity).u32(timestamp).u8(flags)
         w.u8(zoneBytes.size).bytes(zoneBytes)
         if (hasCoords) w.coord(lat!!).coord(lon!!)
         w.u16(descBytes.size).bytes(descBytes)
         if (nickBytes != null) w.u8(nickBytes.size).bytes(nickBytes)
+        if (cancelHash != null) w.bytes(cancelHash)
         return w.toByteArray()
     }
 
     companion object {
         private const val FLAG_COORDS = 0x01
         private const val FLAG_NICK = 0x02
+        private const val FLAG_CANCEL = 0x04
 
         fun decode(plain: ByteArray): IncidentBody? = parseOrNull {
             val r = WireReader(plain)
@@ -172,15 +184,16 @@ class IncidentBody(
             if (severity < Severity.LOW || severity > Severity.URGENT) throw MalformedException("severity")
             val timestamp = r.u32()
             val flags = r.u8()
-            if (flags and (FLAG_COORDS or FLAG_NICK).inv() != 0) throw MalformedException("flags")
+            if (flags and (FLAG_COORDS or FLAG_NICK or FLAG_CANCEL).inv() != 0) throw MalformedException("flags")
             val zone = r.string(r.u8(), Limits.ZONE_BYTES)
             val hasCoords = flags and FLAG_COORDS != 0
             val lat = if (hasCoords) r.coord() else null
             val lon = if (hasCoords) r.coord() else null
             val description = r.string(r.u16(), Limits.DESCRIPTION_BYTES)
             val nick = if (flags and FLAG_NICK != 0) r.string(r.u8(), Limits.NICK_BYTES) else null
+            val cancelHash = if (flags and FLAG_CANCEL != 0) r.bytes(IncidentCancel.HASH_SIZE) else null
             r.expectEnd()
-            IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick)
+            IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash)
         }
     }
 }
@@ -229,7 +242,7 @@ class IncidentAck(
             val r = WireReader(payload)
             val id = r.bytes(INCIDENT_ID_SIZE)
             val status = r.u8()
-            if (status < AckStatus.RECEIVED || status > AckStatus.RESOLVED) throw MalformedException("status")
+            if (status < AckStatus.RECEIVED || status > AckStatus.CANCELLED) throw MalformedException("status")
             val timestamp = r.u32()
             val team = r.string(r.u8(), Limits.TEAM_BYTES)
             val signature = r.bytes(SIGNATURE_SIZE)
@@ -238,6 +251,34 @@ class IncidentAck(
         }
 
         fun unsignedPart(payload: ByteArray): ByteArray = payload.copyOfRange(0, payload.size - SIGNATURE_SIZE)
+    }
+}
+
+/**
+ * Payload INCIDENT_CANCEL, anonim ca raportul. Corpul sigilat al raportului contine doar hash-ul tokenului,
+ * asa ca doar autorul il poate anula, iar staff-ul confirma cu un ACK CANCELLED.
+ */
+class IncidentCancel(val incidentId: ByteArray, val token: ByteArray) {
+    fun encode(): ByteArray {
+        require(incidentId.size == INCIDENT_ID_SIZE && token.size == TOKEN_SIZE)
+        return incidentId + token
+    }
+
+    companion object {
+        const val TOKEN_SIZE = 16
+        const val HASH_SIZE = 16
+        const val SIZE = INCIDENT_ID_SIZE + TOKEN_SIZE
+        private val DOMAIN = "SP-CANCEL-v1".utf8()
+
+        fun hash(token: ByteArray): ByteArray = sha256(DOMAIN + token).copyOf(HASH_SIZE)
+
+        fun decode(payload: ByteArray): IncidentCancel? = parseOrNull {
+            val r = WireReader(payload)
+            val id = r.bytes(INCIDENT_ID_SIZE)
+            val token = r.bytes(TOKEN_SIZE)
+            r.expectEnd()
+            IncidentCancel(id, token)
+        }
     }
 }
 

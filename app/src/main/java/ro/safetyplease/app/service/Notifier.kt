@@ -100,6 +100,8 @@ class Notifier(private val context: Context, private val venue: Venue) {
         manager.notify(incident.incidentId.hashCode(), builder.build())
     }
 
+    fun cancelStaffAlert(incidentId: String) = manager.cancel(incidentId.hashCode())
+
     fun reportUpdate(report: MyReport) {
         if (!canPost()) return
         val text = when (report.status) {

@@ -16,6 +16,7 @@ import ro.safetyplease.app.core.toHex
 import ro.safetyplease.app.core.toLong
 import ro.safetyplease.app.protocol.Hello
 import ro.safetyplease.app.protocol.IncidentAck
+import ro.safetyplease.app.protocol.IncidentCancel
 import ro.safetyplease.app.protocol.IncidentReportCodec
 import ro.safetyplease.app.protocol.Limits
 import ro.safetyplease.app.protocol.NodeFlags
@@ -268,6 +269,20 @@ class MeshEngine(
         if (!cache.offerAck(ack, packet, clock.monoMs())) return null
         flood(packet, exceptLink = null, own = true)
         return packet
+    }
+
+    /** Fara store-and-forward: autorul o retrimite, ca pachet nou, pana vine ACK-ul CANCELLED. */
+    fun publishCancel(incidentId: ByteArray, token: ByteArray): Packet {
+        val payload = IncidentCancel(incidentId, token).encode()
+        val packet = newPacket(PacketType.INCIDENT_CANCEL, payload, null, encrypted = false, anonymous = true)
+        flood(packet, exceptLink = null, own = true)
+        return packet
+    }
+
+    /** Dupa o anulare nu mai raspandim propriul raport; urma ramane, ca vecinii sa nu ni-l aduca inapoi. */
+    fun forgetReport(incidentId: ByteArray) {
+        cache.forgetReport(incidentId, clock.monoMs())
+        publishState()
     }
 
     fun ackStatus(incidentId: ByteArray): Int = cache.ackStatus(incidentId)
@@ -536,6 +551,9 @@ class MeshEngine(
                 val ack = IncidentAck.decode(packet.payload) ?: return malformed(link, "ACK invalid")
                 if (!verifyAck(packet.payload)) return malformed(link, "ACK cu semnatura invalida")
                 if (!cache.offerAck(ack, forwardable, now)) return drop(packet, link, "ACK depasit")
+            }
+            PacketType.INCIDENT_CANCEL -> {
+                if (packet.payload.size != IncidentCancel.SIZE) return malformed(link, "CANCEL invalid")
             }
             PacketType.PRIVATE -> {
                 if (packet.recipient == null || packet.sender == 0L || !packet.encrypted) {

@@ -2,11 +2,13 @@ package ro.safetyplease.app.protocol
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.app.core.truncateUtf8
 import ro.safetyplease.app.core.utf8
+import ro.safetyplease.app.crypto.sha256
 
 class PayloadsTest {
     @Test
@@ -29,7 +31,10 @@ class PayloadsTest {
 
     @Test
     fun summaryAndRequestRoundTrip() {
-        val entries = listOf(SummaryEntry(1L, true, AckStatus.NONE), SummaryEntry(-5L, false, AckStatus.RESOLVED))
+        val entries = listOf(
+            SummaryEntry(1L, true, AckStatus.NONE), SummaryEntry(-5L, false, AckStatus.RESOLVED),
+            SummaryEntry(9L, true, AckStatus.CANCELLED),
+        )
         assertEquals(entries, SummaryCodec.decode(SummaryCodec.encode(entries)))
         val req = listOf(RequestEntry(1L, true, false), RequestEntry(2L, true, true))
         assertEquals(req, RequestCodec.decode(RequestCodec.encode(req)))
@@ -45,6 +50,7 @@ class PayloadsTest {
     fun summaryRejectsBadCounts() {
         assertNull(SummaryCodec.decode(byteArrayOf(2, 0, 0)))
         assertNull(SummaryCodec.decode(byteArrayOf(60)))
+        assertNull("status necunoscut", SummaryCodec.decode(WireWriter().u8(1).i64(1).u8(5).toByteArray()))
         assertNull(RequestCodec.decode(WireWriter().u8(1).i64(1).u8(0x40).toByteArray()))
     }
 
@@ -75,11 +81,30 @@ class PayloadsTest {
     }
 
     @Test
+    fun incidentBodyCarriesCancelHashOnlyWhenPresent() {
+        val hash = IncidentCancel.hash(ByteArray(IncidentCancel.TOKEN_SIZE) { 5 })
+        val with = IncidentBody(IncidentCategory.CROWD, Severity.MEDIUM, 9L, "bar", 43.95, 28.63, "împins", "Ana", hash).encode()
+        val without = IncidentBody(IncidentCategory.CROWD, Severity.MEDIUM, 9L, "bar", 43.95, 28.63, "împins", "Ana").encode()
+        assertEquals(without.size + IncidentCancel.HASH_SIZE, with.size)
+
+        val d = IncidentBody.decode(with)!!
+        assertArrayEquals(hash, d.cancelHash)
+        assertEquals("Ana", d.nickname)
+        assertEquals("împins", d.description)
+        assertEquals(28.63, d.lon!!, 1e-6)
+
+        val old = IncidentBody.decode(without)!!
+        assertNull("raport de dinainte de anulare", old.cancelHash)
+        assertEquals("Ana", old.nickname)
+        assertNull("hash trunchiat", IncidentBody.decode(with.copyOf(with.size - 1)))
+    }
+
+    @Test
     fun largestIncidentStillFitsSealedInOnePacket() {
         val desc = "ș".repeat(Limits.DESCRIPTION_CHARS).truncateUtf8(Limits.DESCRIPTION_BYTES)
         val body = IncidentBody(
             IncidentCategory.OTHER, Severity.MEDIUM, 1L, "z".repeat(Limits.ZONE_BYTES),
-            -89.999999, 179.999999, desc, "n".repeat(Limits.NICK_BYTES),
+            -89.999999, 179.999999, desc, "n".repeat(Limits.NICK_BYTES), ByteArray(IncidentCancel.HASH_SIZE),
         ).encode()
         val total = INCIDENT_ID_SIZE + body.size + IncidentReportCodec.SEAL_OVERHEAD
         assertTrue("total=$total", total <= PacketCodec.MAX_PAYLOAD)
@@ -92,6 +117,24 @@ class PayloadsTest {
         assertNull(IncidentBody.decode(good.clone().also { it[1] = 0 }))
         assertNull(IncidentBody.decode(good.copyOf(good.size - 1)))
         assertNull(IncidentBody.decode(good + 0))
+        assertNull("flag necunoscut", IncidentBody.decode(good.clone().also { it[6] = 0x08 }))
+        assertNull("flag de anulare fara hash", IncidentBody.decode(good.clone().also { it[6] = 0x04 }))
+    }
+
+    @Test
+    fun cancelRoundTripAndTokenHash() {
+        val id = ByteArray(INCIDENT_ID_SIZE) { it.toByte() }
+        val token = ByteArray(IncidentCancel.TOKEN_SIZE) { (100 + it).toByte() }
+        val payload = IncidentCancel(id, token).encode()
+        assertEquals(32, payload.size)
+        val back = IncidentCancel.decode(payload)!!
+        assertArrayEquals(id, back.incidentId)
+        assertArrayEquals(token, back.token)
+        assertNull(IncidentCancel.decode(payload.copyOf(31)))
+        assertNull(IncidentCancel.decode(payload + 0))
+
+        assertArrayEquals(sha256("SP-CANCEL-v1".utf8() + token).copyOf(16), IncidentCancel.hash(token))
+        assertFalse(IncidentCancel.hash(token).contentEquals(IncidentCancel.hash(ByteArray(IncidentCancel.TOKEN_SIZE))))
     }
 
     @Test
@@ -110,6 +153,9 @@ class PayloadsTest {
         )
         assertNull(IncidentAck.decode(payload.copyOf(payload.size - 1)))
         assertNull("status 0", IncidentAck.decode(payload.clone().also { it[IncidentAck.STATUS_OFFSET] = 0 }))
+        val cancelled = payload.clone().also { it[IncidentAck.STATUS_OFFSET] = AckStatus.CANCELLED.toByte() }
+        assertEquals(AckStatus.CANCELLED, IncidentAck.decode(cancelled)!!.status)
+        assertNull("status 5", IncidentAck.decode(payload.clone().also { it[IncidentAck.STATUS_OFFSET] = 5 }))
     }
 
     @Test

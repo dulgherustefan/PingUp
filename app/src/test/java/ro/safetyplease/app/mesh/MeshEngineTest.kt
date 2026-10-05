@@ -17,6 +17,7 @@ import ro.safetyplease.app.core.nodePrefix
 import ro.safetyplease.app.protocol.AckStatus
 import ro.safetyplease.app.protocol.INCIDENT_ID_SIZE
 import ro.safetyplease.app.protocol.IncidentAck
+import ro.safetyplease.app.protocol.IncidentCancel
 import ro.safetyplease.app.protocol.NodeFlags
 import ro.safetyplease.app.protocol.Packet
 import ro.safetyplease.app.protocol.PacketCodec
@@ -165,6 +166,40 @@ class MeshEngineTest {
         b.engine.publishReport(incidentId(1), ByteArray(80) { 9 })
         advanceTimeBy(5_000)
         assertEquals(1, d.ofType(PacketType.INCIDENT_REPORT).size)
+    }
+
+    @Test
+    fun cancelCrossesTheChainAnonymouslyAndBadCopiesStopAtFirstHop() = runTest {
+        val (a, b, _, d) = chain()
+        val packet = a.engine.publishCancel(incidentId(1), ByteArray(IncidentCancel.TOKEN_SIZE) { 4 })
+        advanceTimeBy(5_000)
+        val atD = d.ofType(PacketType.INCIDENT_CANCEL).single()
+        assertEquals(packet.id, atD.id)
+        assertEquals(0L, atD.sender)
+        assertEquals(3, atD.hops)
+        assertTrue(packet.id in a.sent)
+
+        val link = a.radio.links.entries.single { it.value.radio === b.radio }.key
+        a.radio.inject(link, PacketCodec.encode(packet))
+        val short = Packet(PacketType.INCIDENT_CANCEL, 7, 99L, 0L, 0L, null, false, ByteArray(IncidentCancel.SIZE - 1))
+        a.radio.inject(link, PacketCodec.encode(short))
+        advanceTimeBy(5_000)
+        assertEquals("duplicatul si cel trunchiat se opresc la B", 1, b.ofType(PacketType.INCIDENT_CANCEL).size)
+        assertEquals(1, d.ofType(PacketType.INCIDENT_CANCEL).size)
+    }
+
+    @Test
+    fun forgottenReportIsNotServedToNewPeers() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        val b = world.node("B", B)
+        a.engine.publishReport(incidentId(3), ByteArray(80))
+        a.engine.forgetReport(incidentId(3))
+        assertEquals(0, a.engine.state.value.cachedReports)
+        world.net.start()
+        advanceTimeBy(70_000)
+        assertEquals(1, b.readyLinks)
+        assertTrue(b.received.isEmpty())
     }
 
     @Test

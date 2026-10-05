@@ -51,7 +51,7 @@ class SendQueue(private val capacity: Int = 128) {
         fun priorityOf(type: Int): Int = when (type) {
             PacketType.HELLO -> 0
             PacketType.INCIDENT_REPORT -> 1
-            PacketType.INCIDENT_ACK -> 2
+            PacketType.INCIDENT_ACK, PacketType.INCIDENT_CANCEL -> 2
             PacketType.PRIVATE -> 3
             else -> 4
         }

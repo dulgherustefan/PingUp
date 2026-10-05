@@ -110,6 +110,7 @@ class AppContainer(private val app: Application) {
         staffSecret = { staffSecret },
         teamName = { settings.value.teamName },
         onStaffAlert = { notifier.staffAlert(it) },
+        onStaffAlertCleared = { notifier.cancelStaffAlert(it) },
         onReportUpdate = { if (!inForeground) notifier.reportUpdate(it) },
         onReportSent = { boostUntil.value = clock.monoMs() + PowerPolicy.BOOST_MS },
     )
