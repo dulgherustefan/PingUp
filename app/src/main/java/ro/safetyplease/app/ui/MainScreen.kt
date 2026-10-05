@@ -259,6 +259,7 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         Dest.Me -> MeScreen(vm, onStartMesh)
         Dest.Demo -> Demo.Screen(vm)
         is Dest.Pin -> PinScreen(vm, dest)
+        is Dest.Map -> MapScreen(vm, dest)
         null -> if (role == AppRole.ANCHOR) AnchorScreen(vm) else MainTabs(vm, role == AppRole.STAFF, onStartMesh)
     }
 }
@@ -298,11 +299,10 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
     val items = buildList {
         add(TabItem(Tab.MESSAGES, R.string.tab_messages, Sym.ChatFill, unreadChats))
         add(TabItem(Tab.REPORT, R.string.tab_report, Sym.ReportFill))
-        add(TabItem(Tab.MAP, R.string.tab_map, Sym.MapFill))
         if (staff) add(TabItem(Tab.INCIDENTS, R.string.tab_incidents, Sym.BellFill, openIncidents))
     }
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val barBottom = navBottom + 6.dp
+    val barBottom = navBottom
     val backdrop = rememberBackdrop()
 
     Box(Modifier.fillMaxSize()) {
@@ -314,7 +314,6 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
                         when (tab) {
                             Tab.MESSAGES -> MessagesScreen(vm, onStartMesh)
                             Tab.REPORT -> ReportScreen(vm)
-                            Tab.MAP -> MapScreen(vm)
                             Tab.INCIDENTS -> IncidentsScreen(vm)
                         }
                     }

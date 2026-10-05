@@ -19,7 +19,7 @@
 
     <string name="tab_messages">Mesaje</string>
     <string name="tab_report">Raportează</string>
-    <string name="tab_map">Hartă</string>
+    <string name="map_title">Hartă</string>
     <string name="tab_incidents">Incidente</string>
 
     <string name="status_bt_off">Bluetooth e oprit</string>
@@ -131,7 +131,6 @@
     <string name="chat_send_zone">Trimite zona mea</string>
     <string name="chat_quick">Mesaje rapide</string>
     <string name="chat_empty_text">Mesajele ajung din telefon în telefon, chiar și fără semnal.</string>
-    <string name="chat_zone_unknown">Nu știm unde ești. Alege o zonă în Hartă, apoi încearcă din nou.</string>
     <string name="quick_my_zone">Zona mea</string>
     <string name="quick_where">Unde ești?</string>
     <string name="quick_coming">Vin</string>
@@ -191,7 +190,6 @@
     <string name="group_leave_text">Grupul și mesajele lui dispar doar de pe acest telefon.</string>
 
     <string name="report_title">Ce se întâmplă?</string>
-    <string name="report_hint">Atinge ce vezi. Restul e opțional.</string>
     <string name="report_mine">Rapoartele mele</string>
     <string name="report_details">Detalii (opțional)</string>
     <string name="report_urgent">Urgent</string>
@@ -323,4 +321,6 @@
     <string name="location_open_settings">Permite locația din setări</string>
     <string name="location_precise_needed">Ai permis doar locația aproximativă. Pentru zona ta e nevoie de locația precisă.</string>
     <string name="app_tagline">Mesaje care sar din telefon în telefon</string>
+    <string name="incidents_filter_empty">Niciun incident aici</string>
+    <string name="report_active">Raportul tău</string>
 </resources>

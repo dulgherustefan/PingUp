@@ -52,14 +52,17 @@ import ro.safetyplease.app.incidents.StatusFilter
 import ro.safetyplease.app.protocol.AckStatus
 import ro.safetyplease.app.protocol.Severity
 
-/** Iconita si culoarea starii: nepreluat e portocaliu, preluat e albastru, rezolvat e verde. */
+/**
+ * Iconita si culoarea starii, pentru text: nepreluat e portocaliu, preluat e gri, rezolvat e verde.
+ * Culorile de text, nu cele de suprafata, ca sa se citeasca si ziua, in plin soare.
+ */
 @Composable
 private fun statusLook(status: Int): Pair<ImageVector, Color> {
     val colors = AppTheme.colors
     return when (status) {
-        AckStatus.RESOLVED -> Sym.CheckCircle to colors.green
-        AckStatus.ACKNOWLEDGED -> Sym.Check to colors.accent
-        else -> Sym.Bell to colors.orange
+        AckStatus.RESOLVED -> Sym.CheckCircle to colors.accent
+        AckStatus.ACKNOWLEDGED -> Sym.Check to colors.secondaryLabel
+        else -> Sym.Bell to colors.orangeInk
     }
 }
 
@@ -113,6 +116,7 @@ fun IncidentsScreen(vm: AppViewModel) {
         title = stringResource(R.string.tab_incidents),
         scrolled = scrolled,
         leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
+        trailing = { backdrop -> GlassIconButton(Sym.Map, stringResource(R.string.map_title), { vm.open(Dest.Map()) }, backdrop) },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
             if (clusters.isNotEmpty()) {
@@ -122,7 +126,9 @@ fun IncidentsScreen(vm: AppViewModel) {
             }
             if (shown.isEmpty()) {
                 item(key = "empty") {
-                    EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), icon = Sym.Bell)
+                    // un filtru gol nu inseamna ca n-a venit nimic
+                    if (clusters.isEmpty()) EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), icon = Sym.Bell)
+                    else EmptyState(stringResource(R.string.incidents_filter_empty), null, icon = Sym.Check)
                 }
             } else {
                 items(shown, key = { it.lead.incidentId }) { cluster -> ClusterRow(vm, cluster, now, Modifier.animateItem()) }
@@ -184,8 +190,8 @@ private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, now: Long, mo
 }
 
 /**
- * Un incident, ca pagina unui contact din Signal: categoria mare sus, actiunile staff-ului in doua placi,
- * starea, harta cu rapoartele, apoi rapoartele intr-un grup. Numele categoriei apare in bara abia cand antetul iese din ecran.
+ * Un incident, ca pagina unui contact din Signal: categoria mare sus, cu starea sub nume, actiunile staff-ului
+ * in doua placi, harta cu rapoartele, apoi rapoartele intr-un grup. Numele categoriei apare in bara abia cand antetul iese din ecran.
  */
 @Composable
 fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
@@ -224,6 +230,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
             IncidentHeader(
                 lead.category, cluster.severity == Severity.URGENT, place + " · " + agoText(cluster.latestAt, now),
                 Modifier.onSizeChanged { headerPx = it.height },
+                status = { StaffStatus(cluster.status, cluster.incidents.firstOrNull { it.status == cluster.status }?.teamName.orEmpty()) },
             )
             // a doua atingere pe o actiune deja facuta nu mai trimite nimic
             Row(Modifier.fillMaxWidth().padding(horizontal = Gutter), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -248,10 +255,6 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                     Modifier.weight(1f), selected = !canResolve, background = colors.cell,
                 )
             }
-            StaffStatus(
-                cluster.status, cluster.incidents.firstOrNull { it.status == cluster.status }?.teamName.orEmpty(),
-                Modifier.align(Alignment.CenterHorizontally).padding(start = Gutter, end = Gutter, top = 16.dp),
-            )
             VenueMap(
                 venue = vm.venue,
                 modifier = Modifier.padding(start = Gutter, end = Gutter, top = 20.dp).clip(RoundedCornerShape(26.dp)),

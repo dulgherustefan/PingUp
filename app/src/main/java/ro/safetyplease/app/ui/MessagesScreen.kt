@@ -380,7 +380,6 @@ fun NewChatScreen(vm: AppViewModel) {
                     SearchField(
                         query, { query = it }, stringResource(R.string.new_chat_search),
                         Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp),
-                        fill = AppTheme.colors.fill,
                     )
                 }
             }

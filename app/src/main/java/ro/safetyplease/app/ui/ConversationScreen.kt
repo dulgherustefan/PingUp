@@ -2,7 +2,6 @@ package ro.safetyplease.app.ui
 
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -213,8 +212,9 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     }
     val lastMine = messages.lastOrNull { it.fromMe && it.kind != MsgKind.SYSTEM }
     val sendZone = {
+        // fara zona stiuta deschidem harta: zona aleasa acolo pleaca direct in conversatie
         if (vm.sendMyZone(conversation)) haptics.confirm()
-        else Toast.makeText(context, R.string.chat_zone_unknown, Toast.LENGTH_LONG).show()
+        else vm.open(Dest.Map(sendTo = conversation))
     }
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val composerHeight = with(density) { composerPx.toDp() }
@@ -231,6 +231,8 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                     Modifier.fillMaxSize().nestedScroll(userScroll),
                     state = listState,
                     contentPadding = PaddingValues(top = top + NavHeight + 16.dp, bottom = composerHeight + 8.dp),
+                    // o conversatie scurta sta langa campul de scris, ca in Signal, nu agatata sus
+                    verticalArrangement = Arrangement.Bottom,
                 ) {
                     items(items, key = { it.key }) { item ->
                         when (item) {

@@ -239,25 +239,24 @@ fun NavScreen(
     Box(modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().backdropSource(backdrop).screenBackground(background)) { content(padding) }
         TopEdge(top, background, scrolled)
-        // ca UINavigationBar: titlul sta pe centru cat timp incape intre butoane, altfel se muta spre partea libera
+        // ca UINavigationBar: titlul sta pe centru cat timp incape intre butoane, altfel se muta spre partea libera;
+        // titlul si randul de sub el se centreaza separat, ca o stare mai lunga sa nu mute titlul
         Layout(
             content = {
                 Box { leading(backdrop) }
-                NavText {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (subtitle != null) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                subtitleLeading?.invoke()
-                                Text(
-                                    subtitle, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+                NavText { Text(title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                Box { trailing(backdrop) }
+                if (subtitle != null) {
+                    NavText {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            subtitleLeading?.invoke()
+                            Text(
+                                subtitle, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
-                Box { trailing(backdrop) }
             },
             modifier = Modifier.statusBarsPadding().fillMaxWidth().height(NavHeight).padding(horizontal = Gutter),
         ) { measurables, constraints ->
@@ -267,12 +266,15 @@ fun NavScreen(
             val gap = 8.dp.roundToPx()
             val width = constraints.maxWidth
             val room = (width - lead.width - trail.width - 2 * gap).coerceAtLeast(0)
-            val text = measurables[1].measure(loose.copy(maxWidth = room))
-            val x = ((width - text.width) / 2).coerceIn(lead.width + gap, (width - trail.width - gap - text.width).coerceAtLeast(lead.width + gap))
+            val head = measurables[1].measure(loose.copy(maxWidth = room))
+            val sub = measurables.getOrNull(3)?.measure(loose.copy(maxWidth = room))
+            fun xFor(w: Int) = ((width - w) / 2).coerceIn(lead.width + gap, (width - trail.width - gap - w).coerceAtLeast(lead.width + gap))
             layout(width, constraints.maxHeight) {
                 val height = constraints.maxHeight
+                val top = (height - head.height - (sub?.height ?: 0)) / 2
                 lead.place(0, (height - lead.height) / 2)
-                text.place(x, (height - text.height) / 2)
+                head.place(xFor(head.width), top)
+                sub?.place(xFor(sub.width), top + head.height)
                 trail.place(width - trail.width, (height - trail.height) / 2)
             }
         }
@@ -349,14 +351,14 @@ fun UnreadBadge(count: Int, modifier: Modifier = Modifier, color: Color = AppThe
     }
 }
 
-/** Campul de cautare: o capsula gri, cu lupa in fata. Pe fundalul gri al setarilor ia umplerea translucida, ca sa se vada. */
+/** Campul de cautare: o capsula cu umplere translucida, mereu o treapta peste fundal, cu lupa in fata. */
 @Composable
 fun SearchField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
-    fill: Color = AppTheme.colors.searchFill,
+    fill: Color = AppTheme.colors.fill,
     trailing: @Composable () -> Unit = {},
 ) {
     val c = AppTheme.colors
@@ -431,10 +433,10 @@ fun InputField(
 
 /** Titlul unui grup de randuri, ca in setarile iOS 26: ingrosat, gri, aliniat cu textul randurilor. */
 @Composable
-fun SectionTitle(text: String, modifier: Modifier = Modifier, color: Color = AppTheme.colors.secondaryLabel) {
+fun SectionTitle(text: String, modifier: Modifier = Modifier, color: Color = AppTheme.colors.secondaryLabel, top: Dp = 24.dp) {
     Text(
         text, style = MaterialTheme.typography.headline, color = color,
-        modifier = modifier.fillMaxWidth().padding(start = Gutter * 2, end = Gutter * 2, top = 24.dp, bottom = 8.dp),
+        modifier = modifier.fillMaxWidth().padding(start = Gutter * 2, end = Gutter * 2, top = top, bottom = 8.dp),
     )
 }
 
@@ -571,8 +573,9 @@ fun ActionTile(icon: ImageVector, label: String, onClick: () -> Unit, modifier: 
     val ink = if (selected) c.onAccent else c.label
     Column(
         modifier.heightIn(min = 64.dp).clip(RoundedCornerShape(16.dp)).background(fill)
-            .selectable(selected = selected, role = Role.Button, onClick = onClick).padding(horizontal = 6.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+            .selectable(selected = selected, role = Role.Button, onClick = onClick).padding(start = 6.dp, end = 6.dp, top = 14.dp, bottom = 10.dp),
+        // continutul porneste de sus: intr-un rand intins dupa o eticheta pe doua randuri, iconitele raman pe aceeasi linie
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Top,
     ) {
         Icon(icon, null, Modifier.size(24.dp), tint = ink)
         TileLabel(label, ink, if (selected) FontWeight.SemiBold else FontWeight.Medium)
@@ -614,7 +617,7 @@ fun Banner(
     onDismiss: () -> Unit = {},
 ) {
     val c = AppTheme.colors
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.searchFill).padding(16.dp)) {
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.fill).padding(16.dp)) {
         Row(verticalAlignment = Alignment.Top) {
             Icon(if (warning) Sym.Report else Sym.Info, null, Modifier.size(22.dp), tint = if (warning) c.orange else c.accent)
             Spacer(Modifier.width(12.dp))
@@ -636,7 +639,7 @@ fun Banner(
 @Composable
 fun EmptyState(
     title: String,
-    text: String,
+    text: String?,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     illustration: (@Composable () -> Unit)? = null,
@@ -652,10 +655,12 @@ fun EmptyState(
             Spacer(Modifier.height(16.dp))
         }
         Text(title, style = MaterialTheme.typography.title2, textAlign = TextAlign.Center)
-        Text(
-            text, style = MaterialTheme.typography.subheadline, color = c.secondaryLabel, textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 6.dp),
-        )
+        if (text != null) {
+            Text(
+                text, style = MaterialTheme.typography.subheadline, color = c.secondaryLabel, textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
         Spacer(Modifier.height(20.dp))
         action()
     }

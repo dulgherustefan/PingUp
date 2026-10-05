@@ -33,7 +33,7 @@ import ro.safetyplease.app.venue.GeoPoint
 import ro.safetyplease.app.venue.Venue
 import ro.safetyplease.app.venue.Zone
 
-enum class Tab { MESSAGES, REPORT, MAP, INCIDENTS }
+enum class Tab { MESSAGES, REPORT, INCIDENTS }
 
 sealed interface Dest {
     data class Conversation(val id: String) : Dest
@@ -51,6 +51,12 @@ sealed interface Dest {
     data object Me : Dest
     data object Demo : Dest
     data class Pin(val lat: Double?, val lon: Double?, val zone: String, val label: String) : Dest
+
+    /**
+     * Harta evenimentului: zona ta, zonele, punctul de intalnire si, pentru staff, incidentele deschise.
+     * Cu [sendTo], zona aleasa pleaca pe loc in acea conversatie.
+     */
+    data class Map(val meeting: Boolean = false, val sendTo: String? = null) : Dest
 }
 
 sealed interface ScanOutcome {
@@ -215,7 +221,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun sendQuick(conversation: String, code: Int) = c.chat.sendQuick(conversation, code)
 
-    /** False daca nu stim nici zona, nici pozitia: utilizatorul trebuie sa aleaga intai o zona. */
+    /** False daca nu stim nici zona, nici pozitia: utilizatorul trebuie sa aleaga intai o zona pe harta. */
     fun sendMyZone(conversation: String): Boolean {
         val zone = currentZoneId()
         val point = reportPoint(zone, pointNow(), venue)

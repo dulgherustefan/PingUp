@@ -63,6 +63,8 @@ const val MAX_NAME = 20
 fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val mesh by vm.mesh.collectAsStateWithLifecycle()
+    val position by vm.position.collectAsStateWithLifecycle()
+    val zoneId = position?.let { vm.venue.zoneAt(it.lat, it.lon) }?.id ?: vm.manualZone
     val gate = rememberRadioGate(vm, mesh.radio, onStartMesh)
     val context = LocalContext.current
     val colors = AppTheme.colors
@@ -105,6 +107,21 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     stringResource(R.string.me_edit_name), subtitle = stringResource(R.string.me_note), icon = Sym.Person,
                     chevron = true, onClick = { editName = true },
                 )
+            }
+
+            // harta nu mai are tab: zona ta si punctul de intalnire se deschid de aici
+            InsetGroup {
+                GroupRow(
+                    stringResource(R.string.map_title), value = vm.venue.zoneName(zoneId).takeIf { zoneId.isNotEmpty() }, icon = Sym.Map,
+                    chevron = true, onClick = { vm.open(Dest.Map()) },
+                )
+                if (vm.venue.meetingPoint != null) {
+                    GroupDivider()
+                    GroupRow(
+                        stringResource(R.string.map_meeting_point), subtitle = stringResource(R.string.map_meeting_text), icon = Sym.Flag,
+                        chevron = true, onClick = { vm.open(Dest.Map(meeting = true)) },
+                    )
+                }
             }
 
             InsetGroup {

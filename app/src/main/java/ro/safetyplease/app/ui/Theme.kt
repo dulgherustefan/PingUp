@@ -53,13 +53,14 @@ class AppColors(
     val separator: Color,
     /** Umplerea campurilor si a butoanelor gri. */
     val fill: Color,
-    val searchFill: Color,
     /** Randul apasat. */
     val pressed: Color,
     val accent: Color,
     val red: Color,
     val green: Color,
     val orange: Color,
+    /** Portocaliul pentru text: cel de suprafata nu se citeste pe alb in plin soare. */
+    val orangeInk: Color,
     val bubbleIn: Color,
     /** Baloanele trimise au un gradient pe toata inaltimea ecranului: mai inchis sus, mai deschis jos. */
     val bubbleOutTop: Color,
@@ -155,14 +156,14 @@ private val LightColors = AppColors(
     tertiaryLabel = Color(0x4D3B4338),
     separator = Color(0xFFD0D5C8),
     fill = Color(0x1F6F7D67),
-    searchFill = Color(0xFFF1F3EC),
     pressed = Color(0xFFDEE2D7),
     // verdele cu contrast de text pe alb (5,1:1); cel viu ramane pentru suprafete pline
     accent = Color(0xFF1A7F37),
     red = Color(0xFFFF3B30),
     green = Color(0xFF30D158),
     orange = Color(0xFFFF9500),
-    bubbleIn = Color(0xFFEDF0E8),
+    orangeInk = Color(0xFFB25000),
+    bubbleIn = Color(0xFFE6EADF),
     bubbleOutTop = Color(0xFF17642A),
     bubbleOutBottom = Color(0xFF1E8238),
     onBubbleOut = Color.White,
@@ -180,7 +181,7 @@ private val LightColors = AppColors(
     brandDeep = Color(0xFF2B5E45),
     sage = Color(0xFFD3D8B2),
     onAccent = Color.White,
-    glow = Color(0xFFE2ECD3),
+    glow = Color(0xFFD8E5C3),
     names = listOf(
         0xFF006DA3, 0xFF067906, 0xFFB814B8, 0xFFC13215, 0xFF5B6976, 0xFFCC0066, 0xFF2E51FF, 0xFF007575,
         0xFF9C5711, 0xFFD00B4D, 0xFF8F2AF4, 0xFF3D7406, 0xFFD00B0B, 0xFF007A3D, 0xFF5151F6, 0xFF866118,
@@ -198,20 +199,21 @@ private val DarkColors = AppColors(
     tertiaryLabel = Color(0x4DE3E9DE),
     separator = Color(0xFF2F3530),
     fill = Color(0x3D7C8A7F),
-    searchFill = Night.cell,
-    pressed = Color(0xFF2B312C),
+    pressed = Color(0xFF2F3530),
     accent = Color(0xFF30D158),
     red = Color(0xFFFF453A),
     green = Color(0xFF30D158),
     orange = Color(0xFFFF9F0A),
-    bubbleIn = Color(0xFF262B27),
+    orangeInk = Color(0xFFFF9F0A),
+    bubbleIn = Color(0xFF2C322D),
     bubbleOutTop = Color(0xFF145A2A),
     bubbleOutBottom = Color(0xFF1E8238),
     onBubbleOut = Color(0xFFF4F6F0),
     onBubbleOutSecondary = Color(0x99FFFFFF),
-    glass = Color(0xA6151816),
-    glassSolid = Color(0xF5151816),
-    glassRim = Color(0x26D3D8B2),
+    // sticla noaptea e mai deschisa decat fundalul, ca in Signal; altfel barele par gauri
+    glass = Color(0xB8232925),
+    glassSolid = Color(0xF5232925),
+    glassRim = Color(0x33D3D8B2),
     glassPill = Color(0x3330D158),
     dialog = Color(0xFF222723),
     menu = Color(0xFF222723),
@@ -222,7 +224,7 @@ private val DarkColors = AppColors(
     brandDeep = Color(0xFF2B5E45),
     sage = Color(0xFFD3D8B2),
     onAccent = Night.background,
-    glow = Color(0xFF262F28),
+    glow = Color(0xFF2F3A31),
     names = listOf(
         0xFF00A7FA, 0xFF0AB80A, 0xFFF65AF6, 0xFFFF6F52, 0xFF8BA1B6, 0xFFF76EB2, 0xFF8599FF, 0xFF00B2B2,
         0xFFD5920B, 0xFFFF6B9C, 0xFFBF80FF, 0xFF5EB309, 0xFFFF7070, 0xFF00B85C, 0xFF9494FF, 0xFFD68F00,
@@ -232,17 +234,18 @@ private val DarkColors = AppColors(
 /** Fundalurile temei inchise, folosite si pentru zonele hartii. */
 private object Night {
     val background = Color(0xFF0E110F)
-    val cell = Color(0xFF1A1E1B)
+    val cell = Color(0xFF1C211D)
 }
 
 val LocalAppColors = staticCompositionLocalOf { LightColors }
 
 /**
- * Fundalul ecranelor: culoarea de baza, cu o lumina moale care coboara de sus, din afara ecranului,
- * cum cade reflectorul pe pin in iconita. Depinde doar de latime, ca bara de sus sa o poata repeta exact.
+ * Fundalul ecranelor: culoarea de baza, cu o lumina moale care cade de sus, din afara ecranului, cum cade
+ * reflectorul pe pin in iconita. Se stinge sub bara de sus, ca listele, cautarea si cardurile sa stea pe fundalul
+ * plin. Depinde doar de latime, ca bara de sus sa o poata repeta exact.
  */
 fun screenGlow(width: Float, base: Color, glow: Color): Brush =
-    Brush.radialGradient(0f to glow, 1f to base, center = Offset(width / 2f, -width * 0.25f), radius = width * 1.1f)
+    Brush.radialGradient(0f to glow, 1f to base, center = Offset(width / 2f, -width * 0.3f), radius = width * 0.7f)
 
 /** Fundalul unui ecran intreg, cu lumina de sus. */
 @Composable

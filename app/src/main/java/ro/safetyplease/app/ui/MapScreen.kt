@@ -255,17 +255,18 @@ fun incidentPoint(venue: Venue, incident: StaffIncident): GeoPoint? {
 private enum class MapFocus { MINE, MEETING, ZONE }
 
 /**
- * Tabul Harta, pe fundalul gri al setarilor iOS: harta intr-un card, alegerea intre zona ta si punctul de intalnire,
- * locul ales intr-un grup si, dedesubt, toate zonele. O atingere pe harta sau pe o zona din lista o alege.
+ * Harta evenimentului, deschisa din Setari, din Incidente sau din chat, pe fundalul gri al setarilor iOS: harta intr-un
+ * card, alegerea intre zona ta si punctul de intalnire, locul ales intr-un grup si, dedesubt, toate zonele.
+ * O atingere pe harta sau pe o zona din lista o alege. Venita din chat, zona aleasa pleaca direct in conversatie.
  */
 @Composable
-fun MapScreen(vm: AppViewModel) {
+fun MapScreen(vm: AppViewModel, dest: Dest.Map) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val colors = AppTheme.colors
     var simulate by rememberSaveable { mutableStateOf(false) }
-    var focus by rememberSaveable { mutableStateOf(MapFocus.MINE) }
+    var focus by rememberSaveable { mutableStateOf(if (dest.meeting) MapFocus.MEETING else MapFocus.MINE) }
     var tapped by rememberSaveable { mutableStateOf("") }
     val here = position
     val simulated = settings.simLat != null
@@ -294,11 +295,21 @@ fun MapScreen(vm: AppViewModel) {
         focus = MapFocus.ZONE
     }
 
+    val haptics = rememberHaptics()
+    fun setMine(id: String) {
+        vm.manualZone = id
+        val to = dest.sendTo
+        if (to != null && vm.sendMyZone(to)) {
+            haptics.confirm()
+            vm.back()
+        }
+    }
+
     NavScreen(
-        title = stringResource(R.string.tab_map),
+        title = stringResource(R.string.map_title),
         background = colors.grouped,
         scrolled = scrolled,
-        leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
         trailing = { backdrop ->
             GlassIconButton(Sym.MyLocation, stringResource(R.string.map_my_zone), {
                 showMine()
@@ -360,7 +371,7 @@ fun MapScreen(vm: AppViewModel) {
                                 },
                                 leading = { if (zone != null) ZoneBadge(index, zone.name) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },
                                 trailing = if (here == null && tapped != myZoneId) {
-                                    { AppButton(stringResource(R.string.map_set_zone), { vm.manualZone = tapped }, compact = true) }
+                                    { AppButton(stringResource(R.string.map_set_zone), { setMine(tapped) }, compact = true) }
                                 } else null,
                             )
                         }
@@ -407,8 +418,12 @@ fun MapScreen(vm: AppViewModel) {
                             zone.name,
                             value = if (mine) hereLabel else null,
                             onClick = {
-                                showZone(zone.id)
-                                scope.launch { listState.animateScrollToItem(0) }
+                                // venit din chat: o atingere alege zona si o trimite
+                                if (dest.sendTo != null) setMine(zone.id)
+                                else {
+                                    showZone(zone.id)
+                                    scope.launch { listState.animateScrollToItem(0) }
+                                }
                             },
                             leading = { ZoneBadge(index, zone.name) },
                             trailing = if (mine) {

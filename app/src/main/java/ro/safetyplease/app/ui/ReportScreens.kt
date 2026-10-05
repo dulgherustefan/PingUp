@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -85,8 +86,12 @@ fun categoryIcon(category: Int): ImageVector = when (category) {
     else -> Sym.MoreHoriz
 }
 
+/** Cat ramane sus, in tab, raportul tau nerezolvat. */
+private const val ACTIVE_REPORT_MS = 2 * 60 * 60_000L
+
 /**
- * Tabul Raporteaza: „Ce se intampla?” si o grila de categorii, apoi detaliile optionale intr-un grup ca in setarile iOS.
+ * Tabul Raporteaza: raportul tau inca deschis, daca ai unul, apoi „Ce se intampla?” si o grila de categorii,
+ * apoi detaliile optionale intr-un grup ca in setarile iOS.
  * Butonul de trimis pluteste deasupra barei de taburi si urca deasupra tastaturii cat scrii descrierea.
  */
 @Composable
@@ -124,6 +129,9 @@ fun ReportScreen(vm: AppViewModel) {
     val keyboard = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
     // tastatura acopera bara de taburi, deci butonul se aseaza deasupra ei
     val typing = keyboard > clearance
+    val now = rememberNow()
+    // raportul tau inca deschis sta deasupra formularului, ca sa vezi unde a ajuns fara sa-l cauti
+    val active = incidents.mine.maxByOrNull { it.createdAt }?.takeIf { it.status != AckStatus.RESOLVED && now - it.createdAt < ACTIVE_REPORT_MS }
 
     Box(Modifier.fillMaxSize()) {
         NavScreen(
@@ -144,29 +152,44 @@ fun ReportScreen(vm: AppViewModel) {
                     .verticalScroll(scroll)
                     .padding(top = padding.calculateTopPadding(), bottom = if (typing) FadeZone + 8.dp else footer + 8.dp),
             ) {
+                if (active != null) {
+                    SectionTitle(stringResource(R.string.report_active), top = 8.dp)
+                    InsetGroup(Modifier.padding(bottom = 24.dp)) {
+                        GroupRow(
+                            stringResource(Labels.category(active.category)),
+                            subtitle = reportSubtitle(vm, active) + " · " + stepLabels(active)[reportStep(active)],
+                            chevron = true,
+                            onClick = { vm.open(Dest.ReportSent(active.incidentId)) },
+                            leading = { CategoryCircle(active.category, active.severity == Severity.URGENT, 36.dp) },
+                        )
+                    }
+                }
                 Text(
-                    stringResource(R.string.report_title), style = MaterialTheme.typography.title1, color = colors.label,
-                    modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp),
+                    stringResource(R.string.report_title), style = MaterialTheme.typography.title2, color = colors.label,
+                    modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 16.dp),
                 )
-                Text(
-                    stringResource(R.string.report_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
-                    modifier = Modifier.padding(start = Gutter, end = Gutter, top = 4.dp, bottom = 20.dp),
-                )
-                Column(Modifier.padding(horizontal = Gutter), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IncidentCategory.all.chunked(4).forEach { row ->
-                        // placile dintr-un rand iau inaltimea celei cu eticheta pe doua randuri
-                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for (c in row) {
-                                ActionTile(
-                                    categoryIcon(c), stringResource(Labels.category(c)),
-                                    {
-                                        category = if (category == c) 0 else c
-                                        if (!urgentChosen) urgent = category != 0 && urgentByDefault(category)
-                                    },
-                                    Modifier.weight(1f).fillMaxHeight(), selected = category == c, background = colors.cell,
-                                )
+                BoxWithConstraints(Modifier.padding(horizontal = Gutter)) {
+                    val gap = 8.dp
+                    val tile = (maxWidth - gap * 3) / 4
+                    Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                        IncidentCategory.all.chunked(4).forEach { row ->
+                            // placile dintr-un rand iau inaltimea celei cu eticheta pe doua randuri;
+                            // ultimul rand, mai scurt, sta centrat, cu placi de aceeasi marime
+                            Row(
+                                Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                                horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
+                            ) {
+                                for (c in row) {
+                                    ActionTile(
+                                        categoryIcon(c), stringResource(Labels.category(c)),
+                                        {
+                                            category = if (category == c) 0 else c
+                                            if (!urgentChosen) urgent = category != 0 && urgentByDefault(category)
+                                        },
+                                        Modifier.width(tile).fillMaxHeight(), selected = category == c, background = colors.cell,
+                                    )
+                                }
                             }
-                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
@@ -390,7 +413,7 @@ private fun CategoryCircle(category: Int, urgent: Boolean, size: Dp) {
 
 /** Antetul unui raport sau incident, ca antetul unui contact in Signal: cercul categoriei, numele si unde. Rosu cand e urgent. */
 @Composable
-fun IncidentHeader(category: Int, urgent: Boolean, subtitle: String, modifier: Modifier = Modifier) {
+fun IncidentHeader(category: Int, urgent: Boolean, subtitle: String, modifier: Modifier = Modifier, status: @Composable () -> Unit = {}) {
     val colors = AppTheme.colors
     Column(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         CategoryCircle(category, urgent, 88.dp)
@@ -402,8 +425,10 @@ fun IncidentHeader(category: Int, urgent: Boolean, subtitle: String, modifier: M
             subtitle, style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, textAlign = TextAlign.Center,
             modifier = Modifier.padding(start = Gutter, end = Gutter, top = 2.dp),
         )
-        if (urgent) {
-            StatusLabel(stringResource(R.string.sev_urgent), Modifier.padding(top = 8.dp), icon = Sym.Priority, color = colors.red)
+        // starea sta sub nume, ca in fisa unui contact din Signal, nu pierduta intre butoane si harta
+        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (urgent) StatusLabel(stringResource(R.string.sev_urgent), icon = Sym.Priority, color = colors.red)
+            status()
         }
     }
 }
