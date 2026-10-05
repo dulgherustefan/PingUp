@@ -31,3 +31,8 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 Sau deschizi proiectul în Android Studio și dai Run.
 >  Calea proiectului conține `,` și `!`, așa că rulează din PowerShell sau `cmd`, nu din Git Bash.
+>
+## Instalare
+
+Se poate instala si de pe [ping-up.org](https://ping-up.org)
+
