@@ -40,6 +40,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -58,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import ro.safetyplease.app.R
 import ro.safetyplease.app.data.MyReport
 import ro.safetyplease.app.protocol.AckStatus
@@ -102,8 +104,17 @@ fun ReportScreen(vm: AppViewModel) {
     var anonymous by rememberSaveable { mutableStateOf(true) }
     var pickZone by remember { mutableStateOf(false) }
     val autoZone = position?.let { vm.venue.zoneAt(it.lat, it.lon) }
-    var zone by rememberSaveable(autoZone?.id) { mutableStateOf(autoZone?.id ?: vm.manualZone) }
-    val waitMs = vm.rateLimitWaitMs()
+    // null cat timp zona urmeaza GPS-ul; odata aleasa de utilizator, un fix nou nu o mai schimba
+    var picked by rememberSaveable { mutableStateOf<String?>(null) }
+    val zone = picked ?: autoZone?.id ?: vm.manualZone
+    val waitMs by produceState(vm.rateLimitWaitMs(), incidents.mine) {
+        while (true) {
+            value = vm.rateLimitWaitMs()
+            if (value == 0L) break
+            // pana se schimba minutul afisat
+            delay(value % 60_000 + 1)
+        }
+    }
     val requestLocation = rememberLocationRequest(vm)
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
@@ -218,6 +229,7 @@ fun ReportScreen(vm: AppViewModel) {
                     if (id != null) {
                         if (autoZone == null) vm.manualZone = zone
                         haptics.confirm()
+                        picked = null
                         category = 0
                         description = ""
                         urgentChosen = false
@@ -237,7 +249,7 @@ fun ReportScreen(vm: AppViewModel) {
             title = stringResource(R.string.report_zone_pick),
             confirmLabel = stringResource(R.string.save),
             onConfirm = {
-                zone = choice
+                picked = choice
                 pickZone = false
             },
         ) {
@@ -250,7 +262,7 @@ fun ReportScreen(vm: AppViewModel) {
             }
             if (position == null && !vm.c.location.hasPermission()) {
                 TextLink(
-                    stringResource(R.string.report_use_location),
+                    stringResource(if (vm.locationBlocked) R.string.location_open_settings else R.string.report_use_location),
                     {
                         pickZone = false
                         requestLocation()
@@ -328,7 +340,7 @@ private fun stepLabels(report: MyReport): List<String> = listOf(
  * albastru cu punct si ora, cei care urmeaza doar un inel gri; intre ei, o linie subtire.
  */
 @Composable
-fun ReportTimeline(report: MyReport, modifier: Modifier = Modifier) {
+fun ReportTimeline(report: MyReport, now: Long, modifier: Modifier = Modifier) {
     val current = reportStep(report)
     val labels = stepLabels(report)
     val colors = AppTheme.colors
@@ -358,7 +370,7 @@ fun ReportTimeline(report: MyReport, modifier: Modifier = Modifier) {
                         color = if (done || isCurrent) colors.label else colors.secondaryLabel,
                     )
                     if (isCurrent && report.updatedAt > 0) {
-                        Text(agoText(report.updatedAt), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
+                        Text(agoText(report.updatedAt, now), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
                     }
                 }
             }
@@ -405,6 +417,7 @@ private fun reportSubtitle(vm: AppViewModel, report: MyReport): String =
 fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val report = incidents.mine.firstOrNull { it.incidentId == incidentId }
+    val now = rememberNow()
     val colors = AppTheme.colors
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
@@ -428,7 +441,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
                 )
                 InsetGroup(Modifier.padding(top = 20.dp)) {
-                    ReportTimeline(report, Modifier.padding(horizontal = Gutter, vertical = 16.dp))
+                    ReportTimeline(report, now, Modifier.padding(horizontal = Gutter, vertical = 16.dp))
                 }
             }
         }
@@ -438,6 +451,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
             TextLink(
                 stringResource(R.string.report_mine),
                 {
+                    // deschis din lista, back() ne lasa chiar pe ea si open() nu o mai pune o data
                     vm.back()
                     vm.open(Dest.MyReports)
                 },

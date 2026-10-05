@@ -1,14 +1,19 @@
 package ro.safetyplease.app.ui
 
 import android.Manifest
+import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.location.LocationManager
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
+import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -47,9 +52,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,26 +75,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
 import ro.safetyplease.app.data.Role as AppRole
 import ro.safetyplease.app.demo.Demo
-import ro.safetyplease.app.mesh.MeshState
+import ro.safetyplease.app.mesh.RadioStatus
 import ro.safetyplease.app.protocol.AckStatus
+
+/** Fara acestea reteaua nu porneste. */
+fun radioPermissions(): List<String> =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT)
+    } else {
+        // sub Android 12 scanarea BLE nu merge fara permisiunea de locatie
+        listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
 
 /** Ce cerem la pornire: Bluetooth si notificari. Locatia se cere abia cand e nevoie de ea. */
 fun startPermissions(): Array<String> = buildList {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        add(Manifest.permission.BLUETOOTH_SCAN)
-        add(Manifest.permission.BLUETOOTH_ADVERTISE)
-        add(Manifest.permission.BLUETOOTH_CONNECT)
-    } else {
-        // sub Android 12 scanarea BLE nu merge fara permisiunea de locatie
-        add(Manifest.permission.ACCESS_FINE_LOCATION)
-        add(Manifest.permission.ACCESS_COARSE_LOCATION)
-    }
+    addAll(radioPermissions())
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
 }.toTypedArray()
 
@@ -100,24 +110,41 @@ fun needsBatteryHint(context: Context): Boolean {
     return !power.isIgnoringBatteryOptimizations(context.packageName)
 }
 
+/**
+ * Dupa doua refuzuri Android nu mai arata dialogul de permisiune. Se poate sti abia dupa raspunsul la o cerere:
+ * inainte de prima cerere, lipsa explicatiei inseamna doar ca nu am intrebat inca.
+ */
+fun deniedForGood(activity: Activity?, denied: Collection<String>): Boolean =
+    activity != null && denied.any { !ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }
+
+fun openAppSettings(context: Context) {
+    runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))) }
+}
+
 /** Ce lipseste ca reteaua sa mearga si actiunile care rezolva. */
 class RadioGate(
     val hasAccess: Boolean,
     val bluetoothOn: Boolean,
     val locationOff: Boolean,
+    /** Accesul a fost refuzat definitiv: [requestAccess] deschide setarile aplicatiei. */
+    val accessBlocked: Boolean,
     val requestAccess: () -> Unit,
     val enableBluetooth: () -> Unit,
 )
 
 @Composable
-fun rememberRadioGate(vm: AppViewModel, mesh: MeshState, onStartMesh: () -> Unit): RadioGate {
+fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> Unit): RadioGate {
     val context = LocalContext.current
+    val activity = LocalActivity.current
     var tick by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) {
         tick++
         onPauseOrDispose { }
     }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        // fara notificari reteaua merge; conteaza doar ce cere radioul
+        val denied = result.filter { !it.value && it.key in radioPermissions() }.keys
+        vm.radioAccessBlocked = deniedForGood(activity, denied)
         tick++
         onStartMesh()
     }
@@ -126,33 +153,48 @@ fun rememberRadioGate(vm: AppViewModel, mesh: MeshState, onStartMesh: () -> Unit
         onStartMesh()
     }
     // tick si starea radioului forteaza reevaluarea dupa ce utilizatorul se intoarce din dialoguri
-    val hasAccess = remember(tick, mesh.radio) { vm.c.radio.hasPermissions() }
-    val bluetoothOn = remember(tick, mesh.radio) { bluetoothEnabled(context) }
-    val locationOff = remember(tick, mesh.radio) {
+    val hasAccess = remember(tick, radio) { vm.c.radio.hasPermissions() }
+    val bluetoothOn = remember(tick, radio) { bluetoothEnabled(context) }
+    val locationOff = remember(tick, radio) {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S &&
             context.getSystemService(LocationManager::class.java)?.let { !LocationManagerCompat.isLocationEnabled(it) } == true
     }
+    val blocked = vm.radioAccessBlocked && !hasAccess
     return RadioGate(
-        hasAccess, bluetoothOn, locationOff,
-        requestAccess = { permissionLauncher.launch(startPermissions()) },
+        hasAccess, bluetoothOn, locationOff, blocked,
+        requestAccess = { if (blocked) openAppSettings(context) else permissionLauncher.launch(startPermissions()) },
         enableBluetooth = { enableLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)) },
     )
 }
 
-/** Cere locatia abia cand utilizatorul face ceva care are nevoie de ea. */
+/**
+ * Cere locatia abia cand utilizatorul face ceva care are nevoie de ea. Conteaza doar cea precisa:
+ * GPS_PROVIDER nu merge cu cea aproximativa, care oricum nu poate alege o zona.
+ */
 @Composable
 fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}): () -> Unit {
+    val context = LocalContext.current
+    val activity = LocalActivity.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        val granted = result.values.any { it }
-        if (granted) vm.c.location.start()
+        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        if (granted) {
+            vm.c.location.start()
+        } else {
+            vm.locationBlocked = deniedForGood(activity, listOf(Manifest.permission.ACCESS_FINE_LOCATION))
+            if (result[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+                Toast.makeText(context, R.string.location_precise_needed, Toast.LENGTH_LONG).show()
+            }
+        }
         onResult(granted)
     }
     return {
-        if (vm.c.location.hasPermission()) {
-            vm.c.location.start()
-            onResult(true)
-        } else {
-            launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        when {
+            vm.c.location.hasPermission() -> {
+                vm.c.location.start()
+                onResult(true)
+            }
+            vm.locationBlocked -> openAppSettings(context)
+            else -> launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
         }
     }
 }
@@ -169,6 +211,16 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
     val reduce = LocalReduceMotion.current
     BackHandler(enabled = vm.stack.isNotEmpty()) { vm.back() }
 
+    // fiecare intrare din stiva isi pastreaza starea (ciorne, filtre, derulare) cat timp e in stiva
+    val holder = rememberSaveableStateHolder()
+    val entries = vm.stack.mapIndexed { index, dest -> entryKey(index + 1, dest) }
+    var kept by remember { mutableStateOf(emptyList<String>()) }
+    LaunchedEffect(entries) {
+        // scos din stiva, un ecran porneste curat cand e redeschis; cat inca iese din ecran, starea lui nu mai e salvata
+        (kept - entries.toSet()).forEach(holder::removeState)
+        kept = entries
+    }
+
     FullScreen {
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         if (!settings.onboarded) OnboardingScreen(vm, onStartMesh)
@@ -179,24 +231,34 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
                 screenTransition(forward, if (forward) targetState.second else initialState.second, reduce)
             },
             label = "screen",
-        ) { (_, dest) ->
-            CompositionLocalProvider(LocalBottomClearance provides navBottom) {
-                when (dest) {
-                    is Dest.Conversation -> ConversationScreen(vm, dest.id)
-                    is Dest.Profile -> ProfileScreen(vm, dest.conversation)
-                    Dest.AddFriend -> AddFriendScreen(vm)
-                    Dest.NewGroup -> NewGroupScreen(vm)
-                    Dest.NewChat -> NewChatScreen(vm)
-                    is Dest.ReportSent -> ReportSentScreen(vm, dest.incidentId)
-                    Dest.MyReports -> MyReportsScreen(vm)
-                    is Dest.Incident -> IncidentDetailScreen(vm, dest.id)
-                    Dest.Me -> MeScreen(vm, onStartMesh)
-                    Dest.Demo -> Demo.Screen(vm)
-                    is Dest.Pin -> PinScreen(vm, dest)
-                    null -> if (settings.role == AppRole.ANCHOR) AnchorScreen(vm) else MainTabs(vm, settings.role == AppRole.STAFF, onStartMesh)
+        ) { (size, dest) ->
+            holder.SaveableStateProvider(entryKey(size, dest)) {
+                CompositionLocalProvider(LocalBottomClearance provides navBottom) {
+                    Screen(vm, dest, settings.role, onStartMesh)
                 }
             }
         }
+    }
+}
+
+/** Cheia starii salvate a unei intrari din stiva: locul in stiva si ecranul. */
+private fun entryKey(size: Int, dest: Dest?): String = if (dest == null) "root" else "$size:$dest"
+
+@Composable
+private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: () -> Unit) {
+    when (dest) {
+        is Dest.Conversation -> ConversationScreen(vm, dest.id)
+        is Dest.Profile -> ProfileScreen(vm, dest.conversation)
+        Dest.AddFriend -> AddFriendScreen(vm)
+        Dest.NewGroup -> NewGroupScreen(vm)
+        Dest.NewChat -> NewChatScreen(vm)
+        is Dest.ReportSent -> ReportSentScreen(vm, dest.incidentId)
+        Dest.MyReports -> MyReportsScreen(vm)
+        is Dest.Incident -> IncidentDetailScreen(vm, dest.id)
+        Dest.Me -> MeScreen(vm, onStartMesh)
+        Dest.Demo -> Demo.Screen(vm)
+        is Dest.Pin -> PinScreen(vm, dest)
+        null -> if (role == AppRole.ANCHOR) AnchorScreen(vm) else MainTabs(vm, role == AppRole.STAFF, onStartMesh)
     }
 }
 
@@ -227,7 +289,8 @@ private val TabBarHeight = 62.dp
 private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) {
     val chat by vm.chat.collectAsStateWithLifecycle()
     val incidents by vm.incidents.collectAsStateWithLifecycle()
-    if (!staff && vm.tab == Tab.INCIDENTS) vm.tab = Tab.MESSAGES
+    val current = if (!staff && vm.tab == Tab.INCIDENTS) Tab.MESSAGES else vm.tab
+    val tabs = rememberSaveableStateHolder()
     // pe bara: cate conversatii au ceva necitit, nu cate mesaje
     val unreadChats = chat.messages.filter { !it.read }.map { it.conversation }.distinct().size
     val openIncidents = incidents.staff.count { it.status < AckStatus.ACKNOWLEDGED }
@@ -245,17 +308,19 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
         Box(Modifier.fillMaxSize().backdropSource(backdrop).background(AppTheme.colors.background)) {
             CompositionLocalProvider(LocalBottomClearance provides barBottom + TabBarHeight + 8.dp) {
                 // pe iPhone tabul se schimba pe loc; aici doar o estompare foarte scurta
-                AnimatedContent(vm.tab, transitionSpec = { fadeIn(tween(120)) togetherWith fadeOut(tween(80)) }, label = "tab") { tab ->
-                    when (tab) {
-                        Tab.MESSAGES -> MessagesScreen(vm, onStartMesh)
-                        Tab.REPORT -> ReportScreen(vm)
-                        Tab.MAP -> MapScreen(vm)
-                        Tab.INCIDENTS -> IncidentsScreen(vm)
+                AnimatedContent(current, transitionSpec = { fadeIn(tween(120)) togetherWith fadeOut(tween(80)) }, label = "tab") { tab ->
+                    tabs.SaveableStateProvider(tab.name) {
+                        when (tab) {
+                            Tab.MESSAGES -> MessagesScreen(vm, onStartMesh)
+                            Tab.REPORT -> ReportScreen(vm)
+                            Tab.MAP -> MapScreen(vm)
+                            Tab.INCIDENTS -> IncidentsScreen(vm)
+                        }
                     }
                 }
             }
         }
-        GlassTabBar(items, vm.tab, { vm.tab = it }, backdrop, Modifier.align(Alignment.BottomCenter).padding(bottom = barBottom))
+        GlassTabBar(items, current, { vm.tab = it }, backdrop, Modifier.align(Alignment.BottomCenter).padding(bottom = barBottom))
     }
 }
 

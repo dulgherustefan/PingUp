@@ -39,6 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -54,7 +55,7 @@ import ro.safetyplease.app.data.Friend
 import ro.safetyplease.app.data.Group
 import ro.safetyplease.app.data.MsgKind
 import ro.safetyplease.app.data.MsgStatus
-import ro.safetyplease.app.mesh.MeshState
+import ro.safetyplease.app.mesh.RadioStatus
 
 private class ConversationRow(
     val id: String,
@@ -87,17 +88,16 @@ fun messageStateLabel(status: MsgStatus): Int = when (status) {
 }
 
 @Composable
-fun presenceText(vm: AppViewModel, friend: Friend, mesh: MeshState): String = when {
-    vm.isLinked(friend.nodeId, mesh) -> stringResource(R.string.presence_near) + " · " + stringResource(R.string.hop_direct)
-    vm.isInRange(friend, mesh) -> stringResource(R.string.presence_near)
-    friend.lastSeenAt > 0 -> stringResource(R.string.presence_seen, agoText(friend.lastSeenAt)) + " · " + hopsText(friend.lastHops)
+fun presenceText(friend: Friend, nearby: Nearby, now: Long): String = when {
+    nearby.isLinked(friend.nodeId) -> stringResource(R.string.presence_near) + " · " + stringResource(R.string.hop_direct)
+    nearby.isInRange(friend.nodeId) -> stringResource(R.string.presence_near)
+    friend.lastSeenAt > 0 -> stringResource(R.string.presence_seen, agoText(friend.lastSeenAt, now)) + " · " + hopsText(friend.lastHops)
     else -> stringResource(R.string.presence_never)
 }
 
 /** Starea retelei, scrisa sub titlul ecranului: cu cate telefoane esti legat acum. */
 @Composable
-fun networkText(mesh: MeshState, gate: RadioGate): String {
-    val links = mesh.readyLinks
+fun networkText(links: Int, gate: RadioGate): String {
     return when {
         !gate.hasAccess -> stringResource(R.string.status_no_access)
         !gate.bluetoothOn -> stringResource(R.string.status_bt_off)
@@ -129,9 +129,10 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val friends by vm.friends.collectAsStateWithLifecycle()
     val groups by vm.groups.collectAsStateWithLifecycle()
     val chat by vm.chat.collectAsStateWithLifecycle()
-    val mesh by vm.mesh.collectAsStateWithLifecycle()
+    val nearby by vm.nearby.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val gate = rememberRadioGate(vm, mesh, onStartMesh)
+    val now = rememberNow()
+    val gate = rememberRadioGate(vm, nearby.radio, onStartMesh)
     val focus = LocalFocusManager.current
     val colors = AppTheme.colors
 
@@ -156,7 +157,7 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
     NavScreen(
         title = stringResource(R.string.tab_messages),
-        subtitle = networkText(mesh, gate),
+        subtitle = networkText(nearby.readyLinks, gate),
         scrolled = scrolled,
         leading = {
             MeButton(settings.nickname, content = {
@@ -206,7 +207,7 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     }
                 }
             }
-            item(key = "problem") { NetworkProblem(vm, mesh, gate, settings.batteryHintDismissed, Modifier.padding(horizontal = Gutter, vertical = 6.dp)) }
+            item(key = "problem") { NetworkProblem(vm, nearby.radio, gate, settings.batteryHintDismissed, Modifier.padding(horizontal = Gutter, vertical = 6.dp)) }
             if (unreadOnly) {
                 item(key = "filter") {
                     Row(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -228,7 +229,9 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 40.dp),
                     )
                 }
-                else -> items(shown, key = { it.id }) { row -> ConversationItem(vm, row, mesh, Modifier.animateItem()) }
+                else -> items(shown, key = { it.id }) { row ->
+                    ConversationItem(vm, row, row.friend != null && nearby.isInRange(row.friend.nodeId), now, Modifier.animateItem())
+                }
             }
         }
     }
@@ -236,12 +239,13 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
 /** Primul lucru care lipseste ca reteaua sa mearga, cu butonul care il rezolva. */
 @Composable
-private fun NetworkProblem(vm: AppViewModel, mesh: MeshState, gate: RadioGate, batteryDismissed: Boolean, modifier: Modifier) {
+private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate, batteryDismissed: Boolean, modifier: Modifier) {
     val context = LocalContext.current
     when {
         !gate.hasAccess -> Banner(
             stringResource(R.string.problem_access_title), stringResource(R.string.problem_access_text), modifier, warning = true,
-            action = stringResource(R.string.problem_access_action), onAction = gate.requestAccess,
+            action = stringResource(if (gate.accessBlocked) R.string.open_settings else R.string.problem_access_action),
+            onAction = gate.requestAccess,
         )
         !gate.bluetoothOn -> Banner(
             stringResource(R.string.status_bt_off), stringResource(R.string.problem_bt_text), modifier, warning = true,
@@ -252,7 +256,7 @@ private fun NetworkProblem(vm: AppViewModel, mesh: MeshState, gate: RadioGate, b
             action = stringResource(R.string.problem_location_action),
             onAction = { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) },
         )
-        mesh.radio.bluetoothOn && !mesh.radio.canAdvertise -> Banner(
+        radio.bluetoothOn && !radio.canAdvertise -> Banner(
             stringResource(R.string.problem_leaf_title), stringResource(R.string.problem_leaf_text), modifier,
         )
         !batteryDismissed && needsBatteryHint(context) -> Banner(
@@ -269,11 +273,13 @@ private fun NetworkProblem(vm: AppViewModel, mesh: MeshState, gate: RadioGate, b
  * ultimul mesaj pe doua randuri dedesubt; necititele intr-un cerc albastru sub ora.
  */
 @Composable
-private fun ConversationItem(vm: AppViewModel, row: ConversationRow, mesh: MeshState, modifier: Modifier = Modifier) {
-    val friend = row.friend
+private fun ConversationItem(vm: AppViewModel, row: ConversationRow, near: Boolean, now: Long, modifier: Modifier = Modifier) {
     val last = row.last
     val colors = AppTheme.colors
     val unreadLabel = if (row.unread > 0) pluralStringResource(R.plurals.unread_messages, row.unread, row.unread) else null
+    val nearLabel = if (near) stringResource(R.string.presence_near) else null
+    // starea se citeste dupa nume, previzualizare si ora; o descriere ar acoperi tot textul randului
+    val state = listOfNotNull(unreadLabel, nearLabel).joinToString(", ")
     val you = stringResource(R.string.msg_you)
     val snippet = when {
         last == null -> buildAnnotatedString { append(stringResource(R.string.messages_no_messages)) }
@@ -297,10 +303,10 @@ private fun ConversationItem(vm: AppViewModel, row: ConversationRow, mesh: MeshS
     Row(
         modifier.fillMaxWidth().clickable { vm.open(Dest.Conversation(row.id)) }
             .padding(horizontal = Gutter, vertical = 12.dp)
-            .then(if (unreadLabel != null) Modifier.semantics { contentDescription = row.title + ", " + unreadLabel } else Modifier),
+            .then(if (state.isNotEmpty()) Modifier.semantics { stateDescription = state } else Modifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(row.title, 56.dp, near = friend != null && vm.isInRange(friend, mesh), group = row.group != null)
+        Avatar(row.title, 56.dp, near = near, group = row.group != null)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -310,7 +316,7 @@ private fun ConversationItem(vm: AppViewModel, row: ConversationRow, mesh: MeshS
                 )
                 if (last != null) {
                     Spacer(Modifier.width(6.dp))
-                    Text(listTime(last.timeMs), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, maxLines = 1)
+                    Text(listTime(last.timeMs, now), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, maxLines = 1)
                 }
             }
             Row(Modifier.padding(top = 1.dp), verticalAlignment = Alignment.Top) {
@@ -334,7 +340,8 @@ private fun ConversationItem(vm: AppViewModel, row: ConversationRow, mesh: MeshS
 @Composable
 fun NewChatScreen(vm: AppViewModel) {
     val friends by vm.friends.collectAsStateWithLifecycle()
-    val mesh by vm.mesh.collectAsStateWithLifecycle()
+    val nearby by vm.nearby.collectAsStateWithLifecycle()
+    val now = rememberNow()
     var query by rememberSaveable { mutableStateOf("") }
     val sorted = remember(friends) { friends.sortedBy { it.nickname.lowercase() } }
     val shown = sorted.filter { query.isBlank() || it.nickname.contains(query.trim(), ignoreCase = true) }
@@ -375,12 +382,12 @@ fun NewChatScreen(vm: AppViewModel) {
                     InsetGroup {
                         shown.forEachIndexed { index, friend ->
                             GroupRow(
-                                friend.nickname, subtitle = presenceText(vm, friend, mesh),
+                                friend.nickname, subtitle = presenceText(friend, nearby, now),
                                 onClick = {
                                     vm.back()
                                     vm.open(Dest.Conversation(Conversations.friend(friend.nodeId)))
                                 },
-                                leading = { Avatar(friend.nickname, 36.dp, near = vm.isInRange(friend, mesh)) },
+                                leading = { Avatar(friend.nickname, 36.dp, near = nearby.isInRange(friend.nodeId)) },
                             )
                             if (index < shown.lastIndex) GroupDivider(start = 64.dp)
                         }

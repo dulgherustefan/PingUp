@@ -496,8 +496,7 @@ fun GroupRow(
 @Composable
 fun IosSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
     val c = AppTheme.colors
-    val off = if (c.dark) Color(0xFF39393D) else Color(0xFFE9E9EA)
-    val track by animateColorAsState(if (checked) c.green else off, tween(Motion.STANDARD), label = "track")
+    val track by animateColorAsState(if (checked) c.green else c.switchOff, tween(Motion.STANDARD), label = "track")
     val x by animateDpAsState(if (checked) 22.dp else 2.dp, spring(dampingRatio = 0.75f, stiffness = 500f), label = "thumb")
     Box(
         modifier.size(width = 51.dp, height = 31.dp).clip(CircleShape).background(track)
@@ -529,7 +528,7 @@ fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: 
         val x by animateDpAsState(w * index, spring(dampingRatio = 0.85f, stiffness = 500f), label = "segment")
         Box(
             Modifier.offset { IntOffset(x.roundToPx(), 0) }.width(w).fillMaxHeight().shadow(2.dp, CircleShape, ambientColor = Color(0x14000000), spotColor = Color(0x1F000000))
-                .clip(CircleShape).background(if (c.dark) Color(0xFF636366) else Color.White),
+                .clip(CircleShape).background(c.segmentPill),
         )
         Row(Modifier.fillMaxSize()) {
             options.forEach { (value, label) ->
@@ -654,7 +653,7 @@ fun AppDialog(
     val c = AppTheme.colors
     Dialog(onDismissRequest = onDismiss) {
         Column(
-            Modifier.widthIn(max = 320.dp).fillMaxWidth().clip(RoundedCornerShape(34.dp)).background(if (c.dark) Color(0xFF2C2C2E) else Color.White)
+            Modifier.widthIn(max = 320.dp).fillMaxWidth().clip(RoundedCornerShape(34.dp)).background(c.dialog)
                 .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 16.dp),
         ) {
             Text(title, style = MaterialTheme.typography.headline, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
@@ -700,7 +699,7 @@ fun AppMenu(expanded: Boolean, onDismiss: () -> Unit, offset: DpOffset = DpOffse
     val c = AppTheme.colors
     DropdownMenu(
         expanded = expanded, onDismissRequest = onDismiss, offset = offset, modifier = Modifier.widthIn(min = 240.dp),
-        shape = RoundedCornerShape(22.dp), containerColor = if (c.dark) Color(0xFF2C2C2E) else Color(0xFFF9F9F9),
+        shape = RoundedCornerShape(22.dp), containerColor = c.menu,
         // o umbra mai mare iese din fereastra meniului si se vede taiata drept
         tonalElevation = 0.dp, shadowElevation = 6.dp, border = BorderStroke(0.5.dp, c.glassRim), content = content,
     )

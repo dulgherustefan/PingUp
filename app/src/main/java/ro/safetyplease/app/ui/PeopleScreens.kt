@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -99,6 +100,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.zxing.BarcodeFormat
@@ -109,6 +112,7 @@ import ro.safetyplease.app.crypto.QrDecoder
 import ro.safetyplease.app.data.Conversations
 import ro.safetyplease.app.protocol.Limits
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Codul QR, cu modulele in [ink] pe alb si fara margine: marginea alba o da cardul pe care sta. */
 fun qrBitmap(text: String, size: Int = 640, ink: Int = android.graphics.Color.BLACK): Bitmap {
@@ -136,9 +140,13 @@ private fun QrCamera(onResult: (String) -> Unit, modifier: Modifier = Modifier) 
     val owner = LocalLifecycleOwner.current
     val callback by rememberUpdatedState(onResult)
     val executor = remember { Executors.newSingleThreadExecutor() }
+    val disposed = remember { AtomicBoolean(false) }
     DisposableEffect(Unit) {
         onDispose {
-            runCatching { ProcessCameraProvider.getInstance(context).get().unbindAll() }
+            disposed.set(true)
+            // fara get() blocant: daca CameraX nu e gata, listenerul de mai jos vede ca am plecat si nu mai leaga nimic
+            val future = ProcessCameraProvider.getInstance(context)
+            if (future.isDone) runCatching { future.get().unbindAll() }
             executor.shutdown()
         }
     }
@@ -148,6 +156,7 @@ private fun QrCamera(onResult: (String) -> Unit, modifier: Modifier = Modifier) 
             val view = PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
             val future = ProcessCameraProvider.getInstance(ctx)
             future.addListener({
+                if (disposed.get() || owner.lifecycle.currentState == Lifecycle.State.DESTROYED) return@addListener
                 runCatching {
                     val provider = future.get()
                     val preview = Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) }
@@ -196,8 +205,10 @@ private fun ScanFrame(modifier: Modifier = Modifier) {
     }
 }
 
+// culorile cardului cu cod nu urmeaza tema: codul trebuie sa se citeasca la fel ziua si noaptea
 private val QrBorder = Color(0xFF506ECD)
 private val QrInk = 0xFF2449C0.toInt()
+private val QrFrame = Color(0xFFE9E9E9)
 
 /** Latimea cardului cu cod; butoanele de sub el se aliniaza cu el. */
 private val CardWidth = 296.dp
@@ -218,7 +229,7 @@ private fun QrBadge(code: String, name: String, onClick: () -> Unit, modifier: M
         Image(
             bitmap, stringResource(R.string.add_friend_mine),
             Modifier.padding(start = 40.dp, end = 40.dp, top = 32.dp).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp))
-                .background(Color.White).border(2.dp, Color(0xFFE9E9E9), RoundedCornerShape(12.dp)).padding(16.dp),
+                .background(Color.White).border(2.dp, QrFrame, RoundedCornerShape(12.dp)).padding(16.dp),
         )
         Text(
             name, style = MaterialTheme.typography.title3, color = Color.White, textAlign = TextAlign.Center,
@@ -239,10 +250,19 @@ fun AddFriendScreen(vm: AppViewModel) {
     val colors = AppTheme.colors
     val code = remember(settings.nickname) { vm.myQrText() }
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    var granted by remember {
-        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+    val activity = LocalActivity.current
+    fun cameraAllowed() = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+    var granted by remember { mutableStateOf(cameraAllowed()) }
+    // refuzata definitiv, camera se mai poate da doar din setari; la intoarcere verificam din nou
+    var blocked by rememberSaveable { mutableStateOf(false) }
+    LifecycleResumeEffect(Unit) {
+        granted = cameraAllowed()
+        onPauseOrDispose { }
     }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        granted = it
+        blocked = !it && deniedForGood(activity, listOf(Manifest.permission.CAMERA))
+    }
     LaunchedEffect(tab) { if (tab == 1 && !granted) launcher.launch(Manifest.permission.CAMERA) }
     var outcome by remember { mutableStateOf<ScanOutcome?>(null) }
     var lastText by remember { mutableStateOf("") }
@@ -333,7 +353,10 @@ fun AddFriendScreen(vm: AppViewModel) {
                         ScanFrame(Modifier.fillMaxSize())
                     }
                 } else {
-                    NoCamera({ launcher.launch(Manifest.permission.CAMERA) }, Modifier.padding(top = 24.dp))
+                    NoCamera(
+                        blocked, { if (blocked) openAppSettings(context) else launcher.launch(Manifest.permission.CAMERA) },
+                        Modifier.padding(top = 24.dp),
+                    )
                 }
                 Text(
                     stringResource(R.string.add_friend_scan_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
@@ -390,7 +413,7 @@ private val ScanOutcome.success: Boolean
 
 /** In locul camerei, cand nu avem voie la ea: acelasi patrat, cu explicatia si butonul care cere accesul. */
 @Composable
-private fun NoCamera(onAllow: () -> Unit, modifier: Modifier = Modifier) {
+private fun NoCamera(blocked: Boolean, onAllow: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     Column(
         modifier.widthIn(max = 360.dp).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(26.dp)).background(colors.cell).padding(24.dp),
@@ -405,7 +428,10 @@ private fun NoCamera(onAllow: () -> Unit, modifier: Modifier = Modifier) {
             stringResource(R.string.add_friend_no_camera), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
             textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp),
         )
-        AppButton(stringResource(R.string.add_friend_allow_camera), onAllow, Modifier.padding(top = 16.dp), compact = true)
+        AppButton(
+            stringResource(if (blocked) R.string.open_settings else R.string.add_friend_allow_camera), onAllow,
+            Modifier.padding(top = 16.dp), compact = true,
+        )
     }
 }
 
@@ -469,7 +495,8 @@ private fun CodeSheet(myCode: String, onUse: (String) -> Unit, onDismiss: () -> 
 @Composable
 fun NewGroupScreen(vm: AppViewModel) {
     val friends by vm.friends.collectAsStateWithLifecycle()
-    val mesh by vm.mesh.collectAsStateWithLifecycle()
+    val nearby by vm.nearby.collectAsStateWithLifecycle()
+    val now = rememberNow()
     val colors = AppTheme.colors
     val haptics = rememberHaptics()
     var name by rememberSaveable { mutableStateOf("") }
@@ -540,8 +567,8 @@ fun NewGroupScreen(vm: AppViewModel) {
                                             else -> haptics.reject()
                                         }
                                     },
-                                    subtitle = presenceText(vm, friend, mesh),
-                                    leading = { Avatar(friend.nickname, 36.dp, near = vm.isInRange(friend, mesh)) },
+                                    subtitle = presenceText(friend, nearby, now),
+                                    leading = { Avatar(friend.nickname, 36.dp, near = nearby.isInRange(friend.nodeId)) },
                                     trailing = { RoundCheck(checked) },
                                 )
                                 if (index < sorted.lastIndex) GroupDivider(start = 64.dp)
@@ -630,7 +657,8 @@ fun PersonHeader(name: String, note: String, modifier: Modifier = Modifier, near
 fun ProfileScreen(vm: AppViewModel, conversation: String) {
     val friends by vm.friends.collectAsStateWithLifecycle()
     val groups by vm.groups.collectAsStateWithLifecycle()
-    val mesh by vm.mesh.collectAsStateWithLifecycle()
+    val nearby by vm.nearby.collectAsStateWithLifecycle()
+    val now = rememberNow()
     val colors = AppTheme.colors
     val density = LocalDensity.current
     val friend = friends.firstOrNull { Conversations.friend(it.nodeId) == conversation }
@@ -655,9 +683,9 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding)) {
             PersonHeader(
                 title,
-                if (friend != null) presenceText(vm, friend, mesh)
+                if (friend != null) presenceText(friend, nearby, now)
                 else pluralStringResource(R.plurals.group_members, group!!.members.size, group.members.size),
-                near = friend != null && vm.isInRange(friend, mesh), group = group != null, size = 88.dp,
+                near = friend != null && nearby.isInRange(friend.nodeId), group = group != null, size = 88.dp,
             )
             ActionTile(
                 Sym.Chat, stringResource(R.string.profile_message), { vm.back() },
@@ -671,7 +699,7 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                     GroupRow(
                         stringResource(R.string.profile_last_seen),
                         subtitle = if (friend.lastSeenAt > 0) hopsText(friend.lastHops) else null,
-                        value = if (friend.lastSeenAt > 0) agoText(friend.lastSeenAt) else stringResource(R.string.presence_never),
+                        value = if (friend.lastSeenAt > 0) agoText(friend.lastSeenAt, now) else stringResource(R.string.presence_never),
                         icon = Sym.History,
                     )
                 } else if (group != null) {
@@ -686,8 +714,8 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                         val me = member.nodeId == vm.c.identity.nodeId
                         GroupRow(
                             if (me) stringResource(R.string.msg_you) else known?.nickname ?: member.nickname,
-                            subtitle = known?.let { presenceText(vm, it, mesh) },
-                            leading = { Avatar(member.nickname, 36.dp, near = known != null && vm.isInRange(known, mesh)) },
+                            subtitle = known?.let { presenceText(it, nearby, now) },
+                            leading = { Avatar(member.nickname, 36.dp, near = known != null && nearby.isInRange(known.nodeId)) },
                         )
                         if (index < group.members.lastIndex) GroupDivider(start = 64.dp)
                     }

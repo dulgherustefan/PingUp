@@ -86,6 +86,7 @@ private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier
 fun IncidentsScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val now = rememberNow()
     var filter by rememberSaveable { mutableStateOf(StatusFilter.OPEN) }
     val clusters = remember(incidents.staff) { Clustering.cluster(incidents.staff) }
     // urgentele nepreluate stau primele, rezolvatele la coada
@@ -124,7 +125,7 @@ fun IncidentsScreen(vm: AppViewModel) {
                     EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), icon = Sym.Bell)
                 }
             } else {
-                items(shown, key = { it.lead.incidentId }) { cluster -> ClusterRow(vm, cluster, Modifier.animateItem()) }
+                items(shown, key = { it.lead.incidentId }) { cluster -> ClusterRow(vm, cluster, now, Modifier.animateItem()) }
             }
         }
     }
@@ -135,7 +136,7 @@ fun IncidentsScreen(vm: AppViewModel) {
  * pe primul rand, locul, vechimea si drumul pe al doilea, apoi descrierea pe cel mult doua randuri.
  */
 @Composable
-private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, modifier: Modifier = Modifier) {
+private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, now: Long, modifier: Modifier = Modifier) {
     val lead = cluster.lead
     val colors = AppTheme.colors
     val alarm = cluster.severity == Severity.URGENT && cluster.status < AckStatus.ACKNOWLEDGED
@@ -168,7 +169,7 @@ private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, modifier: Mod
                 )
             }
             Text(
-                listOf(place, agoText(cluster.latestAt), hopsText(lead.hops)).joinToString(" · "),
+                listOf(place, agoText(cluster.latestAt, now), hopsText(lead.hops)).joinToString(" · "),
                 style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp),
             )
@@ -190,6 +191,7 @@ private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, modifier: Mod
 fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
+    val now = rememberNow()
     val colors = AppTheme.colors
     val haptics = rememberHaptics()
     val scroll = rememberScrollState()
@@ -220,7 +222,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
     ) { padding ->
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding)) {
             IncidentHeader(
-                lead.category, cluster.severity == Severity.URGENT, place + " · " + agoText(cluster.latestAt),
+                lead.category, cluster.severity == Severity.URGENT, place + " · " + agoText(cluster.latestAt, now),
                 Modifier.onSizeChanged { headerPx = it.height },
             )
             // a doua atingere pe o actiune deja facuta nu mai trimite nimic

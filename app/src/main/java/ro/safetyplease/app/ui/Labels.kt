@@ -4,7 +4,10 @@ import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalResources
+import kotlinx.coroutines.delay
 import ro.safetyplease.app.AppLocale
 import ro.safetyplease.app.R
 import ro.safetyplease.app.protocol.AckStatus
@@ -111,11 +114,23 @@ object Labels {
         else resources.getQuantityString(R.plurals.via_phones, hops - 1, hops - 1)
 }
 
+/** Ora curenta, reimprospatata cat ecranul e afisat, ca „acum 5 min” sa nu ramana pe loc. */
 @Composable
-fun agoText(timeMs: Long): String = Labels.ago(LocalResources.current, timeMs)
+fun rememberNow(periodMs: Long = 30_000): Long {
+    val now by produceState(System.currentTimeMillis()) {
+        while (true) {
+            delay(periodMs)
+            value = System.currentTimeMillis()
+        }
+    }
+    return now
+}
+
+@Composable
+fun agoText(timeMs: Long, nowMs: Long): String = Labels.ago(LocalResources.current, timeMs, nowMs)
 
 @Composable
 fun hopsText(hops: Int): String = Labels.hops(LocalResources.current, hops)
 
 @Composable
-fun listTime(timeMs: Long): String = Labels.listTime(LocalResources.current, timeMs)
+fun listTime(timeMs: Long, nowMs: Long): String = Labels.listTime(LocalResources.current, timeMs, nowMs)

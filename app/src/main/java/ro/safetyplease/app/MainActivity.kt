@@ -28,7 +28,8 @@ class MainActivity : ComponentActivity() {
             SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         Demo.install(vm.c)
-        intent?.getStringExtra(EXTRA_OPEN)?.let(vm::openTarget)
+        // la recreare (rotatie, tema, marimea textului) intentul de pornire a fost deja aplicat
+        if (savedInstanceState == null) intent?.getStringExtra(EXTRA_OPEN)?.let(vm::openTarget)
         setContent {
             AppTheme { AppRoot(vm, onStartMesh = ::startMesh) }
         }

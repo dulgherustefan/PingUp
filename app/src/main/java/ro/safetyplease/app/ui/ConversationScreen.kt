@@ -72,11 +72,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -151,7 +155,8 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     val friends by vm.friends.collectAsStateWithLifecycle()
     val groups by vm.groups.collectAsStateWithLifecycle()
     val chat by vm.chat.collectAsStateWithLifecycle()
-    val mesh by vm.mesh.collectAsStateWithLifecycle()
+    val nearby by vm.nearby.collectAsStateWithLifecycle()
+    val now = rememberNow()
     val context = LocalContext.current
     val haptics = rememberHaptics()
     val focus = LocalFocusManager.current
@@ -166,18 +171,36 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     var quick by rememberSaveable { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var composerPx by remember { mutableIntStateOf(0) }
-    val listState = rememberLazyListState()
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = items.lastIndex.coerceAtLeast(0))
     val backdrop = rememberBackdrop()
     val scrolled by remember { derivedStateOf { listState.canScrollBackward } }
+    // lista urmeaza mesajele noi doar cat omul sta jos; o schimba numai derularea lui, nu tastatura sau mesajele
+    var stick by rememberSaveable { mutableStateOf(true) }
+    val userScroll = remember(listState) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                stick = !listState.canScrollForward
+                return Offset.Zero
+            }
+        }
+    }
     BackHandler(enabled = quick) { quick = false }
 
     DisposableEffect(conversation) {
         vm.enterConversation(conversation, friend?.nodeId)
         onDispose { vm.leaveConversation(conversation) }
     }
-    LaunchedEffect(items.size, composerPx) {
-        if (items.isNotEmpty()) listState.animateScrollToItem(items.lastIndex)
+    // cheia e ultimul mesaj, nu numarul lor: stergerea unui mesaj vechi nu muta lista
+    LaunchedEffect(items.lastOrNull()?.key) {
+        val mine = (items.lastOrNull() as? ChatItem.Message)?.message?.fromMe == true
+        if (items.isNotEmpty() && (stick || mine)) {
+            stick = true
+            listState.animateScrollToItem(items.lastIndex)
+        }
         vm.c.chat.markRead(conversation)
+    }
+    LaunchedEffect(composerPx) {
+        if (stick && items.isNotEmpty()) listState.scrollToItem(items.lastIndex)
     }
     if (friend == null && group == null) {
         LaunchedEffect(Unit) { vm.back() }
@@ -185,7 +208,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     }
     val title = friend?.nickname ?: group!!.name
     val subtitle = when {
-        friend != null -> presenceText(vm, friend, mesh)
+        friend != null -> presenceText(friend, nearby, now)
         else -> pluralStringResource(R.plurals.group_members, group!!.members.size, group.members.size)
     }
     val lastMine = messages.lastOrNull { it.fromMe && it.kind != MsgKind.SYSTEM }
@@ -205,7 +228,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                 )
             } else {
                 LazyColumn(
-                    Modifier.fillMaxSize(),
+                    Modifier.fillMaxSize().nestedScroll(userScroll),
                     state = listState,
                     contentPadding = PaddingValues(top = top + NavHeight + 16.dp, bottom = composerHeight + 8.dp),
                 ) {
@@ -239,7 +262,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                     .padding(vertical = 4.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Avatar(title, 40.dp, near = friend != null && vm.isInRange(friend, mesh), group = group != null)
+                Avatar(title, 40.dp, near = friend != null && nearby.isInRange(friend.nodeId), group = group != null)
                 Spacer(Modifier.width(12.dp))
                 NavText {
                     Column {
@@ -376,7 +399,7 @@ private fun Composer(
         ) { text ->
             if (text) {
                 Box(
-                    Modifier.padding(start = 12.dp).size(40.dp).clip(CircleShape).background(if (colors.dark) Color(0xFF1655ED) else Color(0xFF1D6DF1))
+                    Modifier.padding(start = 12.dp).size(40.dp).clip(CircleShape).background(colors.send)
                         .clickable(onClickLabel = stringResource(R.string.send), role = Role.Button, onClick = onSend),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Sym.Send, stringResource(R.string.send), Modifier.size(20.dp), tint = Color.White) }
@@ -475,6 +498,9 @@ private fun MessageItem(
                         }
                         .clip(shape)
                         .combinedClickable(
+                            // enabled ramane: ar opri si atingerea lunga cu meniul
+                            onClickLabel = if (message.kind == MsgKind.ZONE) stringResource(R.string.open_zone) else null,
+                            onLongClickLabel = stringResource(R.string.more_options),
                             onClick = {
                                 if (message.kind == MsgKind.ZONE) {
                                     vm.open(Dest.Pin(message.lat, message.lon, message.zone, vm.c.chat.nameOf(message.senderId)))

@@ -63,7 +63,7 @@ const val MAX_NAME = 20
 fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val mesh by vm.mesh.collectAsStateWithLifecycle()
-    val gate = rememberRadioGate(vm, mesh, onStartMesh)
+    val gate = rememberRadioGate(vm, mesh.radio, onStartMesh)
     val context = LocalContext.current
     val colors = AppTheme.colors
     var editName by remember { mutableStateOf(false) }
@@ -117,7 +117,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
             InsetGroup {
                 GroupRow(
-                    stringResource(R.string.me_network), subtitle = networkText(mesh, gate) + "\n" + relayedText, icon = Sym.Bluetooth,
+                    stringResource(R.string.me_network), subtitle = networkText(mesh.readyLinks, gate) + "\n" + relayedText, icon = Sym.Bluetooth,
                     chevron = networkAction != null, onClick = networkAction,
                 )
                 if (Build.MANUFACTURER.lowercase() in setOf("samsung", "xiaomi", "redmi", "poco")) {

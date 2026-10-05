@@ -319,4 +319,7 @@
 
     <string name="demo_title">Mod demo</string>
     <string name="demo_simulate_location">Locație simulată: apasă pe hartă</string>
+    <string name="open_zone">Vezi pe hartă</string>
+    <string name="location_open_settings">Permite locația din setări</string>
+    <string name="location_precise_needed">Ai permis doar locația aproximativă. Pentru zona ta e nevoie de locația precisă.</string>
 </resources>

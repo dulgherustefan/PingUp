@@ -67,6 +67,14 @@ class AppColors(
     val glassSolid: Color,
     val glassRim: Color,
     val glassPill: Color,
+    /** Fondul dialogurilor si al meniurilor contextuale. */
+    val dialog: Color,
+    val menu: Color,
+    /** Sina comutatorului oprit si pastila variantei alese din comutatorul cu segmente. */
+    val switchOff: Color,
+    val segmentPill: Color,
+    /** Cercul de trimis din conversatie. */
+    val send: Color,
     /** Culorile numelor in grupuri, cate una pe om. */
     val names: List<Color>,
 ) {
@@ -132,6 +140,11 @@ private val LightColors = AppColors(
     glassSolid = Color(0xF5FCFCFC),
     glassRim = Color(0x14000000),
     glassPill = Color(0x14000000),
+    dialog = Color.White,
+    menu = Color(0xFFF9F9F9),
+    switchOff = Color(0xFFE9E9EA),
+    segmentPill = Color.White,
+    send = Color(0xFF1D6DF1),
     names = listOf(
         0xFF006DA3, 0xFF067906, 0xFFB814B8, 0xFFC13215, 0xFF5B6976, 0xFFCC0066, 0xFF2E51FF, 0xFF007575,
         0xFF9C5711, 0xFFD00B4D, 0xFF8F2AF4, 0xFF3D7406, 0xFFD00B0B, 0xFF007A3D, 0xFF5151F6, 0xFF866118,
@@ -163,6 +176,11 @@ private val DarkColors = AppColors(
     glassSolid = Color(0xF5181818),
     glassRim = Color(0x24FFFFFF),
     glassPill = Color(0x26FFFFFF),
+    dialog = Color(0xFF2C2C2E),
+    menu = Color(0xFF2C2C2E),
+    switchOff = Color(0xFF39393D),
+    segmentPill = Color(0xFF636366),
+    send = Color(0xFF1655ED),
     names = listOf(
         0xFF00A7FA, 0xFF0AB80A, 0xFFF65AF6, 0xFFFF6F52, 0xFF8BA1B6, 0xFFF76EB2, 0xFF8599FF, 0xFF00B2B2,
         0xFFD5920B, 0xFFFF6B9C, 0xFFBF80FF, 0xFF5EB309, 0xFFFF7070, 0xFF00B85C, 0xFF9494FF, 0xFFD68F00,
