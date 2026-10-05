@@ -19,7 +19,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -31,6 +30,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -203,9 +203,6 @@ fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}):
 /** Ecranele care urca de jos, ca foile din iOS; restul intra din dreapta. */
 private fun Dest?.isSheet() = this == Dest.Me || this == Dest.NewChat || this == Dest.AddFriend || this == Dest.NewGroup
 
-/** Curba iOS pentru intrarea unui ecran: porneste repede si se aseaza lin. */
-private val PushEasing = CubicBezierEasing(0.25f, 0.9f, 0.3f, 1f)
-
 @Composable
 fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -270,9 +267,9 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
  */
 private fun screenTransition(forward: Boolean, moving: Dest?, reduce: Boolean): ContentTransform {
     if (reduce) return fadeIn(tween(Motion.QUICK)) togetherWith fadeOut(tween(90))
-    val spec = tween<IntOffset>(380, easing = PushEasing)
+    val spec = Motion.Push
     // ecranul de dedesubt sta pe loc cat urca sau coboara foaia
-    val stay = tween<Float>(380)
+    val stay = tween<Float>(Motion.PUSH_SETTLE)
     return if (moving.isSheet()) {
         if (forward) slideInVertically(spec) { it } togetherWith fadeOut(stay, targetAlpha = 0.99f)
         else (fadeIn(stay, initialAlpha = 0.99f) togetherWith slideOutVertically(spec) { it }).apply { targetContentZIndex = -1f }
@@ -302,14 +299,15 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
         if (staff) add(TabItem(Tab.INCIDENTS, R.string.tab_incidents, Sym.BellFill, openIncidents))
     }
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val barBottom = navBottom
+    // putin deasupra barei de gesturi, ca in Signal
+    val barBottom = navBottom + 10.dp
     val backdrop = rememberBackdrop()
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().backdropSource(backdrop).background(AppTheme.colors.background)) {
             CompositionLocalProvider(LocalBottomClearance provides barBottom + TabBarHeight + 8.dp) {
                 // pe iPhone tabul se schimba pe loc; aici doar o estompare foarte scurta
-                AnimatedContent(current, transitionSpec = { fadeIn(tween(120)) togetherWith fadeOut(tween(80)) }, label = "tab") { tab ->
+                AnimatedContent(current, transitionSpec = { fadeIn(tween(180, easing = Motion.Enter)) togetherWith fadeOut(tween(110)) }, label = "tab") { tab ->
                     tabs.SaveableStateProvider(tab.name) {
                         when (tab) {
                             Tab.MESSAGES -> MessagesScreen(vm, onStartMesh)
@@ -333,7 +331,8 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
 private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> Unit, backdrop: Backdrop, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     val index = items.indexOfFirst { it.tab == current }.coerceAtLeast(0)
-    val x by animateDpAsState(TabWidth * index, spring(dampingRatio = 0.82f, stiffness = 420f), label = "tabPill")
+    // pastila aluneca spre tabul nou si se aseaza cu un arc scurt
+    val x by animateDpAsState(TabWidth * index, spring(dampingRatio = 0.72f, stiffness = 380f), label = "tabPill")
     // ca pe iPhone, textul barei nu creste cu marimea textului din setari: n-ar mai incapea in capsula
     val unscaled = 1f / LocalDensity.current.fontScale
     Box(modifier.height(TabBarHeight).width(TabWidth * items.size + 8.dp).glass(backdrop, CircleShape).padding(4.dp).selectableGroup()) {
@@ -343,10 +342,12 @@ private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> U
                 val selected = item.tab == current
                 val tint by animateColorAsState(if (selected) colors.accent else colors.label, tween(Motion.QUICK), label = "tabTint")
                 val badgeText = if (item.badge > 0) pluralStringResource(R.plurals.tab_unread, item.badge, item.badge) else null
+                val press = remember { MutableInteractionSource() }
                 Column(
                     Modifier.width(TabWidth).fillMaxHeight().clip(CircleShape)
-                        .selectable(selected, interactionSource = null, indication = null, role = Role.Tab) { onSelect(item.tab) }
-                        .then(if (badgeText != null) Modifier.semantics { stateDescription = badgeText } else Modifier),
+                        .selectable(selected, interactionSource = press, indication = null, role = Role.Tab) { onSelect(item.tab) }
+                        .then(if (badgeText != null) Modifier.semantics { stateDescription = badgeText } else Modifier)
+                        .pressScale(press),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
                 ) {
                     Box {

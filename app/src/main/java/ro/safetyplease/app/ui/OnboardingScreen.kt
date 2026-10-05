@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -51,12 +50,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.R
 
 /** Curba iOS pentru intrarea unui ecran: porneste repede si se aseaza lin. */
-private val StepEasing = CubicBezierEasing(0.25f, 0.9f, 0.3f, 1f)
 
 /** Marginea paginilor de inceput, mai larga decat a listelor, ca la inregistrarea din Signal. */
 private val PageGutter = 24.dp
@@ -89,7 +86,7 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         targetState = step,
         modifier = Modifier.fillMaxSize(),
         transitionSpec = {
-            val push = tween<IntOffset>(380, easing = StepEasing)
+            val push = Motion.Push
             when {
                 reduce -> fadeIn(tween(Motion.QUICK)) togetherWith fadeOut(tween(90))
                 // pagina noua intra din dreapta peste cea veche, care se da o treime la stanga

@@ -5,7 +5,9 @@ import android.content.ClipboardManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -101,8 +103,10 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.max
 import ro.safetyplease.app.R
 import ro.safetyplease.app.data.ChatMessage
 import ro.safetyplease.app.data.Conversations
@@ -113,7 +117,6 @@ import ro.safetyplease.app.data.MsgStatus
 import ro.safetyplease.app.protocol.Limits
 import ro.safetyplease.app.protocol.QuickCode
 import ro.safetyplease.app.venue.GeoPoint
-import kotlin.math.max
 
 /** Mesajele aceluiasi om, la mai putin de atat unul de altul, fac un singur sir de baloane lipite. */
 private const val RUN_WINDOW_MS = 3 * 60_000L
@@ -300,7 +303,8 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
         ) {
             AnimatedVisibility(
                 quick,
-                enter = fadeIn(tween(Motion.STANDARD)) + expandVertically(tween(Motion.STANDARD, easing = Motion.Enter)),
+                // panoul se desface pe un arc, ca tastatura, si se strange repede
+                enter = fadeIn(tween(Motion.STANDARD)) + expandVertically(spring(dampingRatio = 0.85f, stiffness = 420f, visibilityThreshold = IntSize.VisibilityThreshold)),
                 exit = fadeOut(tween(100)) + shrinkVertically(tween(Motion.QUICK, easing = Motion.Exit)),
             ) {
                 QuickPanel(
@@ -365,7 +369,7 @@ private fun Composer(
     val colors = AppTheme.colors
     val hasText = draft.isNotBlank()
     val hint = stringResource(R.string.chat_hint)
-    val turn by animateFloatAsState(if (quickOpen) 45f else 0f, tween(Motion.STANDARD, easing = Motion.Standard), label = "plus")
+    val turn by animateFloatAsState(if (quickOpen) 45f else 0f, spring(dampingRatio = 0.6f, stiffness = 500f), label = "plus")
     Row(Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
         Box(
             Modifier.size(40.dp).glass(backdrop, CircleShape).clickable(role = Role.Button, onClick = onToggleQuick),
@@ -396,7 +400,8 @@ private fun Composer(
         }
         AnimatedContent(
             hasText,
-            transitionSpec = { (fadeIn(tween(Motion.QUICK)) + scaleIn(tween(Motion.QUICK), 0.6f)) togetherWith (fadeOut(tween(90)) + scaleOut(tween(90), 0.6f)) },
+            // butonul de trimis apare cu un arc mic, ca in Mesajele de pe iPhone
+            transitionSpec = { (fadeIn(tween(Motion.QUICK)) + scaleIn(spring(dampingRatio = 0.55f, stiffness = 600f), 0.5f)) togetherWith (fadeOut(tween(90)) + scaleOut(tween(90), 0.6f)) },
             label = "send",
         ) { text ->
             if (text) {

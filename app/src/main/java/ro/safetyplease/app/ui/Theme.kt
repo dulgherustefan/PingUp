@@ -168,7 +168,8 @@ private val LightColors = AppColors(
     bubbleOutBottom = Color(0xFF1E8238),
     onBubbleOut = Color.White,
     onBubbleOutSecondary = Color(0xCCFFFFFF),
-    glass = Color(0xB3FFFFFF),
+    // sticla lasa sa se vada putin, estompat, ce trece pe sub ea, ca in Signal
+    glass = Color(0x99FFFFFF),
     glassSolid = Color(0xF5FBFCF8),
     glassRim = Color(0x1A2B5E45),
     glassPill = Color(0x2430D158),
@@ -211,7 +212,7 @@ private val DarkColors = AppColors(
     onBubbleOut = Color(0xFFF4F6F0),
     onBubbleOutSecondary = Color(0x99FFFFFF),
     // sticla noaptea e mai deschisa decat fundalul, ca in Signal; altfel barele par gauri
-    glass = Color(0xB8232925),
+    glass = Color(0xA3232925),
     glassSolid = Color(0xF5232925),
     glassRim = Color(0x33D3D8B2),
     glassPill = Color(0x3330D158),

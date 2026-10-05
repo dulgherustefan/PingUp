@@ -256,7 +256,7 @@
 
     <string name="filter_open">Noi</string>
     <string name="filter_taken">Preluate</string>
-    <string name="filter_resolved">Rezolvate</string>
+    <string name="filter_resolved">Închise</string>
     <string name="incidents_empty_title">Nimic aici</string>
     <string name="incidents_empty_text">Rapoartele apar pe măsură ce ajung prin rețea.</string>
     <string name="incident_take">Preiau</string>
@@ -323,4 +323,21 @@
     <string name="app_tagline">Mesaje care sar din telefon în telefon</string>
     <string name="incidents_filter_empty">Niciun incident aici</string>
     <string name="report_active">Raportul tău</string>
+    <string name="delete">Șterge</string>
+    <string name="report_cancel">Anulează alerta</string>
+    <string name="report_cancel_title">Anulezi alerta?</string>
+    <string name="report_cancel_text">Staff-ul va afla că nu mai e nevoie de ajutor.</string>
+    <string name="report_cancel_confirm">Anulează</string>
+    <string name="report_cancelling">Se anulează</string>
+    <string name="report_cancelling_text">Anularea pleacă spre staff din telefon în telefon.</string>
+    <string name="report_cancelled">Alertă anulată</string>
+    <string name="report_cancelled_text">Staff-ul a aflat că nu mai e nevoie de ajutor.</string>
+    <string name="report_delete">Șterge din istoric</string>
+    <string name="report_delete_title">Ștergi raportul?</string>
+    <string name="report_delete_text">Dispare doar de pe telefonul tău.</string>
+    <string name="status_cancelled">Anulat</string>
+    <string name="staff_status_cancelled">Anulat de cel care l-a raportat</string>
+    <string name="incident_dismiss">Șterge din listă</string>
+    <string name="incident_dismiss_title">Ștergi incidentul din listă?</string>
+    <string name="incident_dismiss_text">Dispare doar de pe acest telefon. Celelalte echipe îl văd în continuare.</string>
 </resources>

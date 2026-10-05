@@ -7,8 +7,10 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -128,9 +130,10 @@ fun AppButton(
         kind == ButtonKind.Primary -> c.onAccent
         else -> Color.White
     }
+    val press = remember { MutableInteractionSource() }
     Box(
-        modifier.heightIn(min = if (compact) 36.dp else 50.dp).clip(CircleShape).background(fill)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        modifier.pressScale(press, 0.97f).heightIn(min = if (compact) 36.dp else 50.dp).clip(CircleShape).background(fill)
+            .clickable(press, LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = if (compact) 16.dp else 24.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -165,18 +168,27 @@ fun IconBtn(icon: ImageVector, description: String?, onClick: () -> Unit, modifi
 /** Butonul rotund de sticla din bara de sus: inapoi, inchide. */
 @Composable
 fun GlassIconButton(icon: ImageVector, description: String, onClick: () -> Unit, backdrop: Backdrop?, modifier: Modifier = Modifier) {
+    val press = remember { MutableInteractionSource() }
+    // cercul se vede de 38, dar se atinge pe 44, cat cere iOS
     Box(
-        modifier.size(44.dp).glass(backdrop, CircleShape).clickable(role = Role.Button, onClick = onClick)
+        modifier.size(44.dp).clip(CircleShape).clickable(press, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, null, Modifier.size(20.dp), tint = AppTheme.colors.label) }
+    ) {
+        Box(Modifier.size(GlassSize).pressScale(press).glass(backdrop, CircleShape), contentAlignment = Alignment.Center) {
+            Icon(icon, null, Modifier.size(19.dp), tint = AppTheme.colors.label)
+        }
+    }
 }
+
+/** Marimea vizibila a butoanelor de sticla din bara de sus. */
+val GlassSize = 38.dp
 
 /** O capsula de sticla cu mai multe iconite, ca grupul camera + scrie din Signal. */
 @Composable
 fun GlassCapsule(backdrop: Backdrop?, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
     Row(
-        modifier.height(44.dp).glass(backdrop, CircleShape).padding(horizontal = 2.dp),
+        modifier.height(GlassSize).glass(backdrop, CircleShape).padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically, content = content,
     )
 }
@@ -184,11 +196,12 @@ fun GlassCapsule(backdrop: Backdrop?, modifier: Modifier = Modifier, content: @C
 /** O iconita dintr-o capsula de sticla. */
 @Composable
 fun CapsuleIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
+    val press = remember { MutableInteractionSource() }
     Box(
-        Modifier.size(width = 46.dp, height = 44.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
+        Modifier.size(width = 42.dp, height = GlassSize).clip(CircleShape).clickable(press, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, null, Modifier.size(22.dp), tint = AppTheme.colors.label) }
+    ) { Icon(icon, null, Modifier.size(19.dp).pressScale(press, 0.85f), tint = AppTheme.colors.label) }
 }
 
 /** Textul din bara de sus creste cu setarile telefonului doar pana la 115%, ca pe iPhone: altfel nu mai incape in bara. */

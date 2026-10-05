@@ -4,6 +4,7 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -127,19 +128,21 @@ private fun NetworkPing(links: Int, gate: RadioGate) {
 @Composable
 fun MeButton(name: String, content: @Composable () -> Unit = {}, onClick: () -> Unit) {
     val label = stringResource(R.string.open_settings)
+    val press = remember { MutableInteractionSource() }
     Box {
         Box(
-            Modifier.size(44.dp).clip(CircleShape).clickable(onClickLabel = label, role = Role.Button, onClick = onClick)
+            Modifier.size(44.dp).clip(CircleShape)
+                .clickable(press, indication = null, onClickLabel = label, role = Role.Button, onClick = onClick)
                 .semantics { contentDescription = label },
             contentAlignment = Alignment.Center,
-        ) { Avatar(name, 40.dp) }
+        ) { Box(Modifier.pressScale(press)) { Avatar(name, GlassSize) } }
         content()
     }
 }
 
 /**
- * Lista de conversatii, ca in Signal pe iPhone: titlul centrat, bula ta in stanga, capsula de sticla cu
- * „adauga prieten” si „mesaj nou” in dreapta, cautarea dedesubt, apoi randurile fara linii intre ele.
+ * Lista de conversatii, ca in Signal pe iPhone: titlul centrat, bula ta in stanga, „mesaj nou” in dreapta,
+ * cautarea dedesubt, apoi randurile fara linii intre ele.
  */
 @Composable
 fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
@@ -201,12 +204,8 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 }
             }) { menu = true }
         },
-        trailing = { backdrop ->
-            GlassCapsule(backdrop) {
-                CapsuleIcon(Sym.QrScan, stringResource(R.string.menu_add_friend)) { vm.open(Dest.AddFriend) }
-                CapsuleIcon(Sym.Compose, stringResource(R.string.new_chat)) { vm.open(Dest.NewChat) }
-            }
-        },
+        // un singur buton, ca in Mesajele de pe iPhone: „Mesaj nou” are si grupul nou si adaugarea unui prieten
+        trailing = { backdrop -> GlassIconButton(Sym.Compose, stringResource(R.string.new_chat), { vm.open(Dest.NewChat) }, backdrop) },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
             if (rows.isNotEmpty()) {

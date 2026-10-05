@@ -1,12 +1,14 @@
 package ro.safetyplease.app.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -55,8 +57,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -84,6 +88,28 @@ fun categoryIcon(category: Int): ImageVector = when (category) {
     IncidentCategory.CROWD -> Sym.Groups
     IncidentCategory.FIRE -> Sym.Fire
     else -> Sym.MoreHoriz
+}
+
+/** O categorie de raport: buton jos, iconita verde in stanga si numele; ales, se umple cu verde. */
+@Composable
+private fun CategoryChip(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    val fill by animateColorAsState(if (selected) colors.accent else colors.cell, tween(Motion.QUICK), label = "chip")
+    val ink = if (selected) colors.onAccent else colors.label
+    val press = remember { MutableInteractionSource() }
+    Row(
+        modifier.pressScale(press, 0.97f).heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).background(fill)
+            .selectable(selected, interactionSource = press, indication = LocalIndication.current, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, Modifier.size(20.dp), tint = if (selected) ink else colors.accent)
+        Spacer(Modifier.width(10.dp))
+        Text(
+            label, style = MaterialTheme.typography.subheadline, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 /** Cat ramane sus, in tab, raportul tau nerezolvat. */
@@ -131,7 +157,7 @@ fun ReportScreen(vm: AppViewModel) {
     val typing = keyboard > clearance
     val now = rememberNow()
     // raportul tau inca deschis sta deasupra formularului, ca sa vezi unde a ajuns fara sa-l cauti
-    val active = incidents.mine.maxByOrNull { it.createdAt }?.takeIf { it.status != AckStatus.RESOLVED && now - it.createdAt < ACTIVE_REPORT_MS }
+    val active = incidents.mine.maxByOrNull { it.createdAt }?.takeIf { it.isOpen() && now - it.createdAt < ACTIVE_REPORT_MS }
 
     Box(Modifier.fillMaxSize()) {
         NavScreen(
@@ -157,7 +183,7 @@ fun ReportScreen(vm: AppViewModel) {
                     InsetGroup(Modifier.padding(bottom = 24.dp)) {
                         GroupRow(
                             stringResource(Labels.category(active.category)),
-                            subtitle = reportSubtitle(vm, active) + " · " + stepLabels(active)[reportStep(active)],
+                            subtitle = reportSubtitle(vm, active) + " · " + stepText(active),
                             chevron = true,
                             onClick = { vm.open(Dest.ReportSent(active.incidentId)) },
                             leading = { CategoryCircle(active.category, active.severity == Severity.URGENT, 36.dp) },
@@ -166,30 +192,24 @@ fun ReportScreen(vm: AppViewModel) {
                 }
                 Text(
                     stringResource(R.string.report_title), style = MaterialTheme.typography.title2, color = colors.label,
-                    modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 16.dp),
+                    modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 14.dp),
                 )
-                BoxWithConstraints(Modifier.padding(horizontal = Gutter)) {
-                    val gap = 8.dp
-                    val tile = (maxWidth - gap * 3) / 4
-                    Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-                        IncidentCategory.all.chunked(4).forEach { row ->
-                            // placile dintr-un rand iau inaltimea celei cu eticheta pe doua randuri;
-                            // ultimul rand, mai scurt, sta centrat, cu placi de aceeasi marime
-                            Row(
-                                Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                                horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
-                            ) {
-                                for (c in row) {
-                                    ActionTile(
-                                        categoryIcon(c), stringResource(Labels.category(c)),
-                                        {
-                                            category = if (category == c) 0 else c
-                                            if (!urgentChosen) urgent = category != 0 && urgentByDefault(category)
-                                        },
-                                        Modifier.width(tile).fillMaxHeight(), selected = category == c, background = colors.cell,
-                                    )
-                                }
+                // doua coloane de butoane joase, cu iconita in stanga: se citesc ca o lista de optiuni
+                Column(Modifier.padding(horizontal = Gutter), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IncidentCategory.all.chunked(2).forEach { row ->
+                        // butoanele dintr-un rand iau inaltimea celui cu eticheta pe doua randuri
+                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (c in row) {
+                                CategoryChip(
+                                    categoryIcon(c), stringResource(Labels.category(c)), selected = category == c,
+                                    onClick = {
+                                        category = if (category == c) 0 else c
+                                        if (!urgentChosen) urgent = category != 0 && urgentByDefault(category)
+                                    },
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                )
                             }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
                 }
@@ -348,6 +368,17 @@ fun reportStep(report: MyReport): Int = when {
     else -> 0
 }
 
+/** Raportul inca asteapta ajutor: nici rezolvat, nici anulat de tine. */
+private fun MyReport.isOpen() = status < AckStatus.RESOLVED && !cancelled
+
+/** Pasul raportului intr-un rand de lista; o alerta anulata spune doar asta. */
+@Composable
+private fun stepText(report: MyReport): String = when {
+    report.status == AckStatus.CANCELLED -> stringResource(R.string.report_cancelled)
+    report.cancelled -> stringResource(R.string.report_cancelling)
+    else -> stepLabels(report)[reportStep(report)]
+}
+
 @Composable
 private fun stepLabels(report: MyReport): List<String> = listOf(
     stringResource(R.string.status_waiting_link),
@@ -448,6 +479,8 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     val more by remember { derivedStateOf { scroll.canScrollForward } }
     var footer by remember { mutableStateOf(0.dp) }
+    var confirm by remember { mutableStateOf<Confirm?>(null) }
+    val haptics = rememberHaptics()
     if (report == null) {
         LaunchedEffect(Unit) { vm.back() }
         return
@@ -460,31 +493,65 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
             leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
         ) { padding ->
             Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = padding.calculateTopPadding(), bottom = footer + 8.dp)) {
-                IncidentHeader(report.category, report.severity == Severity.URGENT, reportSubtitle(vm, report))
+                val withdrawn = report.cancelled || report.status == AckStatus.CANCELLED
+                IncidentHeader(
+                    report.category, report.severity == Severity.URGENT && !withdrawn, reportSubtitle(vm, report),
+                    status = {
+                        if (withdrawn) {
+                            StatusLabel(stepText(report), icon = Sym.Close, color = colors.secondaryLabel)
+                        }
+                    },
+                )
                 Text(
-                    stringResource(R.string.report_next_text), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                    stringResource(
+                        when {
+                            report.status == AckStatus.CANCELLED -> R.string.report_cancelled_text
+                            report.cancelled -> R.string.report_cancelling_text
+                            else -> R.string.report_next_text
+                        },
+                    ),
+                    style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
                 )
-                InsetGroup(Modifier.padding(top = 20.dp)) {
-                    ReportTimeline(report, now, Modifier.padding(horizontal = Gutter, vertical = 16.dp))
+                // drumul spre staff nu mai conteaza pentru o alerta anulata
+                if (!withdrawn) {
+                    InsetGroup(Modifier.padding(top = 20.dp)) {
+                        ReportTimeline(report, now, Modifier.padding(horizontal = Gutter, vertical = 16.dp))
+                    }
                 }
             }
         }
         // TextLink are 44 de atins, deci loc destul sub el
         FloatingFooter(LocalBottomClearance.current, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
             AppButton(stringResource(R.string.done), { vm.back() }, Modifier.fillMaxWidth())
-            TextLink(
-                stringResource(R.string.report_mine),
-                {
-                    // deschis din lista, back() ne lasa chiar pe ea si open() nu o mai pune o data
-                    vm.back()
-                    vm.open(Dest.MyReports)
-                },
-                Modifier.padding(top = 4.dp),
-            )
+            if (report.isOpen()) {
+                TextLink(stringResource(R.string.report_cancel), { confirm = Confirm.CANCEL }, Modifier.padding(top = 4.dp), color = colors.red)
+            } else {
+                TextLink(stringResource(R.string.report_delete), { confirm = Confirm.DELETE }, Modifier.padding(top = 4.dp), color = colors.red)
+            }
         }
     }
+
+    when (confirm) {
+        Confirm.CANCEL -> ConfirmDialog(
+            stringResource(R.string.report_cancel_title), stringResource(R.string.report_cancel_text),
+            onDismiss = { confirm = null }, confirmLabel = stringResource(R.string.report_cancel_confirm), destructive = true,
+        ) {
+            vm.cancelReport(report.incidentId)
+            haptics.confirm()
+        }
+        Confirm.DELETE -> ConfirmDialog(
+            stringResource(R.string.report_delete_title), stringResource(R.string.report_delete_text),
+            onDismiss = { confirm = null }, confirmLabel = stringResource(R.string.delete), destructive = true,
+        ) {
+            vm.deleteReport(report.incidentId)
+            vm.back()
+        }
+        null -> Unit
+    }
 }
+
+private enum class Confirm { CANCEL, DELETE }
 
 /** Rapoartele trimise, cele noi sus, intr-un grup: categoria, unde si cand, si pasul la care au ajuns. */
 @Composable
@@ -511,7 +578,7 @@ fun MyReportsScreen(vm: AppViewModel) {
                         mine.forEachIndexed { index, report ->
                             GroupRow(
                                 stringResource(Labels.category(report.category)),
-                                subtitle = reportSubtitle(vm, report) + " · " + stepLabels(report)[reportStep(report)],
+                                subtitle = reportSubtitle(vm, report) + " · " + stepText(report),
                                 chevron = true,
                                 onClick = { vm.open(Dest.ReportSent(report.incidentId)) },
                                 leading = { CategoryCircle(report.category, report.severity == Severity.URGENT, 36.dp) },

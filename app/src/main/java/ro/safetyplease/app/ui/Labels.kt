@@ -54,6 +54,7 @@ object Labels {
     }
 
     fun staffStatus(context: Context, status: Int, team: String): String = when (status) {
+        AckStatus.CANCELLED -> context.getString(R.string.staff_status_cancelled)
         AckStatus.RESOLVED -> context.getString(R.string.staff_status_resolved, team)
         AckStatus.ACKNOWLEDGED -> context.getString(R.string.staff_status_taken, team)
         else -> context.getString(R.string.staff_status_new)

@@ -44,6 +44,6 @@ object Clustering {
         StatusFilter.ALL -> true
         StatusFilter.OPEN -> cluster.status <= AckStatus.RECEIVED
         StatusFilter.TAKEN -> cluster.status == AckStatus.ACKNOWLEDGED
-        StatusFilter.RESOLVED -> cluster.status == AckStatus.RESOLVED
+        StatusFilter.RESOLVED -> cluster.status >= AckStatus.RESOLVED
     }
 }

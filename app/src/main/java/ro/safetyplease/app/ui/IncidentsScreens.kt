@@ -3,6 +3,7 @@ package ro.safetyplease.app.ui
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -60,6 +61,7 @@ import ro.safetyplease.app.protocol.Severity
 private fun statusLook(status: Int): Pair<ImageVector, Color> {
     val colors = AppTheme.colors
     return when (status) {
+        AckStatus.CANCELLED -> Sym.Close to colors.secondaryLabel
         AckStatus.RESOLVED -> Sym.CheckCircle to colors.accent
         AckStatus.ACKNOWLEDGED -> Sym.Check to colors.secondaryLabel
         else -> Sym.Bell to colors.orangeInk
@@ -69,6 +71,7 @@ private fun statusLook(status: Int): Pair<ImageVector, Color> {
 /** Starea intr-un singur cuvant, pentru randurile din lista. */
 @StringRes
 private fun statusWord(status: Int): Int = when (status) {
+    AckStatus.CANCELLED -> R.string.status_cancelled
     AckStatus.RESOLVED -> R.string.status_resolved
     AckStatus.ACKNOWLEDGED -> R.string.incident_state_taken
     else -> R.string.staff_status_new
@@ -219,12 +222,34 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
     }
     val place = if (lead.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(lead.zone)
     val reports = cluster.incidents.sortedByDescending { it.reportedAt }
+    var menu by remember { mutableStateOf(false) }
+    var confirmDismiss by remember { mutableStateOf(false) }
+    if (confirmDismiss) {
+        ConfirmDialog(
+            stringResource(R.string.incident_dismiss_title), stringResource(R.string.incident_dismiss_text),
+            onDismiss = { confirmDismiss = false }, confirmLabel = stringResource(R.string.delete), destructive = true,
+        ) {
+            cluster.incidents.forEach { vm.dismissIncident(it.incidentId) }
+            vm.back()
+        }
+    }
 
     NavScreen(
         title = if (pastHeader) stringResource(Labels.category(lead.category)) else "",
         background = colors.grouped,
         scrolled = scrolled,
         leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        trailing = { backdrop ->
+            Box {
+                GlassIconButton(Sym.More, stringResource(R.string.more_options), { menu = true }, backdrop)
+                AppMenu(menu, { menu = false }) {
+                    MenuRow(stringResource(R.string.incident_dismiss), {
+                        menu = false
+                        confirmDismiss = true
+                    }, icon = Sym.Delete, danger = true)
+                }
+            }
+        },
     ) { padding ->
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding)) {
             IncidentHeader(
@@ -232,8 +257,8 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 Modifier.onSizeChanged { headerPx = it.height },
                 status = { StaffStatus(cluster.status, cluster.incidents.firstOrNull { it.status == cluster.status }?.teamName.orEmpty()) },
             )
-            // a doua atingere pe o actiune deja facuta nu mai trimite nimic
-            Row(Modifier.fillMaxWidth().padding(horizontal = Gutter), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // a doua atingere pe o actiune deja facuta nu mai trimite nimic; o alerta anulata nu mai are ce prelua
+            if (cluster.status != AckStatus.CANCELLED) Row(Modifier.fillMaxWidth().padding(horizontal = Gutter), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ActionTile(
                     Sym.Check, stringResource(R.string.incident_take),
                     {
