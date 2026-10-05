@@ -16,8 +16,32 @@ object BleConstants {
     const val ATT_OVERHEAD = 3
 
     const val SETUP_TIMEOUT_MS = 20_000L
+
+    /** Doar faza de conectare; de reglat din logurile `conectat ... in N ms`. */
+    const val CONNECT_TIMEOUT_MS = 20_000L
     const val OPERATION_TIMEOUT_MS = 5_000L
     const val WRITE_TIMEOUT_MS = 3_000L
+
+    /** Dupa un 143 lasam stiva sa goleasca coada cam doua intervale de conexiune. */
+    const val CONGESTION_PAUSE_MS = 100L
+
+    /** Al doilea set de advertising pe Coded PHY, doar pe telefoanele care il suporta. False il opreste complet. */
+    const val LONG_RANGE = true
+
+    const val ADVERTISE_DEBOUNCE_MS = 300L
+    const val ADVERTISE_RETRY_MS = 15_000L
+    const val ADVERTISE_DEMOTE_AFTER = 3
+    const val ADVERTISE_DEMOTED_RETRY_MS = 60_000L
+
+    /** Un start de set fara niciun raspuns de la stiva e abandonat dupa atat. */
+    const val ADVERTISE_START_GIVE_UP_MS = 30_000L
+    const val CODED_RETRY_MS = 60_000L
+
+    const val RSSI_ALPHA = 0.3
+    const val REPORT_WINDOW_MS = 1_000L
+    const val FULL_RESULT_HOLD_MS = 10_000L
+    const val LEGACY_PREFERENCE_MS = 3_000L
+    const val SIGHTING_FORGET_MS = 60_000L
 
     /** Android accepta cel mult 5 porniri de scanare in 30 s; cu 6,5 s intre ele nu ajungem la limita. */
     const val SCAN_START_SPACING_MS = 6_500L

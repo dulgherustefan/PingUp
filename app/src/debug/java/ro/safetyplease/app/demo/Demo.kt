@@ -166,6 +166,14 @@ object Demo {
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
+                        stringResource(
+                            R.string.demo_radio_caps,
+                            yesNo(mesh.radio.codedPhy), yesNo(mesh.radio.extendedAdvertising), mesh.radio.maxAdvertisingDataLength,
+                            yesNo(mesh.radio.multipleAdvertisement), yesNo(mesh.radio.longRangeActive),
+                        ),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
                         stringResource(R.string.demo_node, c.identity.nodeId.toHex(), mesh.sent, mesh.received, mesh.relayed, mesh.dropped),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

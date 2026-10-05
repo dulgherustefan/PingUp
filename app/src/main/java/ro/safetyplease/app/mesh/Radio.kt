@@ -25,6 +25,12 @@ data class RadioStatus(
     val advertising: Boolean = false,
     /** False pe telefoanele fara mod peripheral: pot doar scana si initia conexiuni. */
     val canAdvertise: Boolean = true,
+    val codedPhy: Boolean = false,
+    val extendedAdvertising: Boolean = false,
+    val maxAdvertisingDataLength: Int = 0,
+    val multipleAdvertisement: Boolean = false,
+    /** Setul de advertising pe Coded PHY ruleaza. */
+    val longRangeActive: Boolean = false,
 )
 
 /**

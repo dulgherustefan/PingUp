@@ -14,9 +14,11 @@ import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothStatusCodes
-import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
-import android.bluetooth.le.AdvertiseSettings
+import android.bluetooth.le.AdvertisingSet
+import android.bluetooth.le.AdvertisingSetCallback
+import android.bluetooth.le.AdvertisingSetParameters
+import android.bluetooth.le.BluetoothLeAdvertiser
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
@@ -70,8 +72,8 @@ class BleRadio(
         var mtu = BleConstants.DEFAULT_MTU
         var ready = false
         var closed = false
-        var op: Op? = null
-        var signal: CompletableDeferred<Boolean>? = null
+        val ops = GattOps<Op>()
+        var pauseUntil = 0L
         var setupJob: Job? = null
         val mutex = Mutex()
 
@@ -79,7 +81,95 @@ class BleRadio(
         val early = ArrayList<ByteArray>()
     }
 
-    private class InLink(val id: Int, val device: BluetoothDevice, val mtu: Int)
+    private class InLink(val id: Int, val device: BluetoothDevice, val mtu: Int) {
+        var pauseUntil = 0L
+    }
+
+    private enum class AdvOp { START, ENABLE, DISABLE, PARAMETERS, DATA }
+
+    /** Un set de advertising: cel legacy pe 1M, sau cel extins pe Coded PHY pentru raza lunga. */
+    private inner class AdvSet(val coded: Boolean) {
+        var set: AdvertisingSet? = null
+        var callback: AdvertisingSetCallback? = null
+        var startedAt = 0L
+        var appliedFlags = 0
+        var appliedInterval = 0
+        private var op: AdvOp? = null
+        private var signal: CompletableDeferred<Int>? = null
+
+        val name get() = if (coded) "coded" else "1M"
+
+        suspend fun await(kind: AdvOp, start: () -> Unit): Int {
+            val done = CompletableDeferred<Int>()
+            op = kind
+            signal = done
+            val status = runCatching(start).fold(
+                onSuccess = { withTimeoutOrNull(BleConstants.OPERATION_TIMEOUT_MS) { done.await() } ?: ADV_TIMEOUT },
+                onFailure = {
+                    log("advertising $name: ${it.message}")
+                    AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR
+                },
+            )
+            if (signal === done) {
+                signal = null
+                op = null
+            }
+            return status
+        }
+
+        fun finish(kind: AdvOp, status: Int) {
+            if (op == kind) signal?.complete(status)
+        }
+
+        fun stop() {
+            val cb = callback ?: return
+            callback = null
+            set = null
+            signal?.complete(AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
+            runCatching { adapter?.bluetoothLeAdvertiser?.stopAdvertisingSet(cb) }
+        }
+
+        fun newCallback() = object : AdvertisingSetCallback() {
+            override fun onAdvertisingSetStarted(advertisingSet: AdvertisingSet?, txPower: Int, status: Int) = post {
+                if (callback === this) started(advertisingSet, status)
+            }
+
+            override fun onAdvertisingEnabled(advertisingSet: AdvertisingSet?, enable: Boolean, status: Int) = post {
+                if (callback === this) finish(if (enable) AdvOp.ENABLE else AdvOp.DISABLE, status)
+            }
+
+            override fun onAdvertisingParametersUpdated(advertisingSet: AdvertisingSet?, txPower: Int, status: Int) = post {
+                if (callback === this) finish(AdvOp.PARAMETERS, status)
+            }
+
+            override fun onAdvertisingDataSet(advertisingSet: AdvertisingSet?, status: Int) = post {
+                if (callback === this) finish(AdvOp.DATA, status)
+            }
+
+            override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) = post {
+                if (callback === this) finish(AdvOp.DATA, status)
+            }
+        }
+
+        fun started(advertisingSet: AdvertisingSet?, status: Int) {
+            if (status == AdvertisingSetCallback.ADVERTISE_SUCCESS && advertisingSet != null) {
+                set = advertisingSet
+                log("advertising $name pornit")
+                if (!coded) {
+                    if (failures.demoted) log("advertising merge din nou, telefonul nu mai e frunza")
+                    failures.reset()
+                }
+                publishStatus()
+                // flag-urile sau modul s-au putut schimba cat a durat pornirea
+                requestAdvertise()
+            } else {
+                callback = null
+                set = null
+                if (coded) codedFailed(status) else legacyFailed(status)
+            }
+            finish(AdvOp.START, status)
+        }
+    }
 
     private val prefix = nodeId.nodePrefix()
     private val manager: BluetoothManager? = context.getSystemService(BluetoothManager::class.java)
@@ -94,7 +184,8 @@ class BleRadio(
     private val outgoing = HashMap<String, OutLink>()
     private val incoming = HashMap<String, InLink>()
     private val scanned = HashMap<String, BluetoothDevice>()
-    private val lastReported = HashMap<String, Long>()
+    private val sightings = Sightings()
+    private var scanStatsAt = 0L
     private val serverMtu = HashMap<String, Int>()
 
     private var gattServer: BluetoothGattServer? = null
@@ -115,17 +206,29 @@ class BleRadio(
     private var lastScanResultAt = 0L
     private var scanBlockedUntil = 0L
 
-    private var advertising = false
     private var canAdvertise = true
+    private val failures = AdvertiseFailures()
+    private val legacyAdv = AdvSet(coded = false)
+    private val codedAdv = AdvSet(coded = true)
     private var advertiseJob: Job? = null
-    private var advertiseCallback: AdvertiseCallback? = null
+    private var advertisePending = false
     private var advertiseBlockedUntil = 0L
+    private var advertiseInPlace = true
+    private var codedDisabled = false
+    private var codedBlockedUntil = 0L
+
+    private var codedPhy = false
+    private var extendedAdvertising = false
+    private var maxAdvertisingDataLength = 0
+    private var multipleAdvertisement = false
+    private var longRange = false
 
     private var lastStatus: RadioStatus? = null
     private var waitingReason: String? = null
 
     private companion object {
         const val MAX_EARLY_FRAMES = 16
+        const val ADV_TIMEOUT = -1
     }
 
     private fun now() = SystemClock.elapsedRealtime()
@@ -198,8 +301,22 @@ class BleRadio(
         }
         waitingReason = null
         active = true
-        canAdvertise = adapter.bluetoothLeAdvertiser != null && adapter.isMultipleAdvertisementSupported
-        log("radio pornit, advertising ${if (canAdvertise) "suportat" else "NESUPORTAT (telefon frunza)"}")
+        // isMultipleAdvertisementSupported cere cel putin 5 instante; noua ne ajunge una, iar primul start decide
+        canAdvertise = adapter.bluetoothLeAdvertiser != null
+        failures.reset()
+        advertiseInPlace = true
+        codedDisabled = false
+        codedBlockedUntil = 0L
+        codedPhy = adapter.isLeCodedPhySupported
+        extendedAdvertising = adapter.isLeExtendedAdvertisingSupported
+        maxAdvertisingDataLength = adapter.leMaximumAdvertisingDataLength
+        multipleAdvertisement = adapter.isMultipleAdvertisementSupported
+        longRange = BleConstants.LONG_RANGE && codedPhy && extendedAdvertising
+        log(
+            "radio pornit, advertising ${if (canAdvertise) "suportat" else "NESUPORTAT (telefon frunza)"}, " +
+                "coded=$codedPhy extins=$extendedAdvertising maxAdv=$maxAdvertisingDataLength " +
+                "multi=$multipleAdvertisement razaLunga=$longRange"
+        )
         if (!openServer()) log("GATT server indisponibil")
         requestScan()
         publishStatus()
@@ -214,7 +331,8 @@ class BleRadio(
         scanJob?.cancel()
         advertiseJob?.cancel()
         stopScanNow()
-        stopAdvertisingNow()
+        legacyAdv.stop()
+        codedAdv.stop()
         for (link in outgoing.values.toList()) closeOut(link, failed = false)
         for (link in incoming.values.toList()) {
             incoming.remove(link.device.address)
@@ -226,6 +344,7 @@ class BleRadio(
         serviceReady = false
         notifySignal?.complete(false)
         scanned.clear()
+        sightings.clear()
         serverMtu.clear()
         log("radio oprit")
         publishStatus()
@@ -241,18 +360,25 @@ class BleRadio(
         val stale = scanning && now - scanStartedAt > BleConstants.SCAN_RESTART_MS
         val silent = scanning && now - maxOf(lastScanResultAt, scanStartedAt) > BleConstants.SCAN_SILENCE_RESTART_MS
         if ((!scanning || stale || silent) && scanJob?.isActive != true) requestScan()
-        if (canAdvertise && serviceReady && !advertising && advertiseJob?.isActive != true) requestAdvertise()
+        val missingSet = legacyAdv.set == null || codedAdv.wanted() && codedAdv.set == null
+        if (legacyAdv.wanted() && missingSet && advertiseJob?.isActive != true) requestAdvertise()
         // adresele MAC se rotesc; ce nu a mai fost vazut de un minut nu mai e de folos
-        val gone = lastReported.filterValues { now - it > 60_000 }.keys
-        for (address in gone) {
-            lastReported.remove(address)
+        for (address in sightings.forget(now)) {
             if (!outgoing.containsKey(address)) scanned.remove(address)
+        }
+        if (now - scanStatsAt >= 60_000) {
+            scanStatsAt = now
+            val (results, withoutResponse) = sightings.drainStats()
+            if (results > 0) log("scanare: $withoutResponse din $results rezultate fara scan response")
         }
         publishStatus()
     }
 
     private fun publishStatus() {
-        val status = RadioStatus(active, scanning, advertising, canAdvertise)
+        val status = RadioStatus(
+            active, scanning, legacyAdv.set != null, canAdvertise && !failures.demoted,
+            codedPhy, extendedAdvertising, maxAdvertisingDataLength, multipleAdvertisement, codedAdv.set != null,
+        )
         if (status == lastStatus) return
         lastStatus = status
         events.trySend(RadioEvent.Status(status))
@@ -293,12 +419,14 @@ class BleRadio(
         outgoing[address] = link
         link.setupJob = scope.launch {
             val ok = withTimeoutOrNull(BleConstants.SETUP_TIMEOUT_MS) { setUp(link, device) } ?: false
-            if (ok && !link.closed) {
+            if (ok && !link.closed && !link.ops.dropped) {
                 link.ready = true
                 events.trySend(RadioEvent.LinkUp(link.id, address, true, link.mtu - BleConstants.ATT_OVERHEAD))
                 // fara punct de suspendare intre LinkUp si cadrele timpurii, ca ordinea sa ramana cea de pe fir
                 for (frame in link.early) events.trySend(RadioEvent.Frame(link.id, frame))
                 link.early.clear()
+                // PHY-ul ales arata in log daca legatura a mers pe Coded
+                if (longRange) runCatching { link.gatt?.readPhy() }
             } else if (!link.closed) {
                 log("conectare esuata ${address.takeLast(5)}")
                 closeOut(link, failed = true)
@@ -319,39 +447,32 @@ class BleRadio(
 
     // --- central: clienti GATT ---
 
-    private suspend fun OutLink.run(kind: Op, timeoutMs: Long, start: () -> Boolean): Boolean {
-        val done = CompletableDeferred<Boolean>()
-        op = kind
-        signal = done
-        val started = runCatching(start).getOrDefault(false)
-        val ok = started && (withTimeoutOrNull(timeoutMs) { done.await() } ?: false)
-        if (signal === done) {
-            signal = null
-            op = null
-        }
-        return ok
-    }
-
-    private fun OutLink.finish(kind: Op, ok: Boolean) {
-        if (op == kind) signal?.complete(ok)
-    }
-
     private suspend fun setUp(link: OutLink, device: BluetoothDevice): Boolean {
         val callback = ClientCallback(link)
-        if (!link.run(Op.CONNECT, BleConstants.SETUP_TIMEOUT_MS) {
+        val startedAt = now()
+        if (!link.ops.run(Op.CONNECT, BleConstants.CONNECT_TIMEOUT_MS) {
                 // varianta noua cu BluetoothGattConnectionSettings exista doar pe versiunile recente de Android
                 @Suppress("DEPRECATION")
-                link.gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+                link.gatt = if (longRange) {
+                    device.connectGatt(
+                        context, false, callback, BluetoothDevice.TRANSPORT_LE,
+                        BluetoothDevice.PHY_LE_1M_MASK or BluetoothDevice.PHY_LE_CODED_MASK,
+                    )
+                } else {
+                    device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+                }
                 link.gatt != null
             }) return false
+        log("conectat ${link.address.takeLast(5)} in ${now() - startedAt} ms")
         val gatt = link.gatt ?: return false
         // unele stive pierd prima operatie daca vine imediat dupa conectare
         delay(150)
-        if (!link.run(Op.MTU, BleConstants.OPERATION_TIMEOUT_MS) { gatt.requestMtu(BleConstants.REQUESTED_MTU) }) {
+        if (link.ops.dropped) return false
+        if (!link.ops.run(Op.MTU, BleConstants.OPERATION_TIMEOUT_MS) { gatt.requestMtu(BleConstants.REQUESTED_MTU) }) {
             log("MTU nenegociat cu ${link.address.takeLast(5)}")
             return false
         }
-        if (!link.run(Op.DISCOVER, BleConstants.OPERATION_TIMEOUT_MS) { gatt.discoverServices() }) {
+        if (!link.ops.run(Op.DISCOVER, BleConstants.OPERATION_TIMEOUT_MS) { gatt.discoverServices() }) {
             log("descoperirea serviciilor a esuat la ${link.address.takeLast(5)}")
             return false
         }
@@ -367,7 +488,7 @@ class BleRadio(
             return false
         }
         var accepted = false
-        val subscribed = link.run(Op.DESCRIPTOR, BleConstants.OPERATION_TIMEOUT_MS) {
+        val subscribed = link.ops.run(Op.DESCRIPTOR, BleConstants.OPERATION_TIMEOUT_MS) {
             val value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
             accepted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 gatt.writeDescriptor(cccd, value) == BluetoothStatusCodes.SUCCESS
@@ -390,13 +511,15 @@ class BleRadio(
     }
 
     private suspend fun write(link: OutLink, frame: ByteArray): Boolean = link.mutex.withLock {
+        val pause = link.pauseUntil - now()
+        if (pause > 0) delay(pause)
         val gatt = link.gatt
         val ch = link.characteristic
         if (!link.ready || link.closed || gatt == null || ch == null) return false
         // stiva refuza o scriere cat timp precedenta e inca in zbor; reincercam scurt
         repeat(5) {
             var accepted = false
-            val ok = link.run(Op.WRITE, BleConstants.WRITE_TIMEOUT_MS) {
+            val ok = link.ops.run(Op.WRITE, BleConstants.WRITE_TIMEOUT_MS) {
                 accepted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     gatt.writeCharacteristic(ch, frame, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) ==
                         BluetoothStatusCodes.SUCCESS
@@ -420,7 +543,7 @@ class BleRadio(
         if (link.closed) return
         link.closed = true
         outgoing.remove(link.address)
-        link.signal?.complete(false)
+        link.ops.drop()
         if (!failed) link.setupJob?.cancel()
         val gatt = link.gatt
         if (gatt != null) {
@@ -437,28 +560,40 @@ class BleRadio(
     private inner class ClientCallback(private val link: OutLink) : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) = post {
             if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
-                link.finish(Op.CONNECT, true)
+                link.ops.finish(Op.CONNECT, true)
             } else {
                 if (!link.closed) log("deconectat ${link.address.takeLast(5)} status=$status")
-                if (link.ready) closeOut(link, failed = false) else link.signal?.complete(false)
+                if (link.ready) closeOut(link, failed = false) else link.ops.drop()
             }
         }
 
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) = post {
             if (status == BluetoothGatt.GATT_SUCCESS) link.mtu = mtu
-            link.finish(Op.MTU, status == BluetoothGatt.GATT_SUCCESS)
+            link.ops.finish(Op.MTU, status == BluetoothGatt.GATT_SUCCESS)
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) = post {
-            link.finish(Op.DISCOVER, status == BluetoothGatt.GATT_SUCCESS)
+            link.ops.finish(Op.DISCOVER, status == BluetoothGatt.GATT_SUCCESS)
         }
 
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) = post {
-            link.finish(Op.DESCRIPTOR, status == BluetoothGatt.GATT_SUCCESS)
+            link.ops.finish(Op.DESCRIPTOR, status == BluetoothGatt.GATT_SUCCESS)
         }
 
         override fun onCharacteristicWrite(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) = post {
-            link.finish(Op.WRITE, status == BluetoothGatt.GATT_SUCCESS)
+            if (status == BluetoothGatt.GATT_CONNECTION_CONGESTED) {
+                link.pauseUntil = now() + BleConstants.CONGESTION_PAUSE_MS
+                log("congestie (143) la ${link.address.takeLast(5)}")
+            }
+            link.ops.finish(Op.WRITE, sendAccepted(status))
+        }
+
+        override fun onPhyRead(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) = post {
+            if (status == BluetoothGatt.GATT_SUCCESS) log("phy ${link.address.takeLast(5)} tx=$txPhy rx=$rxPhy")
+        }
+
+        override fun onPhyUpdate(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) = post {
+            if (status == BluetoothGatt.GATT_SUCCESS) log("phy schimbat ${link.address.takeLast(5)} tx=$txPhy rx=$rxPhy")
         }
 
         override fun onCharacteristicChanged(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic, value: ByteArray) {
@@ -508,7 +643,14 @@ class BleRadio(
         return server.addService(service)
     }
 
-    private suspend fun notify(link: InLink, frame: ByteArray): Boolean = notifyMutex.withLock {
+    private suspend fun notify(link: InLink, frame: ByteArray): Boolean {
+        // pauza dupa congestie se asteapta in afara mutex-ului, ca sa nu tina pe loc ceilalti clienti
+        val pause = link.pauseUntil - now()
+        if (pause > 0) delay(pause)
+        return notifyLocked(link, frame)
+    }
+
+    private suspend fun notifyLocked(link: InLink, frame: ByteArray): Boolean = notifyMutex.withLock {
         val server = gattServer
         val ch = characteristic
         val address = link.device.address
@@ -634,7 +776,11 @@ class BleRadio(
         }
 
         override fun onNotificationSent(device: BluetoothDevice, status: Int) = post {
-            if (notifyAddress == device.address) notifySignal?.complete(status == BluetoothGatt.GATT_SUCCESS)
+            if (status == BluetoothGatt.GATT_CONNECTION_CONGESTED) {
+                incoming[device.address]?.pauseUntil = now() + BleConstants.CONGESTION_PAUSE_MS
+                log("congestie (143) la ${device.address.takeLast(5)}")
+            }
+            if (notifyAddress == device.address) notifySignal?.complete(sendAccepted(status))
         }
     }
 
@@ -666,6 +812,8 @@ class BleRadio(
             )
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .setReportDelay(0)
+            // pe 1M si pe Coded; advertising-urile legacy se primesc in continuare
+            .apply { if (longRange) setLegacy(false).setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED) }
             .build()
         val started = runCatching { scanner.startScan(listOf(filter), settings, scanCallback) }.isSuccess
         lastScanStartAt = now()
@@ -702,87 +850,176 @@ class BleRadio(
         val now = now()
         lastScanResultAt = now
         val address = result.device.address
-        scanned[address] = result.device
         val data = result.scanRecord?.getServiceData(ParcelUuid(BleConstants.SERVICE))
         val known = data != null && data.size >= BleConstants.ADVERT_DATA_SIZE &&
             (data[0].toInt() and 0xff) == BleConstants.ADVERT_VERSION
         val peerFlags = if (known) data[1].toInt() and 0xff else NodeFlags.ACCEPTS_CONNECTIONS
         val peerPrefix = if (known) ByteBuffer.wrap(data, 2, 4).int else null
         if (peerPrefix == prefix) return
-        val last = lastReported[address]
-        if (last != null && now - last < 1_000) return
-        lastReported[address] = now
-        events.trySend(RadioEvent.PeerSeen(address, peerPrefix, peerFlags, result.rssi))
+        scanned[address] = result.device
+        val coded = result.primaryPhy == BluetoothDevice.PHY_LE_CODED
+        val rssi = sightings.heard(address, peerPrefix, coded, result.rssi, now) ?: return
+        events.trySend(RadioEvent.PeerSeen(address, peerPrefix, peerFlags, rssi))
     }
 
     // --- advertising ---
+    //
+    // Fiecare set se porneste o data si apoi se actualizeaza pe loc. Un set nou primeste alta adresa MAC,
+    // iar peer-ii care tocmai se conectau la cea veche raman agatati pana la timeout.
+
+    private fun AdvSet.wanted(): Boolean {
+        val legacyWanted = active && canAdvertise && serviceReady
+        if (!coded) return legacyWanted
+        // setul coded vine doar dupa cel legacy, ca sa nu-i ia instanta
+        return legacyWanted && longRange && !codedDisabled && legacyAdv.set != null && now() >= codedBlockedUntil
+    }
 
     private fun requestAdvertise() {
-        advertiseJob?.cancel()
+        advertisePending = true
+        if (advertiseJob?.isActive == true) return
+        // job-ul nu se anuleaza din afara: o schimbare de parametri nu trebuie taiata la jumatate
         advertiseJob = scope.launch {
-            val wait = maxOf(advertiseBlockedUntil - now(), 300L)
-            delay(wait)
-            if (!active || !canAdvertise) return@launch
-            stopAdvertisingNow()
-            startAdvertisingNow()
+            while (advertisePending) {
+                advertisePending = false
+                delay(maxOf(advertiseBlockedUntil - now(), BleConstants.ADVERTISE_DEBOUNCE_MS))
+                if (legacyAdv.wanted()) legacyAdv.sync()
+                if (codedAdv.wanted()) codedAdv.sync()
+            }
         }
     }
 
-    private fun startAdvertisingNow() {
+    /** Aduce setul la flag-urile si modul curente; ce nu merge pe loc se face prin oprire si pornire. */
+    private suspend fun AdvSet.sync() {
         val advertiser = adapter?.bluetoothLeAdvertiser ?: return
-        val settings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(
-                when (advertiseMode) {
-                    PowerMode.LOW_POWER -> AdvertiseSettings.ADVERTISE_MODE_LOW_POWER
-                    PowerMode.BALANCED -> AdvertiseSettings.ADVERTISE_MODE_BALANCED
-                    PowerMode.LOW_LATENCY -> AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY
-                }
-            )
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-            .setConnectable(true)
-            .setTimeout(0)
-            .build()
-        val uuid = ParcelUuid(BleConstants.SERVICE)
-        // UUID-ul sta in advertising ca filtrele de scanare sa-l prinda; datele scurte merg in scan response
-        val data = AdvertiseData.Builder().setIncludeDeviceName(false).setIncludeTxPowerLevel(false)
-            .addServiceUuid(uuid).build()
-        val payload = ByteBuffer.allocate(BleConstants.ADVERT_DATA_SIZE)
-            .put(BleConstants.ADVERT_VERSION.toByte()).put(flags.toByte()).putInt(prefix).array()
-        val response = AdvertiseData.Builder().setIncludeDeviceName(false).setIncludeTxPowerLevel(false)
-            .addServiceData(uuid, payload).build()
-        val callback = object : AdvertiseCallback() {
-            override fun onStartSuccess(settingsInEffect: AdvertiseSettings) = post {
-                if (advertiseCallback !== this) return@post
-                advertising = true
-                publishStatus()
-            }
-
-            override fun onStartFailure(errorCode: Int) = post {
-                if (advertiseCallback !== this) return@post
-                when (errorCode) {
-                    ADVERTISE_FAILED_ALREADY_STARTED -> advertising = true
-                    ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
-                        advertising = false
-                        canAdvertise = false
-                    }
-                    else -> {
-                        advertising = false
-                        advertiseBlockedUntil = now() + 15_000L
-                    }
-                }
-                log("advertising esuat: $errorCode")
-                publishStatus()
-            }
+        val current = set
+        if (current == null) {
+            if (callback == null) return start(advertiser)
+            // pornirea e inca in curs; un al doilea set ar ocupa inca o instanta
+            if (now() - startedAt < BleConstants.ADVERTISE_START_GIVE_UP_MS) return
+            stop()
+            started(null, AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
+            return
         }
-        advertiseCallback = callback
-        runCatching { advertiser.startAdvertising(settings, data, response, callback) }
-            .onFailure { log("advertising: ${it.message}") }
+        val wantedFlags = flags
+        if (appliedFlags != wantedFlags && !updateInPlace { setData(current, wantedFlags) }) return restart(advertiser)
+        if (set !== current) return
+        val wantedInterval = interval()
+        if (appliedInterval != wantedInterval && !updateInPlace { setInterval(current, wantedInterval) }) return restart(advertiser)
     }
 
-    private fun stopAdvertisingNow() {
-        val callback = advertiseCallback ?: return
-        advertiseCallback = null
-        advertising = false
-        runCatching { adapter?.bluetoothLeAdvertiser?.stopAdvertising(callback) }
+    private suspend fun AdvSet.updateInPlace(update: suspend () -> Boolean): Boolean {
+        if (!advertiseInPlace) return false
+        if (update()) return true
+        if (callback != null) {
+            advertiseInPlace = false
+            log("advertising $name: actualizarea pe loc a esuat, de acum repornim setul")
+        }
+        return false
+    }
+
+    private suspend fun AdvSet.setData(current: AdvertisingSet, wantedFlags: Int): Boolean {
+        val status = await(AdvOp.DATA) {
+            if (coded) current.setAdvertisingData(codedData(wantedFlags)) else current.setScanResponseData(serviceData(wantedFlags))
+        }
+        if (status != AdvertisingSetCallback.ADVERTISE_SUCCESS) return false
+        appliedFlags = wantedFlags
+        return true
+    }
+
+    private suspend fun AdvSet.setInterval(current: AdvertisingSet, interval: Int): Boolean {
+        val success = AdvertisingSetCallback.ADVERTISE_SUCCESS
+        // parametrii se schimba doar cu setul oprit; fiecare pas asteapta confirmarea stivei
+        if (await(AdvOp.DISABLE) { current.enableAdvertising(false, 0, 0) } != success) return false
+        if (await(AdvOp.PARAMETERS) { current.setAdvertisingParameters(parameters(interval)) } != success) return false
+        if (await(AdvOp.ENABLE) { current.enableAdvertising(true, 0, 0) } != success) return false
+        appliedInterval = interval
+        return true
+    }
+
+    private suspend fun AdvSet.restart(advertiser: BluetoothLeAdvertiser) {
+        stop()
+        if (!wanted()) return
+        start(advertiser)
+    }
+
+    private suspend fun AdvSet.start(advertiser: BluetoothLeAdvertiser) {
+        val cb = newCallback()
+        callback = cb
+        startedAt = now()
+        appliedFlags = flags
+        appliedInterval = interval()
+        val parameters = parameters(appliedInterval)
+        val status = await(AdvOp.START) {
+            if (coded) advertiser.startAdvertisingSet(parameters, codedData(appliedFlags), null, null, null, cb)
+            else advertiser.startAdvertisingSet(parameters, uuidData(), serviceData(appliedFlags), null, null, cb)
+        }
+        // o exceptie la pornire nu aduce niciun callback
+        if (status == AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR && callback === cb && set == null) {
+            stop()
+            started(null, status)
+        }
+    }
+
+    private fun legacyFailed(status: Int) {
+        when {
+            status == AdvertisingSetCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> canAdvertise = false
+            status == AdvertisingSetCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS && codedAdv.callback != null -> {
+                // setul coded nu are voie sa ia locul celui legacy; renuntam la el pana la repornirea radioului
+                codedAdv.stop()
+                codedDisabled = true
+                log("setul coded oprit ca sa elibereze o instanta")
+                requestAdvertise()
+            }
+            else -> advertiseBlockedUntil = now() + failures.failed(status)
+        }
+        log("advertising esuat: $status")
+        if (failures.count == BleConstants.ADVERTISE_DEMOTE_AFTER) log("advertising pica repetat, telefonul se poarta ca frunza")
+        publishStatus()
+    }
+
+    private fun codedFailed(status: Int) {
+        val permanent = status == AdvertisingSetCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED ||
+            status == AdvertisingSetCallback.ADVERTISE_FAILED_DATA_TOO_LARGE
+        if (permanent) codedDisabled = true else codedBlockedUntil = now() + BleConstants.CODED_RETRY_MS
+        log("advertising coded esuat: $status")
+        publishStatus()
+    }
+
+    private fun AdvSet.interval(): Int = when (advertiseMode) {
+        PowerMode.LOW_POWER -> AdvertisingSetParameters.INTERVAL_HIGH
+        PowerMode.BALANCED -> AdvertisingSetParameters.INTERVAL_MEDIUM
+        // un pachet pe Coded tine de ~8 ori mai mult in aer; nu coboram sub 250 ms
+        PowerMode.LOW_LATENCY -> if (coded) AdvertisingSetParameters.INTERVAL_MEDIUM else AdvertisingSetParameters.INTERVAL_LOW
+    }
+
+    private fun AdvSet.parameters(interval: Int): AdvertisingSetParameters {
+        val builder = AdvertisingSetParameters.Builder()
+            .setConnectable(true)
+            .setInterval(interval)
+            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+        if (coded) {
+            builder.setLegacyMode(false).setScannable(false)
+                .setPrimaryPhy(BluetoothDevice.PHY_LE_CODED).setSecondaryPhy(BluetoothDevice.PHY_LE_CODED)
+        } else {
+            builder.setLegacyMode(true).setScannable(true)
+        }
+        return builder.build()
+    }
+
+    private fun payload(flags: Int): ByteArray = ByteBuffer.allocate(BleConstants.ADVERT_DATA_SIZE)
+        .put(BleConstants.ADVERT_VERSION.toByte()).put(flags.toByte()).putInt(prefix).array()
+
+    // UUID-ul sta in advertising ca filtrele de scanare sa-l prinda; datele scurte merg in scan response
+    private fun uuidData(): AdvertiseData = AdvertiseData.Builder().setIncludeDeviceName(false).setIncludeTxPowerLevel(false)
+        .addServiceUuid(ParcelUuid(BleConstants.SERVICE)).build()
+
+    private fun serviceData(flags: Int): AdvertiseData = AdvertiseData.Builder().setIncludeDeviceName(false)
+        .setIncludeTxPowerLevel(false).addServiceData(ParcelUuid(BleConstants.SERVICE), payload(flags)).build()
+
+    // setul coded nu are scan response: UUID-ul pentru filtre si datele intra amandoua in advertising
+    private fun codedData(flags: Int): AdvertiseData {
+        val uuid = ParcelUuid(BleConstants.SERVICE)
+        return AdvertiseData.Builder().setIncludeDeviceName(false).setIncludeTxPowerLevel(false)
+            .addServiceUuid(uuid).addServiceData(uuid, payload(flags)).build()
     }
 }

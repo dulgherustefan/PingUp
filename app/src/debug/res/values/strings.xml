@@ -25,4 +25,5 @@
     <string name="demo_tests_empty">Apasă „Trimite TEST”. Fiecare telefon care îl primește răspunde cu un ecou.</string>
     <string name="demo_log">Jurnal de pachete (%1$d)</string>
     <string name="demo_log_export">Exportă</string>
+    <string name="demo_radio_caps">Coded PHY: %1$s · advertising extins: %2$s (max %3$d B) · multi-advertising: %4$s · rază lungă activă: %5$s</string>
 </resources>
