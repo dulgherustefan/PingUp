@@ -205,16 +205,17 @@ private fun ScanFrame(modifier: Modifier = Modifier) {
     }
 }
 
-// culorile cardului cu cod nu urmeaza tema: codul trebuie sa se citeasca la fel ziua si noaptea
-private val QrBorder = Color(0xFF506ECD)
-private val QrInk = 0xFF2449C0.toInt()
+// culorile cardului cu cod nu urmeaza tema: codul trebuie sa se citeasca la fel ziua si noaptea.
+// Verdele de padure din logo; numele alb pe el are 7,5:1, iar codul verde-negru pe alb peste 11:1, cat sa-l prinda orice camera.
+private val QrBorder = Color(0xFF2B5E45)
+private val QrInk = 0xFF17402E.toInt()
 private val QrFrame = Color(0xFFE9E9E9)
 
 /** Latimea cardului cu cod; butoanele de sub el se aliniaza cu el. */
 private val CardWidth = 296.dp
 
 /**
- * Codul tau pe un card albastru, ca in Signal: patratul alb cu codul si numele tau dedesubt, in alb.
+ * Codul tau pe un card verde de padure, ca in Signal: patratul alb cu codul si numele tau dedesubt, in alb.
  * Atins, se deschide mare, pe tot ecranul.
  */
 @Composable
@@ -239,7 +240,7 @@ private fun QrBadge(code: String, name: String, onClick: () -> Unit, modifier: M
 }
 
 /**
- * Adauga prieten, ca ecranul cu codul QR din Signal: comutatorul sus, apoi cardul albastru cu codul tau
+ * Adauga prieten, ca ecranul cu codul QR din Signal: comutatorul sus, apoi cardul verde cu codul tau
  * sau camera pentru codul altcuiva.
  */
 @Composable

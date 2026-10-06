@@ -94,10 +94,29 @@ class AppColors(
     /** Fondul si cerneala unui avatar; aceleasi in tema deschisa si in cea inchisa. */
     val avatars: List<Pair<Color, Color>> = AvatarPairs
 
-    /** Culorile zonelor de pe harta, in ordinea din venue.json. Noaptea, ca pe Apple Maps: zona intunecata, numele deschis. */
-    val zones: List<Color> =
-        if (dark) ZonePairs.map { it.second.copy(alpha = 0.34f).compositeOver(Night.cell) } else ZonePairs.map { it.first }
-    val zoneInk: List<Color> = if (dark) ZonePairs.map { it.first } else ZonePairs.map { it.second }
+    /**
+     * Fondul unei zone de pe harta, in ordinea din venue.json. Noaptea, ca pe Apple Maps: zona intunecata, numele deschis.
+     * Punctul medical are mereu verdele de prim ajutor din ISO 3864, oricare i-ar fi locul in lista.
+     */
+    fun zoneFill(index: Int, id: String): Color {
+        val (light, ink) = zonePair(index, id)
+        return if (dark) ink.copy(alpha = 0.34f).compositeOver(Night.cell) else light
+    }
+
+    /** Numele zonei, scris peste [zoneFill]: peste 6:1 ziua si peste 10:1 noaptea. */
+    fun zoneInk(index: Int, id: String): Color {
+        val (light, ink) = zonePair(index, id)
+        return if (dark) light else ink
+    }
+
+    private fun zonePair(index: Int, id: String): Pair<Color, Color> = if (id == MEDICAL_ZONE) MedicalZone else ZonePairs[index % ZonePairs.size]
+
+    /**
+     * Ce ai ales dintr-un grup (filtrul, categoria raportului): salvie noaptea, verde de padure ziua, unde salvia pe alb
+     * abia se vede. Nu e verdele plin al butonului principal, ca alegerea sa nu concureze cu actiunea.
+     */
+    val selection: Color get() = if (dark) sage else brandDeep
+    val onSelection: Color get() = if (dark) Night.background else Color.White
 
     // nume pastrate pentru ecranul demo
     val ok: Color get() = green
@@ -129,21 +148,27 @@ private val AvatarPairs = listOf(
     Color(0xFFE3E3DC) to Color(0xFF57584F),
 )
 
-// zonele hartii raman distincte intre ele, ca sa se deosebeasca dintr-o privire
+/** Id-ul zonei medicale din venue.json. */
+const val MEDICAL_ZONE = "medical"
+
+/**
+ * Zonele hartii: nuante pamantii si stinse, din aceeasi familie cu verdele de padure si salvia, ca harta sa nu
+ * concureze cu culorile care inseamna ceva. Niciuna nu e langa rosu (incidente), portocaliu (punctul de intalnire),
+ * verdele viu (tu) sau verdele de prim ajutor. Facute in OKLCH: fondul la L 0,925, numele la L 0,43.
+ * Ordinea: ardezie, teal, nisip, oliv, piatra, pin, ceata; punctul medical sare peste ele.
+ */
 private val ZonePairs = listOf(
-    Color(0xFFE3E3FE) to Color(0xFF3838F5),
-    Color(0xFFDDE7FC) to Color(0xFF1251D3),
-    Color(0xFFD8E8F0) to Color(0xFF086DA0),
-    Color(0xFFCDE4CD) to Color(0xFF067906),
-    Color(0xFFEAE0FD) to Color(0xFF661AFF),
-    Color(0xFFF5E3FE) to Color(0xFF9F00F0),
-    Color(0xFFF6D8EC) to Color(0xFFB8057C),
-    Color(0xFFF5D7D7) to Color(0xFFBE0404),
-    Color(0xFFFEF5D0) to Color(0xFF836B01),
-    Color(0xFFEAE6D5) to Color(0xFF7D6F40),
-    Color(0xFFD2D2DC) to Color(0xFF4F4F6D),
-    Color(0xFFD7D7D9) to Color(0xFF5C5C5C),
+    Color(0xFFD9E8F6) to Color(0xFF285476),
+    Color(0xFFD2ECEC) to Color(0xFF1C5A5A),
+    Color(0xFFF0E6C9) to Color(0xFF604E10),
+    Color(0xFFE3EACD) to Color(0xFF4C5618),
+    Color(0xFFE7E6E0) to Color(0xFF515049),
+    Color(0xFFDAEBE5) to Color(0xFF35584D),
+    Color(0xFFDBE9ED) to Color(0xFF325660),
 )
+
+/** Verdele de prim ajutor (ISO 3864), doar pentru punctul medical. */
+private val MedicalZone = Color(0xFFCCF2D2) to Color(0xFF1C5F31)
 
 private val LightColors = AppColors(
     dark = false,

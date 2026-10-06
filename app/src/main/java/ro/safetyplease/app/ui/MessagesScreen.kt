@@ -38,7 +38,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.pluralStringResource
@@ -144,8 +143,7 @@ fun MeButton(name: String, onClick: () -> Unit) {
 }
 
 /**
- * Filtrul de deasupra listei, ca pastilele din Nixtio: „Toate” si „Necitite”. Pastila aleasa e salvie noaptea;
- * ziua e verde de padure, fiindca salvia pe alb abia se vede.
+ * Filtrul de deasupra listei, ca pastilele din Nixtio: „Toate” si „Necitite”, cea aleasa in culoarea de selectie.
  */
 @Composable
 private fun FilterPills(unreadOnly: Boolean, unreadCount: Int, onSelect: (Boolean) -> Unit, modifier: Modifier = Modifier) {
@@ -159,16 +157,8 @@ private fun FilterPills(unreadOnly: Boolean, unreadCount: Int, onSelect: (Boolea
 @Composable
 private fun FilterPill(text: String, selected: Boolean, onClick: () -> Unit) {
     val colors = AppTheme.colors
-    val fill = when {
-        !selected -> colors.fill
-        colors.dark -> colors.sage
-        else -> colors.brandDeep
-    }
-    val ink = when {
-        !selected -> colors.label
-        colors.dark -> colors.background
-        else -> Color.White
-    }
+    val fill = if (selected) colors.selection else colors.fill
+    val ink = if (selected) colors.onSelection else colors.label
     // pastila se vede de 36, dar se atinge pe 48
     Box(
         Modifier.heightIn(min = TouchTarget).selectable(selected, role = Role.Tab, onClick = onClick),

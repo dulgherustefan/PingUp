@@ -90,12 +90,12 @@ fun categoryIcon(category: Int): ImageVector = when (category) {
     else -> Sym.MoreHoriz
 }
 
-/** O categorie de raport: buton jos, iconita verde in stanga si numele; ales, se umple cu verde. */
+/** O categorie de raport: buton jos, iconita verde in stanga si numele; aleasa, ia culoarea de selectie, nu verdele butonului Trimite. */
 @Composable
 private fun CategoryChip(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
-    val fill by animateColorAsState(if (selected) colors.accent else colors.cell, tween(Motion.QUICK), label = "chip")
-    val ink = if (selected) colors.onAccent else colors.label
+    val fill by animateColorAsState(if (selected) colors.selection else colors.cell, tween(Motion.QUICK), label = "chip")
+    val ink = if (selected) colors.onSelection else colors.label
     val press = remember { MutableInteractionSource() }
     Row(
         modifier.pressScale(press, 0.97f).heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).background(fill)

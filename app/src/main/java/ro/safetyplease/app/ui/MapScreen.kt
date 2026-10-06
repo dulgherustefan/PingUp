@@ -174,7 +174,7 @@ fun VenueMap(
             }
 
             venue.zones.forEachIndexed { index, zone ->
-                val fill = if (compact && zone.id != highlightZone) colors.cell else colors.zones[index % colors.zones.size]
+                val fill = if (compact && zone.id != highlightZone) colors.cell else colors.zoneFill(index, zone.id)
                 drawPath(paths[index], fill)
                 drawPath(paths[index], colors.cell, style = Stroke((if (compact) 1.dp else 2.dp).toPx(), join = StrokeJoin.Round))
             }
@@ -182,7 +182,7 @@ fun VenueMap(
             if (!compact) {
                 val highlighted = venue.zones.indexOfFirst { it.id == highlightZone && it.id != myZone }
                 if (highlighted >= 0) {
-                    drawPath(paths[highlighted], colors.zoneInk[highlighted % colors.zoneInk.size], style = Stroke(2.dp.toPx(), join = StrokeJoin.Round))
+                    drawPath(paths[highlighted], colors.zoneInk(highlighted, highlightZone), style = Stroke(2.dp.toPx(), join = StrokeJoin.Round))
                 }
             }
             val mine = venue.zones.indexOfFirst { it.id == myZone }
@@ -193,7 +193,7 @@ fun VenueMap(
                     val xs = zone.polygon.map { projection.project(it).x }
                     val width = (xs.max() - xs.min() - 8.dp.toPx()).toInt().coerceAtLeast(1)
                     val text = measurer.measure(
-                        zone.name, labelStyle.copy(color = colors.zoneInk[index % colors.zoneInk.size]), overflow = TextOverflow.Ellipsis, maxLines = 2,
+                        zone.name, labelStyle.copy(color = colors.zoneInk(index, zone.id)), overflow = TextOverflow.Ellipsis, maxLines = 2,
                         constraints = Constraints(maxWidth = width),
                     )
                     val center = projection.project(zone.center)
@@ -373,7 +373,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                                     tapped == myZoneId -> stringResource(R.string.map_your_zone) + " · " + stringResource(R.string.map_source_manual)
                                     else -> stringResource(R.string.map_zone_tag)
                                 },
-                                leading = { if (zone != null) ZoneBadge(index, zone.name) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },
+                                leading = { if (zone != null) ZoneBadge(index, zone.id, zone.name) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },
                                 trailing = if (here == null && tapped != myZoneId) {
                                     { AppButton(stringResource(R.string.map_set_zone), { setMine(tapped) }, compact = true) }
                                 } else null,
@@ -430,7 +430,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                                     scope.launch { listState.animateScrollToItem(0) }
                                 }
                             },
-                            leading = { ZoneBadge(index, zone.name) },
+                            leading = { ZoneBadge(index, zone.id, zone.name) },
                             trailing = if (mine) {
                                 { Icon(Sym.Check, null, Modifier.size(20.dp), tint = colors.accent) }
                             } else null,
@@ -445,14 +445,14 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
 
 /** Cercul unei zone, in culoarea ei de pe harta, cu initialele in nuanta inchisa, ca bula unui om. */
 @Composable
-private fun ZoneBadge(index: Int, name: String) {
+private fun ZoneBadge(index: Int, id: String, name: String) {
     val colors = AppTheme.colors
     val size = 36.dp
     // literele tin de marimea cercului, ca la Avatar
     val fontSize = with(LocalDensity.current) { (size * 0.42f).toSp() }
-    Box(Modifier.size(size).clip(CircleShape).background(colors.zones[index % colors.zones.size]), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size).clip(CircleShape).background(colors.zoneFill(index, id)), contentAlignment = Alignment.Center) {
         Text(
-            initials(name), color = colors.zoneInk[index % colors.zoneInk.size], maxLines = 1,
+            initials(name), color = colors.zoneInk(index, id), maxLines = 1,
             style = MaterialTheme.typography.subheadline.copy(fontSize = fontSize, lineHeight = fontSize, fontWeight = FontWeight.Medium),
         )
     }
@@ -496,7 +496,7 @@ fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
                 GroupRow(
                     if (zoneName.isEmpty()) stringResource(R.string.zone_unknown) else zoneName,
                     subtitle = detail,
-                    leading = { if (index >= 0) ZoneBadge(index, zoneName) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },
+                    leading = { if (index >= 0) ZoneBadge(index, pin.zone, zoneName) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },
                 )
             }
         }
