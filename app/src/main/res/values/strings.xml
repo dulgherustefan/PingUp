@@ -4,7 +4,6 @@
     <string name="back">Înapoi</string>
     <string name="more_options">Mai multe opțiuni</string>
     <string name="open_settings">Deschide setările</string>
-    <string name="settings_title">Setări</string>
     <string name="next">Continuă</string>
     <string name="done">Gata</string>
     <string name="cancel">Renunță</string>
@@ -119,7 +118,6 @@
     <string name="chat_send_zone">Trimite zona mea</string>
     <string name="chat_quick">Mesaje rapide</string>
     <string name="chat_empty_text">Mesajele ajung din telefon în telefon, chiar și fără semnal.</string>
-    <string name="quick_my_zone">Zona mea</string>
     <string name="quick_where">Unde ești?</string>
     <string name="quick_coming">Vin</string>
     <string name="quick_battery">Am baterie puțină</string>
@@ -263,9 +261,7 @@
     <string name="me_open">Profilul tău</string>
     <string name="me_edit_name">Schimbă numele</string>
     <string name="me_note">Așa te văd prietenii</string>
-    <string name="me_my_code">Codul meu</string>
     <string name="me_my_code_label">Arată-l prietenilor ca să te adauge</string>
-    <string name="role_participant">Participant</string>
     <string name="role_staff">Staff · %1$s</string>
     <string name="role_anchor">Ancoră · %1$s</string>
     <string name="me_staff_code">Am un cod de staff</string>
@@ -312,7 +308,6 @@
     <string name="open_zone">Vezi pe hartă</string>
     <string name="location_open_settings">Permite locația din setări</string>
     <string name="location_precise_needed">Ai permis doar locația aproximativă. Pentru zona ta e nevoie de locația precisă.</string>
-    <string name="app_tagline">Mesaje care sar din telefon în telefon</string>
     <string name="incidents_filter_empty">Niciun incident aici</string>
     <string name="report_active">Raportul tău</string>
     <string name="delete">Șterge</string>
