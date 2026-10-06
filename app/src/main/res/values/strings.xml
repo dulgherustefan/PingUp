@@ -181,6 +181,8 @@
     <string name="report_title">Ce se întâmplă?</string>
     <string name="report_mine">Rapoartele mele</string>
     <string name="report_details">Detalii (opțional)</string>
+    <string name="report_add_details">Adaugă detalii</string>
+    <string name="report_named">Cu numele tău</string>
     <string name="report_urgent">Urgent</string>
     <string name="report_urgent_label">Staff-ul îl vede primul</string>
     <string name="report_zone">Zona</string>

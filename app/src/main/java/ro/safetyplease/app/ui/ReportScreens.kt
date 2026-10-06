@@ -116,8 +116,9 @@ private fun CategoryChip(icon: ImageVector, label: String, selected: Boolean, on
 private const val ACTIVE_REPORT_MS = 2 * 60 * 60_000L
 
 /**
- * Tabul Raporteaza: raportul tau inca deschis, daca ai unul, apoi „Ce se intampla?” si o grila de categorii,
- * apoi detaliile optionale intr-un grup ca in setarile iOS.
+ * Tabul Raporteaza: raportul tau inca deschis, daca ai unul, apoi „Ce se intampla?” si o grila de categorii.
+ * Detaliile apar abia dupa ce alegi categoria, stranse intr-un rand care arata ce e setat (urgent, anonim, zona):
+ * cele mai multe rapoarte pleaca din doua atingeri, iar cine vrea sa adauge ceva il deschide.
  * Butonul de trimis pluteste deasupra barei de taburi si urca deasupra tastaturii cat scrii descrierea.
  */
 @Composable
@@ -133,6 +134,8 @@ fun ReportScreen(vm: AppViewModel) {
     var urgentChosen by rememberSaveable { mutableStateOf(false) }
     var description by rememberSaveable { mutableStateOf("") }
     var anonymous by rememberSaveable { mutableStateOf(true) }
+    // detaliile stau stranse intr-un rand care spune ce e setat; cine are ce adauga il deschide
+    var showDetails by rememberSaveable { mutableStateOf(false) }
     var pickZone by remember { mutableStateOf(false) }
     val autoZone = position?.let { vm.venue.zoneAt(it.lat, it.lon) }
     // null cat timp zona urmeaza GPS-ul; odata aleasa de utilizator, un fix nou nu o mai schimba
@@ -221,40 +224,55 @@ fun ReportScreen(vm: AppViewModel) {
                     )
                 }
 
-                SectionTitle(stringResource(R.string.report_details))
-                InsetGroup {
-                    SwitchRow(
-                        stringResource(R.string.report_urgent), urgent,
-                        {
-                            urgent = it
-                            urgentChosen = true
-                        },
-                        subtitle = stringResource(R.string.report_urgent_label), icon = Sym.Priority,
-                    )
-                    GroupDivider()
-                    GroupRow(
-                        stringResource(R.string.report_zone),
-                        subtitle = when {
-                            zone.isNotEmpty() -> if (autoZone?.id == zone) stringResource(R.string.map_source_gps).replaceFirstChar { it.uppercase() } else null
-                            // avem fix GPS, dar in afara zonelor: pozitia pleaca oricum cu raportul
-                            position != null -> stringResource(R.string.report_zone_outside)
-                            else -> stringResource(R.string.report_zone_manual)
-                        },
-                        value = if (zone.isNotEmpty()) vm.venue.zoneName(zone) else null,
-                        icon = Sym.Place, chevron = true, onClick = { pickZone = true },
-                    )
-                    GroupDivider()
-                    SwitchRow(
-                        stringResource(R.string.report_anonymous), anonymous, { anonymous = it },
-                        subtitle = stringResource(if (anonymous) R.string.report_anonymous_on else R.string.report_anonymous_off), icon = Sym.Hidden,
+                if (category != 0 && !showDetails) {
+                    val summary = listOf(
+                        stringResource(if (urgent) R.string.sev_urgent else R.string.sev_normal),
+                        stringResource(if (anonymous) R.string.report_anonymous else R.string.report_named),
+                        if (zone.isNotEmpty()) vm.venue.zoneName(zone) else stringResource(R.string.report_zone_none),
+                    ).joinToString(" · ")
+                    InsetGroup(Modifier.padding(top = 20.dp)) {
+                        GroupRow(
+                            stringResource(R.string.report_add_details), subtitle = summary, icon = Sym.Notes,
+                            chevron = true, onClick = { showDetails = true },
+                        )
+                    }
+                }
+                if (category != 0 && showDetails) {
+                    SectionTitle(stringResource(R.string.report_details))
+                    InsetGroup {
+                        SwitchRow(
+                            stringResource(R.string.report_urgent), urgent,
+                            {
+                                urgent = it
+                                urgentChosen = true
+                            },
+                            subtitle = stringResource(R.string.report_urgent_label), icon = Sym.Priority,
+                        )
+                        GroupDivider()
+                        GroupRow(
+                            stringResource(R.string.report_zone),
+                            subtitle = when {
+                                zone.isNotEmpty() -> if (autoZone?.id == zone) stringResource(R.string.map_source_gps).replaceFirstChar { it.uppercase() } else null
+                                // avem fix GPS, dar in afara zonelor: pozitia pleaca oricum cu raportul
+                                position != null -> stringResource(R.string.report_zone_outside)
+                                else -> stringResource(R.string.report_zone_manual)
+                            },
+                            value = if (zone.isNotEmpty()) vm.venue.zoneName(zone) else null,
+                            icon = Sym.Place, chevron = true, onClick = { pickZone = true },
+                        )
+                        GroupDivider()
+                        SwitchRow(
+                            stringResource(R.string.report_anonymous), anonymous, { anonymous = it },
+                            subtitle = stringResource(if (anonymous) R.string.report_anonymous_on else R.string.report_anonymous_off), icon = Sym.Hidden,
+                        )
+                    }
+                    InputField(
+                        description, { description = it.take(Limits.DESCRIPTION_CHARS) }, stringResource(R.string.report_description),
+                        Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 20.dp), maxLines = 4,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        supporting = "${description.length}/${Limits.DESCRIPTION_CHARS}", background = colors.cell,
                     )
                 }
-                InputField(
-                    description, { description = it.take(Limits.DESCRIPTION_CHARS) }, stringResource(R.string.report_description),
-                    Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 20.dp), maxLines = 4,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    supporting = "${description.length}/${Limits.DESCRIPTION_CHARS}", background = colors.cell,
-                )
             }
         }
 
@@ -277,6 +295,7 @@ fun ReportScreen(vm: AppViewModel) {
                         description = ""
                         urgentChosen = false
                         urgent = false
+                        showDetails = false
                         vm.open(Dest.ReportSent(id))
                     }
                 },
