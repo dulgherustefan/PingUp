@@ -34,14 +34,12 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -294,28 +292,15 @@ fun AddFriendScreen(vm: AppViewModel) {
         ) {
             SegmentedControl(
                 listOf(0 to stringResource(R.string.add_friend_tab_code), 1 to stringResource(R.string.add_friend_tab_scan)),
-                tab, { tab = it }, Modifier.padding(top = 8.dp),
+                tab,
+                {
+                    tab = it
+                    outcome = null
+                    lastText = ""
+                },
+                Modifier.padding(top = 8.dp),
             )
-            if (tab == 0) {
-                QrBadge(code, settings.nickname, { bigCode = true }, Modifier.padding(top = 24.dp))
-                Text(
-                    stringResource(R.string.add_friend_mine_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
-                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = CardWidth).padding(top = 16.dp),
-                )
-                Row(
-                    Modifier.widthIn(max = CardWidth).fillMaxWidth().height(IntrinsicSize.Min).padding(top = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    ActionTile(
-                        Sym.QrScan, stringResource(R.string.add_friend_tab_scan), { tab = 1 },
-                        Modifier.weight(1f).fillMaxHeight(), background = colors.cell,
-                    )
-                    ActionTile(
-                        Sym.Copy, stringResource(R.string.add_friend_text_link), { sheet = true },
-                        Modifier.weight(1f).fillMaxHeight(), background = colors.cell,
-                    )
-                }
-            } else if (success != null) {
+            if (success != null) {
                 Icon(Sym.CheckCircle, null, Modifier.padding(top = 48.dp).size(64.dp), tint = colors.accent)
                 Text(
                     when (success) {
@@ -330,20 +315,30 @@ fun AddFriendScreen(vm: AppViewModel) {
                     Modifier.widthIn(max = CardWidth).fillMaxWidth().padding(top = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    // prietenia merge in ambele sensuri: dupa ce l-ai scanat, el trebuie sa te scaneze pe tine
+                    if (success is ScanOutcome.FriendAdded) {
+                        AppButton(stringResource(R.string.add_friend_show_mine), {
+                            outcome = null
+                            lastText = ""
+                            tab = 0
+                        }, Modifier.fillMaxWidth())
+                    }
                     AppButton(stringResource(R.string.done), {
                         when (success) {
                             ScanOutcome.StaffOn -> vm.home(Tab.INCIDENTS)
                             ScanOutcome.AnchorOn -> vm.stack.clear()
                             else -> vm.back()
                         }
-                    }, Modifier.fillMaxWidth())
-                    if (success is ScanOutcome.FriendAdded) {
-                        AppButton(stringResource(R.string.add_friend_again), {
-                            outcome = null
-                            lastText = ""
-                        }, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary)
-                    }
+                    }, Modifier.fillMaxWidth(), kind = if (success is ScanOutcome.FriendAdded) ButtonKind.Secondary else ButtonKind.Primary)
                 }
+            } else if (tab == 0) {
+                QrBadge(code, settings.nickname, { bigCode = true }, Modifier.padding(top = 24.dp))
+                Text(
+                    stringResource(R.string.add_friend_mine_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = CardWidth).padding(top = 16.dp),
+                )
+                // scanarea are tabul ei sus; aici ramane doar varianta pentru cand camera nu merge
+                TextLink(stringResource(R.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
             } else {
                 if (granted) {
                     Box(
@@ -385,7 +380,6 @@ fun AddFriendScreen(vm: AppViewModel) {
             myCode = code,
             onUse = {
                 sheet = false
-                tab = 1
                 handle(it)
             },
             onDismiss = { sheet = false },

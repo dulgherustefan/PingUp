@@ -148,7 +148,7 @@
     <string name="add_friend_no_camera">Fără acces la cameră poți folosi codul ca text.</string>
     <string name="add_friend_allow_camera">Dă acces la cameră</string>
     <string name="add_friend_done">%1$s e în lista ta. Acum arată-i codul tău, ca să te poată scana.</string>
-    <string name="add_friend_again">Scanează alt cod</string>
+    <string name="add_friend_show_mine">Arată-i codul tău</string>
     <string name="add_friend_text_link">Folosește codul ca text</string>
     <string name="code_sheet_mine">Codul tău</string>
     <string name="code_sheet_copy">Copiază codul</string>
