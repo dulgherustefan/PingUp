@@ -187,29 +187,6 @@ val GlassSize = 38.dp
 /** Locul de atins al oricarui buton, cat cere Android: 48 dp, chiar daca cercul vizibil e mai mic. */
 val TouchTarget = 48.dp
 
-/**
- * O capsula de sticla cu mai multe iconite, ca grupul camera + scrie din Signal. Sticla se vede de 38, ca butoanele
- * rotunde de langa ea, dar randul are 48, ca fiecare iconita sa se atinga pe 48.
- */
-@Composable
-fun GlassCapsule(backdrop: Backdrop?, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
-    Box(modifier.height(TouchTarget), contentAlignment = Alignment.Center) {
-        Box(Modifier.matchParentSize().padding(vertical = (TouchTarget - GlassSize) / 2).glass(backdrop, CircleShape))
-        Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, content = content)
-    }
-}
-
-/** O iconita dintr-o capsula de sticla. */
-@Composable
-fun CapsuleIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
-    val press = remember { MutableInteractionSource() }
-    Box(
-        Modifier.size(TouchTarget).clip(CircleShape).clickable(press, indication = null, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) { Icon(icon, null, Modifier.size(19.dp).pressScale(press, 0.85f), tint = AppTheme.colors.label) }
-}
-
 /** Textul din bara de sus creste cu setarile telefonului doar pana la 115%, ca pe iPhone: altfel nu mai incape in bara. */
 @Composable
 fun NavText(content: @Composable () -> Unit) {

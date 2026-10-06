@@ -20,7 +20,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,7 +47,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -78,7 +76,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -171,7 +168,6 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     val items = remember(messages) { chatItems(messages) }
     var draft by rememberSaveable { mutableStateOf("") }
     var quick by rememberSaveable { mutableStateOf(false) }
-    var menu by remember { mutableStateOf(false) }
     var composerPx by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = items.lastIndex.coerceAtLeast(0))
     val backdrop = rememberBackdrop()
@@ -225,9 +221,13 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().backdropSource(backdrop).screenBackground(colors.background)) {
             if (messages.isEmpty()) {
-                EmptyState(
-                    stringResource(R.string.messages_no_messages), stringResource(R.string.chat_empty_text),
-                    Modifier.align(Alignment.Center), icon = Sym.Chat,
+                FirstMessage(
+                    title, near = friend != null && nearby.isInRange(friend.nodeId), group = group != null,
+                    onQuick = { code ->
+                        vm.sendQuick(conversation, code)
+                        haptics.confirm()
+                    },
+                    modifier = Modifier.align(Alignment.Center).padding(bottom = composerHeight),
                 )
             } else {
                 LazyColumn(
@@ -279,22 +279,6 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                     }
                 }
             }
-            Box {
-                GlassCapsule(backdrop) {
-                    CapsuleIcon(Sym.Place, stringResource(R.string.chat_send_zone)) { sendZone() }
-                    CapsuleIcon(Sym.More, stringResource(R.string.more_options)) { menu = true }
-                }
-                AppMenu(menu, { menu = false }) {
-                    MenuRow(stringResource(R.string.open_profile), {
-                        menu = false
-                        vm.open(Dest.Profile(conversation))
-                    }, icon = Sym.Person)
-                    MenuRow(stringResource(R.string.chat_send_zone), {
-                        menu = false
-                        sendZone()
-                    }, icon = Sym.Place)
-                }
-            }
         }
 
         Column(
@@ -309,10 +293,6 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
             ) {
                 QuickPanel(
                     backdrop,
-                    onZone = {
-                        sendZone()
-                        quick = false
-                    },
                     onQuick = { code ->
                         vm.sendQuick(conversation, code)
                         haptics.confirm()
@@ -417,21 +397,52 @@ private fun Composer(
     }
 }
 
-/** Mesajele rapide, intr-un card de sticla deasupra barei de scris: zona ta si frazele scurte. */
+/**
+ * Frazele scurte pe care le trimiti dintr-o atingere. Zona ta are butonul ei din campul de scris, iar „Am baterie
+ * putina” a iesit din lista: ce primesti de la altii se afiseaza in continuare.
+ */
+private val QuickPhrases = listOf(QuickCode.WHERE_ARE_YOU, QuickCode.COMING, QuickCode.MEET_AT_POINT)
+
+/** Mesajele rapide, intr-un card de sticla deasupra barei de scris. */
 @Composable
-private fun QuickPanel(backdrop: Backdrop, onZone: () -> Unit, onQuick: (Int) -> Unit) {
-    val icons = mapOf(
-        QuickCode.WHERE_ARE_YOU to Sym.Help, QuickCode.COMING to Sym.Walk, QuickCode.LOW_BATTERY to Sym.Battery, QuickCode.MEET_AT_POINT to Sym.Flag,
-    )
+private fun QuickPanel(backdrop: Backdrop, onQuick: (Int) -> Unit) {
+    val icons = mapOf(QuickCode.WHERE_ARE_YOU to Sym.Help, QuickCode.COMING to Sym.Walk, QuickCode.MEET_AT_POINT to Sym.Flag)
     Row(
-        Modifier.padding(horizontal = Gutter).fillMaxWidth().glass(backdrop, RoundedCornerShape(26.dp))
-            .horizontalScroll(rememberScrollState()).padding(10.dp).height(IntrinsicSize.Min),
+        Modifier.padding(horizontal = Gutter).fillMaxWidth().glass(backdrop, RoundedCornerShape(26.dp)).padding(10.dp).height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        val tile = Modifier.width(88.dp).fillMaxHeight()
-        ActionTile(Sym.Place, stringResource(R.string.quick_my_zone), onZone, tile)
-        for (code in QuickCode.all) {
-            ActionTile(icons[code] ?: Sym.Chat, stringResource(Labels.quick(code)), { onQuick(code) }, tile)
+        for (code in QuickPhrases) {
+            ActionTile(icons[code] ?: Sym.Chat, stringResource(Labels.quick(code)), { onQuick(code) }, Modifier.weight(1f).fillMaxHeight())
+        }
+    }
+}
+
+/**
+ * O conversatie fara mesaje, ca in Element X: bula prietenului mare, numele, o fraza despre cum ajung mesajele
+ * si frazele rapide, ca primul mesaj sa fie la o atingere distanta.
+ */
+@Composable
+private fun FirstMessage(title: String, near: Boolean, group: Boolean, onQuick: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val colors = AppTheme.colors
+    Column(modifier.padding(horizontal = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Avatar(title, 88.dp, near = near, group = group)
+        Text(
+            title, style = MaterialTheme.typography.title2, color = colors.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        Text(
+            stringResource(R.string.chat_empty_text), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+            textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp),
+        )
+        Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            for (code in QuickPhrases) {
+                Box(Modifier.heightIn(min = TouchTarget).clip(CircleShape).clickable(role = Role.Button) { onQuick(code) }, contentAlignment = Alignment.Center) {
+                    Text(
+                        stringResource(Labels.quick(code)), style = MaterialTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold),
+                        color = colors.label, modifier = Modifier.clip(CircleShape).background(colors.fill).padding(horizontal = 16.dp, vertical = 9.dp),
+                    )
+                }
+            }
         }
     }
 }
