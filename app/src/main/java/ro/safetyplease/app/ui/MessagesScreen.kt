@@ -3,8 +3,10 @@ package ro.safetyplease.app.ui
 import android.content.Intent
 import android.provider.Settings
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,12 +15,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.pluralStringResource
@@ -124,19 +130,54 @@ private fun NetworkPing(links: Int, gate: RadioGate) {
     )
 }
 
-/** Bula ta din stanga sus: deschide meniul cu setarile si filtrul, ca in Signal. */
+/** Bula ta din stanga sus, pe fiecare tab: deschide setarile, direct, fara meniu intermediar. */
 @Composable
-fun MeButton(name: String, content: @Composable () -> Unit = {}, onClick: () -> Unit) {
+fun MeButton(name: String, onClick: () -> Unit) {
     val label = stringResource(R.string.open_settings)
     val press = remember { MutableInteractionSource() }
-    Box {
-        Box(
-            Modifier.size(44.dp).clip(CircleShape)
-                .clickable(press, indication = null, onClickLabel = label, role = Role.Button, onClick = onClick)
-                .semantics { contentDescription = label },
-            contentAlignment = Alignment.Center,
-        ) { Box(Modifier.pressScale(press)) { Avatar(name, GlassSize) } }
-        content()
+    Box(
+        Modifier.size(TouchTarget).clip(CircleShape)
+            .clickable(press, indication = null, onClickLabel = label, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { Box(Modifier.pressScale(press)) { Avatar(name, GlassSize) } }
+}
+
+/**
+ * Filtrul de deasupra listei, ca pastilele din Nixtio: „Toate” si „Necitite”. Pastila aleasa e salvie noaptea;
+ * ziua e verde de padure, fiindca salvia pe alb abia se vede.
+ */
+@Composable
+private fun FilterPills(unreadOnly: Boolean, unreadCount: Int, onSelect: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val unreadLabel = stringResource(R.string.filter_unread)
+    Row(modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        FilterPill(stringResource(R.string.filter_all), !unreadOnly) { onSelect(false) }
+        FilterPill(if (unreadCount > 0) "$unreadLabel · $unreadCount" else unreadLabel, unreadOnly) { onSelect(true) }
+    }
+}
+
+@Composable
+private fun FilterPill(text: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    val fill = when {
+        !selected -> colors.fill
+        colors.dark -> colors.sage
+        else -> colors.brandDeep
+    }
+    val ink = when {
+        !selected -> colors.label
+        colors.dark -> colors.background
+        else -> Color.White
+    }
+    // pastila se vede de 36, dar se atinge pe 48
+    Box(
+        Modifier.heightIn(min = TouchTarget).selectable(selected, role = Role.Tab, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text, style = MaterialTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold), color = ink, maxLines = 1,
+            modifier = Modifier.clip(CircleShape).background(fill).padding(horizontal = 16.dp, vertical = 8.dp),
+        )
     }
 }
 
@@ -159,7 +200,6 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     var unreadOnly by rememberSaveable { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
-    var menu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
 
@@ -180,30 +220,7 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         subtitle = networkText(nearby.readyLinks, gate),
         subtitleLeading = { NetworkPing(nearby.readyLinks, gate) },
         scrolled = scrolled,
-        leading = {
-            MeButton(settings.nickname, content = {
-                AppMenu(menu, { menu = false }) {
-                    MenuRow(stringResource(R.string.settings_title), {
-                        menu = false
-                        vm.open(Dest.Me)
-                    }, icon = Sym.Settings)
-                    MenuRow(stringResource(if (unreadOnly) R.string.filter_clear else R.string.filter_unread_only), {
-                        menu = false
-                        unreadOnly = !unreadOnly
-                    }, icon = Sym.Notes)
-                    if (rows.any { it.unread > 0 }) {
-                        MenuRow(stringResource(R.string.mark_all_read), {
-                            menu = false
-                            rows.filter { it.unread > 0 }.forEach { vm.c.chat.markRead(it.id) }
-                        }, icon = Sym.ChatFill)
-                    }
-                    MenuRow(stringResource(R.string.menu_new_group), {
-                        menu = false
-                        vm.open(Dest.NewGroup)
-                    }, icon = Sym.Group)
-                }
-            }) { menu = true }
-        },
+        leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
         // un singur buton, ca in Mesajele de pe iPhone: „Mesaj nou” are si grupul nou si adaugarea unui prieten
         trailing = { backdrop -> GlassIconButton(Sym.Compose, stringResource(R.string.new_chat), { vm.open(Dest.NewChat) }, backdrop) },
     ) { padding ->
@@ -225,11 +242,14 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 }
             }
             item(key = "problem") { NetworkProblem(vm, nearby.radio, gate, settings.batteryHintDismissed, Modifier.padding(horizontal = Gutter, vertical = 6.dp)) }
-            if (unreadOnly) {
+            if (rows.isNotEmpty()) {
                 item(key = "filter") {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.filter_unread_active), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, modifier = Modifier.weight(1f))
-                        TextLink(stringResource(R.string.filter_clear), { unreadOnly = false })
+                    val unreadRows = rows.filter { it.unread > 0 }
+                    Row(Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter - 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        FilterPills(unreadOnly, unreadRows.size, { unreadOnly = it }, Modifier.weight(1f))
+                        if (unreadOnly && unreadRows.isNotEmpty()) {
+                            TextLink(stringResource(R.string.mark_all_read), { unreadRows.forEach { vm.c.chat.markRead(it.id) } })
+                        }
                     }
                 }
             }

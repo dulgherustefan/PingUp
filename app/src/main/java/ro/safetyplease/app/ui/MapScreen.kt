@@ -255,12 +255,13 @@ fun incidentPoint(venue: Venue, incident: StaffIncident): GeoPoint? {
 private enum class MapFocus { MINE, MEETING, ZONE }
 
 /**
- * Harta evenimentului, deschisa din Setari, din Incidente sau din chat, pe fundalul gri al setarilor iOS: harta intr-un
+ * Harta evenimentului, ca tab sau deschisa din chat, pe fundalul gri al setarilor iOS: harta intr-un
  * card, alegerea intre zona ta si punctul de intalnire, locul ales intr-un grup si, dedesubt, toate zonele.
  * O atingere pe harta sau pe o zona din lista o alege. Venita din chat, zona aleasa pleaca direct in conversatie.
+ * Ca tab ([asTab]), in stanga sus sta bula ta, ca pe celelalte taburi, nu sageata inapoi.
  */
 @Composable
-fun MapScreen(vm: AppViewModel, dest: Dest.Map) {
+fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
     val incidents by vm.incidents.collectAsStateWithLifecycle()
@@ -309,7 +310,10 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map) {
         title = stringResource(R.string.map_title),
         background = colors.grouped,
         scrolled = scrolled,
-        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        leading = { backdrop ->
+            if (asTab) MeButton(settings.nickname) { vm.open(Dest.Me) }
+            else GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop)
+        },
         trailing = { backdrop ->
             GlassIconButton(Sym.MyLocation, stringResource(R.string.map_my_zone), {
                 showMine()

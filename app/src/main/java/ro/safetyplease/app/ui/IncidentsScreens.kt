@@ -119,7 +119,6 @@ fun IncidentsScreen(vm: AppViewModel) {
         title = stringResource(R.string.tab_incidents),
         scrolled = scrolled,
         leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
-        trailing = { backdrop -> GlassIconButton(Sym.Map, stringResource(R.string.map_title), { vm.open(Dest.Map()) }, backdrop) },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
             if (clusters.isNotEmpty()) {

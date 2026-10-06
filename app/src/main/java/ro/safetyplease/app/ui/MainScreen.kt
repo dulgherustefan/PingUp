@@ -296,6 +296,8 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
     val items = buildList {
         add(TabItem(Tab.MESSAGES, R.string.tab_messages, Sym.ChatFill, unreadChats))
         add(TabItem(Tab.REPORT, R.string.tab_report, Sym.ReportFill))
+        // regasirea e motivul pentru care omul are aplicatia la festival, deci harta sta in bara, nu in setari
+        add(TabItem(Tab.MAP, R.string.map_title, Sym.MapFill))
         if (staff) add(TabItem(Tab.INCIDENTS, R.string.tab_incidents, Sym.BellFill, openIncidents))
     }
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -312,6 +314,7 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
                         when (tab) {
                             Tab.MESSAGES -> MessagesScreen(vm, onStartMesh)
                             Tab.REPORT -> ReportScreen(vm)
+                            Tab.MAP -> MapScreen(vm, Dest.Map(), asTab = true)
                             Tab.INCIDENTS -> IncidentsScreen(vm)
                         }
                     }

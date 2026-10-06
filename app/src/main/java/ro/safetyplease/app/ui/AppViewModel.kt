@@ -33,7 +33,7 @@ import ro.safetyplease.app.venue.GeoPoint
 import ro.safetyplease.app.venue.Venue
 import ro.safetyplease.app.venue.Zone
 
-enum class Tab { MESSAGES, REPORT, INCIDENTS }
+enum class Tab { MESSAGES, REPORT, MAP, INCIDENTS }
 
 sealed interface Dest {
     data class Conversation(val id: String) : Dest

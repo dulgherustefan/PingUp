@@ -184,6 +184,9 @@ fun GlassIconButton(icon: ImageVector, description: String, onClick: () -> Unit,
 /** Marimea vizibila a butoanelor de sticla din bara de sus. */
 val GlassSize = 38.dp
 
+/** Locul de atins al oricarui buton, cat cere Android: 48 dp, chiar daca cercul vizibil e mai mic. */
+val TouchTarget = 48.dp
+
 /** O capsula de sticla cu mai multe iconite, ca grupul camera + scrie din Signal. */
 @Composable
 fun GlassCapsule(backdrop: Backdrop?, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {

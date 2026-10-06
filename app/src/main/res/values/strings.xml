@@ -95,9 +95,7 @@
     <string name="onboarding_start">Pornește</string>
 
     <string name="filter_all">Toate</string>
-    <string name="filter_unread_only">Doar necitite</string>
-    <string name="filter_unread_active">Doar conversațiile necitite</string>
-    <string name="filter_clear">Arată toate</string>
+    <string name="filter_unread">Necitite</string>
     <string name="section_friends">Prieteni</string>
     <string name="messages_empty_title">Niciun prieten încă</string>
     <string name="messages_empty_text">Scanați-vă codurile ca să vă puteți scrie. Merge fără internet.</string>
