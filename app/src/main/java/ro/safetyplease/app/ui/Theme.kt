@@ -17,7 +17,6 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
@@ -208,7 +207,7 @@ private val LightColors = AppColors(
     brandDeep = Color(0xFF2B5E45),
     sage = Color(0xFFD3D8B2),
     onAccent = Color.White,
-    glow = Color(0xFFD8E5C3),
+    glow = Color(0xFFF5F7ED),
     names = listOf(
         0xFF006DA3, 0xFF067906, 0xFFB814B8, 0xFFC13215, 0xFF5B6976, 0xFFCC0066, 0xFF2E51FF, 0xFF007575,
         0xFF9C5711, 0xFFD00B4D, 0xFF8F2AF4, 0xFF3D7406, 0xFFD00B0B, 0xFF007A3D, 0xFF5151F6, 0xFF866118,
@@ -249,7 +248,7 @@ private val DarkColors = AppColors(
     brandDeep = Color(0xFF2B5E45),
     sage = Color(0xFFD3D8B2),
     onAccent = Night.background,
-    glow = Color(0xFF2F3A31),
+    glow = Color(0xFF151B16),
     names = listOf(
         0xFF00A7FA, 0xFF0AB80A, 0xFFF65AF6, 0xFFFF6F52, 0xFF8BA1B6, 0xFFF76EB2, 0xFF8599FF, 0xFF00B2B2,
         0xFFD5920B, 0xFFFF6B9C, 0xFFBF80FF, 0xFF5EB309, 0xFFFF7070, 0xFF00B85C, 0xFF9494FF, 0xFFD68F00,
@@ -265,14 +264,15 @@ private object Night {
 val LocalAppColors = staticCompositionLocalOf { LightColors }
 
 /**
- * Fundalul ecranelor: culoarea de baza, cu o lumina moale care cade de sus, din afara ecranului, cum cade
- * reflectorul pe pin in iconita. Se stinge sub bara de sus, ca listele, cautarea si cardurile sa stea pe fundalul
- * plin. Depinde doar de latime, ca bara de sus sa o poata repeta exact.
+ * Fundalul ecranelor: culoarea de baza, cu o nuanta de salvie abia vizibila sus, care se stinge pana la primul rand.
+ * Liniara si slaba (cu 0,04 mai luminoasa in OKLCH): un halou radial pe fundal e unul dintre semnele interfetelor
+ * generate (impeccable.style/slop), iar WhatsApp, Signal si bitchat au fundal plat. Depinde doar de latime,
+ * ca bara de sus sa o poata repeta exact.
  */
 fun screenGlow(width: Float, base: Color, glow: Color): Brush =
-    Brush.radialGradient(0f to glow, 1f to base, center = Offset(width / 2f, -width * 0.3f), radius = width * 0.7f)
+    Brush.verticalGradient(0f to glow, 1f to base, startY = 0f, endY = width * 0.6f)
 
-/** Fundalul unui ecran intreg, cu lumina de sus. */
+/** Fundalul unui ecran intreg, cu nuanta de sus. */
 @Composable
 fun Modifier.screenBackground(base: Color): Modifier {
     val glow = AppTheme.colors.glow

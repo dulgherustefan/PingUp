@@ -3,6 +3,9 @@ package ro.safetyplease.app.ui
 import android.content.Intent
 import android.provider.Settings
 import androidx.annotation.StringRes
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -94,32 +97,35 @@ fun presenceText(friend: Friend, nearby: Nearby, now: Long): String = when {
     else -> stringResource(R.string.presence_never)
 }
 
-/** Starea retelei, scrisa sub titlul ecranului: cu cate telefoane esti legat acum. */
+/**
+ * Starea retelei, sub titlu: un fapt, nu o activitate, ca „Waiting for network…” din Telegram si contorul din bitchat.
+ * „Caut…” ramanea pe ecran ore intregi, desi radioul cauta oricum mereu.
+ */
 @Composable
 fun networkText(links: Int, gate: RadioGate): String {
     return when {
         !gate.hasAccess -> stringResource(R.string.status_no_access)
         !gate.bluetoothOn -> stringResource(R.string.status_bt_off)
-        links == 0 -> stringResource(R.string.net_searching)
-        else -> pluralStringResource(R.plurals.connected_phones, links, links)
+        links == 0 -> stringResource(R.string.net_none)
+        else -> pluralStringResource(R.plurals.phones_around, links, links)
     }
 }
 
-/** Punctul din fata starii retelei: verde si cu ping cand esti legat, gri si cu ping cat cauta, rosu cand radioul nu merge. */
+/**
+ * Punctul din fata starii retelei: verde cand ai telefoane in jur, gri fara, rosu cand radioul nu merge.
+ * Sta pe loc; un punct care pulseaza trage privirea si cand nu se schimba nimic (NN/g, animatia ca feedback).
+ * Se misca doar culoarea, cand se schimba starea, lent ca in bitchat, ca sa nu clipeasca la fiecare telefon care trece.
+ */
 @Composable
-private fun NetworkPing(links: Int, gate: RadioGate) {
+private fun NetworkDot(links: Int, gate: RadioGate) {
     val colors = AppTheme.colors
-    val working = gate.hasAccess && gate.bluetoothOn
-    PingDot(
-        color = when {
-            !working -> colors.red
-            links > 0 -> colors.brand
-            else -> colors.secondaryLabel
-        },
-        active = working,
-        size = 7.dp,
-        modifier = Modifier.padding(end = 2.dp),
-    )
+    val target = when {
+        !gate.hasAccess || !gate.bluetoothOn -> colors.red
+        links > 0 -> colors.brand
+        else -> colors.tertiaryLabel
+    }
+    val color by animateColorAsState(target, if (LocalReduceMotion.current) snap() else tween(480), label = "net")
+    Box(Modifier.padding(end = 6.dp).size(7.dp).background(color, CircleShape))
 }
 
 /** Bula ta din stanga sus, pe fiecare tab: deschide ecranul tau (codul si setarile), direct, fara meniu intermediar. */
@@ -183,7 +189,7 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         NavScreen(
             title = stringResource(R.string.tab_messages),
             subtitle = networkText(nearby.readyLinks, gate),
-            subtitleLeading = { NetworkPing(nearby.readyLinks, gate) },
+            subtitleLeading = { NetworkDot(nearby.readyLinks, gate) },
             scrolled = scrolled,
             leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
             trailing = { backdrop ->

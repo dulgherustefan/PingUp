@@ -23,11 +23,11 @@
     <string name="status_bt_off">Bluetooth e oprit</string>
     <string name="status_bt_enable">Pornește</string>
     <string name="status_no_access">Aplicația nu are acces la Bluetooth</string>
-    <string name="net_searching">Caut telefoane în apropiere</string>
-    <plurals name="connected_phones">
-        <item quantity="one">Conectat la un telefon</item>
-        <item quantity="few">Conectat la %d telefoane</item>
-        <item quantity="other">Conectat la %d de telefoane</item>
+    <string name="net_none">Niciun telefon în jur</string>
+    <plurals name="phones_around">
+        <item quantity="one">Un telefon în jur</item>
+        <item quantity="few">%d telefoane în jur</item>
+        <item quantity="other">%d de telefoane în jur</item>
     </plurals>
     <string name="hop_direct">din apropiere</string>
     <plurals name="via_phones">

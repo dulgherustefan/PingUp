@@ -1,7 +1,6 @@
 package ro.safetyplease.app.ui
 
 import androidx.compose.animation.core.EaseInOutSine
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -33,7 +32,6 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 
 // Desenul vine din logo (SVG pe 512): pinul in coordonatele lui, asezat in placa de 512 ca in iconita.
 private const val PIN = "M124 196A132 132 0 1 1 388 196C388 286 318 352 274 410Q256 434 238 410C194 352 124 286 124 196Z"
@@ -153,25 +151,5 @@ fun AppLogo(size: Dp, modifier: Modifier = Modifier) {
                 inTile(lift) { drawPin() }
             }
         }
-    }
-}
-
-/**
- * Punctul de langa starea retelei: cand suntem legati, din el pleaca un inel ca un ping de sonar.
- * Fara legaturi sta pe loc, in culoarea primita.
- */
-@Composable
-fun PingDot(color: Color, active: Boolean, modifier: Modifier = Modifier, size: Dp = 8.dp) {
-    val reduce = LocalReduceMotion.current
-    val wave = if (active && !reduce) {
-        val transition = rememberInfiniteTransition(label = "ping")
-        val t by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing)), label = "wave")
-        t
-    } else 0f
-    Canvas(modifier.size(size * 3)) {
-        val r = size.toPx() / 2
-        val c = center
-        if (active && !reduce) drawCircle(color.copy(alpha = 0.45f * (1f - wave)), r * (1f + 2f * wave), c)
-        drawCircle(color, r, c)
     }
 }
