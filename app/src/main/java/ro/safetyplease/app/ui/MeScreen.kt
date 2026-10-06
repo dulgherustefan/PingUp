@@ -117,7 +117,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 if (settings.role == AppRole.PARTICIPANT) {
                     GroupRow(stringResource(R.string.me_staff_code), icon = Sym.QrScan, chevron = true, onClick = { vm.open(Dest.AddFriend) })
                 } else {
-                    GroupRow(stringResource(R.string.me_leave_staff), icon = Sym.Logout, tint = colors.red, onClick = { confirmLeave = true })
+                    GroupRow(stringResource(R.string.me_leave_staff), icon = Sym.Logout, tint = colors.redInk, onClick = { confirmLeave = true })
                 }
             }
 

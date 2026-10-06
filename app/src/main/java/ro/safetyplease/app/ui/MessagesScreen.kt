@@ -95,7 +95,6 @@ fun messageStateLabel(status: MsgStatus): Int = when (status) {
 
 @Composable
 fun presenceText(friend: Friend, nearby: Nearby, now: Long): String = when {
-    nearby.isLinked(friend.nodeId) -> stringResource(R.string.presence_near) + " · " + stringResource(R.string.hop_direct)
     nearby.isInRange(friend.nodeId) -> stringResource(R.string.presence_near)
     friend.lastSeenAt > 0 -> stringResource(R.string.presence_seen, agoText(friend.lastSeenAt, now)) + " · " + hopsText(friend.lastHops)
     else -> stringResource(R.string.presence_never)

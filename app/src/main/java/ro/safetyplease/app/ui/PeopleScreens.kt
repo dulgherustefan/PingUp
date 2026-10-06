@@ -372,7 +372,7 @@ fun AddFriendScreen(vm: AppViewModel) {
                                 else -> R.string.scan_unknown
                             }
                         ),
-                        Modifier.padding(top = 12.dp), icon = Sym.Info, color = colors.red,
+                        Modifier.padding(top = 12.dp), icon = Sym.Info, color = colors.redInk,
                     )
                 }
                 TextLink(stringResource(R.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
@@ -725,7 +725,7 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
             InsetGroup(Modifier.padding(top = 24.dp)) {
                 GroupRow(
                     stringResource(if (friend != null) R.string.profile_remove_friend else R.string.profile_leave_group),
-                    icon = if (friend != null) Sym.Delete else Sym.Logout, tint = colors.red, onClick = { confirm = true },
+                    icon = if (friend != null) Sym.Delete else Sym.Logout, tint = colors.redInk, onClick = { confirm = true },
                 )
             }
         }

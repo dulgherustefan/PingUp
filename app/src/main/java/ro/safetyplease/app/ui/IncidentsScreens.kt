@@ -41,7 +41,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -141,7 +144,7 @@ fun IncidentsScreen(vm: AppViewModel) {
 
 /**
  * Randul unui incident: cercul de 44 cu categoria (rosu cat timp o urgenta nu e preluata), categoria si starea
- * pe primul rand, locul, vechimea si drumul pe al doilea, apoi descrierea pe cel mult doua randuri.
+ * pe primul rand, „Urgent”, locul, vechimea si drumul pe al doilea, apoi descrierea pe cel mult doua randuri.
  */
 @Composable
 private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, now: Long, modifier: Modifier = Modifier) {
@@ -176,8 +179,17 @@ private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, now: Long, mo
                     color = statusColor, maxLines = 1,
                 )
             }
+            // urgenta se scrie, nu doar se coloreaza: cercul rosu singur nu ajunge la cine nu deosebeste culorile
+            val urgent = stringResource(R.string.sev_urgent)
+            val details = listOf(place, agoText(cluster.latestAt, now), hopsText(lead.hops)).joinToString(" · ")
             Text(
-                listOf(place, agoText(cluster.latestAt, now), hopsText(lead.hops)).joinToString(" · "),
+                buildAnnotatedString {
+                    if (cluster.severity == Severity.URGENT) {
+                        withStyle(SpanStyle(color = colors.redInk, fontWeight = FontWeight.SemiBold)) { append(urgent) }
+                        append(" · ")
+                    }
+                    append(details)
+                },
                 style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp),
             )
@@ -192,8 +204,8 @@ private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, now: Long, mo
 }
 
 /**
- * Un incident, ca pagina unui contact din Signal: categoria mare sus, cu starea sub nume, actiunile staff-ului
- * in doua placi, harta cu rapoartele, apoi rapoartele intr-un grup. Numele categoriei apare in bara abia cand antetul iese din ecran.
+ * Un incident, ca pagina unui contact din Signal: categoria mare sus, cu starea sub nume, pasul urmator al
+ * staff-ului intr-un singur buton, harta cu rapoartele, apoi rapoartele intr-un grup. Numele categoriei apare in bara abia cand antetul iese din ecran.
  */
 @Composable
 fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
@@ -256,27 +268,25 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 Modifier.onSizeChanged { headerPx = it.height },
                 status = { StaffStatus(cluster.status, cluster.incidents.firstOrNull { it.status == cluster.status }?.teamName.orEmpty()) },
             )
-            // a doua atingere pe o actiune deja facuta nu mai trimite nimic; o alerta anulata nu mai are ce prelua
-            if (cluster.status != AckStatus.CANCELLED) Row(Modifier.fillMaxWidth().padding(horizontal = Gutter), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ActionTile(
-                    Sym.Check, stringResource(R.string.incident_take),
+            // un singur pas inainte, ca staff-ul sa nu inchida un caz pe care nu l-a preluat nimeni:
+            // intai Preiau, apoi Marcheaza rezolvat; rezolvat sau anulat, butonul dispare si ramane starea din antet
+            when {
+                cluster.status == AckStatus.CANCELLED -> Unit
+                canTake -> AppButton(
+                    stringResource(R.string.incident_take),
                     {
-                        if (canTake) {
-                            cluster.incidents.filter { it.status < AckStatus.ACKNOWLEDGED }.forEach { vm.acknowledge(it.incidentId) }
-                            haptics.confirm()
-                        }
+                        cluster.incidents.filter { it.status < AckStatus.ACKNOWLEDGED }.forEach { vm.acknowledge(it.incidentId) }
+                        haptics.confirm()
                     },
-                    Modifier.weight(1f), selected = !canTake, background = colors.cell,
+                    Modifier.fillMaxWidth().padding(horizontal = Gutter),
                 )
-                ActionTile(
-                    Sym.CheckCircle, stringResource(R.string.incident_resolve),
+                canResolve -> AppButton(
+                    stringResource(R.string.incident_mark_resolved),
                     {
-                        if (canResolve) {
-                            cluster.incidents.filter { it.status < AckStatus.RESOLVED }.forEach { vm.resolve(it.incidentId) }
-                            haptics.confirm()
-                        }
+                        cluster.incidents.filter { it.status < AckStatus.RESOLVED }.forEach { vm.resolve(it.incidentId) }
+                        haptics.confirm()
                     },
-                    Modifier.weight(1f), selected = !canResolve, background = colors.cell,
+                    Modifier.fillMaxWidth().padding(horizontal = Gutter),
                 )
             }
             VenueMap(

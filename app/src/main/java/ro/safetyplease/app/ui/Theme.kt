@@ -115,6 +115,12 @@ class AppColors(
      * Ce ai ales dintr-un grup (filtrul, categoria raportului): salvie noaptea, verde de padure ziua, unde salvia pe alb
      * abia se vede. Nu e verdele plin al butonului principal, ca alegerea sa nu concureze cu actiunea.
      */
+    /**
+     * Rosul pentru text si iconite pe fond (Urgent, Anuleaza alerta, Nu stim daca a ajuns). Ziua, rosul de suprafata
+     * are doar 3,5:1 pe alb; acesta are 5,8:1 pe alb si 5,2:1 pe gri. Noaptea, rosul de suprafata trece deja (5,6:1).
+     */
+    val redInk: Color get() = if (dark) red else Color(0xFFC4261D)
+
     val selection: Color get() = if (dark) sage else brandDeep
     val onSelection: Color get() = if (dark) Night.background else Color.White
 

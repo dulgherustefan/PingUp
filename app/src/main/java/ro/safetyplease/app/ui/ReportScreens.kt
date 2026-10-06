@@ -262,7 +262,7 @@ fun ReportScreen(vm: AppViewModel) {
             if (waitMs > 0) {
                 StatusLabel(
                     stringResource(R.string.report_rate_limited, (waitMs / 60_000 + 1).toInt()), Modifier.padding(bottom = 8.dp),
-                    icon = Sym.Info, color = colors.red,
+                    icon = Sym.Info, color = colors.redInk,
                 )
             }
             AppButton(
@@ -458,7 +458,7 @@ fun IncidentHeader(category: Int, urgent: Boolean, subtitle: String, modifier: M
         )
         // starea sta sub nume, ca in fisa unui contact din Signal, nu pierduta intre butoane si harta
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (urgent) StatusLabel(stringResource(R.string.sev_urgent), icon = Sym.Priority, color = colors.red)
+            if (urgent) StatusLabel(stringResource(R.string.sev_urgent), icon = Sym.Priority, color = colors.redInk)
             status()
         }
     }
@@ -525,9 +525,9 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
         FloatingFooter(LocalBottomClearance.current, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
             AppButton(stringResource(R.string.done), { vm.back() }, Modifier.fillMaxWidth())
             if (report.isOpen()) {
-                TextLink(stringResource(R.string.report_cancel), { confirm = Confirm.CANCEL }, Modifier.padding(top = 4.dp), color = colors.red)
+                TextLink(stringResource(R.string.report_cancel), { confirm = Confirm.CANCEL }, Modifier.padding(top = 4.dp), color = colors.redInk)
             } else {
-                TextLink(stringResource(R.string.report_delete), { confirm = Confirm.DELETE }, Modifier.padding(top = 4.dp), color = colors.red)
+                TextLink(stringResource(R.string.report_delete), { confirm = Confirm.DELETE }, Modifier.padding(top = 4.dp), color = colors.redInk)
             }
         }
     }

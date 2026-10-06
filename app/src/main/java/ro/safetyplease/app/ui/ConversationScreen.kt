@@ -624,7 +624,7 @@ private fun OwnState(message: ChatMessage, detail: Boolean, onResend: () -> Unit
     val colors = AppTheme.colors
     when {
         message.status == MsgStatus.FAILED -> Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.msg_failed), style = MaterialTheme.typography.footnote, color = colors.red)
+            Text(stringResource(R.string.msg_failed), style = MaterialTheme.typography.footnote, color = colors.redInk)
             TextLink(stringResource(R.string.msg_resend), onResend)
         }
         !detail -> Unit

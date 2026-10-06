@@ -31,7 +31,7 @@
         <item quantity="few">Conectat la %d telefoane</item>
         <item quantity="other">Conectat la %d de telefoane</item>
     </plurals>
-    <string name="hop_direct">direct</string>
+    <string name="hop_direct">din apropiere</string>
     <plurals name="via_phones">
         <item quantity="one">printr-un telefon</item>
         <item quantity="few">prin %d telefoane</item>
@@ -258,7 +258,7 @@
     <string name="incidents_empty_title">Nimic aici</string>
     <string name="incidents_empty_text">Rapoartele apar pe măsură ce ajung prin rețea.</string>
     <string name="incident_take">Preiau</string>
-    <string name="incident_resolve">Rezolvat</string>
+    <string name="incident_mark_resolved">Marchează rezolvat</string>
     <string name="incident_no_description">Fără descriere</string>
     <string name="incident_reported_at">Raportat la %1$s</string>
     <string name="incident_reporter">de %1$s</string>
