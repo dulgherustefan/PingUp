@@ -93,7 +93,6 @@
     <string name="onboarding_not_now">Nu acum</string>
     <string name="onboarding_start">Pornește</string>
 
-    <string name="filter_all">Toate</string>
     <string name="messages_empty_title">Niciun prieten încă</string>
     <string name="messages_empty_text">Scanați-vă codurile ca să vă puteți scrie. Merge fără internet.</string>
     <string name="messages_empty_action">Adaugă un prieten</string>
@@ -245,8 +244,7 @@
     <string name="map_pin_outside">Poziția e în afara hărții evenimentului.</string>
     <string name="map_zone_tag">Zonă</string>
 
-    <string name="filter_open">Noi</string>
-    <string name="filter_taken">Preluate</string>
+    <string name="filter_active">Deschise</string>
     <string name="filter_resolved">Închise</string>
     <string name="incidents_empty_title">Nimic aici</string>
     <string name="incidents_empty_text">Rapoartele apar pe măsură ce ajung prin rețea.</string>

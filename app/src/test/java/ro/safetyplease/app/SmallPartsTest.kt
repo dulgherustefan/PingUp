@@ -152,6 +152,15 @@ class SmallPartsTest {
         assertFalse(Clustering.matches(cluster, StatusFilter.TAKEN))
     }
 
+    @Test
+    fun activeFilterKeepsNewAndTakenButNotClosed() {
+        fun clusterWith(status: Int) = Clustering.cluster(listOf(incident("x", IncidentCategory.MEDICAL, "bar", 0.0, status = status))).single()
+        assertTrue(Clustering.matches(clusterWith(AckStatus.RECEIVED), StatusFilter.ACTIVE))
+        assertTrue(Clustering.matches(clusterWith(AckStatus.ACKNOWLEDGED), StatusFilter.ACTIVE))
+        assertFalse(Clustering.matches(clusterWith(AckStatus.RESOLVED), StatusFilter.ACTIVE))
+        assertFalse(Clustering.matches(clusterWith(AckStatus.CANCELLED), StatusFilter.ACTIVE))
+    }
+
     // --- persistenta ---
 
     @Test

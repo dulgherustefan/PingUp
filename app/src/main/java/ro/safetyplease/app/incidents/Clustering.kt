@@ -14,7 +14,8 @@ class IncidentCluster(val incidents: List<StaffIncident>) {
     val latestAt: Long = incidents.maxOf { it.reportedAt }
 }
 
-enum class StatusFilter { ALL, OPEN, TAKEN, RESOLVED }
+/** [ACTIVE]: tot ce nu e inchis inca (nepreluat sau preluat), ce are staff-ul de facut. */
+enum class StatusFilter { ALL, OPEN, TAKEN, ACTIVE, RESOLVED }
 
 object Clustering {
     const val WINDOW_MS = 5 * 60_000L
@@ -44,6 +45,7 @@ object Clustering {
         StatusFilter.ALL -> true
         StatusFilter.OPEN -> cluster.status <= AckStatus.RECEIVED
         StatusFilter.TAKEN -> cluster.status == AckStatus.ACKNOWLEDGED
+        StatusFilter.ACTIVE -> cluster.status < AckStatus.RESOLVED
         StatusFilter.RESOLVED -> cluster.status >= AckStatus.RESOLVED
     }
 }

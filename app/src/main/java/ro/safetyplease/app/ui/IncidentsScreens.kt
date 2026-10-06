@@ -2,7 +2,6 @@ package ro.safetyplease.app.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -96,7 +95,7 @@ fun IncidentsScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val now = rememberNow()
-    var filter by rememberSaveable { mutableStateOf(StatusFilter.OPEN) }
+    var filter by rememberSaveable { mutableStateOf(StatusFilter.ACTIVE) }
     val clusters = remember(incidents.staff) { Clustering.cluster(incidents.staff) }
     // urgentele nepreluate stau primele, rezolvatele la coada
     val shown = remember(clusters, filter) {
@@ -107,13 +106,12 @@ fun IncidentsScreen(vm: AppViewModel) {
                 .thenByDescending { it.latestAt },
         )
     }
-    val openCount = clusters.count { Clustering.matches(it, StatusFilter.OPEN) }
-    val openLabel = stringResource(R.string.filter_open)
+    // doua filtre: ce mai e de facut si ce s-a inchis; urgentele nepreluate stau oricum primele
+    val activeCount = clusters.count { Clustering.matches(it, StatusFilter.ACTIVE) }
+    val activeLabel = stringResource(R.string.filter_active)
     val options = listOf(
-        StatusFilter.OPEN to if (openCount > 0) "$openLabel · $openCount" else openLabel,
-        StatusFilter.TAKEN to stringResource(R.string.filter_taken),
+        StatusFilter.ACTIVE to if (activeCount > 0) "$activeLabel · $activeCount" else activeLabel,
         StatusFilter.RESOLVED to stringResource(R.string.filter_resolved),
-        StatusFilter.ALL to stringResource(R.string.filter_all),
     )
     val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
