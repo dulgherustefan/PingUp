@@ -145,6 +145,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var radioAccessBlocked by mutableStateOf(false)
     var locationBlocked by mutableStateOf(false)
 
+    /**
+     * Uneltele de test (modul demo, locatia simulata, ID-ul tehnic) apar abia dupa 7 atingeri pe Versiune, ca optiunile
+     * pentru dezvoltatori din Android: la festival, un participant nu ajunge din greseala staff si nu-si sterge datele.
+     * Tine doar cat traieste procesul.
+     */
+    var demoUnlocked by mutableStateOf(false)
+
     fun open(dest: Dest) = stack.push(dest)
 
     fun back(): Boolean {

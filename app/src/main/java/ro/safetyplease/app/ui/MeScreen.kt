@@ -3,6 +3,7 @@ package ro.safetyplease.app.ui
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,6 +57,8 @@ import ro.safetyplease.app.demo.Demo
 
 const val MAX_NAME = 20
 
+private const val DEMO_UNLOCK_TAPS = 7
+
 /**
  * Setarile, ca foaia din Signal pe iPhone: X-ul de sticla in dreapta sus, profilul cu butonul QR intr-un card,
  * apoi grupuri de randuri cu iconite simple pe fundalul gri.
@@ -68,6 +72,8 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val colors = AppTheme.colors
     var editName by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
+    var versionTaps by remember { mutableIntStateOf(0) }
+    val haptics = rememberHaptics()
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     val relayed = mesh.relayed.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
@@ -133,10 +139,21 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 GroupRow(
                     stringResource(R.string.me_version), icon = Sym.Info,
                     value = stringResource(R.string.app_name) + " " + BuildConfig.VERSION_NAME,
+                    // ca „Numarul versiunii” din Android: 7 atingeri deschid uneltele de test
+                    onClick = if (Demo.AVAILABLE && !vm.demoUnlocked) {
+                        {
+                            versionTaps++
+                            if (versionTaps >= DEMO_UNLOCK_TAPS) {
+                                vm.demoUnlocked = true
+                                haptics.confirm()
+                                Toast.makeText(context, R.string.demo_unlocked, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } else null,
                 )
-                GroupDivider()
-                GroupRow(stringResource(R.string.me_node_id), subtitle = vm.c.identity.nodeId.toHex(), icon = Sym.Notes)
-                if (Demo.AVAILABLE) {
+                if (vm.demoUnlocked) {
+                    GroupDivider()
+                    GroupRow(stringResource(R.string.me_node_id), subtitle = vm.c.identity.nodeId.toHex(), icon = Sym.Notes)
                     GroupDivider()
                     GroupRow(stringResource(R.string.demo_title), icon = Sym.Science, chevron = true, onClick = { vm.open(Dest.Demo) })
                 }

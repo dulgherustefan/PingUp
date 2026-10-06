@@ -314,6 +314,7 @@
     <string name="notif_report_title">Raportul tău</string>
 
     <string name="demo_title">Mod demo</string>
+    <string name="demo_unlocked">Mod demo deblocat</string>
     <string name="demo_simulate_location">Locație simulată: apasă pe hartă</string>
     <string name="open_zone">Vezi pe hartă</string>
     <string name="location_open_settings">Permite locația din setări</string>

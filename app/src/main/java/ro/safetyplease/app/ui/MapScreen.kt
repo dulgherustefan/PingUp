@@ -400,7 +400,8 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     }
                 }
             }
-            if (Demo.AVAILABLE) {
+            // unealta de test; ramane vizibila cat e pusa o locatie simulata, ca sa poata fi stearsa
+            if (Demo.AVAILABLE && (vm.demoUnlocked || simulated)) {
                 item(key = "simulate") {
                     InsetGroup(Modifier.padding(top = 20.dp)) {
                         SwitchRow(stringResource(R.string.demo_simulate_location), simulate, { simulate = it }, icon = Sym.Science)
