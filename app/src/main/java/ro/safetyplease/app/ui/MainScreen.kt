@@ -201,7 +201,7 @@ fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}):
 }
 
 /** Ecranele care urca de jos, ca foile din iOS; restul intra din dreapta. */
-private fun Dest?.isSheet() = this == Dest.Me || this == Dest.NewChat || this == Dest.AddFriend || this == Dest.NewGroup
+private fun Dest?.isSheet() = this == Dest.Me || this == Dest.AddFriend || this == Dest.NewGroup
 
 @Composable
 fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
@@ -249,7 +249,6 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         is Dest.Profile -> ProfileScreen(vm, dest.conversation)
         Dest.AddFriend -> AddFriendScreen(vm)
         Dest.NewGroup -> NewGroupScreen(vm)
-        Dest.NewChat -> NewChatScreen(vm)
         is Dest.ReportSent -> ReportSentScreen(vm, dest.incidentId)
         Dest.MyReports -> MyReportsScreen(vm)
         is Dest.Incident -> IncidentDetailScreen(vm, dest.id)

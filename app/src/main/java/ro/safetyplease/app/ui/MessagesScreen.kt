@@ -3,10 +3,10 @@ package ro.safetyplease.app.ui
 import android.content.Intent
 import android.provider.Settings
 import androidx.annotation.StringRes
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,31 +15,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -49,7 +43,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -141,38 +134,26 @@ fun MeButton(name: String, onClick: () -> Unit) {
     ) { Box(Modifier.pressScale(press)) { Avatar(name, GlassSize) } }
 }
 
-/**
- * Filtrul de deasupra listei, ca pastilele din Nixtio: „Toate” si „Necitite”, cea aleasa in culoarea de selectie.
- */
+/** Actiunea principala din Mesaje, ca butonul lat din Threema si WhatsApp: jos, la degetul mare. */
 @Composable
-private fun FilterPills(unreadOnly: Boolean, unreadCount: Int, onSelect: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    val unreadLabel = stringResource(R.string.filter_unread)
-    Row(modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        FilterPill(stringResource(R.string.filter_all), !unreadOnly) { onSelect(false) }
-        FilterPill(if (unreadCount > 0) "$unreadLabel · $unreadCount" else unreadLabel, unreadOnly) { onSelect(true) }
-    }
-}
-
-@Composable
-private fun FilterPill(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun AddFriendButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
-    val fill = if (selected) colors.selection else colors.fill
-    val ink = if (selected) colors.onSelection else colors.label
-    // pastila se vede de 36, dar se atinge pe 48
-    Box(
-        Modifier.heightIn(min = TouchTarget).selectable(selected, role = Role.Tab, onClick = onClick),
-        contentAlignment = Alignment.Center,
+    val press = remember { MutableInteractionSource() }
+    Row(
+        modifier.pressScale(press, 0.96f).height(56.dp).shadow(8.dp, CircleShape).clip(CircleShape).background(colors.accent)
+            .clickable(press, LocalIndication.current, role = Role.Button, onClick = onClick).padding(start = 18.dp, end = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text, style = MaterialTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold), color = ink, maxLines = 1,
-            modifier = Modifier.clip(CircleShape).background(fill).padding(horizontal = 16.dp, vertical = 8.dp),
-        )
+        Icon(Sym.PersonAdd, null, Modifier.size(22.dp), tint = colors.onAccent)
+        Spacer(Modifier.width(10.dp))
+        Text(stringResource(R.string.menu_add_friend), style = MaterialTheme.typography.headline, color = colors.onAccent, maxLines = 1)
     }
 }
 
 /**
- * Lista de conversatii, ca in Signal pe iPhone: titlul centrat, bula ta in stanga, „mesaj nou” in dreapta,
- * cautarea dedesubt, apoi randurile fara linii intre ele.
+ * Lista de conversatii: titlul centrat cu starea retelei, bula ta in stanga, randurile fara linii intre ele si,
+ * jos, butonul „Adauga prieten”. La festival ai cativa prieteni, deci fara cautare si fara filtre;
+ * „Grup nou” apare abia cand ai cu cine face un grup.
  */
 @Composable
 fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
@@ -183,12 +164,6 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val now = rememberNow()
     val gate = rememberRadioGate(vm, nearby.radio, onStartMesh)
-    val focus = LocalFocusManager.current
-    val colors = AppTheme.colors
-
-    var query by rememberSaveable { mutableStateOf("") }
-    var unreadOnly by rememberSaveable { mutableStateOf(false) }
-    var searching by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
 
@@ -202,66 +177,43 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             groups.map { row(Conversations.group(it.id), it.name, null, it) })
             .sortedWith(compareByDescending<ConversationRow> { it.last?.timeMs ?: 0L }.thenBy { it.title.lowercase() })
     }
-    val shown = rows.filter { (!unreadOnly || it.unread > 0) && (query.isBlank() || it.title.contains(query.trim(), ignoreCase = true)) }
 
-    NavScreen(
-        title = stringResource(R.string.tab_messages),
-        subtitle = networkText(nearby.readyLinks, gate),
-        subtitleLeading = { NetworkPing(nearby.readyLinks, gate) },
-        scrolled = scrolled,
-        leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
-        // un singur buton, ca in Mesajele de pe iPhone: „Mesaj nou” are si grupul nou si adaugarea unui prieten
-        trailing = { backdrop -> GlassIconButton(Sym.Compose, stringResource(R.string.new_chat), { vm.open(Dest.NewChat) }, backdrop) },
-    ) { padding ->
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
-            if (rows.isNotEmpty()) {
-                item(key = "search") {
-                    Row(Modifier.padding(start = Gutter, end = if (searching) 4.dp else Gutter, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        SearchField(
-                            query, { query = it }, stringResource(R.string.search),
-                            Modifier.weight(1f).onFocusChanged { searching = it.isFocused },
-                        )
-                        if (searching) {
-                            TextLink(stringResource(R.string.cancel), {
-                                query = ""
-                                focus.clearFocus()
-                            })
+    Box(Modifier.fillMaxSize()) {
+        NavScreen(
+            title = stringResource(R.string.tab_messages),
+            subtitle = networkText(nearby.readyLinks, gate),
+            subtitleLeading = { NetworkPing(nearby.readyLinks, gate) },
+            scrolled = scrolled,
+            leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
+            trailing = { backdrop ->
+                if (friends.size >= 2) GlassIconButton(Sym.Group, stringResource(R.string.menu_new_group), { vm.open(Dest.NewGroup) }, backdrop)
+            },
+        ) { padding ->
+            // loc sub ultimul rand, ca butonul de jos sa nu-l acopere
+            val listPadding = if (rows.isEmpty()) padding else PaddingValues(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 72.dp)
+            LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = listPadding) {
+                item(key = "problem") { NetworkProblem(vm, nearby.radio, gate, settings.batteryHintDismissed, Modifier.padding(horizontal = Gutter, vertical = 6.dp)) }
+                when {
+                    rows.isEmpty() -> item(key = "empty") {
+                        EmptyState(
+                            stringResource(R.string.messages_empty_title), stringResource(R.string.messages_empty_text),
+                            illustration = { PinMascot(120.dp) },
+                        ) {
+                            AppButton(stringResource(R.string.messages_empty_action), { vm.open(Dest.AddFriend) }, compact = true)
                         }
                     }
-                }
-            }
-            item(key = "problem") { NetworkProblem(vm, nearby.radio, gate, settings.batteryHintDismissed, Modifier.padding(horizontal = Gutter, vertical = 6.dp)) }
-            if (rows.isNotEmpty()) {
-                item(key = "filter") {
-                    val unreadRows = rows.filter { it.unread > 0 }
-                    Row(Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter - 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        FilterPills(unreadOnly, unreadRows.size, { unreadOnly = it }, Modifier.weight(1f))
-                        if (unreadOnly && unreadRows.isNotEmpty()) {
-                            TextLink(stringResource(R.string.mark_all_read), { unreadRows.forEach { vm.c.chat.markRead(it.id) } })
-                        }
+                    else -> items(rows, key = { it.id }) { row ->
+                        ConversationItem(vm, row, row.friend != null && nearby.isInRange(row.friend.nodeId), now, Modifier.animateItem())
                     }
                 }
             }
-            when {
-                rows.isEmpty() -> item(key = "empty") {
-                    EmptyState(
-                        stringResource(R.string.messages_empty_title), stringResource(R.string.messages_empty_text),
-                        illustration = { PinMascot(120.dp) },
-                    ) {
-                        AppButton(stringResource(R.string.messages_empty_action), { vm.open(Dest.AddFriend) }, compact = true)
-                    }
-                }
-                shown.isEmpty() -> item(key = "none") {
-                    Text(
-                        if (query.isNotBlank()) stringResource(R.string.messages_none_found, query.trim()) else stringResource(R.string.messages_none_unread),
-                        style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 40.dp),
-                    )
-                }
-                else -> items(shown, key = { it.id }) { row ->
-                    ConversationItem(vm, row, row.friend != null && nearby.isInRange(row.friend.nodeId), now, Modifier.animateItem())
-                }
-            }
+        }
+        // cu lista goala, ecranul gol are deja butonul; aici ar fi doua
+        if (rows.isNotEmpty()) {
+            AddFriendButton(
+                { vm.open(Dest.AddFriend) },
+                Modifier.align(Alignment.BottomEnd).padding(end = Gutter, bottom = LocalBottomClearance.current + 8.dp),
+            )
         }
     }
 }
@@ -361,68 +313,6 @@ private fun ConversationItem(vm: AppViewModel, row: ConversationRow, near: Boole
                     )
                 }
             }
-        }
-    }
-}
-
-/** Mesaj nou, ca foaia din Signal: grup nou, prieten nou, apoi prietenii pe care ii ai deja. */
-@Composable
-fun NewChatScreen(vm: AppViewModel) {
-    val friends by vm.friends.collectAsStateWithLifecycle()
-    val nearby by vm.nearby.collectAsStateWithLifecycle()
-    val now = rememberNow()
-    var query by rememberSaveable { mutableStateOf("") }
-    val sorted = remember(friends) { friends.sortedBy { it.nickname.lowercase() } }
-    val shown = sorted.filter { query.isBlank() || it.nickname.contains(query.trim(), ignoreCase = true) }
-    val colors = AppTheme.colors
-    val listState = rememberLazyListState()
-    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
-
-    NavScreen(
-        title = stringResource(R.string.new_chat), background = colors.grouped, scrolled = scrolled,
-        trailing = { backdrop -> GlassIconButton(Sym.Close, stringResource(R.string.close), { vm.back() }, backdrop) },
-    ) { padding ->
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())) {
-            if (sorted.isNotEmpty()) {
-                item(key = "search") {
-                    SearchField(
-                        query, { query = it }, stringResource(R.string.new_chat_search),
-                        Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp),
-                    )
-                }
-            }
-            item(key = "actions") {
-                InsetGroup(Modifier.padding(top = 8.dp)) {
-                    GroupRow(
-                        stringResource(R.string.menu_new_group), onClick = { vm.open(Dest.NewGroup) },
-                        leading = { IconCircle(Sym.Group, colors.fill, colors.label, 36.dp) },
-                    )
-                    GroupDivider(start = 64.dp)
-                    GroupRow(
-                        stringResource(R.string.menu_add_friend), subtitle = stringResource(R.string.new_chat_add_label), onClick = { vm.open(Dest.AddFriend) },
-                        leading = { IconCircle(Sym.QrCode, colors.fill, colors.label, 36.dp) },
-                    )
-                }
-            }
-            if (shown.isNotEmpty()) {
-                item(key = "header") { SectionTitle(stringResource(R.string.section_friends)) }
-                item(key = "friends") {
-                    InsetGroup {
-                        shown.forEachIndexed { index, friend ->
-                            GroupRow(
-                                friend.nickname, subtitle = presenceText(friend, nearby, now),
-                                onClick = {
-                                    vm.back()
-                                    vm.open(Dest.Conversation(Conversations.friend(friend.nodeId)))
-                                },
-                                leading = { Avatar(friend.nickname, 36.dp, near = nearby.isInRange(friend.nodeId)) },
-                            )
-                            if (index < shown.lastIndex) GroupDivider(start = 64.dp)
-                        }
-                    }
-                }
-            }
-            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }

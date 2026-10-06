@@ -2,7 +2,6 @@
 <!-- Numele aplicatiei (@string/app_name) vine din gradle.properties, nu de aici. -->
 <resources>
     <string name="back">Înapoi</string>
-    <string name="search">Caută</string>
     <string name="more_options">Mai multe opțiuni</string>
     <string name="open_settings">Deschide setările</string>
     <string name="settings_title">Setări</string>
@@ -95,19 +94,11 @@
     <string name="onboarding_start">Pornește</string>
 
     <string name="filter_all">Toate</string>
-    <string name="filter_unread">Necitite</string>
-    <string name="section_friends">Prieteni</string>
     <string name="messages_empty_title">Niciun prieten încă</string>
     <string name="messages_empty_text">Scanați-vă codurile ca să vă puteți scrie. Merge fără internet.</string>
     <string name="messages_empty_action">Adaugă un prieten</string>
-    <string name="messages_none_found">Nimic nu se potrivește cu „%1$s”.</string>
-    <string name="messages_none_unread">Ai citit tot.</string>
     <string name="messages_no_messages">Niciun mesaj încă</string>
     <string name="menu_add_friend">Adaugă prieten</string>
-    <string name="mark_all_read">Marchează tot ca citit</string>
-    <string name="new_chat">Mesaj nou</string>
-    <string name="new_chat_search">Caută un prieten</string>
-    <string name="new_chat_add_label">Scanați-vă codurile QR</string>
     <string name="menu_new_group">Grup nou</string>
     <plurals name="tab_unread">
         <item quantity="one">o conversație necitită</item>

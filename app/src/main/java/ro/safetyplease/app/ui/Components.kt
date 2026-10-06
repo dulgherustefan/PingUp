@@ -370,41 +370,6 @@ fun UnreadBadge(count: Int, modifier: Modifier = Modifier, color: Color = AppThe
     }
 }
 
-/** Campul de cautare: o capsula cu umplere translucida, mereu o treapta peste fundal, cu lupa in fata. */
-@Composable
-fun SearchField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-    fill: Color = AppTheme.colors.fill,
-    trailing: @Composable () -> Unit = {},
-) {
-    val c = AppTheme.colors
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = modifier.semantics { contentDescription = placeholder },
-        singleLine = true,
-        textStyle = MaterialTheme.typography.body.copy(color = c.label),
-        cursorBrush = SolidColor(c.accent),
-        decorationBox = { inner ->
-            Row(
-                Modifier.height(42.dp).clip(CircleShape).background(fill).padding(start = 13.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Sym.Search, null, Modifier.size(18.dp), tint = c.secondaryLabel)
-                Spacer(Modifier.width(8.dp))
-                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.body, color = c.secondaryLabel, maxLines = 1)
-                    inner()
-                }
-                trailing()
-            }
-        },
-    )
-}
-
 /** Campul unui formular: un dreptunghi gri, rotunjit, cu textul de ajutor dedesubt. */
 @Composable
 fun InputField(

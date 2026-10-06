@@ -41,8 +41,6 @@ sealed interface Dest {
     data object AddFriend : Dest
     data object NewGroup : Dest
 
-    /** Mesaj nou: grup nou, prieten nou sau unul dintre prieteni. */
-    data object NewChat : Dest
     data class ReportSent(val incidentId: String) : Dest
     data object MyReports : Dest
     data class Incident(val id: String) : Dest
