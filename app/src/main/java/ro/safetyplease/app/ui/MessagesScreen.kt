@@ -121,10 +121,10 @@ private fun NetworkPing(links: Int, gate: RadioGate) {
     )
 }
 
-/** Bula ta din stanga sus, pe fiecare tab: deschide setarile, direct, fara meniu intermediar. */
+/** Bula ta din stanga sus, pe fiecare tab: deschide ecranul tau (codul si setarile), direct, fara meniu intermediar. */
 @Composable
 fun MeButton(name: String, onClick: () -> Unit) {
-    val label = stringResource(R.string.open_settings)
+    val label = stringResource(R.string.me_open)
     val press = remember { MutableInteractionSource() }
     Box(
         Modifier.size(TouchTarget).clip(CircleShape)

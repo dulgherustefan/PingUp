@@ -5,22 +5,16 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,13 +34,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.BuildConfig
@@ -60,8 +51,9 @@ const val MAX_NAME = 20
 private const val DEMO_UNLOCK_TAPS = 7
 
 /**
- * Setarile, ca foaia din Signal pe iPhone: X-ul de sticla in dreapta sus, profilul cu butonul QR intr-un card,
- * apoi grupuri de randuri cu iconite simple pe fundalul gri.
+ * Ecranul tau, ca profilul din Threema: codul tau mare sus, cu numele (atingi numele ca sa-l schimbi), apoi doar ce
+ * mai poate schimba un om la festival: codul de staff si, pe telefoanele care opresc aplicatiile, bateria.
+ * Uneltele tehnice (reteaua, ID-ul, modul demo) apar abia dupa 7 atingeri pe Versiune.
  */
 @Composable
 fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
@@ -72,108 +64,82 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val colors = AppTheme.colors
     var editName by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
+    var bigCode by remember { mutableStateOf(false) }
     var versionTaps by remember { mutableIntStateOf(0) }
     val haptics = rememberHaptics()
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
-    val relayed = mesh.relayed.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-    val relayedText = if (relayed == 0) stringResource(R.string.relayed_none) else pluralStringResource(R.plurals.relayed_packets, relayed, relayed)
+    val code = remember(settings.nickname) { vm.myQrText() }
     val role = when (settings.role) {
         AppRole.STAFF -> stringResource(R.string.role_staff, settings.teamName)
         AppRole.ANCHOR -> stringResource(R.string.role_anchor, vm.venue.zoneName(settings.anchorZone).ifEmpty { "-" })
-        AppRole.PARTICIPANT -> stringResource(R.string.role_participant)
-    }
-    val networkAction = when {
-        !gate.hasAccess -> gate.requestAccess
-        !gate.bluetoothOn -> gate.enableBluetooth
-        else -> null
+        AppRole.PARTICIPANT -> null
     }
 
     NavScreen(
-        title = stringResource(R.string.settings_title), background = colors.grouped, scrolled = scrolled,
+        title = stringResource(R.string.me_title), background = colors.grouped, scrolled = scrolled,
         trailing = { backdrop -> GlassIconButton(Sym.Close, stringResource(R.string.close), { vm.back() }, backdrop) },
     ) { padding ->
         Column(
             Modifier.fillMaxSize().verticalScroll(scroll).padding(padding).padding(top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            InsetGroup {
-                SettingsProfile(settings.nickname, role, onEdit = { editName = true }, onCode = { vm.open(Dest.AddFriend) })
-            }
+            QrBadge(code, settings.nickname, { bigCode = true }, Modifier.padding(horizontal = Gutter))
+            Text(
+                listOfNotNull(role, stringResource(R.string.me_my_code_label)).joinToString("\n"),
+                style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, textAlign = TextAlign.Center,
+                modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 12.dp),
+            )
+            TextLink(stringResource(R.string.me_edit_name), { editName = true }, Modifier.padding(top = 4.dp))
 
-            InsetGroup {
-                GroupRow(
-                    stringResource(R.string.me_my_code), subtitle = stringResource(R.string.me_my_code_label), icon = Sym.QrCode,
-                    chevron = true, onClick = { vm.open(Dest.AddFriend) },
-                )
-                GroupDivider()
-                GroupRow(
-                    stringResource(R.string.me_edit_name), subtitle = stringResource(R.string.me_note), icon = Sym.Person,
-                    chevron = true, onClick = { editName = true },
-                )
-            }
-
-            InsetGroup {
-                if (settings.role == AppRole.PARTICIPANT) {
-                    GroupRow(stringResource(R.string.me_staff_code), icon = Sym.QrScan, chevron = true, onClick = { vm.open(Dest.AddFriend) })
-                } else {
-                    GroupRow(stringResource(R.string.me_leave_staff), icon = Sym.Logout, tint = colors.redInk, onClick = { confirmLeave = true })
+            Column(Modifier.fillMaxWidth().padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                InsetGroup {
+                    if (settings.role == AppRole.PARTICIPANT) {
+                        GroupRow(stringResource(R.string.me_staff_code), icon = Sym.QrScan, chevron = true, onClick = { vm.open(Dest.AddFriend) })
+                    } else {
+                        GroupRow(stringResource(R.string.me_leave_staff), icon = Sym.Logout, tint = colors.redInk, onClick = { confirmLeave = true })
+                    }
+                    if (Build.MANUFACTURER.lowercase() in setOf("samsung", "xiaomi", "redmi", "poco")) {
+                        GroupDivider()
+                        GroupRow(
+                            stringResource(R.string.me_battery), subtitle = stringResource(R.string.battery_text), icon = Sym.Battery, chevron = true,
+                            onClick = { runCatching { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } },
+                        )
+                    }
                 }
-            }
 
-            InsetGroup {
-                GroupRow(
-                    stringResource(R.string.me_network), subtitle = networkText(mesh.readyLinks, gate) + "\n" + relayedText, icon = Sym.Bluetooth,
-                    chevron = networkAction != null, onClick = networkAction,
-                )
-                if (Build.MANUFACTURER.lowercase() in setOf("samsung", "xiaomi", "redmi", "poco")) {
-                    GroupDivider()
+                InsetGroup(Modifier.padding(bottom = 24.dp)) {
                     GroupRow(
-                        stringResource(R.string.me_battery), subtitle = stringResource(R.string.battery_text), icon = Sym.Battery, chevron = true,
-                        onClick = { runCatching { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } },
-                    )
-                }
-            }
-
-            InsetGroup {
-                GroupRow(
-                    stringResource(R.string.me_version), icon = Sym.Info,
-                    value = stringResource(R.string.app_name) + " " + BuildConfig.VERSION_NAME,
-                    // ca „Numarul versiunii” din Android: 7 atingeri deschid uneltele de test
-                    onClick = if (Demo.AVAILABLE && !vm.demoUnlocked) {
-                        {
-                            versionTaps++
-                            if (versionTaps >= DEMO_UNLOCK_TAPS) {
-                                vm.demoUnlocked = true
-                                haptics.confirm()
-                                Toast.makeText(context, R.string.demo_unlocked, Toast.LENGTH_SHORT).show()
+                        stringResource(R.string.me_version), icon = Sym.Info,
+                        value = stringResource(R.string.app_name) + " " + BuildConfig.VERSION_NAME,
+                        // ca „Numarul versiunii” din Android: 7 atingeri deschid uneltele de test
+                        onClick = if (Demo.AVAILABLE && !vm.demoUnlocked) {
+                            {
+                                versionTaps++
+                                if (versionTaps >= DEMO_UNLOCK_TAPS) {
+                                    vm.demoUnlocked = true
+                                    haptics.confirm()
+                                    Toast.makeText(context, R.string.demo_unlocked, Toast.LENGTH_SHORT).show()
+                                }
                             }
-                        }
-                    } else null,
-                )
-                if (vm.demoUnlocked) {
-                    GroupDivider()
-                    GroupRow(stringResource(R.string.me_node_id), subtitle = vm.c.identity.nodeId.toHex(), icon = Sym.Notes)
-                    GroupDivider()
-                    GroupRow(stringResource(R.string.demo_title), icon = Sym.Science, chevron = true, onClick = { vm.open(Dest.Demo) })
+                        } else null,
+                    )
+                    if (vm.demoUnlocked) {
+                        val relayed = mesh.relayed.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                        val relayedText = if (relayed == 0) stringResource(R.string.relayed_none) else pluralStringResource(R.plurals.relayed_packets, relayed, relayed)
+                        GroupDivider()
+                        GroupRow(stringResource(R.string.me_network), subtitle = networkText(mesh.readyLinks, gate) + "\n" + relayedText, icon = Sym.Bluetooth)
+                        GroupDivider()
+                        GroupRow(stringResource(R.string.me_node_id), subtitle = vm.c.identity.nodeId.toHex(), icon = Sym.Notes)
+                        GroupDivider()
+                        GroupRow(stringResource(R.string.demo_title), icon = Sym.Science, chevron = true, onClick = { vm.open(Dest.Demo) })
+                    }
                 }
-            }
-
-            // semnatura aplicatiei la capatul setarilor, ca pe iPhone
-            Column(
-                Modifier.fillMaxWidth().padding(top = 36.dp, bottom = 24.dp).semantics(mergeDescendants = true) {},
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                PinMascot(72.dp)
-                Text(
-                    stringResource(R.string.app_name), style = MaterialTheme.typography.title3, color = colors.label,
-                    modifier = Modifier.padding(top = 10.dp),
-                )
-                Text(stringResource(R.string.app_tagline), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
             }
         }
     }
 
+    if (bigCode) BigCodeDialog(code, settings.nickname) { bigCode = false }
     if (editName) {
         var name by remember { mutableStateOf(settings.nickname) }
         val save = {
@@ -197,33 +163,6 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             stringResource(R.string.me_leave_staff), stringResource(R.string.me_leave_staff_text), { confirmLeave = false },
             confirmLabel = stringResource(R.string.me_leave_staff), destructive = true,
         ) { vm.leaveStaff() }
-    }
-}
-
-/** Randul de profil din capul setarilor: bula de 72, numele si rolul, iar in dreapta cercul gri cu codul QR. */
-@Composable
-private fun SettingsProfile(name: String, role: String, onEdit: () -> Unit, onCode: () -> Unit) {
-    val colors = AppTheme.colors
-    val codeLabel = stringResource(R.string.me_my_code)
-    Row(
-        Modifier.fillMaxWidth().clickable(onClickLabel = stringResource(R.string.me_edit_name), role = Role.Button, onClick = onEdit)
-            .padding(start = Gutter, top = 12.dp, end = 14.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Avatar(name, 72.dp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(name, style = MaterialTheme.typography.title2, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                role, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Box(
-            Modifier.size(TouchTarget).clip(CircleShape).clickable(role = Role.Button, onClick = onCode).semantics { contentDescription = codeLabel },
-            contentAlignment = Alignment.Center,
-        ) { IconCircle(Sym.QrCode, colors.fill, colors.label) }
     }
 }
 

@@ -259,6 +259,8 @@
     <string name="staff_status_taken">Preluat de %1$s</string>
     <string name="staff_status_resolved">Rezolvat de %1$s</string>
 
+    <string name="me_title">Eu</string>
+    <string name="me_open">Profilul tău</string>
     <string name="me_edit_name">Schimbă numele</string>
     <string name="me_note">Așa te văd prietenii</string>
     <string name="me_my_code">Codul meu</string>

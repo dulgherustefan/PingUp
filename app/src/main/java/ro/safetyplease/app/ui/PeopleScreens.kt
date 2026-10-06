@@ -219,7 +219,7 @@ private val CardWidth = 296.dp
  * Atins, se deschide mare, pe tot ecranul.
  */
 @Composable
-private fun QrBadge(code: String, name: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun QrBadge(code: String, name: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val bitmap = remember(code) { qrBitmap(code, ink = QrInk).asImageBitmap() }
     Column(
         modifier.widthIn(max = CardWidth).fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(QrBorder)
@@ -379,23 +379,7 @@ fun AddFriendScreen(vm: AppViewModel) {
             }
         }
     }
-    if (bigCode) {
-        // codul mare, pe alb: de aproape sau in lumina slaba se citeste mai usor
-        val bitmap = remember(code) { qrBitmap(code).asImageBitmap() }
-        Dialog(onDismissRequest = { bigCode = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            Column(
-                Modifier.fillMaxSize().clickable(onClickLabel = stringResource(R.string.close)) { bigCode = false }.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-            ) {
-                Image(
-                    bitmap, stringResource(R.string.add_friend_mine),
-                    Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(24.dp)).background(Color.White).padding(20.dp),
-                )
-                Spacer(Modifier.height(24.dp))
-                Text(settings.nickname, style = MaterialTheme.typography.title1, color = Color.White, textAlign = TextAlign.Center)
-            }
-        }
-    }
+    if (bigCode) BigCodeDialog(code, settings.nickname) { bigCode = false }
     if (sheet) {
         CodeSheet(
             myCode = code,
@@ -406,6 +390,25 @@ fun AddFriendScreen(vm: AppViewModel) {
             },
             onDismiss = { sheet = false },
         )
+    }
+}
+
+/** Codul mare, pe alb, peste tot ecranul: de aproape sau in lumina slaba se citeste mai usor. Atingerea il inchide. */
+@Composable
+fun BigCodeDialog(code: String, name: String, onDismiss: () -> Unit) {
+    val bitmap = remember(code) { qrBitmap(code).asImageBitmap() }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier.fillMaxSize().clickable(onClickLabel = stringResource(R.string.close), onClick = onDismiss).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+        ) {
+            Image(
+                bitmap, stringResource(R.string.add_friend_mine),
+                Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(24.dp)).background(Color.White).padding(20.dp),
+            )
+            Spacer(Modifier.height(24.dp))
+            Text(name, style = MaterialTheme.typography.title1, color = Color.White, textAlign = TextAlign.Center)
+        }
     }
 }
 
