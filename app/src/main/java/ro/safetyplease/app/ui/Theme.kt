@@ -62,9 +62,8 @@ class AppColors(
     /** Portocaliul pentru text: cel de suprafata nu se citeste pe alb in plin soare. */
     val orangeInk: Color,
     val bubbleIn: Color,
-    /** Baloanele trimise au un gradient pe toata inaltimea ecranului: mai inchis sus, mai deschis jos. */
-    val bubbleOutTop: Color,
-    val bubbleOutBottom: Color,
+    /** Baloanele tale: verdele de padure din ghid, plin, la fel ziua si noaptea. */
+    val bubbleOut: Color,
     val onBubbleOut: Color,
     val onBubbleOutSecondary: Color,
     /** Sticla: nuanta peste fundalul estompat, nuanta fara estompare (Android sub 12), conturul si pastila tabului ales. */
@@ -78,8 +77,6 @@ class AppColors(
     /** Sina comutatorului oprit si pastila variantei alese din comutatorul cu segmente. */
     val switchOff: Color,
     val segmentPill: Color,
-    /** Cercul de trimis din conversatie. */
-    val send: Color,
     /** Culorile pinului din logo: verdele viu, verdele de padure si salvia capacului. */
     val brand: Color,
     val brandDeep: Color,
@@ -195,8 +192,7 @@ private val LightColors = AppColors(
     orange = Color(0xFFFF9500),
     orangeInk = Color(0xFFB25000),
     bubbleIn = Color(0xFFE6EADF),
-    bubbleOutTop = Color(0xFF17642A),
-    bubbleOutBottom = Color(0xFF1E8238),
+    bubbleOut = Color(0xFF2B5E45),
     onBubbleOut = Color.White,
     onBubbleOutSecondary = Color(0xCCFFFFFF),
     // sticla lasa sa se vada putin, estompat, ce trece pe sub ea, ca in Signal
@@ -208,7 +204,6 @@ private val LightColors = AppColors(
     menu = Color(0xFFF8FAF4),
     switchOff = Color(0xFFE6E9E0),
     segmentPill = Color.White,
-    send = Color(0xFF1E8238),
     brand = Color(0xFF30D158),
     brandDeep = Color(0xFF2B5E45),
     sage = Color(0xFFD3D8B2),
@@ -238,10 +233,9 @@ private val DarkColors = AppColors(
     orange = Color(0xFFFF9F0A),
     orangeInk = Color(0xFFFF9F0A),
     bubbleIn = Color(0xFF2C322D),
-    bubbleOutTop = Color(0xFF145A2A),
-    bubbleOutBottom = Color(0xFF1E8238),
+    bubbleOut = Color(0xFF2B5E45),
     onBubbleOut = Color(0xFFF4F6F0),
-    onBubbleOutSecondary = Color(0x99FFFFFF),
+    onBubbleOutSecondary = Color(0xCCFFFFFF),
     // sticla noaptea e mai deschisa decat fundalul, ca in Signal; altfel barele par gauri
     glass = Color(0xA3232925),
     glassSolid = Color(0xF5232925),
@@ -251,7 +245,6 @@ private val DarkColors = AppColors(
     menu = Color(0xFF222723),
     switchOff = Color(0xFF343A35),
     segmentPill = Color(0xFF4A524B),
-    send = Color(0xFF25A345),
     brand = Color(0xFF30D158),
     brandDeep = Color(0xFF2B5E45),
     sage = Color(0xFFD3D8B2),

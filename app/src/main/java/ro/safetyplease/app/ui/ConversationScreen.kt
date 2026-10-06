@@ -59,7 +59,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,7 +71,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawOutline
@@ -80,14 +78,11 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -386,10 +381,10 @@ private fun Composer(
         ) { text ->
             if (text) {
                 Box(
-                    Modifier.padding(start = 12.dp).size(TouchTarget).clip(CircleShape).background(colors.send)
+                    Modifier.padding(start = 12.dp).size(TouchTarget).clip(CircleShape).background(colors.accent)
                         .clickable(onClickLabel = stringResource(R.string.send), role = Role.Button, onClick = onSend),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Sym.Send, stringResource(R.string.send), Modifier.size(20.dp), tint = Color.White) }
+                ) { Icon(Sym.Send, stringResource(R.string.send), Modifier.size(20.dp), tint = colors.onAccent) }
             } else {
                 Spacer(Modifier.width(0.dp))
             }
@@ -482,9 +477,6 @@ private fun MessageItem(
     val sender = if (!mine && inGroup) vm.c.chat.nameOf(message.senderId) else null
     val clock = Labels.clock(message.timeMs)
     val stateWords = if (mine) stringResource(messageStateLabel(message.status)) else null
-    // gradientul baloanelor trimise se intinde pe tot ecranul, ca in Signal: sus mai inchis, jos mai deschis
-    val screenHeight = LocalWindowInfo.current.containerSize.height.toFloat()
-    var topInWindow by remember { mutableFloatStateOf(0f) }
 
     Column(modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
         Row(
@@ -502,14 +494,10 @@ private fun MessageItem(
             Box {
                 Column(
                     Modifier.widthIn(max = if (inGroup) 285.dp else 317.dp)
-                        .onGloballyPositioned { topInWindow = it.positionInWindow().y }
                         .drawBehind {
                             val outline = shape.createOutline(size, layoutDirection, this)
                             if (mine) {
-                                drawOutline(
-                                    outline,
-                                    Brush.verticalGradient(listOf(colors.bubbleOutTop, colors.bubbleOutBottom), startY = -topInWindow, endY = screenHeight - topInWindow),
-                                )
+                                drawOutline(outline, colors.bubbleOut)
                             } else {
                                 drawOutline(outline, colors.bubbleIn)
                             }
@@ -547,7 +535,7 @@ private fun MessageItem(
                                 Text(clock, style = MaterialTheme.typography.caption1, color = meta)
                                 if (mine) {
                                     Spacer(Modifier.width(4.dp))
-                                    DeliveryIcon(message.status, meta, colors.bubbleOutBottom, iconSize = 12.dp)
+                                    DeliveryIcon(message.status, meta, colors.bubbleOut, iconSize = 12.dp)
                                 }
                             }
                         }
