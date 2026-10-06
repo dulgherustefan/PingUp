@@ -221,7 +221,7 @@ private fun SettingsProfile(name: String, role: String, onEdit: () -> Unit, onCo
         }
         Spacer(Modifier.width(8.dp))
         Box(
-            Modifier.size(44.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onCode).semantics { contentDescription = codeLabel },
+            Modifier.size(TouchTarget).clip(CircleShape).clickable(role = Role.Button, onClick = onCode).semantics { contentDescription = codeLabel },
             contentAlignment = Alignment.Center,
         ) { IconCircle(Sym.QrCode, colors.fill, colors.label) }
     }

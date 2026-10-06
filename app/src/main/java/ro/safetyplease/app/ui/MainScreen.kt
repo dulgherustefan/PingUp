@@ -283,6 +283,7 @@ private class TabItem(val tab: Tab, val label: Int, val icon: ImageVector, val b
 
 private val TabWidth = 84.dp
 private val TabBarHeight = 62.dp
+private const val MAX_TAB_FONT_SCALE = 1.3f
 
 @Composable
 private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) {
@@ -336,8 +337,10 @@ private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> U
     val index = items.indexOfFirst { it.tab == current }.coerceAtLeast(0)
     // pastila aluneca spre tabul nou si se aseaza cu un arc scurt
     val x by animateDpAsState(TabWidth * index, spring(dampingRatio = 0.72f, stiffness = 380f), label = "tabPill")
-    // ca pe iPhone, textul barei nu creste cu marimea textului din setari: n-ar mai incapea in capsula
-    val unscaled = 1f / LocalDensity.current.fontScale
+    // textul barei creste cu marimea textului din setari, dar doar pana la 130%: peste atat n-ar mai incapea in capsula.
+    // Eticheta ramane oricum citita intreaga de TalkBack.
+    val fontScale = LocalDensity.current.fontScale
+    val tabScale = fontScale.coerceAtMost(MAX_TAB_FONT_SCALE) / fontScale
     Box(modifier.height(TabBarHeight).width(TabWidth * items.size + 8.dp).glass(backdrop, CircleShape).padding(4.dp).selectableGroup()) {
         Box(Modifier.offset { IntOffset(x.roundToPx(), 0) }.width(TabWidth).fillMaxHeight().clip(CircleShape).background(colors.glassPill))
         Row(Modifier.fillMaxHeight()) {
@@ -362,14 +365,14 @@ private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> U
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    if (item.badge > 99) "99+" else item.badge.toString(), color = Color.White, fontSize = (11 * unscaled).sp,
-                                    lineHeight = (13 * unscaled).sp, fontFamily = TextFont, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                                    if (item.badge > 99) "99+" else item.badge.toString(), color = Color.White, fontSize = (11 * tabScale).sp,
+                                    lineHeight = (13 * tabScale).sp, fontFamily = TextFont, fontWeight = FontWeight.SemiBold, maxLines = 1,
                                 )
                             }
                         }
                     }
                     Text(
-                        stringResource(item.label), color = tint, fontSize = (10 * unscaled).sp, lineHeight = (12 * unscaled).sp,
+                        stringResource(item.label), color = tint, fontSize = (10 * tabScale).sp, lineHeight = (12 * tabScale).sp,
                         fontFamily = TextFont, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(top = 4.dp),
                     )
                 }

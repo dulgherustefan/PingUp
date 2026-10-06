@@ -144,11 +144,11 @@ fun AppButton(
     }
 }
 
-/** Butonul simplu iOS: doar textul albastru, cu loc de atins de 44. */
+/** Butonul simplu: doar textul in culoarea de accent, cu loc de atins de 48. */
 @Composable
 fun TextLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = AppTheme.colors.accent) {
     Box(
-        modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
+        modifier.heightIn(min = TouchTarget).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, style = MaterialTheme.typography.body, color = color)
@@ -159,7 +159,7 @@ fun TextLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, c
 @Composable
 fun IconBtn(icon: ImageVector, description: String?, onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = AppTheme.colors.label) {
     Box(
-        modifier.size(44.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
+        modifier.size(TouchTarget).clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
             .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, null, Modifier.size(22.dp), tint = tint) }
@@ -169,9 +169,9 @@ fun IconBtn(icon: ImageVector, description: String?, onClick: () -> Unit, modifi
 @Composable
 fun GlassIconButton(icon: ImageVector, description: String, onClick: () -> Unit, backdrop: Backdrop?, modifier: Modifier = Modifier) {
     val press = remember { MutableInteractionSource() }
-    // cercul se vede de 38, dar se atinge pe 44, cat cere iOS
+    // cercul se vede de 38, dar se atinge pe 48, cat cere Android
     Box(
-        modifier.size(44.dp).clip(CircleShape).clickable(press, indication = null, role = Role.Button, onClick = onClick)
+        modifier.size(TouchTarget).clip(CircleShape).clickable(press, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
@@ -187,13 +187,16 @@ val GlassSize = 38.dp
 /** Locul de atins al oricarui buton, cat cere Android: 48 dp, chiar daca cercul vizibil e mai mic. */
 val TouchTarget = 48.dp
 
-/** O capsula de sticla cu mai multe iconite, ca grupul camera + scrie din Signal. */
+/**
+ * O capsula de sticla cu mai multe iconite, ca grupul camera + scrie din Signal. Sticla se vede de 38, ca butoanele
+ * rotunde de langa ea, dar randul are 48, ca fiecare iconita sa se atinga pe 48.
+ */
 @Composable
 fun GlassCapsule(backdrop: Backdrop?, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
-    Row(
-        modifier.height(GlassSize).glass(backdrop, CircleShape).padding(horizontal = 2.dp),
-        verticalAlignment = Alignment.CenterVertically, content = content,
-    )
+    Box(modifier.height(TouchTarget), contentAlignment = Alignment.Center) {
+        Box(Modifier.matchParentSize().padding(vertical = (TouchTarget - GlassSize) / 2).glass(backdrop, CircleShape))
+        Row(Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically, content = content)
+    }
 }
 
 /** O iconita dintr-o capsula de sticla. */
@@ -201,7 +204,7 @@ fun GlassCapsule(backdrop: Backdrop?, modifier: Modifier = Modifier, content: @C
 fun CapsuleIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
     val press = remember { MutableInteractionSource() }
     Box(
-        Modifier.size(width = 42.dp, height = GlassSize).clip(CircleShape).clickable(press, indication = null, role = Role.Button, onClick = onClick)
+        Modifier.size(TouchTarget).clip(CircleShape).clickable(press, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) { Icon(icon, null, Modifier.size(19.dp).pressScale(press, 0.85f), tint = AppTheme.colors.label) }
@@ -754,7 +757,7 @@ fun MenuRow(label: String, onClick: () -> Unit, icon: ImageVector? = null, dange
     val c = AppTheme.colors
     val color = if (danger) c.red else c.label
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp),
+        Modifier.fillMaxWidth().heightIn(min = TouchTarget).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, style = MaterialTheme.typography.body, color = color, modifier = Modifier.weight(1f))

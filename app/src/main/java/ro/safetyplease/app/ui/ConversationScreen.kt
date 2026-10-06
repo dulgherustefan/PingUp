@@ -372,18 +372,18 @@ private fun Composer(
     val turn by animateFloatAsState(if (quickOpen) 45f else 0f, spring(dampingRatio = 0.6f, stiffness = 500f), label = "plus")
     Row(Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
         Box(
-            Modifier.size(40.dp).glass(backdrop, CircleShape).clickable(role = Role.Button, onClick = onToggleQuick),
+            Modifier.size(TouchTarget).glass(backdrop, CircleShape).clickable(role = Role.Button, onClick = onToggleQuick),
             contentAlignment = Alignment.Center,
         ) { Icon(Sym.Add, stringResource(R.string.chat_quick), Modifier.size(20.dp).rotate(turn), tint = colors.label) }
         Spacer(Modifier.width(12.dp))
         Row(
-            Modifier.weight(1f).heightIn(min = 40.dp).glass(backdrop, RoundedCornerShape(20.dp)),
+            Modifier.weight(1f).heightIn(min = TouchTarget).glass(backdrop, RoundedCornerShape(24.dp)),
             verticalAlignment = Alignment.Bottom,
         ) {
             BasicTextField(
                 value = draft,
                 onValueChange = onDraft,
-                modifier = Modifier.weight(1f).padding(start = 14.dp, end = 8.dp, top = 9.dp, bottom = 9.dp)
+                modifier = Modifier.weight(1f).padding(start = 16.dp, end = 8.dp, top = 13.dp, bottom = 13.dp)
                     .onFocusChanged { if (it.isFocused) onFocused() }.semantics { contentDescription = hint },
                 textStyle = MaterialTheme.typography.body.copy(color = colors.label),
                 cursorBrush = SolidColor(colors.accent),
@@ -396,7 +396,7 @@ private fun Composer(
                     }
                 },
             )
-            if (!hasText) IconBtn(Sym.Place, stringResource(R.string.chat_send_zone), onZone, Modifier.size(40.dp))
+            if (!hasText) IconBtn(Sym.Place, stringResource(R.string.chat_send_zone), onZone)
         }
         AnimatedContent(
             hasText,
@@ -406,7 +406,7 @@ private fun Composer(
         ) { text ->
             if (text) {
                 Box(
-                    Modifier.padding(start = 12.dp).size(40.dp).clip(CircleShape).background(colors.send)
+                    Modifier.padding(start = 12.dp).size(TouchTarget).clip(CircleShape).background(colors.send)
                         .clickable(onClickLabel = stringResource(R.string.send), role = Role.Button, onClick = onSend),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Sym.Send, stringResource(R.string.send), Modifier.size(20.dp), tint = Color.White) }

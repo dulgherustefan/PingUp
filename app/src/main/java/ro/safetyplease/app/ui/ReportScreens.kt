@@ -322,7 +322,7 @@ fun ReportScreen(vm: AppViewModel) {
 private fun ZoneOption(name: String, selected: Boolean, onClick: () -> Unit) {
     val colors = AppTheme.colors
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
+        Modifier.fillMaxWidth().heightIn(min = TouchTarget).clip(RoundedCornerShape(10.dp))
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
