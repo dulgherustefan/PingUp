@@ -51,7 +51,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.R
@@ -71,6 +73,9 @@ class MapPin(val point: GeoPoint, val color: Color, val key: String = "")
 
 private val MapInset = 14.dp
 private val CompactInset = 8.dp
+
+/** Cel mai mic text pentru numele unei zone: sub atat nu se mai citeste pe telefon. */
+private val MinLabelSize = 9.sp
 
 /** Umbra moale de sub markere: inelul alb ramane vizibil si pe zonele deschise. */
 private val MarkerShadow = Color(0x29000000)
@@ -192,10 +197,17 @@ fun VenueMap(
                 venue.zones.forEachIndexed { index, zone ->
                     val xs = zone.polygon.map { projection.project(it).x }
                     val width = (xs.max() - xs.min() - 8.dp.toPx()).toInt().coerceAtLeast(1)
-                    val text = measurer.measure(
-                        zone.name, labelStyle.copy(color = colors.zoneInk(index, zone.id)), overflow = TextOverflow.Ellipsis, maxLines = 2,
-                        constraints = Constraints(maxWidth = width),
+                    // numele se micsoreaza pana incape intreg in zona, in loc sa fie taiat („Punct medi…”)
+                    fun label(size: TextUnit) = measurer.measure(
+                        zone.name, labelStyle.copy(color = colors.zoneInk(index, zone.id), fontSize = size, lineHeight = size * 1.15f),
+                        overflow = TextOverflow.Ellipsis, maxLines = 2, constraints = Constraints(maxWidth = width),
                     )
+                    var size = labelStyle.fontSize
+                    var text = label(size)
+                    while (text.hasVisualOverflow && size > MinLabelSize) {
+                        size = (size.value - 1).sp
+                        text = label(size)
+                    }
                     val center = projection.project(zone.center)
                     val mark = marks.firstOrNull { (it - center).getDistance() < 30.dp.toPx() }
                     val ys = zone.polygon.map { projection.project(it).y }
@@ -338,31 +350,10 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     onPinTap = { vm.open(Dest.Incident(it.key)) },
                 )
             }
-            // un singur segment n-ar avea ce alege; fara punct de intalnire ramane butonul din bara
-            if (meeting != null) {
-                item(key = "segments") {
-                    SegmentedControl(
-                        listOf(MapFocus.MINE to stringResource(R.string.map_my_zone), MapFocus.MEETING to stringResource(R.string.map_meeting_point)),
-                        selected = if (focus == MapFocus.MEETING) MapFocus.MEETING else MapFocus.MINE,
-                        onSelect = { value ->
-                            if (value == MapFocus.MINE) showMine()
-                            focus = value
-                        },
-                        modifier = Modifier.padding(start = Gutter, end = Gutter, top = 16.dp),
-                    )
-                }
-            }
             item(key = "place") {
+                // zona ta (sau zona atinsa) si punctul de intalnire stau unul sub altul, fara comutator intre ele
                 InsetGroup(Modifier.padding(top = 16.dp)) {
                     when (focus) {
-                        MapFocus.MEETING -> GroupRow(
-                            stringResource(R.string.map_meeting_point),
-                            subtitle = listOfNotNull(
-                                stringResource(R.string.map_meeting_text),
-                                if (meeting != null && here != null) stringResource(R.string.map_distance, distanceMeters(here, meeting)) else null,
-                            ).joinToString(" · "),
-                            leading = { IconCircle(Sym.Flag, colors.orange, Color.White, 36.dp) },
-                        )
                         MapFocus.ZONE -> {
                             val index = vm.venue.zones.indexOfFirst { it.id == tapped }
                             val zone = vm.venue.zones.getOrNull(index)
@@ -379,7 +370,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                                 } else null,
                             )
                         }
-                        MapFocus.MINE -> {
+                        MapFocus.MINE, MapFocus.MEETING -> {
                             val yourZone = stringResource(R.string.map_your_zone)
                             val source = stringResource(if (simulated) R.string.map_source_simulated else R.string.map_source_gps)
                             val manual = stringResource(R.string.map_source_manual)
@@ -397,6 +388,22 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                                 },
                             )
                         }
+                    }
+                    if (meeting != null) {
+                        GroupDivider(start = 64.dp)
+                        GroupRow(
+                            stringResource(R.string.map_meeting_point),
+                            subtitle = listOfNotNull(
+                                stringResource(R.string.map_meeting_text),
+                                if (here != null) stringResource(R.string.map_distance, distanceMeters(here, meeting)) else null,
+                            ).joinToString(" · "),
+                            leading = { IconCircle(Sym.Flag, colors.orange, Color.White, 36.dp) },
+                            // atins, steagul de pe harta se mareste
+                            onClick = {
+                                focus = MapFocus.MEETING
+                                scope.launch { listState.animateScrollToItem(0) }
+                            },
+                        )
                     }
                 }
             }
