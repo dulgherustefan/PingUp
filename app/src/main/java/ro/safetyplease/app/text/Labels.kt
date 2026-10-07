@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.text
 
 import android.content.Context
 import android.content.res.Resources

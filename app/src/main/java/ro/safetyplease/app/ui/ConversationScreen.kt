@@ -98,7 +98,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlin.math.max
 import ro.safetyplease.app.R
 import ro.safetyplease.app.data.ChatMessage
 import ro.safetyplease.app.data.Conversations
@@ -108,7 +107,10 @@ import ro.safetyplease.app.data.MsgKind
 import ro.safetyplease.app.data.MsgStatus
 import ro.safetyplease.app.protocol.Limits
 import ro.safetyplease.app.protocol.QuickCode
+import ro.safetyplease.app.text.Labels
+import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.venue.GeoPoint
+import kotlin.math.max
 
 /** Mesajele aceluiasi om, la mai putin de atat unul de altul, fac un singur sir de baloane lipite. */
 private const val RUN_WINDOW_MS = 3 * 60_000L

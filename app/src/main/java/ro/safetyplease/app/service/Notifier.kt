@@ -21,7 +21,7 @@ import ro.safetyplease.app.data.MyReport
 import ro.safetyplease.app.data.StaffIncident
 import ro.safetyplease.app.protocol.AckStatus
 import ro.safetyplease.app.protocol.Severity
-import ro.safetyplease.app.ui.Labels
+import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.venue.Venue
 
 // Fiecare notify() e precedat de canPost(); lint nu vede verificarea de permisiune printr-o functie ajutatoare.

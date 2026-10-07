@@ -3,11 +3,8 @@ package ro.safetyplease.app.crypto
 import com.goterl.lazysodium.LazySodium
 import com.goterl.lazysodium.interfaces.Box
 import com.goterl.lazysodium.interfaces.Sign
-import java.security.MessageDigest
 
 class KeyPair(val publicKey: ByteArray, val secretKey: ByteArray)
-
-fun sha256(data: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(data)
 
 /** Operatiile criptografice ale aplicatiei. Toate vin din libsodium; aici nu se implementeaza nimic de mana. */
 interface Crypto {

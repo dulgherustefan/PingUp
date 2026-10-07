@@ -57,7 +57,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.R
-import ro.safetyplease.app.data.Role as AppRole
 import ro.safetyplease.app.data.StaffIncident
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.protocol.AckStatus
@@ -68,6 +67,7 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
+import ro.safetyplease.app.data.Role as AppRole
 
 class MapPin(val point: GeoPoint, val color: Color, val key: String = "")
 

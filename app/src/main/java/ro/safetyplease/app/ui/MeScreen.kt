@@ -43,8 +43,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.BuildConfig
 import ro.safetyplease.app.R
 import ro.safetyplease.app.core.toHex
-import ro.safetyplease.app.data.Role as AppRole
 import ro.safetyplease.app.demo.Demo
+import ro.safetyplease.app.data.Role as AppRole
 
 const val MAX_NAME = 20
 

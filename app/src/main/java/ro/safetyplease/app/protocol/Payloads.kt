@@ -1,7 +1,7 @@
 package ro.safetyplease.app.protocol
 
+import ro.safetyplease.app.core.sha256
 import ro.safetyplease.app.core.utf8
-import ro.safetyplease.app.crypto.sha256
 import kotlin.math.roundToInt
 
 object NodeFlags {

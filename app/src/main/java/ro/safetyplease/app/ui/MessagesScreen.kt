@@ -58,6 +58,10 @@ import ro.safetyplease.app.data.Group
 import ro.safetyplease.app.data.MsgKind
 import ro.safetyplease.app.data.MsgStatus
 import ro.safetyplease.app.mesh.RadioStatus
+import ro.safetyplease.app.text.Labels
+import ro.safetyplease.app.text.agoText
+import ro.safetyplease.app.text.listTime
+import ro.safetyplease.app.text.rememberNow
 
 private class ConversationRow(
     val id: String,

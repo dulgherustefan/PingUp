@@ -12,7 +12,7 @@ import ro.safetyplease.app.protocol.PacketType
 import ro.safetyplease.app.protocol.WireReader
 import ro.safetyplease.app.protocol.WireWriter
 import ro.safetyplease.app.protocol.parseOrNull
-import ro.safetyplease.app.ui.Labels
+import ro.safetyplease.app.text.Labels
 
 /**
  * Pachetele TEST: un ping difuzat la care fiecare nod raspunde cu un ecou adresat.

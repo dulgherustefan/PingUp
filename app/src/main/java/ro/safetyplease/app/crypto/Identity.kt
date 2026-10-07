@@ -1,5 +1,6 @@
 package ro.safetyplease.app.crypto
 
+import ro.safetyplease.app.core.sha256
 import ro.safetyplease.app.core.toLong
 
 /** Identitatea unui telefon: o pereche X25519 (criptare) si una Ed25519 (semnare). */

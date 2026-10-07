@@ -6,9 +6,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ro.safetyplease.app.core.sha256
 import ro.safetyplease.app.core.truncateUtf8
 import ro.safetyplease.app.core.utf8
-import ro.safetyplease.app.crypto.sha256
 
 class PayloadsTest {
     @Test

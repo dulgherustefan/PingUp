@@ -109,6 +109,10 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.crypto.QrDecoder
 import ro.safetyplease.app.data.Conversations
 import ro.safetyplease.app.protocol.Limits
+import ro.safetyplease.app.text.Labels
+import ro.safetyplease.app.text.agoText
+import ro.safetyplease.app.text.hopsText
+import ro.safetyplease.app.text.rememberNow
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 

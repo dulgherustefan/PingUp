@@ -71,6 +71,9 @@ import ro.safetyplease.app.protocol.AckStatus
 import ro.safetyplease.app.protocol.IncidentCategory
 import ro.safetyplease.app.protocol.Limits
 import ro.safetyplease.app.protocol.Severity
+import ro.safetyplease.app.text.Labels
+import ro.safetyplease.app.text.agoText
+import ro.safetyplease.app.text.rememberNow
 
 /** Categoriile care sunt urgente daca omul nu spune altfel. */
 private fun urgentByDefault(category: Int): Boolean =

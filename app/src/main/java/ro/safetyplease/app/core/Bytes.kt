@@ -1,6 +1,10 @@
 package ro.safetyplease.app.core
 
 import java.nio.ByteBuffer
+import java.security.MessageDigest
+
+/** Folosit si de protocol (hash-ul de anulare), si de identitate (id-ul nodului). */
+fun sha256(data: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(data)
 
 private const val HEX = "0123456789abcdef"
 

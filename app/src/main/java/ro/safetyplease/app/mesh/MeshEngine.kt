@@ -14,6 +14,7 @@ import ro.safetyplease.app.core.nodePrefix
 import ro.safetyplease.app.core.shortHex
 import ro.safetyplease.app.core.toHex
 import ro.safetyplease.app.core.toLong
+import ro.safetyplease.app.core.truncateUtf8
 import ro.safetyplease.app.protocol.Hello
 import ro.safetyplease.app.protocol.IncidentAck
 import ro.safetyplease.app.protocol.IncidentCancel
@@ -26,7 +27,6 @@ import ro.safetyplease.app.protocol.PacketType
 import ro.safetyplease.app.protocol.Reassembler
 import ro.safetyplease.app.protocol.RequestCodec
 import ro.safetyplease.app.protocol.SummaryCodec
-import ro.safetyplease.app.core.truncateUtf8
 import kotlin.random.Random
 
 data class MeshConfig(

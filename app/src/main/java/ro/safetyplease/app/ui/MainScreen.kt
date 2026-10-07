@@ -81,10 +81,10 @@ import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
-import ro.safetyplease.app.data.Role as AppRole
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.mesh.RadioStatus
 import ro.safetyplease.app.protocol.AckStatus
+import ro.safetyplease.app.data.Role as AppRole
 
 /** Fara acestea reteaua nu porneste. */
 fun radioPermissions(): List<String> =
