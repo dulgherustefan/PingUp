@@ -1,4 +1,4 @@
-package ro.safetyplease.app.crypto
+package ro.safetyplease.app.ui.people
 
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
@@ -6,6 +6,10 @@ import com.google.zxing.qrcode.QRCodeWriter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import ro.safetyplease.app.crypto.FriendCard
+import ro.safetyplease.app.crypto.QrCodes
+import ro.safetyplease.app.crypto.StaffCard
+import ro.safetyplease.app.crypto.StaffRole
 import java.util.Random
 
 /**

@@ -12,8 +12,8 @@ import androidx.activity.viewModels
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.app.ui.AppRoot
-import ro.safetyplease.app.ui.AppTheme
 import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.app.ui.designsystem.AppTheme
 
 class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()

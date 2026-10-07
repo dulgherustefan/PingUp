@@ -1,4 +1,4 @@
-package ro.safetyplease.app.crypto
+package ro.safetyplease.app.ui.people
 
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap

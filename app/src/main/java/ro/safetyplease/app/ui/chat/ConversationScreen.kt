@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.chat
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -109,6 +109,39 @@ import ro.safetyplease.app.protocol.Limits
 import ro.safetyplease.app.protocol.QuickCode
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.app.ui.Dest
+import ro.safetyplease.app.ui.common.MapPin
+import ro.safetyplease.app.ui.common.VenueMap
+import ro.safetyplease.app.ui.common.presenceText
+import ro.safetyplease.app.ui.designsystem.ActionTile
+import ro.safetyplease.app.ui.designsystem.AppMenu
+import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.Avatar
+import ro.safetyplease.app.ui.designsystem.Backdrop
+import ro.safetyplease.app.ui.designsystem.DeliveryIcon
+import ro.safetyplease.app.ui.designsystem.GlassIconButton
+import ro.safetyplease.app.ui.designsystem.Gutter
+import ro.safetyplease.app.ui.designsystem.IconBtn
+import ro.safetyplease.app.ui.designsystem.MenuRow
+import ro.safetyplease.app.ui.designsystem.Motion
+import ro.safetyplease.app.ui.designsystem.NavHeight
+import ro.safetyplease.app.ui.designsystem.NavText
+import ro.safetyplease.app.ui.designsystem.Sym
+import ro.safetyplease.app.ui.designsystem.TextLink
+import ro.safetyplease.app.ui.designsystem.TopEdge
+import ro.safetyplease.app.ui.designsystem.TouchTarget
+import ro.safetyplease.app.ui.designsystem.backdropSource
+import ro.safetyplease.app.ui.designsystem.body
+import ro.safetyplease.app.ui.designsystem.caption1
+import ro.safetyplease.app.ui.designsystem.footnote
+import ro.safetyplease.app.ui.designsystem.glass
+import ro.safetyplease.app.ui.designsystem.headline
+import ro.safetyplease.app.ui.designsystem.rememberBackdrop
+import ro.safetyplease.app.ui.designsystem.rememberHaptics
+import ro.safetyplease.app.ui.designsystem.screenBackground
+import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.app.ui.designsystem.title2
 import ro.safetyplease.app.venue.GeoPoint
 import kotlin.math.max
 

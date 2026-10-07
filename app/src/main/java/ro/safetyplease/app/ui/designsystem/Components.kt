@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.designsystem
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState

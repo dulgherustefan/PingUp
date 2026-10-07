@@ -11,6 +11,7 @@ import ro.safetyplease.app.mesh.LinkInfo
 import ro.safetyplease.app.mesh.MeshState
 import ro.safetyplease.app.mesh.RadioStatus
 import ro.safetyplease.app.mesh.SeenPeer
+import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.app.venue.Bounds
 import ro.safetyplease.app.venue.GeoPoint
 import ro.safetyplease.app.venue.Venue

@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.designsystem
 
 import androidx.compose.animation.core.EaseInOutSine
 import androidx.compose.animation.core.RepeatMode

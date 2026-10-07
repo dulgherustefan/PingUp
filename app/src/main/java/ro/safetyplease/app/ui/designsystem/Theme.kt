@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.designsystem
 
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.LocalOverscrollFactory

@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.designsystem
 
 import android.os.Build
 import androidx.compose.foundation.IndicationNodeFactory

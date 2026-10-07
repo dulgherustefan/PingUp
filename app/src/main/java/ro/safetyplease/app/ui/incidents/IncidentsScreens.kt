@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.incidents
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
@@ -58,6 +58,35 @@ import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.hopsText
 import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.app.ui.Dest
+import ro.safetyplease.app.ui.common.IncidentHeader
+import ro.safetyplease.app.ui.common.MapPin
+import ro.safetyplease.app.ui.common.MeButton
+import ro.safetyplease.app.ui.common.VenueMap
+import ro.safetyplease.app.ui.common.categoryIcon
+import ro.safetyplease.app.ui.common.incidentPoint
+import ro.safetyplease.app.ui.designsystem.AppButton
+import ro.safetyplease.app.ui.designsystem.AppMenu
+import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.ConfirmDialog
+import ro.safetyplease.app.ui.designsystem.EmptyState
+import ro.safetyplease.app.ui.designsystem.GlassIconButton
+import ro.safetyplease.app.ui.designsystem.GroupDivider
+import ro.safetyplease.app.ui.designsystem.Gutter
+import ro.safetyplease.app.ui.designsystem.IconCircle
+import ro.safetyplease.app.ui.designsystem.InsetGroup
+import ro.safetyplease.app.ui.designsystem.MenuRow
+import ro.safetyplease.app.ui.designsystem.NavScreen
+import ro.safetyplease.app.ui.designsystem.SectionTitle
+import ro.safetyplease.app.ui.designsystem.SegmentedControl
+import ro.safetyplease.app.ui.designsystem.StatusLabel
+import ro.safetyplease.app.ui.designsystem.Sym
+import ro.safetyplease.app.ui.designsystem.body
+import ro.safetyplease.app.ui.designsystem.footnote
+import ro.safetyplease.app.ui.designsystem.headline
+import ro.safetyplease.app.ui.designsystem.rememberHaptics
+import ro.safetyplease.app.ui.designsystem.subheadline
 
 /**
  * Iconita si culoarea starii, pentru text: nepreluat e portocaliu, preluat e gri, rezolvat e verde.

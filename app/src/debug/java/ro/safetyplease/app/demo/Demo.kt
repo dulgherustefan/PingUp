@@ -57,9 +57,9 @@ import ro.safetyplease.app.protocol.IncidentCategory
 import ro.safetyplease.app.protocol.NodeFlags
 import ro.safetyplease.app.protocol.Severity
 import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.ConfirmDialog
-import ro.safetyplease.app.ui.LocalAppColors
-import ro.safetyplease.app.ui.ScreenScaffold
+import ro.safetyplease.app.ui.designsystem.ConfirmDialog
+import ro.safetyplease.app.ui.designsystem.LocalAppColors
+import ro.safetyplease.app.ui.designsystem.ScreenScaffold
 
 /** Modul demo: exista doar in build-ul debug si aduce uneltele pentru prezentare si depanarea transportului. */
 object Demo {

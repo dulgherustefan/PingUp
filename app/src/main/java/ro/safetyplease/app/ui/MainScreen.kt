@@ -84,6 +84,34 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.mesh.RadioStatus
 import ro.safetyplease.app.protocol.AckStatus
+import ro.safetyplease.app.ui.chat.ConversationScreen
+import ro.safetyplease.app.ui.chat.MessagesScreen
+import ro.safetyplease.app.ui.common.RadioGate
+import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.Backdrop
+import ro.safetyplease.app.ui.designsystem.FullScreen
+import ro.safetyplease.app.ui.designsystem.LocalBottomClearance
+import ro.safetyplease.app.ui.designsystem.LocalReduceMotion
+import ro.safetyplease.app.ui.designsystem.Motion
+import ro.safetyplease.app.ui.designsystem.Sym
+import ro.safetyplease.app.ui.designsystem.TextFont
+import ro.safetyplease.app.ui.designsystem.backdropSource
+import ro.safetyplease.app.ui.designsystem.glass
+import ro.safetyplease.app.ui.designsystem.pressScale
+import ro.safetyplease.app.ui.designsystem.rememberBackdrop
+import ro.safetyplease.app.ui.incidents.IncidentDetailScreen
+import ro.safetyplease.app.ui.incidents.IncidentsScreen
+import ro.safetyplease.app.ui.map.MapScreen
+import ro.safetyplease.app.ui.map.PinScreen
+import ro.safetyplease.app.ui.me.AnchorScreen
+import ro.safetyplease.app.ui.me.MeScreen
+import ro.safetyplease.app.ui.onboarding.OnboardingScreen
+import ro.safetyplease.app.ui.people.AddFriendScreen
+import ro.safetyplease.app.ui.people.NewGroupScreen
+import ro.safetyplease.app.ui.people.ProfileScreen
+import ro.safetyplease.app.ui.report.MyReportsScreen
+import ro.safetyplease.app.ui.report.ReportScreen
+import ro.safetyplease.app.ui.report.ReportSentScreen
 import ro.safetyplease.app.data.Role as AppRole
 
 /** Fara acestea reteaua nu porneste. */
@@ -121,17 +149,6 @@ fun deniedForGood(activity: Activity?, denied: Collection<String>): Boolean =
 fun openAppSettings(context: Context) {
     runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))) }
 }
-
-/** Ce lipseste ca reteaua sa mearga si actiunile care rezolva. */
-class RadioGate(
-    val hasAccess: Boolean,
-    val bluetoothOn: Boolean,
-    val locationOff: Boolean,
-    /** Accesul a fost refuzat definitiv: [requestAccess] deschide setarile aplicatiei. */
-    val accessBlocked: Boolean,
-    val requestAccess: () -> Unit,
-    val enableBluetooth: () -> Unit,
-)
 
 @Composable
 fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> Unit): RadioGate {

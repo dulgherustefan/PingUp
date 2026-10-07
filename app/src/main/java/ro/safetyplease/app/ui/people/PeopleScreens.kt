@@ -1,10 +1,9 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.people
 
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,7 +25,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,7 +34,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
@@ -83,7 +80,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
@@ -95,33 +91,58 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.EncodeHintType
-import com.google.zxing.qrcode.QRCodeWriter
 import ro.safetyplease.app.R
-import ro.safetyplease.app.crypto.QrDecoder
 import ro.safetyplease.app.data.Conversations
 import ro.safetyplease.app.protocol.Limits
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.hopsText
 import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.app.ui.Dest
+import ro.safetyplease.app.ui.ScanOutcome
+import ro.safetyplease.app.ui.Tab
+import ro.safetyplease.app.ui.common.BigCodeDialog
+import ro.safetyplease.app.ui.common.QrBadge
+import ro.safetyplease.app.ui.common.QrCardWidth
+import ro.safetyplease.app.ui.common.presenceText
+import ro.safetyplease.app.ui.deniedForGood
+import ro.safetyplease.app.ui.designsystem.ActionTile
+import ro.safetyplease.app.ui.designsystem.AppButton
+import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.Avatar
+import ro.safetyplease.app.ui.designsystem.ButtonKind
+import ro.safetyplease.app.ui.designsystem.ConfirmDialog
+import ro.safetyplease.app.ui.designsystem.GlassIconButton
+import ro.safetyplease.app.ui.designsystem.GroupDivider
+import ro.safetyplease.app.ui.designsystem.GroupRow
+import ro.safetyplease.app.ui.designsystem.Gutter
+import ro.safetyplease.app.ui.designsystem.InputField
+import ro.safetyplease.app.ui.designsystem.InsetGroup
+import ro.safetyplease.app.ui.designsystem.LocalBottomClearance
+import ro.safetyplease.app.ui.designsystem.LocalReduceMotion
+import ro.safetyplease.app.ui.designsystem.Motion
+import ro.safetyplease.app.ui.designsystem.NavScreen
+import ro.safetyplease.app.ui.designsystem.SectionTitle
+import ro.safetyplease.app.ui.designsystem.SegmentedControl
+import ro.safetyplease.app.ui.designsystem.StatusLabel
+import ro.safetyplease.app.ui.designsystem.Sym
+import ro.safetyplease.app.ui.designsystem.TextLink
+import ro.safetyplease.app.ui.designsystem.body
+import ro.safetyplease.app.ui.designsystem.caption1
+import ro.safetyplease.app.ui.designsystem.footnote
+import ro.safetyplease.app.ui.designsystem.headline
+import ro.safetyplease.app.ui.designsystem.rememberHaptics
+import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.app.ui.designsystem.title1
+import ro.safetyplease.app.ui.openAppSettings
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
-
-/** Codul QR, cu modulele in [ink] pe alb si fara margine: marginea alba o da cardul pe care sta. */
-fun qrBitmap(text: String, size: Int = 640, ink: Int = android.graphics.Color.BLACK): Bitmap {
-    val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, mapOf(EncodeHintType.MARGIN to 0))
-    val pixels = IntArray(size * size) { i -> if (matrix[i % size, i / size]) ink else android.graphics.Color.WHITE }
-    return Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
-}
 
 private class QrAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis.Analyzer {
     override fun analyze(image: ImageProxy) {
@@ -207,40 +228,6 @@ private fun ScanFrame(modifier: Modifier = Modifier) {
     }
 }
 
-// culorile cardului cu cod nu urmeaza tema: codul trebuie sa se citeasca la fel ziua si noaptea.
-// Verdele de padure din logo; numele alb pe el are 7,5:1, iar codul verde-negru pe alb peste 11:1, cat sa-l prinda orice camera.
-private val QrBorder = Color(0xFF2B5E45)
-private val QrInk = 0xFF17402E.toInt()
-private val QrFrame = Color(0xFFE9E9E9)
-
-/** Latimea cardului cu cod; butoanele de sub el se aliniaza cu el. */
-private val CardWidth = 296.dp
-
-/**
- * Codul tau pe un card verde de padure, ca in Signal: patratul alb cu codul si numele tau dedesubt, in alb.
- * Atins, se deschide mare, pe tot ecranul.
- */
-@Composable
-fun QrBadge(code: String, name: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val bitmap = remember(code) { qrBitmap(code, ink = QrInk).asImageBitmap() }
-    Column(
-        modifier.widthIn(max = CardWidth).fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(QrBorder)
-            .clickable(onClickLabel = stringResource(R.string.add_friend_enlarge), role = Role.Button, onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // alb pe orice tema: orice camera trebuie sa il poata citi
-        Image(
-            bitmap, stringResource(R.string.add_friend_mine),
-            Modifier.padding(start = 40.dp, end = 40.dp, top = 32.dp).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp))
-                .background(Color.White).border(2.dp, QrFrame, RoundedCornerShape(12.dp)).padding(16.dp),
-        )
-        Text(
-            name, style = MaterialTheme.typography.title3, color = Color.White, textAlign = TextAlign.Center,
-            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 16.dp, bottom = 28.dp),
-        )
-    }
-}
-
 /**
  * Adauga prieten, ca ecranul cu codul QR din Signal: comutatorul sus, apoi cardul verde cu codul tau
  * sau camera pentru codul altcuiva.
@@ -316,7 +303,7 @@ fun AddFriendScreen(vm: AppViewModel) {
                     modifier = Modifier.widthIn(max = 320.dp).padding(top = 16.dp),
                 )
                 Column(
-                    Modifier.widthIn(max = CardWidth).fillMaxWidth().padding(top = 32.dp),
+                    Modifier.widthIn(max = QrCardWidth).fillMaxWidth().padding(top = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     // prietenia merge in ambele sensuri: dupa ce l-ai scanat, el trebuie sa te scaneze pe tine
@@ -339,7 +326,7 @@ fun AddFriendScreen(vm: AppViewModel) {
                 QrBadge(code, settings.nickname, { bigCode = true }, Modifier.padding(top = 24.dp))
                 Text(
                     stringResource(R.string.add_friend_mine_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
-                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = CardWidth).padding(top = 16.dp),
+                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = QrCardWidth).padding(top = 16.dp),
                 )
                 // scanarea are tabul ei sus; aici ramane doar varianta pentru cand camera nu merge
                 TextLink(stringResource(R.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
@@ -388,25 +375,6 @@ fun AddFriendScreen(vm: AppViewModel) {
             },
             onDismiss = { sheet = false },
         )
-    }
-}
-
-/** Codul mare, pe alb, peste tot ecranul: de aproape sau in lumina slaba se citeste mai usor. Atingerea il inchide. */
-@Composable
-fun BigCodeDialog(code: String, name: String, onDismiss: () -> Unit) {
-    val bitmap = remember(code) { qrBitmap(code).asImageBitmap() }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
-            Modifier.fillMaxSize().clickable(onClickLabel = stringResource(R.string.close), onClick = onDismiss).padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-        ) {
-            Image(
-                bitmap, stringResource(R.string.add_friend_mine),
-                Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(24.dp)).background(Color.White).padding(20.dp),
-            )
-            Spacer(Modifier.height(24.dp))
-            Text(name, style = MaterialTheme.typography.title1, color = Color.White, textAlign = TextAlign.Center)
-        }
     }
 }
 

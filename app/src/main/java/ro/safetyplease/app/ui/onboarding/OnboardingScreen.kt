@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.onboarding
 
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -52,6 +52,28 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.R
+import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.app.ui.common.MAX_NAME
+import ro.safetyplease.app.ui.designsystem.AppButton
+import ro.safetyplease.app.ui.designsystem.AppLogo
+import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.Avatar
+import ro.safetyplease.app.ui.designsystem.GlassIconButton
+import ro.safetyplease.app.ui.designsystem.Gutter
+import ro.safetyplease.app.ui.designsystem.Hint
+import ro.safetyplease.app.ui.designsystem.IconCircle
+import ro.safetyplease.app.ui.designsystem.InputField
+import ro.safetyplease.app.ui.designsystem.LocalReduceMotion
+import ro.safetyplease.app.ui.designsystem.Motion
+import ro.safetyplease.app.ui.designsystem.NavHeight
+import ro.safetyplease.app.ui.designsystem.Sym
+import ro.safetyplease.app.ui.designsystem.TextLink
+import ro.safetyplease.app.ui.designsystem.body
+import ro.safetyplease.app.ui.designsystem.headline
+import ro.safetyplease.app.ui.designsystem.largeTitle
+import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.app.ui.push
+import ro.safetyplease.app.ui.startPermissions
 
 /** Curba iOS pentru intrarea unui ecran: porneste repede si se aseaza lin. */
 

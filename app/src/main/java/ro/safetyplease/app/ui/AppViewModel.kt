@@ -19,7 +19,6 @@ import kotlinx.coroutines.launch
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.MainActivity
-import ro.safetyplease.app.core.nodePrefix
 import ro.safetyplease.app.crypto.QrCodes
 import ro.safetyplease.app.data.ChatMessage
 import ro.safetyplease.app.data.Friend
@@ -27,8 +26,7 @@ import ro.safetyplease.app.data.Role
 import ro.safetyplease.app.data.Settings
 import ro.safetyplease.app.incidents.ReportDraft
 import ro.safetyplease.app.location.GeoFix
-import ro.safetyplease.app.mesh.MeshState
-import ro.safetyplease.app.mesh.RadioStatus
+import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.app.venue.GeoPoint
 import ro.safetyplease.app.venue.Venue
 import ro.safetyplease.app.venue.Zone
@@ -85,28 +83,6 @@ fun currentPoint(settings: Settings, fix: GeoFix?, nowMs: Long): GeoPoint? {
 /** Coordonatele pleaca doar daca nu contrazic zona aleasa: altfel pinul de pe harta staff-ului ar arata alt loc decat zona. */
 fun reportPoint(zone: String, point: GeoPoint?, venue: Venue): GeoPoint? =
     point?.takeIf { zone.isEmpty() || venue.zoneAt(it.lat, it.lon)?.id == zone }
-
-/** Ce arata interfata din starea mesh-ului; se schimba doar cand cineva apare, dispare sau se leaga, nu la fiecare pachet. */
-data class Nearby(
-    val linked: Set<Long> = emptySet(),
-    val seenPrefixes: Set<Int> = emptySet(),
-    val readyLinks: Int = 0,
-    val radio: RadioStatus = RadioStatus(),
-) {
-    /** Legat direct de noi, nu doar vazut in scanare. */
-    fun isLinked(nodeId: Long): Boolean = nodeId in linked
-
-    fun isInRange(nodeId: Long): Boolean = isLinked(nodeId) || nodeId.nodePrefix() in seenPrefixes
-
-    companion object {
-        fun of(state: MeshState) = Nearby(
-            state.links.mapTo(HashSet()) { it.peerId },
-            state.seen.mapNotNullTo(HashSet()) { it.prefix },
-            state.readyLinks,
-            state.radio,
-        )
-    }
-}
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     val c: AppContainer = (app as App).container

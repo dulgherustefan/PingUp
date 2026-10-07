@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.report
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -74,6 +74,40 @@ import ro.safetyplease.app.protocol.Severity
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.app.ui.Dest
+import ro.safetyplease.app.ui.common.CategoryCircle
+import ro.safetyplease.app.ui.common.IncidentHeader
+import ro.safetyplease.app.ui.common.MeButton
+import ro.safetyplease.app.ui.common.categoryIcon
+import ro.safetyplease.app.ui.designsystem.AppButton
+import ro.safetyplease.app.ui.designsystem.AppDialog
+import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.ConfirmDialog
+import ro.safetyplease.app.ui.designsystem.EmptyState
+import ro.safetyplease.app.ui.designsystem.GlassIconButton
+import ro.safetyplease.app.ui.designsystem.GroupDivider
+import ro.safetyplease.app.ui.designsystem.GroupRow
+import ro.safetyplease.app.ui.designsystem.Gutter
+import ro.safetyplease.app.ui.designsystem.InputField
+import ro.safetyplease.app.ui.designsystem.InsetGroup
+import ro.safetyplease.app.ui.designsystem.LocalBottomClearance
+import ro.safetyplease.app.ui.designsystem.Motion
+import ro.safetyplease.app.ui.designsystem.NavScreen
+import ro.safetyplease.app.ui.designsystem.SectionTitle
+import ro.safetyplease.app.ui.designsystem.StatusLabel
+import ro.safetyplease.app.ui.designsystem.SwitchRow
+import ro.safetyplease.app.ui.designsystem.Sym
+import ro.safetyplease.app.ui.designsystem.TextLink
+import ro.safetyplease.app.ui.designsystem.TouchTarget
+import ro.safetyplease.app.ui.designsystem.body
+import ro.safetyplease.app.ui.designsystem.footnote
+import ro.safetyplease.app.ui.designsystem.headline
+import ro.safetyplease.app.ui.designsystem.pressScale
+import ro.safetyplease.app.ui.designsystem.rememberHaptics
+import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.app.ui.designsystem.title2
+import ro.safetyplease.app.ui.rememberLocationRequest
 
 /** Categoriile care sunt urgente daca omul nu spune altfel. */
 private fun urgentByDefault(category: Int): Boolean =
@@ -82,16 +116,6 @@ private fun urgentByDefault(category: Int): Boolean =
 
 /** Banda in care lista se estompeaza deasupra butoanelor care plutesc jos. */
 private val FadeZone = 24.dp
-
-fun categoryIcon(category: Int): ImageVector = when (category) {
-    IncidentCategory.MEDICAL -> Sym.Medical
-    IncidentCategory.VIOLENCE -> Sym.Fight
-    IncidentCategory.LOST_PERSON -> Sym.PersonSearch
-    IncidentCategory.HARASSMENT -> Sym.NoTouch
-    IncidentCategory.CROWD -> Sym.Groups
-    IncidentCategory.FIRE -> Sym.Fire
-    else -> Sym.MoreHoriz
-}
 
 /** O categorie de raport: buton jos, iconita verde in stanga si numele; aleasa, ia culoarea de selectie, nu verdele butonului Trimite. */
 @Composable
@@ -450,38 +474,6 @@ fun ReportTimeline(report: MyReport, now: Long, modifier: Modifier = Modifier) {
                     }
                 }
             }
-        }
-    }
-}
-
-/** Cercul categoriei: rosu pal cu iconita rosie cand e urgent, gri cu iconita neagra in rest. */
-@Composable
-private fun CategoryCircle(category: Int, urgent: Boolean, size: Dp) {
-    val colors = AppTheme.colors
-    IconCircle(
-        categoryIcon(category), if (urgent) colors.red.copy(alpha = 0.15f) else colors.fill,
-        if (urgent) colors.red else colors.label, size,
-    )
-}
-
-/** Antetul unui raport sau incident, ca antetul unui contact in Signal: cercul categoriei, numele si unde. Rosu cand e urgent. */
-@Composable
-fun IncidentHeader(category: Int, urgent: Boolean, subtitle: String, modifier: Modifier = Modifier, status: @Composable () -> Unit = {}) {
-    val colors = AppTheme.colors
-    Column(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        CategoryCircle(category, urgent, 88.dp)
-        Text(
-            stringResource(Labels.category(category)), style = MaterialTheme.typography.title2, color = colors.label, textAlign = TextAlign.Center,
-            modifier = Modifier.padding(start = Gutter, end = Gutter, top = 12.dp),
-        )
-        Text(
-            subtitle, style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, textAlign = TextAlign.Center,
-            modifier = Modifier.padding(start = Gutter, end = Gutter, top = 2.dp),
-        )
-        // starea sta sub nume, ca in fisa unui contact din Signal, nu pierduta intre butoane si harta
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (urgent) StatusLabel(stringResource(R.string.sev_urgent), icon = Sym.Priority, color = colors.redInk)
-            status()
         }
     }
 }

@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.me
 
 import android.content.Intent
 import android.os.Build
@@ -44,9 +44,30 @@ import ro.safetyplease.app.BuildConfig
 import ro.safetyplease.app.R
 import ro.safetyplease.app.core.toHex
 import ro.safetyplease.app.demo.Demo
+import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.app.ui.Dest
+import ro.safetyplease.app.ui.common.BigCodeDialog
+import ro.safetyplease.app.ui.common.MAX_NAME
+import ro.safetyplease.app.ui.common.QrBadge
+import ro.safetyplease.app.ui.common.networkText
+import ro.safetyplease.app.ui.designsystem.AppDialog
+import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.ConfirmDialog
+import ro.safetyplease.app.ui.designsystem.GlassIconButton
+import ro.safetyplease.app.ui.designsystem.GroupDivider
+import ro.safetyplease.app.ui.designsystem.GroupRow
+import ro.safetyplease.app.ui.designsystem.Gutter
+import ro.safetyplease.app.ui.designsystem.InputField
+import ro.safetyplease.app.ui.designsystem.InsetGroup
+import ro.safetyplease.app.ui.designsystem.NavScreen
+import ro.safetyplease.app.ui.designsystem.Sym
+import ro.safetyplease.app.ui.designsystem.TextLink
+import ro.safetyplease.app.ui.designsystem.footnote
+import ro.safetyplease.app.ui.designsystem.rememberHaptics
+import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.app.ui.designsystem.title1
+import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.app.data.Role as AppRole
-
-const val MAX_NAME = 20
 
 private const val DEMO_UNLOCK_TAPS = 7
 

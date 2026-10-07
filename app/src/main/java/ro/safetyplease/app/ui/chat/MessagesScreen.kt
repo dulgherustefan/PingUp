@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.app.ui.chat
 
 import android.content.Intent
 import android.provider.Settings
@@ -40,7 +40,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
@@ -59,9 +58,32 @@ import ro.safetyplease.app.data.MsgKind
 import ro.safetyplease.app.data.MsgStatus
 import ro.safetyplease.app.mesh.RadioStatus
 import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.listTime
 import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.app.ui.Dest
+import ro.safetyplease.app.ui.common.MeButton
+import ro.safetyplease.app.ui.common.RadioGate
+import ro.safetyplease.app.ui.common.networkText
+import ro.safetyplease.app.ui.designsystem.AppButton
+import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.Avatar
+import ro.safetyplease.app.ui.designsystem.Banner
+import ro.safetyplease.app.ui.designsystem.DeliveryIcon
+import ro.safetyplease.app.ui.designsystem.EmptyState
+import ro.safetyplease.app.ui.designsystem.GlassIconButton
+import ro.safetyplease.app.ui.designsystem.Gutter
+import ro.safetyplease.app.ui.designsystem.LocalBottomClearance
+import ro.safetyplease.app.ui.designsystem.LocalReduceMotion
+import ro.safetyplease.app.ui.designsystem.NavScreen
+import ro.safetyplease.app.ui.designsystem.PinMascot
+import ro.safetyplease.app.ui.designsystem.Sym
+import ro.safetyplease.app.ui.designsystem.UnreadBadge
+import ro.safetyplease.app.ui.designsystem.headline
+import ro.safetyplease.app.ui.designsystem.pressScale
+import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.app.ui.needsBatteryHint
+import ro.safetyplease.app.ui.rememberRadioGate
 
 private class ConversationRow(
     val id: String,
@@ -93,28 +115,6 @@ fun messageStateLabel(status: MsgStatus): Int = when (status) {
     else -> R.string.msg_failed
 }
 
-@Composable
-fun presenceText(friend: Friend, nearby: Nearby, now: Long): String = when {
-    nearby.isInRange(friend.nodeId) -> stringResource(R.string.presence_near)
-    // cat de multe telefoane a trecut mesajul e un detaliu tehnic; omul vrea doar sa stie cand l-ai vazut
-    friend.lastSeenAt > 0 -> stringResource(R.string.presence_seen, agoText(friend.lastSeenAt, now))
-    else -> stringResource(R.string.presence_never)
-}
-
-/**
- * Starea retelei, sub titlu: un fapt, nu o activitate, ca „Waiting for network…” din Telegram si contorul din bitchat.
- * „Caut…” ramanea pe ecran ore intregi, desi radioul cauta oricum mereu.
- */
-@Composable
-fun networkText(links: Int, gate: RadioGate): String {
-    return when {
-        !gate.hasAccess -> stringResource(R.string.status_no_access)
-        !gate.bluetoothOn -> stringResource(R.string.status_bt_off)
-        links == 0 -> stringResource(R.string.net_none)
-        else -> pluralStringResource(R.plurals.phones_around, links, links)
-    }
-}
-
 /**
  * Punctul din fata starii retelei: verde cand ai telefoane in jur, gri fara, rosu cand radioul nu merge.
  * Sta pe loc; un punct care pulseaza trage privirea si cand nu se schimba nimic (NN/g, animatia ca feedback).
@@ -130,19 +130,6 @@ private fun NetworkDot(links: Int, gate: RadioGate) {
     }
     val color by animateColorAsState(target, if (LocalReduceMotion.current) snap() else tween(480), label = "net")
     Box(Modifier.padding(end = 6.dp).size(7.dp).background(color, CircleShape))
-}
-
-/** Bula ta din stanga sus, pe fiecare tab: deschide ecranul tau (codul si setarile), direct, fara meniu intermediar. */
-@Composable
-fun MeButton(name: String, onClick: () -> Unit) {
-    val label = stringResource(R.string.me_open)
-    val press = remember { MutableInteractionSource() }
-    Box(
-        Modifier.size(TouchTarget).clip(CircleShape)
-            .clickable(press, indication = null, onClickLabel = label, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) { Box(Modifier.pressScale(press)) { Avatar(name, GlassSize) } }
 }
 
 /** Actiunea principala din Mesaje, ca butonul lat din Threema si WhatsApp: jos, la degetul mare. */
