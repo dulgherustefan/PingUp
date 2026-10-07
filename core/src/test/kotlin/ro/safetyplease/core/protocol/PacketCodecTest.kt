@@ -64,7 +64,7 @@ class PacketCodecTest {
     @Test
     fun maxPayloadFitsExactlyOneWriteAtFullMtu() {
         val p = packet(ByteArray(PacketCodec.MAX_PAYLOAD), recipient = 1L)
-        // MTU 517 lasa 514 octeti utili: antet 26 + destinatar 8 + payload 480
+        // MTU 517 leaves 514 usable bytes: header 26 + recipient 8 + payload 480
         assertEquals(514, PacketCodec.encodedSize(p))
         assertEquals(1, PacketCodec.toFrames(p, 514, 0).size)
         assertEquals(2, PacketCodec.toFrames(p, 513, 0).size)
@@ -75,15 +75,15 @@ class PacketCodecTest {
         val good = PacketCodec.encode(packet())
         assertNull(PacketCodec.decode(ByteArray(0)))
         assertNull(PacketCodec.decode(good.copyOf(25)))
-        assertNull("versiune", PacketCodec.decode(good.clone().also { it[0] = 2 }))
-        assertNull("tip necunoscut", PacketCodec.decode(good.clone().also { it[1] = 0x55 }))
+        assertNull("version", PacketCodec.decode(good.clone().also { it[0] = 2 }))
+        assertNull("unknown type", PacketCodec.decode(good.clone().also { it[1] = 0x55 }))
         assertNull("ttl 0", PacketCodec.decode(good.clone().also { it[2] = 0 }))
         assertNull("ttl 8", PacketCodec.decode(good.clone().also { it[2] = 8 }))
-        assertNull("flags rezervate", PacketCodec.decode(good.clone().also { it[3] = 0x10 }))
-        assertNull("lungime prea mica", PacketCodec.decode(good.clone().also { it[25] = 2 }))
-        assertNull("lungime prea mare", PacketCodec.decode(good.clone().also { it[25] = 9 }))
-        assertNull("octeti in plus", PacketCodec.decode(good + 0))
-        assertNull("peste limita", PacketCodec.decode(good.clone().also { it[24] = 0x7f }))
+        assertNull("reserved flags", PacketCodec.decode(good.clone().also { it[3] = 0x10 }))
+        assertNull("length too small", PacketCodec.decode(good.clone().also { it[25] = 2 }))
+        assertNull("length too large", PacketCodec.decode(good.clone().also { it[25] = 9 }))
+        assertNull("trailing bytes", PacketCodec.decode(good + 0))
+        assertNull("over the limit", PacketCodec.decode(good.clone().also { it[24] = 0x7f }))
     }
 
     @Test

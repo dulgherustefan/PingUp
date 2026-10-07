@@ -54,19 +54,19 @@ class MapPin(val point: GeoPoint, val color: Color, val key: String = "")
 private val MapInset = 14.dp
 private val CompactInset = 8.dp
 
-/** Cel mai mic text pentru numele unei zone: sub atat nu se mai citeste pe telefon. */
+/** Smallest zone label size; anything smaller is unreadable on a phone. */
 private val MinLabelSize = 9.sp
 
-/** Umbra moale de sub markere: inelul alb ramane vizibil si pe zonele deschise. */
+/** Soft shadow under markers so the white ring stays visible on light zones. */
 private val MarkerShadow = Color(0x29000000)
 
-/** Proiectie echirectangulara peste limitele venue-ului; la scara unui festival eroarea e neglijabila. */
+/** Equirectangular projection over the venue bounds; the error is negligible at festival scale. */
 private class Projection(venue: Venue, size: Size, pad: Float) {
     private val b = venue.bounds
     private val lonScale = cos(Math.toRadians((b.minLat + b.maxLat) / 2))
     private val worldW = (b.maxLon - b.minLon) * lonScale
     private val worldH = b.maxLat - b.minLat
-    // zonele nu ating marginea hartii
+    // keep zones off the map edge
     private val scale = min((size.width - 2 * pad) / worldW, (size.height - 2 * pad) / worldH)
     private val offX = (size.width - worldW * scale) / 2
     private val offY = (size.height - worldH * scale) / 2
@@ -85,7 +85,7 @@ fun venueAspect(venue: Venue): Float {
     return (w / (b.maxLat - b.minLat)).toFloat()
 }
 
-/** Distanta in metri intre doua puncte apropiate; suficient de exacta in interiorul unui eveniment. */
+/** Distance in meters between two nearby points; accurate enough within one event. */
 fun distanceMeters(a: GeoPoint, b: GeoPoint): Int {
     val metersPerDegree = 111_320.0
     val dLat = (a.lat - b.lat) * metersPerDegree
@@ -94,10 +94,9 @@ fun distanceMeters(a: GeoPoint, b: GeoPoint): Int {
 }
 
 /**
- * Harta schematica a venue-ului, desenata direct pe Canvas, ca o harta Apple Maps intr-un card: fara tile-uri, fara internet.
- * Zonele au culorile pastel ale avatarurilor, despartite de linii in culoarea celulelor, cu numele in nuanta lor inchisa.
- * [myZone] are contur albastru, [highlightZone] contur in nuanta ei. Tu esti punctul albastru cu halou.
- * [compact] e varianta din baloanele de mesaj: fara nume, zonele gri, doar [highlightZone] colorata.
+ * Schematic venue map drawn on a Canvas: no tiles, no internet. Zones use the avatar pastels, names in their dark tint.
+ * [myZone] gets an outline, [highlightZone] an outline in its own tint; you are the dot with a halo.
+ * [compact] is the message bubble variant: no names, gray zones, only [highlightZone] colored.
  */
 @Composable
 fun VenueMap(
@@ -123,7 +122,7 @@ fun VenueMap(
 
     Box(
         modifier.fillMaxWidth().aspectRatio(venueAspect(venue))
-            // fondul e translucid: in balon se vede culoarea balonului prin el, ca harta sa nu se piarda in fundalul ecranului
+            // translucent background so the bubble color shows through and the map doesn't vanish into the screen background
             .then(if (compact) Modifier else Modifier.clip(RoundedCornerShape(26.dp))).background(colors.fill),
     ) {
         Canvas(
@@ -146,7 +145,7 @@ fun VenueMap(
             val marker = position?.let(projection::project)
             val meeting = if (compact) null else venue.meetingPoint?.let(projection::project)
             val spots = pins.map { projection.project(it.point) }
-            // ce sta pe harta deasupra zonelor; numele unei zone se fereste de ele
+            // things drawn on top of the zones; zone names avoid them
             val marks = listOfNotNull(marker, meeting) + spots
             val paths = venue.zones.map { zone ->
                 Path().apply {
@@ -163,7 +162,7 @@ fun VenueMap(
                 drawPath(paths[index], fill)
                 drawPath(paths[index], colors.cell, style = Stroke((if (compact) 1.dp else 2.dp).toPx(), join = StrokeJoin.Round))
             }
-            // contururile vin dupa toate zonele, ca sa nu le acopere linia vecinei
+            // outlines are drawn after all zones so a neighbor's fill doesn't cover them
             if (!compact) {
                 val highlighted = venue.zones.indexOfFirst { it.id == highlightZone && it.id != myZone }
                 if (highlighted >= 0) {
@@ -177,7 +176,7 @@ fun VenueMap(
                 venue.zones.forEachIndexed { index, zone ->
                     val xs = zone.polygon.map { projection.project(it).x }
                     val width = (xs.max() - xs.min() - 8.dp.toPx()).toInt().coerceAtLeast(1)
-                    // numele se micsoreaza pana incape intreg in zona, in loc sa fie taiat („Punct medi…”)
+                    // shrink the name until it fits the zone instead of truncating it ("Punct medi...")
                     fun label(size: TextUnit) = measurer.measure(
                         zone.name, labelStyle.copy(color = colors.zoneInk(index, zone.id), fontSize = size, lineHeight = size * 1.15f),
                         overflow = TextOverflow.Ellipsis, maxLines = 2, constraints = Constraints(maxWidth = width),
@@ -193,7 +192,7 @@ fun VenueMap(
                     val ys = zone.polygon.map { projection.project(it).y }
                     val gap = 14.dp.toPx()
                     val edge = 3.dp.toPx()
-                    // numele ramane in zona: deasupra markerului, dedesubt daca nu incape, altfel lipit de marginea de sus
+                    // keep the name inside the zone: above the marker, below if it doesn't fit, else against the top edge
                     val top = when {
                         mark == null -> center.y - text.size.height / 2f
                         mark.y - gap - text.size.height >= ys.min() + edge -> mark.y - gap - text.size.height
@@ -224,7 +223,7 @@ fun VenueMap(
     }
 }
 
-/** Un marker ca pe Apple Maps: punctul colorat intr-un inel alb de 3, cu o umbra moale putin mai jos. */
+/** Marker: a colored dot in a 3 px white ring, with a soft shadow slightly below. */
 private fun DrawScope.markerDot(center: Offset, radius: Float, color: Color) {
     val outer = radius + 3.dp.toPx()
     val spread = 3.dp.toPx()

@@ -28,7 +28,7 @@ class MeshPartsTest {
         val d = DedupCache(capacity = 4096, windowMs = 15 * 60_000L)
         assertFalse(d.checkAndAdd(1L, 0))
         assertTrue(d.checkAndAdd(1L, 14 * 60_000L))
-        assertFalse("dupa fereastra e din nou nou", d.checkAndAdd(1L, 14 * 60_000L + 15 * 60_000L + 1))
+        assertFalse("new again after the window", d.checkAndAdd(1L, 14 * 60_000L + 15 * 60_000L + 1))
     }
 
     @Test
@@ -36,7 +36,7 @@ class MeshPartsTest {
         val d = DedupCache(capacity = 3, windowMs = 60_000)
         for (i in 1L..4L) d.checkAndAdd(i, i)
         assertEquals(3, d.size)
-        assertFalse("1 a fost evacuat", d.checkAndAdd(1L, 10))
+        assertFalse("1 was evicted", d.checkAndAdd(1L, 10))
         assertTrue(d.checkAndAdd(4L, 10))
     }
 
@@ -51,10 +51,10 @@ class MeshPartsTest {
         assertTrue(b.tryTake(334))
         assertFalse(b.tryTake(334))
         repeat(30) { assertTrue(b.tryTake(20_000)) }
-        assertFalse("nu depaseste capacitatea", b.tryTake(20_000))
+        assertFalse("never exceeds capacity", b.tryTake(20_000))
     }
 
-    // --- coada de prioritati ---
+    // --- priority queue ---
 
     @Test
     fun queueOrdersByPriority() {
@@ -74,7 +74,7 @@ class MeshPartsTest {
     fun fullQueueSacrificesChatForIncidents() {
         val q = SendQueue(capacity = 3)
         repeat(3) { q.offer(Outbound(packet(PacketType.PRIVATE, it.toLong()), true)) }
-        assertFalse("chat peste chat se pierde", q.offer(Outbound(packet(PacketType.PRIVATE, 9), true)))
+        assertFalse("chat over chat is dropped", q.offer(Outbound(packet(PacketType.PRIVATE, 9), true)))
         assertTrue(q.offer(Outbound(packet(PacketType.INCIDENT_REPORT, 10), true)))
         assertEquals(3, q.size)
         assertEquals(10L, q.poll()!!.packet.id)
@@ -176,7 +176,7 @@ class MeshPartsTest {
         assertEquals(listOf(SummaryEntry(1L, true, AckStatus.CANCELLED)), c.summary(0))
 
         val remote = c.missing(listOf(SummaryEntry(2L, true, AckStatus.CANCELLED)), 0).single()
-        assertFalse("un raport anulat nu mai e cerut", remote.wantReport)
+        assertFalse("a cancelled report is no longer requested", remote.wantReport)
         assertTrue(remote.wantAck)
         c.offerAck(ack(3, AckStatus.CANCELLED), packet(PacketType.INCIDENT_ACK), 0)
         assertTrue(c.missing(listOf(SummaryEntry(3L, true, AckStatus.RECEIVED)), 0).isEmpty())
@@ -199,11 +199,11 @@ class MeshPartsTest {
         val c = IncidentCache(maxReports = 50)
         for (i in 1..60) c.offerReport(id(i), packet(PacketType.INCIDENT_REPORT, i.toLong()), i.toLong())
         assertEquals(50, c.reportCount)
-        assertNull("cele mai vechi au iesit", c.report(1L))
+        assertNull("the oldest were evicted", c.report(1L))
         assertNotNull(c.report(60L))
     }
 
-    // --- politica de conectare ---
+    // --- connection policy ---
 
     private fun cand(addr: String, prefix: Int?, flags: Int = NodeFlags.ACCEPTS_CONNECTIONS, rssi: Int = -60, since: Long = 0, seen: Long = 0) =
         Candidate(addr, prefix, flags, rssi, since, seen)
@@ -293,7 +293,7 @@ class MeshPartsTest {
             link(5, 5, false, up = 1, activity = 1),
         )
         assertEquals(4, ConnectionPolicy.rotationVictim(1, true, LinkLimits.DEFAULT, c, links, now, none)!!.id)
-        assertNull("fara candidati nu rotim", ConnectionPolicy.rotationVictim(1, true, LinkLimits.DEFAULT, emptyList(), links, now, none))
-        assertNull("cu sloturi libere nu rotim", ConnectionPolicy.rotationVictim(1, true, LinkLimits.DEFAULT, c, links.take(2), now, none))
+        assertNull("no rotation without candidates", ConnectionPolicy.rotationVictim(1, true, LinkLimits.DEFAULT, emptyList(), links, now, none))
+        assertNull("no rotation with free slots", ConnectionPolicy.rotationVictim(1, true, LinkLimits.DEFAULT, c, links.take(2), now, none))
     }
 }

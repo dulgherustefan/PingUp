@@ -14,7 +14,7 @@
         tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <!-- Sub Android 12 scanarea BLE cere locatie; pe toate versiunile, GPS-ul da zona curenta. -->
+    <!-- Below Android 12 BLE scanning needs location; on every version GPS gives the current zone. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

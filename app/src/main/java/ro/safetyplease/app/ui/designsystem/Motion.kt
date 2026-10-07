@@ -22,8 +22,8 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.IntOffset
 
 /**
- * Miscarea aplicatiei. Trecerile intre ecrane merg pe arcuri, ca in iOS: o trecere intrerupta la jumatate
- * (inapoi apasat in timp ce ecranul intra) continua din viteza pe care o avea, fara salt.
+ * App motion. Screen transitions use springs, so a transition interrupted halfway
+ * (back pressed while a screen enters) continues from its current velocity without a jump.
  */
 object Motion {
     const val QUICK = 150
@@ -33,14 +33,14 @@ object Motion {
     val Enter = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
     val Exit = CubicBezierEasing(0.3f, 0f, 1f, 1f)
 
-    /** Un ecran care intra din dreapta sau o foaie care urca: se aseaza fara sa treaca de locul lui. */
+    /** A screen pushing in or a sheet sliding up: settles without overshooting. */
     val Push = spring<IntOffset>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 340f, visibilityThreshold = IntOffset.VisibilityThreshold)
 
-    /** Cat dureaza, cu aproximatie, sa se aseze [Push]; il folosesc estomparile care il insotesc. */
+    /** Roughly how long [Push] takes to settle; used by the fades that accompany it. */
     const val PUSH_SETTLE = 520
 }
 
-/** Apasat, elementul se strange putin si revine cu un arc moale, ca butoanele de sticla din iOS 26. */
+/** On press the element shrinks slightly and springs back. */
 @Composable
 fun Modifier.pressScale(interaction: InteractionSource, pressed: Float = 0.92f): Modifier {
     if (LocalReduceMotion.current) return this
@@ -54,7 +54,7 @@ fun Modifier.pressScale(interaction: InteractionSource, pressed: Float = 0.92f):
     }
 }
 
-/** True cand telefonul are „Elimina animatiile”: tranzitiile devin simple estompari. */
+/** True when the phone has "Remove animations" on: transitions become plain fades. */
 val LocalReduceMotion = staticCompositionLocalOf { false }
 
 @Composable

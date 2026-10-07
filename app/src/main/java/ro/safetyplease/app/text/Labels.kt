@@ -18,7 +18,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 
-/** Legatura dintre constantele de protocol si textele din strings.xml. */
+/** Maps protocol constants to strings.xml. */
 object Labels {
     @StringRes
     fun category(category: Int): Int = when (category) {
@@ -65,8 +65,8 @@ object Labels {
     fun date(timeMs: Long): String = SimpleDateFormat("d MMMM, HH:mm", AppLocale.ROMANIAN).format(Date(timeMs))
 
     /**
-     * "acum 5 min". Formatorul sistemului ar raspunde in limba telefonului, in mijlocul unei fraze in romana.
-     * [resources] trebuie sa vina dintr-un context al aplicatiei, care e fixat pe romana.
+     * "acum 5 min". The system formatter would answer in the phone's language, mid-sentence in Romanian.
+     * [resources] must come from an app context, which is pinned to Romanian.
      */
     fun ago(resources: Resources, timeMs: Long, nowMs: Long = System.currentTimeMillis()): String {
         val minutes = ((nowMs - timeMs) / 60_000L).toInt()
@@ -78,7 +78,7 @@ object Labels {
         }
     }
 
-    /** Ora din lista de conversatii: „Acum”, minutele din ultima ora, ora de azi, ziua din saptamana, apoi data. */
+    /** Time in the conversation list: "Acum", minutes within the hour, today's time, weekday, then the date. */
     fun listTime(resources: Resources, timeMs: Long, nowMs: Long = System.currentTimeMillis()): String {
         val minutes = ((nowMs - timeMs) / 60_000L).toInt()
         return when {
@@ -90,14 +90,14 @@ object Labels {
         }
     }
 
-    /** Antetul unei zile din conversatie: „Azi”, „Ieri” sau data. */
+    /** Day header in a conversation: "Azi", "Ieri" or the date. */
     fun dayLabel(resources: Resources, timeMs: Long, nowMs: Long = System.currentTimeMillis()): String = when (daysBetween(timeMs, nowMs)) {
         0 -> resources.getString(R.string.date_today)
         1 -> resources.getString(R.string.date_yesterday)
         else -> SimpleDateFormat("EEEE, d MMMM", AppLocale.ROMANIAN).format(Date(timeMs))
     }
 
-    /** Cate miezuri de noapte sunt intre doua momente, dupa ceasul telefonului. */
+    /** Midnights between two moments, on the phone's clock. */
     fun daysBetween(earlierMs: Long, laterMs: Long): Int {
         fun midnight(ms: Long) = Calendar.getInstance().apply {
             timeInMillis = ms
@@ -109,13 +109,13 @@ object Labels {
         return ((midnight(laterMs) - midnight(earlierMs) + 3_600_000L) / 86_400_000L).toInt()
     }
 
-    /** Drumul in cuvinte: un hop inseamna legatura directa, restul sunt telefoanele prin care a trecut pachetul. */
+    /** One hop means a direct link; the rest are the phones the packet went through. */
     fun hops(resources: Resources, hops: Int): String =
         if (hops <= 1) resources.getString(R.string.hop_direct)
         else resources.getQuantityString(R.plurals.via_phones, hops - 1, hops - 1)
 }
 
-/** Ora curenta, reimprospatata cat ecranul e afisat, ca „acum 5 min” sa nu ramana pe loc. */
+/** Current time, refreshed while the screen is shown so "acum 5 min" doesn't freeze. */
 @Composable
 fun rememberNow(periodMs: Long = 30_000): Long {
     val now by produceState(System.currentTimeMillis()) {

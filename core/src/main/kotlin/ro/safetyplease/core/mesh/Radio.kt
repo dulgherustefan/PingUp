@@ -5,7 +5,7 @@ import kotlinx.coroutines.channels.ReceiveChannel
 enum class PowerMode { LOW_POWER, BALANCED, LOW_LATENCY }
 
 sealed interface RadioEvent {
-    /** Un advertising al serviciului nostru. [prefix] lipseste daca scan response-ul nu a fost primit. */
+    /** An advertisement of our service. [prefix] is missing if the scan response wasn't received. */
     class PeerSeen(val address: String, val prefix: Int?, val flags: Int, val rssi: Int) : RadioEvent
 
     class LinkUp(val link: Int, val address: String, val outgoing: Boolean, val maxFrame: Int) : RadioEvent
@@ -23,19 +23,19 @@ data class RadioStatus(
     val bluetoothOn: Boolean = false,
     val scanning: Boolean = false,
     val advertising: Boolean = false,
-    /** False pe telefoanele fara mod peripheral: pot doar scana si initia conexiuni. */
+    /** False on phones without peripheral mode: they can only scan and initiate connections. */
     val canAdvertise: Boolean = true,
     val codedPhy: Boolean = false,
     val extendedAdvertising: Boolean = false,
     val maxAdvertisingDataLength: Int = 0,
     val multipleAdvertisement: Boolean = false,
-    /** Setul de advertising pe Coded PHY ruleaza. */
+    /** The Coded PHY advertising set is running. */
     val longRangeActive: Boolean = false,
 )
 
 /**
- * Tot ce stie motorul de mesh despre radio. Implementarea reala e BLE; testele folosesc una in memorie.
- * Evenimentele sosesc in ordine pe [events]; restul apelurilor se fac din contextul mesh.
+ * Everything the mesh engine knows about the radio. The real one is BLE; tests use an in-memory one.
+ * Events arrive in order on [events]; all other calls happen on the mesh context.
  */
 interface Radio {
     val events: ReceiveChannel<RadioEvent>
@@ -44,7 +44,7 @@ interface Radio {
 
     fun disconnect(link: Int)
 
-    /** Trimite un cadru; revine cand stiva l-a preluat. False inseamna legatura stricata. */
+    /** Sends a frame; returns once the stack has taken it. False means the link is broken. */
     suspend fun send(link: Int, frame: ByteArray): Boolean
 
     fun setAdvertisedFlags(flags: Int)

@@ -11,8 +11,8 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Secretele aplicatiei (identitatea, semintele de staff) stau in fisiere criptate AES-GCM cu o cheie
- * din Android Keystore, care nu paraseste niciodata hardware-ul telefonului.
+ * App secrets (identity, staff seeds) are stored AES-GCM encrypted with an Android Keystore key
+ * that never leaves the phone's hardware.
  */
 class KeyVault(context: Context) {
     private val dir = File(context.filesDir, "vault").apply { mkdirs() }

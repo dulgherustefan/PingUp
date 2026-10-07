@@ -5,7 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.ui.AppViewModel
 
-/** Modul demo exista doar in build-ul debug; aici e doar forma lui goala. */
+/** Demo mode only exists in debug builds; this is its empty shape. */
 object Demo {
     const val AVAILABLE = false
 

@@ -72,9 +72,9 @@ import ro.safetyplease.core.data.Role as AppRole
 private const val DEMO_UNLOCK_TAPS = 7
 
 /**
- * Ecranul tau, ca profilul din Threema: codul tau mare sus, cu numele (atingi numele ca sa-l schimbi), apoi doar ce
- * mai poate schimba un om la festival: codul de staff si, pe telefoanele care opresc aplicatiile, bateria.
- * Uneltele tehnice (reteaua, ID-ul, modul demo) apar abia dupa 7 atingeri pe Versiune.
+ * Your profile: your code large at the top with your name (tap to change it), then only what someone at a festival
+ * might change: the staff code and, on phones that kill background apps, battery settings.
+ * Technical tools (network, ID, demo mode) unlock after 7 taps on Version.
  */
 @Composable
 fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
@@ -133,7 +133,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     GroupRow(
                         stringResource(R.string.me_version), icon = Sym.Info,
                         value = stringResource(R.string.app_name) + " " + BuildConfig.VERSION_NAME,
-                        // ca „Numarul versiunii” din Android: 7 atingeri deschid uneltele de test
+                        // like Android's "Build number": 7 taps unlock the test tools
                         onClick = if (Demo.AVAILABLE && !vm.demoUnlocked) {
                             {
                                 versionTaps++
@@ -187,7 +187,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     }
 }
 
-/** Ecranul unei ancore: patru contoare mari. Telefonul sta in priza, cu ecranul lasat sa se stinga. */
+/** Anchor screen: four large counters. The phone stays plugged in and the screen may turn off. */
 @Composable
 fun AnchorScreen(vm: AppViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -220,7 +220,7 @@ fun AnchorScreen(vm: AppViewModel) {
     }
 }
 
-/** Un contor al ancorei: cifra mare si, dedesubt, ce numara. Cele doua din acelasi rand au aceeasi inaltime. */
+/** An anchor counter: a big number with its label below. Both counters in a row share the same height. */
 @Composable
 private fun AnchorCounter(value: String, label: String, modifier: Modifier) {
     Column(

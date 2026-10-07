@@ -21,13 +21,13 @@ class UiLogicTest {
     private fun square(id: String, lat: Double, lon: Double) =
         Zone(id, id, "#000000", listOf(GeoPoint(lat, lon), GeoPoint(lat, lon + 1), GeoPoint(lat + 1, lon + 1), GeoPoint(lat + 1, lon)))
 
-    // doua zone alaturate: A intre lon 0 si 1, B intre lon 1 si 2
+    // two adjacent zones: A between lon 0 and 1, B between lon 1 and 2
     private val venue = Venue("test", Bounds(0.0, 0.0, 1.0, 3.0), listOf(square("a", 0.0, 0.0), square("b", 0.0, 1.0)))
     private val inA = GeoPoint(0.5, 0.5)
     private val inB = GeoPoint(0.5, 1.5)
     private val outside = GeoPoint(0.5, 2.5)
 
-    // --- pozitia curenta ---
+    // --- current position ---
 
     private val t0 = 1_000_000L
     private val fix = GeoFix(inA.lat, inA.lon, 5f, t0)
@@ -49,7 +49,7 @@ class UiLogicTest {
     fun zoneFollowsOnlyAFreshFix() {
         fun zoneAt(nowMs: Long) = currentPoint(Settings(), fix, nowMs)?.let { venue.zoneAt(it.lat, it.lon) }?.id
         assertEquals("a", zoneAt(t0 + 60_000))
-        assertNull("40 de minute mai tarziu zona veche nu mai e a noastra", zoneAt(t0 + 40 * 60_000))
+        assertNull("40 minutes later the old zone is no longer ours", zoneAt(t0 + 40 * 60_000))
     }
 
     @Test
@@ -60,7 +60,7 @@ class UiLogicTest {
         assertEquals(inB, currentPoint(simulated, null, t0))
     }
 
-    // --- coordonatele raportului ---
+    // --- report coordinates ---
 
     @Test
     fun coordinatesMatchingTheChosenZoneAreKept() {
@@ -69,8 +69,8 @@ class UiLogicTest {
 
     @Test
     fun coordinatesContradictingTheChosenZoneAreDropped() {
-        assertNull("omul a ales B, dar sta in A", reportPoint("b", inA, venue))
-        assertNull("zona aleasa, pozitia in afara tuturor zonelor", reportPoint("a", outside, venue))
+        assertNull("the user picked B but stands in A", reportPoint("b", inA, venue))
+        assertNull("zone picked, position outside every zone", reportPoint("a", outside, venue))
     }
 
     @Test
@@ -80,7 +80,7 @@ class UiLogicTest {
         assertNull(reportPoint("a", null, venue))
     }
 
-    // --- cine e aproape ---
+    // --- who is nearby ---
 
     private val friend = 0x1234_5678_0000_0001L
     private val prefix = (friend ushr 32).toInt()
@@ -122,7 +122,7 @@ class UiLogicTest {
         assertEquals(1, Nearby.of(state).readyLinks)
     }
 
-    // --- stiva de ecrane ---
+    // --- screen stack ---
 
     @Test
     fun doubleTapDoesNotPushTheSameScreenTwice() {

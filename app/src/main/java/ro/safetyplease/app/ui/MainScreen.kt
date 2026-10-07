@@ -114,16 +114,16 @@ import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.data.Role as AppRole
 
-/** Fara acestea reteaua nu porneste. */
+/** The mesh can't start without these. */
 fun radioPermissions(): List<String> =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT)
     } else {
-        // sub Android 12 scanarea BLE nu merge fara permisiunea de locatie
+        // below Android 12 BLE scanning needs the location permission
         listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
     }
 
-/** Ce cerem la pornire: Bluetooth si notificari. Locatia se cere abia cand e nevoie de ea. */
+/** Asked at startup: Bluetooth and notifications. Location is asked only when it's needed. */
 fun startPermissions(): Array<String> = buildList {
     addAll(radioPermissions())
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
@@ -132,7 +132,7 @@ fun startPermissions(): Array<String> = buildList {
 fun bluetoothEnabled(context: Context): Boolean =
     context.getSystemService(BluetoothManager::class.java)?.adapter?.isEnabled == true
 
-/** Producatorii care opresc aplicatiile din fundal, cat timp aplicatia nu e scoasa din optimizarea bateriei. */
+/** Vendors that kill background apps unless the app is excluded from battery optimization. */
 fun needsBatteryHint(context: Context): Boolean {
     if (Build.MANUFACTURER.lowercase() !in setOf("samsung", "xiaomi", "redmi", "poco")) return false
     val power = context.getSystemService(PowerManager::class.java) ?: return false
@@ -140,8 +140,8 @@ fun needsBatteryHint(context: Context): Boolean {
 }
 
 /**
- * Dupa doua refuzuri Android nu mai arata dialogul de permisiune. Se poate sti abia dupa raspunsul la o cerere:
- * inainte de prima cerere, lipsa explicatiei inseamna doar ca nu am intrebat inca.
+ * After two refusals Android stops showing the permission dialog. This is only knowable after a request:
+ * before the first one, no rationale just means we haven't asked yet.
  */
 fun deniedForGood(activity: Activity?, denied: Collection<String>): Boolean =
     activity != null && denied.any { !ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }
@@ -160,7 +160,7 @@ fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> U
         onPauseOrDispose { }
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        // fara notificari reteaua merge; conteaza doar ce cere radioul
+        // the mesh works without notifications; only the radio's permissions matter
         val denied = result.filter { !it.value && it.key in radioPermissions() }.keys
         vm.radioAccessBlocked = deniedForGood(activity, denied)
         tick++
@@ -170,7 +170,7 @@ fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> U
         tick++
         onStartMesh()
     }
-    // tick si starea radioului forteaza reevaluarea dupa ce utilizatorul se intoarce din dialoguri
+    // tick and radio state force a re-check when the user comes back from the dialogs
     val hasAccess = remember(tick, radio) { vm.c.radio.hasPermissions() }
     val bluetoothOn = remember(tick, radio) { bluetoothEnabled(context) }
     val locationOff = remember(tick, radio) {
@@ -186,8 +186,8 @@ fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> U
 }
 
 /**
- * Cere locatia abia cand utilizatorul face ceva care are nevoie de ea. Conteaza doar cea precisa:
- * GPS_PROVIDER nu merge cu cea aproximativa, care oricum nu poate alege o zona.
+ * Asks for location only when the user does something that needs it. Only precise location counts:
+ * GPS_PROVIDER doesn't work with approximate, which can't pick a zone anyway.
  */
 @Composable
 fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}): () -> Unit {
@@ -217,7 +217,7 @@ fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}):
     }
 }
 
-/** Ecranele care urca de jos, ca foile din iOS; restul intra din dreapta. */
+/** Screens that slide up as sheets; the rest push in from the right. */
 private fun Dest?.isSheet() = this == Dest.Me || this == Dest.AddFriend || this == Dest.NewGroup
 
 @Composable
@@ -226,12 +226,12 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
     val reduce = LocalReduceMotion.current
     BackHandler(enabled = vm.stack.isNotEmpty()) { vm.back() }
 
-    // fiecare intrare din stiva isi pastreaza starea (ciorne, filtre, derulare) cat timp e in stiva
+    // each back-stack entry keeps its state (drafts, filters, scroll) while it's on the stack
     val holder = rememberSaveableStateHolder()
     val entries = vm.stack.mapIndexed { index, dest -> entryKey(index + 1, dest) }
     var kept by remember { mutableStateOf(emptyList<String>()) }
     LaunchedEffect(entries) {
-        // scos din stiva, un ecran porneste curat cand e redeschis; cat inca iese din ecran, starea lui nu mai e salvata
+        // once popped, a screen starts fresh when reopened; its state isn't saved while it animates out
         (kept - entries.toSet()).forEach(holder::removeState)
         kept = entries
     }
@@ -256,7 +256,7 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
     }
 }
 
-/** Cheia starii salvate a unei intrari din stiva: locul in stiva si ecranul. */
+/** Saved-state key of a back-stack entry: its position and its screen. */
 private fun entryKey(size: Int, dest: Dest?): String = if (dest == null) "root" else "$size:$dest"
 
 @Composable
@@ -278,13 +278,13 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
 }
 
 /**
- * Trecerile din iOS: ecranul nou intra din dreapta peste cel vechi, care se da putin la stanga;
- * foile urca de jos. Inapoi, totul se intoarce pe acelasi drum.
+ * New screens push in from the right while the old one shifts slightly left; sheets slide up.
+ * Back reverses the same path.
  */
 private fun screenTransition(forward: Boolean, moving: Dest?, reduce: Boolean): ContentTransform {
     if (reduce) return fadeIn(tween(Motion.QUICK)) togetherWith fadeOut(tween(90))
     val spec = Motion.Push
-    // ecranul de dedesubt sta pe loc cat urca sau coboara foaia
+    // the screen underneath stays put while a sheet slides
     val stay = tween<Float>(Motion.PUSH_SETTLE)
     return if (moving.isSheet()) {
         if (forward) slideInVertically(spec) { it } togetherWith fadeOut(stay, targetAlpha = 0.99f)
@@ -307,25 +307,23 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val current = if (!staff && vm.tab == Tab.INCIDENTS) Tab.MESSAGES else vm.tab
     val tabs = rememberSaveableStateHolder()
-    // pe bara: cate conversatii au ceva necitit, nu cate mesaje
+    // badge counts conversations with unread messages, not messages
     val unreadChats = chat.messages.filter { !it.read }.map { it.conversation }.distinct().size
     val openIncidents = incidents.staff.count { it.status < AckStatus.ACKNOWLEDGED }
     val items = buildList {
         add(TabItem(Tab.MESSAGES, R.string.tab_messages, Sym.ChatFill, unreadChats))
         add(TabItem(Tab.REPORT, R.string.tab_report, Sym.ReportFill))
-        // regasirea e motivul pentru care omul are aplicatia la festival, deci harta sta in bara, nu in setari
         add(TabItem(Tab.MAP, R.string.map_title, Sym.MapFill))
         if (staff) add(TabItem(Tab.INCIDENTS, R.string.tab_incidents, Sym.BellFill, openIncidents))
     }
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    // putin deasupra barei de gesturi, ca in Signal
     val barBottom = navBottom + 10.dp
     val backdrop = rememberBackdrop()
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().backdropSource(backdrop).background(AppTheme.colors.background)) {
             CompositionLocalProvider(LocalBottomClearance provides barBottom + TabBarHeight + 8.dp) {
-                // pe iPhone tabul se schimba pe loc; aici doar o estompare foarte scurta
+                // tab switches are a very short fade
                 AnimatedContent(current, transitionSpec = { fadeIn(tween(180, easing = Motion.Enter)) togetherWith fadeOut(tween(110)) }, label = "tab") { tab ->
                     tabs.SaveableStateProvider(tab.name) {
                         when (tab) {
@@ -342,19 +340,15 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
     }
 }
 
-/**
- * Bara de taburi din iOS 26: o capsula de sticla care pluteste deasupra listei, cat de lata cer taburile ei.
- * Tabul ales se face verde, ca pinul din logo, si sta pe o pastila verde translucida; celelalte raman
- * in culoarea textului, iar necititele sunt o insigna rosie pe coltul iconitei.
- */
+/** Floating tab bar sized to its tabs. The selected tab sits on a translucent pill; unread counts are a badge on the icon. */
 @Composable
 private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> Unit, backdrop: Backdrop, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     val index = items.indexOfFirst { it.tab == current }.coerceAtLeast(0)
-    // pastila aluneca spre tabul nou si se aseaza cu un arc scurt
+    // the pill slides to the new tab and settles with a short spring
     val x by animateDpAsState(TabWidth * index, spring(dampingRatio = 0.72f, stiffness = 380f), label = "tabPill")
-    // textul barei creste cu marimea textului din setari, dar doar pana la 130%: peste atat n-ar mai incapea in capsula.
-    // Eticheta ramane oricum citita intreaga de TalkBack.
+    // Tab labels scale with the system font size up to 130%; beyond that they don't fit the capsule.
+    // TalkBack still reads the full label.
     val fontScale = LocalDensity.current.fontScale
     val tabScale = fontScale.coerceAtMost(MAX_TAB_FONT_SCALE) / fontScale
     Box(modifier.height(TabBarHeight).width(TabWidth * items.size + 8.dp).glass(backdrop, CircleShape).padding(4.dp).selectableGroup()) {

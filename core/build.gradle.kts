@@ -1,9 +1,9 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-// Logica aplicatiei fara Android: protocolul, reteaua mesh, criptografia, chatul, incidentele si harta evenimentului.
-// Ruleaza si se testeaza pe JVM simplu; app/ aduce doar adaptoarele Android (Bluetooth, locatie, keystore) si interfata.
+// App logic without Android: protocol, mesh, crypto, chat, incidents and the event map.
+// Runs and is tested on the plain JVM; app/ only adds the Android adapters (Bluetooth, location, keystore) and the UI.
 plugins {
-    // pluginul Kotlin e deja pe classpath din build.gradle.kts de la radacina, deci fara versiune aici
+    // the Kotlin plugin is already on the classpath from the root build.gradle.kts, so no version here
     id("org.jetbrains.kotlin.jvm")
     alias(libs.plugins.kotlin.serialization)
 }
@@ -11,8 +11,8 @@ plugins {
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
-    // lazysodium-java cere Java 21 doar ca sa ruleze testele (JDK-ul din Android Studio e 21);
-    // bytecode-ul nostru ramane Java 17, ca in app/.
+    // lazysodium-java declares Java 21 only to run the tests (Android Studio's JDK is 21);
+    // our bytecode stays Java 17, as in app/.
     disableAutoTargetJvm()
 }
 
@@ -25,7 +25,7 @@ kotlin {
 dependencies {
     api(libs.kotlinx.coroutines.core)
     api(libs.kotlinx.serialization.json)
-    // Pe telefon, clasele LazySodium vin din lazysodium-android, care are acelasi API; aici doar compilam pe varianta Java.
+    // On the phone the LazySodium classes come from lazysodium-android (same API); here we only compile against the Java one.
     compileOnly(libs.lazysodium.java)
 
     testImplementation(libs.junit)

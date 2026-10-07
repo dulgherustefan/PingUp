@@ -25,12 +25,12 @@ import ro.safetyplease.core.data.Friend
 @Composable
 fun presenceText(friend: Friend, nearby: Nearby, now: Long): String = when {
     nearby.isInRange(friend.nodeId) -> stringResource(R.string.presence_near)
-    // cat de multe telefoane a trecut mesajul e un detaliu tehnic; omul vrea doar sa stie cand l-ai vazut
+    // the hop count is a technical detail; people only care when the friend was last seen
     friend.lastSeenAt > 0 -> stringResource(R.string.presence_seen, agoText(friend.lastSeenAt, now))
     else -> stringResource(R.string.presence_never)
 }
 
-/** Bula ta din stanga sus, pe fiecare tab: deschide ecranul tau (codul si setarile), direct, fara meniu intermediar. */
+/** Your avatar, top left on every tab: opens your profile directly. */
 @Composable
 fun MeButton(name: String, onClick: () -> Unit) {
     val label = stringResource(R.string.me_open)

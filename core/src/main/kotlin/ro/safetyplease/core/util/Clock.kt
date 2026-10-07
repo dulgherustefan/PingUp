@@ -1,9 +1,9 @@
 package ro.safetyplease.core.util
 
 interface Clock {
-    /** Timp unix in milisecunde; doar pentru timestamp-uri afisate si puse in pachete. */
+    /** Unix time in milliseconds; only for displayed timestamps and packet fields. */
     fun wallMs(): Long
 
-    /** Timp monoton; pentru ferestre, expirari si pacing. */
+    /** Monotonic time; for windows, expiry and pacing. */
     fun monoMs(): Long
 }

@@ -7,8 +7,8 @@ import ro.safetyplease.core.protocol.PacketType
 class Outbound(val packet: Packet, val own: Boolean)
 
 /**
- * Coada de trimitere a unei legaturi. Incidentele trec mereu inaintea chat-ului; cand e plina,
- * pierde intai ce e mai putin important. Nu e thread-safe: se foloseste doar din contextul mesh.
+ * Per-link send queue. Incidents always go before chat; when full, the least important item is dropped first.
+ * Not thread-safe: used only from the mesh context.
  */
 class SendQueue(private val capacity: Int = 128) {
     private val levels = Array(LEVELS) { ArrayDeque<Outbound>() }
@@ -33,7 +33,7 @@ class SendQueue(private val capacity: Int = 128) {
         while (size == 0) signal.receive()
     }
 
-    /** Cel mai prioritar element din acest moment; se cheama dupa asteptarea de pacing, nu inainte. */
+    /** Highest-priority item right now; call it after the pacing wait, not before. */
     fun poll(): Outbound? {
         for (q in levels) {
             val item = q.removeFirstOrNull()

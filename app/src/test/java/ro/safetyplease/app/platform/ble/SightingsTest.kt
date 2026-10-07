@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SightingsTest {
-    // --- media RSSI ---
+    // --- RSSI average ---
 
     @Test
     fun firstSampleIsTakenAsIs() {
@@ -24,7 +24,7 @@ class SightingsTest {
         val s = Sightings()
         assertEquals(-60, s.heard("A", 7, coded = false, rssi = -60, now = 0))
         assertNull(s.heard("A", 7, coded = false, rssi = -90, now = 100))
-        // -60 -> -69 (rezultatul aruncat) -> -75,3
+        // -60 -> -69 (dropped result) -> -75.3
         assertEquals(-75, s.heard("A", 7, coded = false, rssi = -90, now = 1_000))
     }
 
@@ -56,7 +56,7 @@ class SightingsTest {
         assertEquals(-90, s.heard("A", 1, coded = false, rssi = -90, now = 5_000))
     }
 
-    // --- fereastra de raportare ---
+    // --- reporting window ---
 
     @Test
     fun reportWindowIsOneSecond() {
@@ -79,7 +79,7 @@ class SightingsTest {
         s.heard("A", 9, coded = false, rssi = -60, now = 0)
         assertNull(s.heard("A", null, coded = false, rssi = -60, now = 1_500))
         assertNull(s.heard("A", null, coded = false, rssi = -60, now = BleConstants.FULL_RESULT_HOLD_MS - 1))
-        // fara niciun rezultat complet de 10 s, raportam ce avem
+        // no full result for 10 s, so report what we have
         assertEquals(-60, s.heard("A", null, coded = false, rssi = -60, now = BleConstants.FULL_RESULT_HOLD_MS))
     }
 
@@ -93,7 +93,7 @@ class SightingsTest {
         assertEquals(0 to 0, s.drainStats())
     }
 
-    // --- o singura adresa per prefix ---
+    // --- one address per prefix ---
 
     @Test
     fun legacyAddressWinsWhileRecentlyHeard() {
@@ -125,9 +125,9 @@ class SightingsTest {
         assertEquals(-60, s.heard("L", 5, coded = false, rssi = -60, now = 0))
         assertNull(s.heard("C", 5, coded = true, rssi = -70, now = 500))
         assertNull(s.heard("C", 5, coded = true, rssi = -70, now = 2_000))
-        // 1M nu s-a mai auzit de peste 3 s: trece pe Coded
+        // 1M not heard for over 3 s: switch to Coded
         assertEquals(-70, s.heard("C", 5, coded = true, rssi = -70, now = 3_500))
-        // 1M revine si are din nou prioritate
+        // 1M is back and takes priority again
         assertEquals(-60, s.heard("L", 5, coded = false, rssi = -60, now = 4_000))
         assertNull(s.heard("C", 5, coded = true, rssi = -70, now = 4_600))
     }

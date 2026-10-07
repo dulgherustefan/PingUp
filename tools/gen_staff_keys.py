@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Genereaza cheile de staff ale unui eveniment si QR-urile pentru echipe si ancore.
+"""Generates an event's staff keys and the QR codes for teams and anchors.
 
-Cheile publice ajung in aplicatie (app/src/main/assets/staff_public.json). Semintele secrete
-raman in tools/out/ (ignorat de git) si circula doar prin QR-urile de staff.
+Public keys go into the app (app/src/main/assets/staff_public.json). Secret seeds stay in tools/out/
+(ignored by git) and only travel inside staff QR codes.
 
   pip install pynacl "qrcode[pil]"
   python tools/gen_staff_keys.py --teams "Medical 1" "Medical 2" --anchors main-stage bar
 
-Rularile ulterioare refolosesc semintele din tools/out/staff_seeds.json, ca sa poti adauga
-echipe fara sa schimbi cheile. --new genereaza chei noi (QR-urile vechi nu mai sunt valabile).
---demo copiaza semintele si in build-ul debug, pentru "activeaza staff fara QR" din modul demo;
-nu folosi --demo pentru un eveniment real.
+Later runs reuse the seeds in tools/out/staff_seeds.json, so you can add teams without changing keys.
+--new generates new keys (old QR codes stop working). --demo also copies the seeds into the debug build,
+for "activate staff without QR" in demo mode; never use --demo for a real event.
 """
 
 import argparse
@@ -24,7 +23,7 @@ from pathlib import Path
 try:
     from nacl import bindings
 except ImportError:
-    sys.exit('Lipseste PyNaCl: pip install pynacl "qrcode[pil]"')
+    sys.exit('PyNaCl is missing: pip install pynacl "qrcode[pil]"')
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "tools" / "out"
@@ -51,9 +50,9 @@ def load_or_create_seeds(new: bool) -> tuple[bytes, bytes]:
 def qr_payload(box_seed: bytes, sign_seed: bytes, role: int, team: str, zone: str) -> str:
     team_b, zone_b = team.encode("utf-8"), zone.encode("utf-8")
     if len(team_b) > TEAM_BYTES:
-        sys.exit(f'Numele echipei "{team}" depaseste {TEAM_BYTES} octeti')
+        sys.exit(f'Team name "{team}" is longer than {TEAM_BYTES} bytes')
     if len(zone_b) > ZONE_BYTES:
-        sys.exit(f'Zona "{zone}" depaseste {ZONE_BYTES} octeti')
+        sys.exit(f'Zone "{zone}" is longer than {ZONE_BYTES} bytes')
     raw = box_seed + sign_seed + bytes([role, len(team_b)]) + team_b + bytes([len(zone_b)]) + zone_b
     return "SPS1." + base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
@@ -69,10 +68,10 @@ def save_qr(text: str, path: Path) -> bool:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--teams", nargs="*", default=["Medical 1", "Securitate 1"], help="nume de echipe de staff")
-    parser.add_argument("--anchors", nargs="*", default=[], help="id-uri de zone din venue.json pentru ancore")
-    parser.add_argument("--new", action="store_true", help="genereaza chei noi in loc sa le refoloseasca")
-    parser.add_argument("--demo", action="store_true", help="include semintele si in build-ul debug")
+    parser.add_argument("--teams", nargs="*", default=["Medical 1", "Securitate 1"], help="staff team names")
+    parser.add_argument("--anchors", nargs="*", default=[], help="venue.json zone ids for anchors")
+    parser.add_argument("--new", action="store_true", help="generate new keys instead of reusing the saved ones")
+    parser.add_argument("--demo", action="store_true", help="also bundle the seeds in the debug build")
     args = parser.parse_args()
 
     box_seed, sign_seed = load_or_create_seeds(args.new)
@@ -81,15 +80,15 @@ def main() -> None:
 
     PUBLIC.parent.mkdir(parents=True, exist_ok=True)
     PUBLIC.write_text(json.dumps({"box": box_public.hex(), "sign": sign_public.hex()}, indent=2) + "\n", encoding="utf-8")
-    print(f"chei publice -> {PUBLIC.relative_to(ROOT)}")
+    print(f"public keys -> {PUBLIC.relative_to(ROOT)}")
 
     if args.demo:
         DEMO.parent.mkdir(parents=True, exist_ok=True)
         DEMO.write_text(json.dumps({"boxSeed": box_seed.hex(), "signSeed": sign_seed.hex()}, indent=2) + "\n", encoding="utf-8")
-        print(f"seminte demo -> {DEMO.relative_to(ROOT)} (doar build-ul debug)")
+        print(f"demo seeds -> {DEMO.relative_to(ROOT)} (debug build only)")
     elif DEMO.exists():
         DEMO.unlink()
-        print("semintele demo au fost sterse: build-ul debug nu mai poate activa staff fara QR")
+        print("demo seeds removed: the debug build can no longer activate staff without a QR")
 
     cards = [(ROLE_STAFF, team, "") for team in args.teams]
     cards += [(ROLE_ANCHOR, f"Ancora {zone}"[:TEAM_BYTES], zone) for zone in args.anchors]
@@ -100,10 +99,10 @@ def main() -> None:
         image = OUT / f"{'anchor' if role == ROLE_ANCHOR else 'staff'}_{name}.png"
         saved = save_qr(text, image)
         lines.append(f"{team}\t{text}")
-        print(f"{'ancora' if role == ROLE_ANCHOR else 'staff'}: {team} -> {image.relative_to(ROOT) if saved else '(fara imagine: pip install qrcode[pil])'}")
+        print(f"{'anchor' if role == ROLE_ANCHOR else 'staff'}: {team} -> {image.relative_to(ROOT) if saved else '(no image: pip install qrcode[pil])'}")
     (OUT / "staff_qr.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"continutul QR-urilor -> {(OUT / 'staff_qr.txt').relative_to(ROOT)}")
-    print("Reconstruieste aplicatia dupa schimbarea cheilor publice.")
+    print(f"QR contents -> {(OUT / 'staff_qr.txt').relative_to(ROOT)}")
+    print("Rebuild the app after changing the public keys.")
 
 
 if __name__ == "__main__":

@@ -7,8 +7,8 @@ class StaffPublicKeys(val box: ByteArray, val sign: ByteArray)
 class StaffSecretKeys(val box: KeyPair, val sign: KeyPair)
 
 /**
- * Securitatea incidentelor: rapoartele se sigileaza catre cheia X25519 de staff, iar ACK-urile
- * sunt semnate Ed25519. Cheile publice vin cu aplicatia, cele secrete doar din QR-ul de staff.
+ * Incident security: reports are sealed to the staff X25519 key and ACKs are signed with Ed25519.
+ * Public keys ship with the app; secret keys only come from the staff QR.
  */
 class StaffCrypto(private val crypto: Crypto, val publicKeys: StaffPublicKeys) {
     fun sealReport(body: ByteArray): ByteArray = crypto.seal(body, publicKeys.box)
@@ -29,7 +29,7 @@ class StaffCrypto(private val crypto: Crypto, val publicKeys: StaffPublicKeys) {
         return crypto.verify(signature, message, publicKeys.sign)
     }
 
-    /** Null daca semintele nu corespund cheilor publice ale acestui eveniment. */
+    /** Null if the seeds don't match this event's public keys. */
     fun secretFromSeeds(boxSeed: ByteArray, signSeed: ByteArray): StaffSecretKeys? {
         val box = crypto.boxKeyPairFromSeed(boxSeed)
         val sign = crypto.signKeyPairFromSeed(signSeed)

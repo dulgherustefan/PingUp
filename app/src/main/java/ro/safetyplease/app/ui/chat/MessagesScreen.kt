@@ -106,7 +106,7 @@ fun messagePreview(vm: AppViewModel, message: ChatMessage): String = when (messa
 fun zoneLabel(vm: AppViewModel, message: ChatMessage): String =
     if (message.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(message.zone)
 
-/** Cuvintele pentru starea unui mesaj trimis de noi. */
+/** Words for the state of a message we sent. */
 @StringRes
 fun messageStateLabel(status: MsgStatus): Int = when (status) {
     MsgStatus.QUEUED -> R.string.msg_queued
@@ -116,9 +116,8 @@ fun messageStateLabel(status: MsgStatus): Int = when (status) {
 }
 
 /**
- * Punctul din fata starii retelei: verde cand ai telefoane in jur, gri fara, rosu cand radioul nu merge.
- * Sta pe loc; un punct care pulseaza trage privirea si cand nu se schimba nimic (NN/g, animatia ca feedback).
- * Se misca doar culoarea, cand se schimba starea, lent ca in bitchat, ca sa nu clipeasca la fiecare telefon care trece.
+ * Network dot: green with phones around, gray without, red when the radio can't work.
+ * Static on purpose; only the color animates on state changes, slowly, so it doesn't flicker as phones come and go.
  */
 @Composable
 private fun NetworkDot(links: Int, gate: RadioGate) {
@@ -132,7 +131,7 @@ private fun NetworkDot(links: Int, gate: RadioGate) {
     Box(Modifier.padding(end = 6.dp).size(7.dp).background(color, CircleShape))
 }
 
-/** Actiunea principala din Mesaje, ca butonul lat din Threema si WhatsApp: jos, la degetul mare. */
+/** Primary action of Messages, at the bottom where the thumb is. */
 @Composable
 private fun AddFriendButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
@@ -149,9 +148,8 @@ private fun AddFriendButton(onClick: () -> Unit, modifier: Modifier = Modifier) 
 }
 
 /**
- * Lista de conversatii: titlul centrat cu starea retelei, bula ta in stanga, randurile fara linii intre ele si,
- * jos, butonul „Adauga prieten”. La festival ai cativa prieteni, deci fara cautare si fara filtre;
- * „Grup nou” apare abia cand ai cu cine face un grup.
+ * Conversation list. No search or filters (a festival means a handful of friends);
+ * "New group" shows up only once there's someone to group with.
  */
 @Composable
 fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
@@ -187,7 +185,7 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 if (friends.size >= 2) GlassIconButton(Sym.Group, stringResource(R.string.menu_new_group), { vm.open(Dest.NewGroup) }, backdrop)
             },
         ) { padding ->
-            // loc sub ultimul rand, ca butonul de jos sa nu-l acopere
+            // room under the last row so the bottom button doesn't cover it
             val listPadding = if (rows.isEmpty()) padding else PaddingValues(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 72.dp)
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = listPadding) {
                 item(key = "problem") { NetworkProblem(vm, nearby.radio, gate, settings.batteryHintDismissed, Modifier.padding(horizontal = Gutter, vertical = 6.dp)) }
@@ -206,7 +204,7 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 }
             }
         }
-        // cu lista goala, ecranul gol are deja butonul; aici ar fi doua
+        // an empty list already shows this button in its empty state
         if (rows.isNotEmpty()) {
             AddFriendButton(
                 { vm.open(Dest.AddFriend) },
@@ -216,7 +214,7 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     }
 }
 
-/** Primul lucru care lipseste ca reteaua sa mearga, cu butonul care il rezolva. */
+/** The first thing keeping the mesh from working, with the button that fixes it. */
 @Composable
 private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate, batteryDismissed: Boolean, modifier: Modifier) {
     val context = LocalContext.current
@@ -247,17 +245,14 @@ private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate
     }
 }
 
-/**
- * Randul unei conversatii, ca in Signal pe iPhone: bula de 56, numele ingrosat si ora pe primul rand,
- * ultimul mesaj pe doua randuri dedesubt; necititele intr-un cerc albastru sub ora.
- */
+/** Conversation row: avatar, bold name and time, two lines of the last message, unread count under the time. */
 @Composable
 private fun ConversationItem(vm: AppViewModel, row: ConversationRow, near: Boolean, now: Long, modifier: Modifier = Modifier) {
     val last = row.last
     val colors = AppTheme.colors
     val unreadLabel = if (row.unread > 0) pluralStringResource(R.plurals.unread_messages, row.unread, row.unread) else null
     val nearLabel = if (near) stringResource(R.string.presence_near) else null
-    // starea se citeste dupa nume, previzualizare si ora; o descriere ar acoperi tot textul randului
+    // state is read after name, preview and time; a content description would replace the row's text
     val state = listOfNotNull(unreadLabel, nearLabel).joinToString(", ")
     val you = stringResource(R.string.msg_you)
     val snippet = when {

@@ -89,8 +89,8 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Severity
 
 /**
- * Iconita si culoarea starii, pentru text: nepreluat e portocaliu, preluat e gri, rezolvat e verde.
- * Culorile de text, nu cele de suprafata, ca sa se citeasca si ziua, in plin soare.
+ * Status icon and color for text: unassigned is orange, taken is gray, resolved is green.
+ * Text colors, not surface ones, so they read in direct sunlight.
  */
 @Composable
 private fun statusLook(status: Int): Pair<ImageVector, Color> {
@@ -103,7 +103,7 @@ private fun statusLook(status: Int): Pair<ImageVector, Color> {
     }
 }
 
-/** Starea intr-un singur cuvant, pentru randurile din lista. */
+/** Status in one word, for list rows. */
 @StringRes
 private fun statusWord(status: Int): Int = when (status) {
     AckStatus.CANCELLED -> R.string.status_cancelled
@@ -112,17 +112,14 @@ private fun statusWord(status: Int): Int = when (status) {
     else -> R.string.staff_status_new
 }
 
-/** Starea cu numele echipei: „Preluat de Echipa 2”. */
+/** Status with the team name: "Preluat de Echipa 2". */
 @Composable
 private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier) {
     val (icon, color) = statusLook(status)
     StatusLabel(Labels.staffStatus(LocalContext.current, status, team), modifier, icon = icon, color = color)
 }
 
-/**
- * Tabul Incidente, ca tabul de apeluri din Signal pe iPhone: bula ta in stanga sus, filtrul cu segmente sub bara,
- * apoi cate un rand pe incident, fara linii intre ele: categoria in cerc, locul si vechimea dedesubt, starea in dreapta.
- */
+/** Incidents tab: your avatar top left, a segmented filter under the bar, then one row per incident. */
 @Composable
 fun IncidentsScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
@@ -130,7 +127,7 @@ fun IncidentsScreen(vm: AppViewModel) {
     val now = rememberNow()
     var filter by rememberSaveable { mutableStateOf(StatusFilter.ACTIVE) }
     val clusters = remember(incidents.staff) { Clustering.cluster(incidents.staff) }
-    // urgentele nepreluate stau primele, rezolvatele la coada
+    // unassigned urgent incidents first, resolved ones last
     val shown = remember(clusters, filter) {
         clusters.filter { Clustering.matches(it, filter) }.sortedWith(
             compareByDescending<IncidentCluster> { it.severity == Severity.URGENT && it.status < AckStatus.ACKNOWLEDGED }
@@ -139,7 +136,7 @@ fun IncidentsScreen(vm: AppViewModel) {
                 .thenByDescending { it.latestAt },
         )
     }
-    // doua filtre: ce mai e de facut si ce s-a inchis; urgentele nepreluate stau oricum primele
+    // two filters: what's still open and what's closed; unassigned urgent ones are always first
     val activeCount = clusters.count { Clustering.matches(it, StatusFilter.ACTIVE) }
     val activeLabel = stringResource(R.string.filter_active)
     val options = listOf(
@@ -162,7 +159,7 @@ fun IncidentsScreen(vm: AppViewModel) {
             }
             if (shown.isEmpty()) {
                 item(key = "empty") {
-                    // un filtru gol nu inseamna ca n-a venit nimic
+                    // an empty filter doesn't mean nothing arrived
                     if (clusters.isEmpty()) EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), icon = Sym.Bell)
                     else EmptyState(stringResource(R.string.incidents_filter_empty), null, icon = Sym.Check)
                 }
@@ -174,8 +171,8 @@ fun IncidentsScreen(vm: AppViewModel) {
 }
 
 /**
- * Randul unui incident: cercul de 44 cu categoria (rosu cat timp o urgenta nu e preluata), categoria si starea
- * pe primul rand, „Urgent”, locul, vechimea si drumul pe al doilea, apoi descrierea pe cel mult doua randuri.
+ * Incident row: 44dp category circle (red while an urgent one is unassigned), category and status on the first line,
+ * "Urgent", location, age and route on the second, then up to two lines of description.
  */
 @Composable
 private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, now: Long, modifier: Modifier = Modifier) {
@@ -210,7 +207,7 @@ private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, now: Long, mo
                     color = statusColor, maxLines = 1,
                 )
             }
-            // urgenta se scrie, nu doar se coloreaza: cercul rosu singur nu ajunge la cine nu deosebeste culorile
+            // urgency is spelled out, not only colored: a red circle alone fails people who can't tell colors apart
             val urgent = stringResource(R.string.sev_urgent)
             val details = listOf(place, agoText(cluster.latestAt, now), hopsText(lead.hops)).joinToString(" · ")
             Text(
@@ -235,8 +232,8 @@ private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, now: Long, mo
 }
 
 /**
- * Un incident, ca pagina unui contact din Signal: categoria mare sus, cu starea sub nume, pasul urmator al
- * staff-ului intr-un singur buton, harta cu rapoartele, apoi rapoartele intr-un grup. Numele categoriei apare in bara abia cand antetul iese din ecran.
+ * Incident detail: large category header with status under the name, the staff's next step as a single button,
+ * the map with the reports, then the reports in a group. The category name moves into the bar once the header scrolls away.
  */
 @Composable
 fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
@@ -299,8 +296,8 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 Modifier.onSizeChanged { headerPx = it.height },
                 status = { StaffStatus(cluster.status, cluster.incidents.firstOrNull { it.status == cluster.status }?.teamName.orEmpty()) },
             )
-            // un singur pas inainte, ca staff-ul sa nu inchida un caz pe care nu l-a preluat nimeni:
-            // intai Preiau, apoi Marcheaza rezolvat; rezolvat sau anulat, butonul dispare si ramane starea din antet
+            // one step at a time so staff can't close a case nobody took: first Take, then Mark resolved;
+            // once resolved or cancelled the button goes away and the header shows the state
             when {
                 cluster.status == AckStatus.CANCELLED -> Unit
                 canTake -> AppButton(
@@ -339,7 +336,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
     }
 }
 
-/** Un raport din grup: ce a scris omul, cand si de la cine a venit, apoi starea lui. */
+/** One report in the group: what the person wrote, when and from whom, then its state. */
 @Composable
 private fun StaffReportBlock(incident: StaffIncident) {
     val colors = AppTheme.colors

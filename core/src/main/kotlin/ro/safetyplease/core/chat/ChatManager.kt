@@ -33,8 +33,8 @@ import ro.safetyplease.core.util.truncateUtf8
 import kotlin.random.Random
 
 /**
- * Chat privat peste mesh: plicuri crypto_box, outbox cu retransmisie pana la DELIVERED, PING/PONG
- * si grupuri prin fan-out. Ruleaza in contextul mesh; metodele publice pot fi chemate de oriunde.
+ * Private chat over the mesh: crypto_box envelopes, an outbox retried until DELIVERED, PING/PONG,
+ * and groups by fan-out. Runs on the mesh context; public methods can be called from anywhere.
  */
 class ChatManager(
     private val scope: CoroutineScope,
@@ -62,11 +62,11 @@ class ChatManager(
         }
     }
 
-    // --- prieteni ---
+    // --- friends ---
 
     fun myCard(): FriendCard = FriendCard(myNickname(), identity.box.publicKey, identity.sign.publicKey)
 
-    /** Intoarce false daca e propriul cod. Un prieten existent primeste doar nickname-ul actualizat. */
+    /** Returns false for our own code. An existing friend only gets their nickname updated. */
     fun addFriend(card: FriendCard): Boolean {
         val nodeId = card.nodeId
         if (nodeId == identity.nodeId) return false
@@ -90,7 +90,7 @@ class ChatManager(
         }
     }
 
-    // --- trimitere ---
+    // --- sending ---
 
     fun sendText(conversation: String, text: String) {
         val clean = text.trim().truncateUtf8(Limits.TEXT_BYTES)
@@ -110,7 +110,7 @@ class ChatManager(
         scope.launch { sendDirect(friendId, Inner.Ping(newId())) }
     }
 
-    /** Sterge mesajul doar de pe acest telefon; daca era al nostru si inca in drum, nu mai e retrimis. */
+    /** Deletes the message from this phone only; if it was ours and still in transit, it's no longer retried. */
     fun deleteMessage(message: ChatMessage) {
         chat.update { data ->
             data.copy(
@@ -122,7 +122,9 @@ class ChatManager(
         }
     }
 
-    /** Ce mai e in outbox pleaca acum, fara sa astepte pauza dintre incercari; ce a expirat dupa 24 h pleaca din nou, ca mesaj nou. */
+    /**
+     * Whatever is still in the outbox goes out now, skipping the retry delay; anything expired after 24 h is sent again as a new message.
+     */
     fun resend(message: ChatMessage) {
         if (!message.fromMe || message.status == MsgStatus.DELIVERED) return
         scope.launch {
@@ -213,7 +215,7 @@ class ChatManager(
         attempt(item)
     }
 
-    /** Fiecare incercare e un pachet nou (alt id, alt nonce), ca relay-urile sa nu il arunce ca duplicat. */
+    /** Every attempt is a new packet (new id, new nonce) so relays don't drop it as a duplicate. */
     private fun attempt(item: OutboxItem) {
         if (engine.state.value.readyLinks == 0) return
         val key = boxKeyOf(item.recipient) ?: return
@@ -258,14 +260,14 @@ class ChatManager(
         }
     }
 
-    // --- primire ---
+    // --- receiving ---
 
     private fun onEvent(event: MeshEvent) {
         when (event) {
             is MeshEvent.Received -> if (event.packet.type == PacketType.PRIVATE) onPrivate(event.packet)
             is MeshEvent.Sent -> onSent(event.packetId)
             is MeshEvent.PeerLinked -> {
-                // un vecin nou e o sansa noua pentru mesajele nelivrate; asteptam putin sa se aseze legaturile
+                // a new neighbor is a new chance for undelivered messages; wait a moment for links to settle
                 if (linkRetry?.isActive != true) {
                     linkRetry = scope.launch {
                         delay(LINK_SETTLE_MS)
@@ -324,7 +326,7 @@ class ChatManager(
             if (!isFriend(sender)) return
             conversation = Conversations.friend(sender)
         }
-        // confirmarea pleaca si pentru duplicate: prima s-ar fi putut pierde pe drum
+        // acknowledge duplicates too: the first ack may have been lost
         sendDirect(sender, Inner.Delivered(newId(), msgId))
         if (chat.value.messages.any { it.msgId == msgId && it.senderId == sender && !it.fromMe }) return
         val message = ChatMessage(
@@ -368,7 +370,7 @@ class ChatManager(
         onIncoming(notice, inviter.nickname)
     }
 
-    // --- utilitare ---
+    // --- helpers ---
 
     private fun isFriend(nodeId: Long) = friends.value.any { it.nodeId == nodeId }
 
@@ -386,7 +388,7 @@ class ChatManager(
         return nodeId.toHex().take(8)
     }
 
-    /** Orice pachet autentic de la un prieten ii actualizeaza prezenta; nu exista prezenta difuzata periodic. */
+    /** Any authentic packet from a friend refreshes their presence; there's no periodic presence broadcast. */
     private fun touch(nodeId: Long, hops: Int) {
         if (!isFriend(nodeId)) return
         val now = clock.wallMs()

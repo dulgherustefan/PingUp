@@ -19,7 +19,7 @@ import ro.safetyplease.core.util.sha256
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.utf8
 
-/** Libsodium real, incarcat pe JVM prin lazysodium-java. */
+/** Real libsodium, loaded on the JVM through lazysodium-java. */
 val testCrypto: Crypto by lazy { SodiumCrypto(LazySodiumJava(SodiumJava())) }
 
 class CryptoTest {
@@ -51,8 +51,8 @@ class CryptoTest {
         val eve = Identity.generate(crypto)
         val sealed = crypto.box("secret".utf8(), bob.box.publicKey, alice.box.secretKey)
         assertNull(crypto.boxOpen(sealed.clone().also { it[30] = (it[30] + 1).toByte() }, alice.box.publicKey, bob.box.secretKey))
-        assertNull("expeditor fals", crypto.boxOpen(sealed, eve.box.publicKey, bob.box.secretKey))
-        assertNull("alt destinatar", crypto.boxOpen(sealed, alice.box.publicKey, eve.box.secretKey))
+        assertNull("forged sender", crypto.boxOpen(sealed, eve.box.publicKey, bob.box.secretKey))
+        assertNull("wrong recipient", crypto.boxOpen(sealed, alice.box.publicKey, eve.box.secretKey))
         assertNull(crypto.boxOpen(ByteArray(10), alice.box.publicKey, bob.box.secretKey))
     }
 
@@ -85,7 +85,7 @@ class CryptoTest {
     fun seedsGiveDeterministicKeys() {
         val seed = ByteArray(32) { it.toByte() }
         assertArrayEquals(crypto.boxKeyPairFromSeed(seed).publicKey, crypto.boxKeyPairFromSeed(seed).publicKey)
-        // vector Ed25519 din RFC 8032 (test 1)
+        // Ed25519 vector from RFC 8032 (test 1)
         val rfcSeed = "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60".hexToBytes()
         assertEquals(
             "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
@@ -122,7 +122,7 @@ class CryptoTest {
         assertNull(QrCodes.decodeFriend("SPF1.###"))
         assertNull(QrCodes.decodeFriend("https://example.com"))
         assertNull(QrCodes.decodeFriend(text.dropLast(4)))
-        assertNull("QR de staff nu e prieten", QrCodes.decodeFriend(text.replace("SPF1.", "SPS1.")))
+        assertNull("a staff QR is not a friend code", QrCodes.decodeFriend(text.replace("SPF1.", "SPS1.")))
     }
 
     @Test
@@ -140,7 +140,7 @@ class CryptoTest {
 
     @Test
     fun staffQrFromPythonToolDecodesAndDerivesTheSameKeys() {
-        // produs de tools/gen_staff_keys.py pentru semintele 00..1f si 20..3f
+        // produced by tools/gen_staff_keys.py for seeds 00..1f and 20..3f
         val text = "SPS1.AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-PwIKQW5jb3JhIGJhcgNiYXI"
         val card = QrCodes.decodeStaff(text)!!
         assertEquals(StaffRole.ANCHOR, card.role)
@@ -171,7 +171,7 @@ class CryptoTest {
             field("../app/src/debug/assets/demo_staff.json", "boxSeed"),
             field("../app/src/debug/assets/demo_staff.json", "signSeed"),
         )
-        assertNotNull("modul demo nu ar putea activa staff fara QR", secret)
+        assertNotNull("demo mode couldn't activate staff without a QR", secret)
     }
 
     private fun staff(): Pair<StaffCrypto, StaffSecretKeys> {
@@ -209,10 +209,10 @@ class CryptoTest {
         assertNotNull(IncidentAck.decode(payload))
         for (i in 0 until payload.size - IncidentAck.SIGNATURE_SIZE) {
             val forged = payload.clone().also { it[i] = (it[i] + 1).toByte() }
-            assertFalse("octet $i", sc.verifyAck(forged))
+            assertFalse("byte $i", sc.verifyAck(forged))
         }
         val (otherStaff, _) = staff()
-        assertFalse("alta cheie de staff", otherStaff.verifyAck(payload))
+        assertFalse("another staff key", otherStaff.verifyAck(payload))
         assertFalse(sc.verifyAck(ByteArray(20)))
     }
 }

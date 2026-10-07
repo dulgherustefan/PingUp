@@ -35,71 +35,71 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Severity
 
 /**
- * Culorile aplicatiei: asezarea Signal pe iPhone (iOS 26), cu paleta logo-ului. Verdele pinului e accentul,
- * noaptea verde-neagra e fundalul temei inchise, iar salvia capacului da caldura temei deschise.
+ * App colors, from the logo palette: pin green is the accent, green-black night is the dark background,
+ * and the sage of the cap warms the light theme.
  */
 @Immutable
 class AppColors(
     val dark: Boolean,
-    /** Fundalul listelor si al conversatiilor. */
+    /** Background of lists and conversations. */
     val background: Color,
-    /** Fundalul ecranelor cu grupuri de randuri (setari) si celulele de pe el. */
+    /** Background of grouped-row screens (settings) and their cells. */
     val grouped: Color,
     val cell: Color,
     val label: Color,
     val secondaryLabel: Color,
     val tertiaryLabel: Color,
     val separator: Color,
-    /** Umplerea campurilor si a butoanelor gri. */
+    /** Fill of fields and gray buttons. */
     val fill: Color,
-    /** Randul apasat. */
+    /** Pressed row. */
     val pressed: Color,
     val accent: Color,
     val red: Color,
     val green: Color,
     val orange: Color,
-    /** Portocaliul pentru text: cel de suprafata nu se citeste pe alb in plin soare. */
+    /** Orange for text: the surface orange is unreadable on white in direct sunlight. */
     val orangeInk: Color,
     val bubbleIn: Color,
-    /** Baloanele tale: verdele de padure din ghid, plin, la fel ziua si noaptea. */
+    /** Your bubbles: solid forest green, same in light and dark. */
     val bubbleOut: Color,
     val onBubbleOut: Color,
     val onBubbleOutSecondary: Color,
-    /** Sticla: nuanta peste fundalul estompat, nuanta fara estompare (Android sub 12), conturul si pastila tabului ales. */
+    /** Glass: tint over the blur, tint without blur (below Android 12), outline, selected tab pill. */
     val glass: Color,
     val glassSolid: Color,
     val glassRim: Color,
     val glassPill: Color,
-    /** Fondul dialogurilor si al meniurilor contextuale. */
+    /** Background of dialogs and context menus. */
     val dialog: Color,
     val menu: Color,
-    /** Sina comutatorului oprit si pastila variantei alese din comutatorul cu segmente. */
+    /** Track of a switch that's off, and the selected pill in a segmented control. */
     val switchOff: Color,
     val segmentPill: Color,
-    /** Culorile pinului din logo: verdele viu, verdele de padure si salvia capacului. */
+    /** Logo pin colors: bright green, forest green and the sage of the cap. */
     val brand: Color,
     val brandDeep: Color,
     val sage: Color,
-    /** Ce sta pe verdele plin: alb ziua, noaptea verde-negru, ca textul sa se citeasca pe verdele viu. */
+    /** Content on the solid accent: white in light, green-black in dark, so it reads on bright green. */
     val onAccent: Color,
-    /** Lumina din capul ecranelor, ca reflectorul din placa logo-ului. */
+    /** Faint tint at the top of screens. */
     val glow: Color,
-    /** Culorile numelor in grupuri, cate una pe om. */
+    /** Sender name colors in groups, one per person. */
     val names: List<Color>,
 ) {
-    /** Fondul si cerneala unui avatar; aceleasi in tema deschisa si in cea inchisa. */
+    /** Avatar background and ink; the same in light and dark. */
     val avatars: List<Pair<Color, Color>> = AvatarPairs
 
     /**
-     * Fondul unei zone de pe harta, in ordinea din venue.json. Noaptea, ca pe Apple Maps: zona intunecata, numele deschis.
-     * Punctul medical are mereu verdele de prim ajutor din ISO 3864, oricare i-ar fi locul in lista.
+     * Fill of a map zone, in venue.json order. Dark theme: dark zone, light name.
+     * The medical zone always gets first-aid green (ISO 3864), wherever it is in the list.
      */
     fun zoneFill(index: Int, id: String): Color {
         val (light, ink) = zonePair(index, id)
         return if (dark) ink.copy(alpha = 0.34f).compositeOver(Night.cell) else light
     }
 
-    /** Numele zonei, scris peste [zoneFill]: peste 6:1 ziua si peste 10:1 noaptea. */
+    /** Zone name drawn over [zoneFill]: above 6:1 in light, above 10:1 in dark. */
     fun zoneInk(index: Int, id: String): Color {
         val (light, ink) = zonePair(index, id)
         return if (dark) light else ink
@@ -108,19 +108,16 @@ class AppColors(
     private fun zonePair(index: Int, id: String): Pair<Color, Color> = if (id == MEDICAL_ZONE) MedicalZone else ZonePairs[index % ZonePairs.size]
 
     /**
-     * Ce ai ales dintr-un grup (filtrul, categoria raportului): salvie noaptea, verde de padure ziua, unde salvia pe alb
-     * abia se vede. Nu e verdele plin al butonului principal, ca alegerea sa nu concureze cu actiunea.
-     */
-    /**
-     * Rosul pentru text si iconite pe fond (Urgent, Anuleaza alerta, Nu stim daca a ajuns). Ziua, rosul de suprafata
-     * are doar 3,5:1 pe alb; acesta are 5,8:1 pe alb si 5,2:1 pe gri. Noaptea, rosul de suprafata trece deja (5,6:1).
+     * Red for text and icons (Urgent, Cancel alert, delivery failed). In light the surface red is only 3.5:1
+     * on white; this one is 5.8:1 on white and 5.2:1 on gray. In dark the surface red already passes (5.6:1).
      */
     val redInk: Color get() = if (dark) red else Color(0xFFC4261D)
 
+    /** Selected option in a group (filter, report category). Not the solid accent, so a choice doesn't compete with the main action. */
     val selection: Color get() = if (dark) sage else brandDeep
     val onSelection: Color get() = if (dark) Night.background else Color.White
 
-    // nume pastrate pentru ecranul demo
+    // names kept for the demo screen
     val ok: Color get() = green
     val wait: Color get() = orange
     val danger: Color get() = red
@@ -134,7 +131,7 @@ class AppColors(
     }
 }
 
-// avatarele iau tonurile logo-ului: menta, salvie, padure, kaki, pamant
+// avatar tones come from the logo: mint, sage, forest, khaki, earth
 private val AvatarPairs = listOf(
     Color(0xFFD2F0DC) to Color(0xFF17642A),
     Color(0xFFE4E8CF) to Color(0xFF55601F),
@@ -150,14 +147,14 @@ private val AvatarPairs = listOf(
     Color(0xFFE3E3DC) to Color(0xFF57584F),
 )
 
-/** Id-ul zonei medicale din venue.json. */
+/** Id of the medical zone in venue.json. */
 const val MEDICAL_ZONE = "medical"
 
 /**
- * Zonele hartii: nuante pamantii si stinse, din aceeasi familie cu verdele de padure si salvia, ca harta sa nu
- * concureze cu culorile care inseamna ceva. Niciuna nu e langa rosu (incidente), portocaliu (punctul de intalnire),
- * verdele viu (tu) sau verdele de prim ajutor. Facute in OKLCH: fondul la L 0,925, numele la L 0,43.
- * Ordinea: ardezie, teal, nisip, oliv, piatra, pin, ceata; punctul medical sare peste ele.
+ * Map zones: muted earthy tones from the forest green and sage family, so the map doesn't compete with
+ * colors that carry meaning. None sits near red (incidents), orange (meeting point), bright green (you)
+ * or first-aid green. Built in OKLCH: fill at L 0.925, name at L 0.43.
+ * Order: slate, teal, sand, olive, stone, pine, mist; the medical zone skips them.
  */
 private val ZonePairs = listOf(
     Color(0xFFD9E8F6) to Color(0xFF285476),
@@ -169,13 +166,13 @@ private val ZonePairs = listOf(
     Color(0xFFDBE9ED) to Color(0xFF325660),
 )
 
-/** Verdele de prim ajutor (ISO 3864), doar pentru punctul medical. */
+/** First-aid green (ISO 3864), only for the medical zone. */
 private val MedicalZone = Color(0xFFCCF2D2) to Color(0xFF1C5F31)
 
 private val LightColors = AppColors(
     dark = false,
     background = Color.White,
-    // gri-ul iOS, tras spre salvia capacului din logo
+    // light gray tinted toward the sage of the logo
     grouped = Color(0xFFF1F3EC),
     cell = Color.White,
     label = Color(0xFF0E110F),
@@ -184,7 +181,7 @@ private val LightColors = AppColors(
     separator = Color(0xFFD0D5C8),
     fill = Color(0x1F6F7D67),
     pressed = Color(0xFFDEE2D7),
-    // verdele cu contrast de text pe alb (5,1:1); cel viu ramane pentru suprafete pline
+    // green with text contrast on white (5.1:1); the bright one stays for solid surfaces
     accent = Color(0xFF1A7F37),
     red = Color(0xFFFF3B30),
     green = Color(0xFF30D158),
@@ -194,7 +191,7 @@ private val LightColors = AppColors(
     bubbleOut = Color(0xFF2B5E45),
     onBubbleOut = Color.White,
     onBubbleOutSecondary = Color(0xCCFFFFFF),
-    // sticla lasa sa se vada putin, estompat, ce trece pe sub ea, ca in Signal
+    // glass shows a little of the blurred content passing under it
     glass = Color(0x99FFFFFF),
     glassSolid = Color(0xF5FBFCF8),
     glassRim = Color(0x1A2B5E45),
@@ -216,7 +213,7 @@ private val LightColors = AppColors(
 
 private val DarkColors = AppColors(
     dark = true,
-    // noaptea din fundalul logo-ului, nu negrul pur
+    // the night of the logo background, not pure black
     background = Night.background,
     grouped = Night.background,
     cell = Night.cell,
@@ -235,7 +232,7 @@ private val DarkColors = AppColors(
     bubbleOut = Color(0xFF2B5E45),
     onBubbleOut = Color(0xFFF4F6F0),
     onBubbleOutSecondary = Color(0xCCFFFFFF),
-    // sticla noaptea e mai deschisa decat fundalul, ca in Signal; altfel barele par gauri
+    // dark glass is lighter than the background, otherwise bars look like holes
     glass = Color(0xA3232925),
     glassSolid = Color(0xF5232925),
     glassRim = Color(0x33D3D8B2),
@@ -255,7 +252,7 @@ private val DarkColors = AppColors(
     ).map { Color(it) },
 )
 
-/** Fundalurile temei inchise, folosite si pentru zonele hartii. */
+/** Dark theme backgrounds, also used for map zones. */
 private object Night {
     val background = Color(0xFF0E110F)
     val cell = Color(0xFF1C211D)
@@ -264,15 +261,13 @@ private object Night {
 val LocalAppColors = staticCompositionLocalOf { LightColors }
 
 /**
- * Fundalul ecranelor: culoarea de baza, cu o nuanta de salvie abia vizibila sus, care se stinge pana la primul rand.
- * Liniara si slaba (cu 0,04 mai luminoasa in OKLCH): un halou radial pe fundal e unul dintre semnele interfetelor
- * generate (impeccable.style/slop), iar WhatsApp, Signal si bitchat au fundal plat. Depinde doar de latime,
- * ca bara de sus sa o poata repeta exact.
+ * Screen background: the base color with a barely visible sage tint at the top, fading out by the first row.
+ * Linear and faint on purpose (+0.04 OKLCH lightness). Depends only on width so the top bar can repeat it exactly.
  */
 fun screenGlow(width: Float, base: Color, glow: Color): Brush =
     Brush.verticalGradient(0f to glow, 1f to base, startY = 0f, endY = width * 0.6f)
 
-/** Fundalul unui ecran intreg, cu nuanta de sus. */
+/** Full-screen background with the top tint. */
 @Composable
 fun Modifier.screenBackground(base: Color): Modifier {
     val glow = AppTheme.colors.glow
@@ -288,7 +283,7 @@ private fun inter(opticalSize: TextUnit) = FontFamily(
     },
 )
 
-/** Inter, cel mai apropiat de fontul iPhone-ului: varianta de text pana la 22, cea de titluri peste. */
+/** Inter: the text cut up to 22sp, the display cut above. */
 val TextFont = inter(14.sp)
 val DisplayFont = inter(32.sp)
 
@@ -300,8 +295,8 @@ private fun style(family: FontFamily, size: Int, line: Int, weight: FontWeight, 
 )
 
 /**
- * Scara de text iOS (marimea implicita „Large”), pusa in sloturile Material ca sa o foloseasca si componentele lor.
- * Numele iOS sunt mai jos, ca extensii: `typography.headline`, `typography.footnote`...
+ * iOS-style type scale (default "Large" size) mapped onto Material slots so Material components use it too.
+ * The iOS names are extensions below: `typography.headline`, `typography.footnote`...
  */
 private val IosTypography = Typography(
     headlineLarge = style(DisplayFont, 34, 41, FontWeight.Bold, 0.0),
@@ -347,8 +342,8 @@ private val LightScheme = scheme(LightColors)
 private val DarkScheme = scheme(DarkColors)
 
 /**
- * Tema urmeaza telefonul. Atingerea nu mai lasa unda Material: randul apasat se face gri, ca pe iPhone,
- * iar listele nu se mai intind la capat.
+ * Theme follows the system. Touch shows a gray pressed state instead of the Material ripple,
+ * and lists don't stretch at the ends.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

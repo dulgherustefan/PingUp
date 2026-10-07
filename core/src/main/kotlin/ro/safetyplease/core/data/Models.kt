@@ -93,9 +93,9 @@ data class MyReport(
     val teamName: String = "",
     val updatedAt: Long = 0,
     val sent: Boolean = false,
-    /** Gol la rapoartele de dinainte de anulare: acelea nu se pot anula. */
+    /** Empty for reports made before cancelling existed; those can't be cancelled. */
     val cancelToken: String = "",
-    /** Anularea a fost ceruta; e confirmata abia cand [status] devine CANCELLED. */
+    /** Cancellation was requested; it's confirmed only when [status] becomes CANCELLED. */
     val cancelled: Boolean = false,
 )
 
@@ -122,9 +122,9 @@ data class StaffIncident(
 data class IncidentData(
     val mine: List<MyReport> = emptyList(),
     val staff: List<StaffIncident> = emptyList(),
-    /** Incidente scoase de staff din lista lui; nu se mai deschid daca raportul ajunge din nou din retea. */
+    /** Incidents staff removed from their list; they don't reopen if the report arrives again from the network. */
     val dismissed: List<String> = emptyList(),
-    /** Cand au fost scrise rapoartele proprii sterse, cat timp mai conteaza la limita de rapoarte. */
+    /** Creation times of our own deleted reports, kept while they still count toward the rate limit. */
     val deletedReportTimes: List<Long> = emptyList(),
 )
 

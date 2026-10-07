@@ -145,13 +145,13 @@ import ro.safetyplease.core.protocol.QuickCode
 import ro.safetyplease.core.venue.GeoPoint
 import kotlin.math.max
 
-/** Mesajele aceluiasi om, la mai putin de atat unul de altul, fac un singur sir de baloane lipite. */
+/** Messages from the same person closer than this form one run of grouped bubbles. */
 private const val RUN_WINDOW_MS = 3 * 60_000L
 
 private val Bubble = 18.dp
 private val BubbleTight = 4.dp
 
-/** Ce sta in lista conversatiei: antetul unei zile sau un mesaj, cu locul lui in sirul de baloane. */
+/** A conversation list item: a day header or a message with its position in the run. */
 private sealed interface ChatItem {
     val key: String
 
@@ -175,10 +175,7 @@ private fun chatItems(messages: List<ChatMessage>): List<ChatItem> = buildList {
     }
 }
 
-/**
- * Conversatia, ca in Signal pe iPhone: mesajele trec pe sub bara de sus si pe sub bara de scris;
- * sus e cercul de sticla pentru inapoi, bula si numele omului, apoi capsula de sticla cu actiuni.
- */
+/** Conversation: messages scroll under the top bar and the composer. */
 @Composable
 fun ConversationScreen(vm: AppViewModel, conversation: String) {
     val friends by vm.friends.collectAsStateWithLifecycle()
@@ -202,7 +199,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = items.lastIndex.coerceAtLeast(0))
     val backdrop = rememberBackdrop()
     val scrolled by remember { derivedStateOf { listState.canScrollBackward } }
-    // lista urmeaza mesajele noi doar cat omul sta jos; o schimba numai derularea lui, nu tastatura sau mesajele
+    // follow new messages only while the user is at the bottom; only their own scrolling changes that, not the keyboard
     var stick by rememberSaveable { mutableStateOf(true) }
     val userScroll = remember(listState) {
         object : NestedScrollConnection {
@@ -218,7 +215,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
         vm.enterConversation(conversation, friend?.nodeId)
         onDispose { vm.leaveConversation(conversation) }
     }
-    // cheia e ultimul mesaj, nu numarul lor: stergerea unui mesaj vechi nu muta lista
+    // keyed on the last message, not the count, so deleting an old message doesn't move the list
     LaunchedEffect(items.lastOrNull()?.key) {
         val mine = (items.lastOrNull() as? ChatItem.Message)?.message?.fromMe == true
         if (items.isNotEmpty() && (stick || mine)) {
@@ -241,7 +238,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     }
     val lastMine = messages.lastOrNull { it.fromMe && it.kind != MsgKind.SYSTEM }
     val sendZone = {
-        // fara zona stiuta deschidem harta: zona aleasa acolo pleaca direct in conversatie
+        // with no known zone, open the map; the zone picked there is sent to the conversation
         if (vm.sendMyZone(conversation)) haptics.confirm()
         else vm.open(Dest.Map(sendTo = conversation))
     }
@@ -264,7 +261,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                     Modifier.fillMaxSize().nestedScroll(userScroll),
                     state = listState,
                     contentPadding = PaddingValues(top = top + NavHeight + 16.dp, bottom = composerHeight + 8.dp),
-                    // o conversatie scurta sta langa campul de scris, ca in Signal, nu agatata sus
+                    // a short conversation sits next to the composer, not at the top
                     verticalArrangement = Arrangement.Bottom,
                 ) {
                     items(items, key = { it.key }) { item ->
@@ -317,7 +314,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
         ) {
             AnimatedVisibility(
                 quick,
-                // panoul se desface pe un arc, ca tastatura, si se strange repede
+                // the panel opens on a spring, like the keyboard, and closes quickly
                 enter = fadeIn(tween(Motion.STANDARD)) + expandVertically(spring(dampingRatio = 0.85f, stiffness = 420f, visibilityThreshold = IntSize.VisibilityThreshold)),
                 exit = fadeOut(tween(100)) + shrinkVertically(tween(Motion.QUICK, easing = Motion.Exit)),
             ) {
@@ -351,7 +348,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     }
 }
 
-/** Ziua, centrata deasupra primului ei mesaj, in gri, fara fond. */
+/** Day label above its first message. */
 @Composable
 private fun DayHeader(timeMs: Long, modifier: Modifier = Modifier) {
     Text(
@@ -361,10 +358,7 @@ private fun DayHeader(timeMs: Long, modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * Bara de scris din iOS 26: fara fond, doar bucati de sticla. Plusul intr-un cerc, campul ca o capsula
- * cu butonul pentru zona ta in el; cand scrii, apare cercul albastru de trimis.
- */
+/** Composer: + button, a pill text field with the send-my-zone button, and the send button once there's text. */
 @Composable
 private fun Composer(
     backdrop: Backdrop,
@@ -410,7 +404,6 @@ private fun Composer(
         }
         AnimatedContent(
             hasText,
-            // butonul de trimis apare cu un arc mic, ca in Mesajele de pe iPhone
             transitionSpec = { (fadeIn(tween(Motion.QUICK)) + scaleIn(spring(dampingRatio = 0.55f, stiffness = 600f), 0.5f)) togetherWith (fadeOut(tween(90)) + scaleOut(tween(90), 0.6f)) },
             label = "send",
         ) { text ->
@@ -428,12 +421,12 @@ private fun Composer(
 }
 
 /**
- * Frazele scurte pe care le trimiti dintr-o atingere. Zona ta are butonul ei din campul de scris, iar „Am baterie
- * putina” a iesit din lista: ce primesti de la altii se afiseaza in continuare.
+ * Phrases sent with one tap. Your zone has its own button in the composer; "low battery" was dropped
+ * from this list, but it still displays when someone else sends it.
  */
 private val QuickPhrases = listOf(QuickCode.WHERE_ARE_YOU, QuickCode.COMING, QuickCode.MEET_AT_POINT)
 
-/** Mesajele rapide, intr-un card de sticla deasupra barei de scris. */
+/** Quick messages, in a card above the composer. */
 @Composable
 private fun QuickPanel(backdrop: Backdrop, onQuick: (Int) -> Unit) {
     val icons = mapOf(QuickCode.WHERE_ARE_YOU to Sym.Help, QuickCode.COMING to Sym.Walk, QuickCode.MEET_AT_POINT to Sym.Flag)
@@ -448,8 +441,8 @@ private fun QuickPanel(backdrop: Backdrop, onQuick: (Int) -> Unit) {
 }
 
 /**
- * O conversatie fara mesaje, ca in Element X: bula prietenului mare, numele, o fraza despre cum ajung mesajele
- * si frazele rapide, ca primul mesaj sa fie la o atingere distanta.
+ * Empty conversation: the friend's avatar, a line about how messages travel, and quick phrases
+ * so the first message is one tap away.
  */
 @Composable
 private fun FirstMessage(title: String, near: Boolean, group: Boolean, onQuick: (Int) -> Unit, modifier: Modifier = Modifier) {
@@ -503,7 +496,7 @@ private fun MessageItem(
     var menu by remember { mutableStateOf(false) }
     val ink = if (mine) colors.onBubbleOut else colors.label
     val meta = if (mine) colors.onBubbleOutSecondary else colors.secondaryLabel
-    // colturile dinspre margine se strang cand baloanele aceluiasi om stau lipite
+    // corners facing the edge tighten when bubbles from the same person are grouped
     val shape = if (mine) {
         RoundedCornerShape(topStart = Bubble, bottomStart = Bubble, topEnd = if (first) Bubble else BubbleTight, bottomEnd = if (last) Bubble else BubbleTight)
     } else {
@@ -519,7 +512,7 @@ private fun MessageItem(
             verticalAlignment = Alignment.Bottom,
         ) {
             if (!mine && inGroup) {
-                // bula expeditorului sta langa ultimul balon din sir; celelalte pastreaza locul gol
+                // the sender's avatar sits next to the last bubble in a run; the others keep the space empty
                 if (last) Avatar(sender.orEmpty(), 28.dp) else Spacer(Modifier.width(28.dp))
                 Spacer(Modifier.width(8.dp))
             }
@@ -539,7 +532,7 @@ private fun MessageItem(
                         }
                         .clip(shape)
                         .combinedClickable(
-                            // enabled ramane: ar opri si atingerea lunga cu meniul
+                            // keep enabled: disabling would also block the long-press menu
                             onClickLabel = if (message.kind == MsgKind.ZONE) stringResource(R.string.open_zone) else null,
                             onLongClickLabel = stringResource(R.string.more_options),
                             onClick = {
@@ -598,10 +591,7 @@ private fun MessageItem(
     }
 }
 
-/**
- * Textul balonului cu ora in coltul de jos. Daca ultimul rand lasa loc, ora sta pe acelasi rand;
- * altfel coboara pe unul nou.
- */
+/** Bubble text with the time in the bottom corner: on the last line if it fits, otherwise on a new line. */
 @Composable
 private fun BubbleText(text: String, color: Color, bold: Boolean, footer: @Composable () -> Unit) {
     val holder = remember { arrayOfNulls<TextLayoutResult>(1) }
@@ -637,7 +627,7 @@ private fun BubbleText(text: String, color: Color, bold: Boolean, footer: @Compo
     }
 }
 
-/** Harta mica din balonul unei zone trimise, cu punctul acolo unde era omul. */
+/** Mini map in a shared-zone bubble, with a dot where the sender was. */
 @Composable
 private fun ZoneMap(vm: AppViewModel, message: ChatMessage) {
     val lat = message.lat
@@ -652,7 +642,7 @@ private fun ZoneMap(vm: AppViewModel, message: ChatMessage) {
     )
 }
 
-/** Sub ultimul mesaj trimis: unde a ajuns, in cuvinte. Mesajul nereusit isi are aici butonul de retrimitere. */
+/** Under the last sent message: delivery state in words. A failed message gets its retry button here. */
 @Composable
 private fun OwnState(message: ChatMessage, detail: Boolean, onResend: () -> Unit) {
     val colors = AppTheme.colors

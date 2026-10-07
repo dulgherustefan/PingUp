@@ -1,6 +1,6 @@
 package ro.safetyplease.core.protocol
 
-/** Reasamblare pentru o singura legatura. Starea e marginita: cel mult [maxSets] pachete in curs. */
+/** Reassembly for a single link. State is bounded: at most [maxSets] packets in progress. */
 class Reassembler(
     private val maxSets: Int = 8,
     private val timeoutMs: Long = 30_000,

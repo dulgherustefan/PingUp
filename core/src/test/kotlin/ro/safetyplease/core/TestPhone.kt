@@ -26,7 +26,7 @@ import ro.safetyplease.core.util.nodePrefix
 import java.io.File
 import kotlin.random.Random
 
-/** Chei de staff generate pentru un test; toate telefoanele au partea publica, doar staff-ul pe cea secreta. */
+/** Staff keys generated for one test; every phone has the public part, only staff has the secret one. */
 class TestEvent {
     private val boxSeed = testCrypto.random(32)
     private val signSeed = testCrypto.random(32)
@@ -40,7 +40,7 @@ class TestEvent {
     val secret: StaffSecretKeys = staffCrypto.secretFromSeeds(boxSeed, signSeed)!!
 }
 
-/** Un telefon intreg fara Android: motor de mesh, chat si incidente peste radioul simulat. */
+/** A whole phone without Android: mesh engine, chat and incidents over the simulated radio. */
 class TestPhone(
     val name: String,
     scope: TestScope,

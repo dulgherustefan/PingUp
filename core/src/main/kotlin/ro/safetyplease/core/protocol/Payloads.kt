@@ -54,11 +54,11 @@ object AckStatus {
     const val ACKNOWLEDGED = 2
     const val RESOLVED = 3
 
-    /** Autorul si-a retras raportul, iar staff-ul a confirmat; e cel mai mare, deci inlocuieste orice ACK. */
+    /** The author withdrew the report and staff confirmed; highest value, so it supersedes any ACK. */
     const val CANCELLED = 4
 }
 
-/** Ce are un nod in cache pentru un incident; [id8] sunt primii 8 octeti din incidentId. */
+/** What a node has cached for an incident; [id8] is the first 8 bytes of the incidentId. */
 data class SummaryEntry(val id8: Long, val hasReport: Boolean, val ackStatus: Int)
 
 object SummaryCodec {
@@ -137,8 +137,8 @@ object Severity {
 const val INCIDENT_ID_SIZE = 16
 
 /**
- * Continutul unui raport. Circula doar criptat sealed-box catre cheia de staff. [cancelHash] lipseste
- * in rapoartele scrise inainte sa existe anularea.
+ * Report content. Only ever travels sealed-box encrypted to the staff key. [cancelHash] is missing
+ * from reports written before cancelling existed.
  */
 class IncidentBody(
     val category: Int,
@@ -198,7 +198,7 @@ class IncidentBody(
     }
 }
 
-/** Payload INCIDENT_REPORT: incidentId in clar (pentru dedup si ACK) urmat de corpul sigilat. */
+/** INCIDENT_REPORT payload: the incidentId in clear (for dedup and ACKs) followed by the sealed body. */
 object IncidentReportCodec {
     const val SEAL_OVERHEAD = 48
 
@@ -235,7 +235,7 @@ class IncidentAck(
                 .u8(team.size).bytes(team).toByteArray()
         }
 
-        /** Octetii acoperiti de semnatura; prefixul leaga semnatura de acest tip de mesaj. */
+        /** Bytes covered by the signature; the prefix binds the signature to this message type. */
         fun signedMessage(unsigned: ByteArray): ByteArray = DOMAIN + unsigned
 
         fun decode(payload: ByteArray): IncidentAck? = parseOrNull {
@@ -255,8 +255,8 @@ class IncidentAck(
 }
 
 /**
- * Payload INCIDENT_CANCEL, anonim ca raportul. Corpul sigilat al raportului contine doar hash-ul tokenului,
- * asa ca doar autorul il poate anula, iar staff-ul confirma cu un ACK CANCELLED.
+ * INCIDENT_CANCEL payload, anonymous like the report. The sealed report body holds only the token's hash,
+ * so only the author can cancel; staff confirms with a CANCELLED ACK.
  */
 class IncidentCancel(val incidentId: ByteArray, val token: ByteArray) {
     fun encode(): ByteArray {
@@ -292,7 +292,7 @@ object QuickCode {
 
 class GroupMemberWire(val nodeId: Long, val boxKey: ByteArray, val nickname: String)
 
-/** Mesajul din interiorul plicului PRIVATE. [msgId] identifica mesajul peste retransmisii. */
+/** The message inside a PRIVATE envelope. [msgId] identifies it across retransmissions. */
 sealed interface Inner {
     val msgId: Long
 

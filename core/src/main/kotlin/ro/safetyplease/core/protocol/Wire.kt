@@ -4,7 +4,7 @@ import java.io.ByteArrayOutputStream
 
 class MalformedException(message: String) : Exception(message)
 
-/** Cititor big-endian cu verificare de limite; orice depasire devine [MalformedException]. */
+/** Big-endian reader with bounds checks; any overrun becomes [MalformedException]. */
 class WireReader(private val data: ByteArray, private var pos: Int = 0) {
     val remaining: Int get() = data.size - pos
 

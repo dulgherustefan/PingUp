@@ -3,7 +3,7 @@ package ro.safetyplease.core.crypto
 import ro.safetyplease.core.util.sha256
 import ro.safetyplease.core.util.toLong
 
-/** Identitatea unui telefon: o pereche X25519 (criptare) si una Ed25519 (semnare). */
+/** A phone's identity: an X25519 pair (encryption) and an Ed25519 pair (signing). */
 class Identity(val box: KeyPair, val sign: KeyPair) {
     val nodeId: Long = nodeIdOf(sign.publicKey, box.publicKey)
 
@@ -12,13 +12,13 @@ class Identity(val box: KeyPair, val sign: KeyPair) {
     companion object {
         private const val SIZE = Crypto.BOX_PUBLIC + Crypto.BOX_SECRET + Crypto.SIGN_PUBLIC + Crypto.SIGN_SECRET
 
-        /** nodeId = primii 8 octeti din SHA-256(cheia publica Ed25519 || cheia publica X25519). */
+        /** nodeId = first 8 bytes of SHA-256(Ed25519 public key || X25519 public key). */
         fun nodeIdOf(signPublic: ByteArray, boxPublic: ByteArray): Long = sha256(signPublic + boxPublic).toLong()
 
         fun generate(crypto: Crypto): Identity {
             while (true) {
                 val identity = Identity(crypto.boxKeyPair(), crypto.signKeyPair())
-                // 0 e rezervat pentru expeditor anonim
+                // 0 is reserved for anonymous senders
                 if (identity.nodeId != 0L) return identity
             }
         }

@@ -75,14 +75,12 @@ import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.push
 import ro.safetyplease.app.ui.startPermissions
 
-/** Curba iOS pentru intrarea unui ecran: porneste repede si se aseaza lin. */
-
-/** Marginea paginilor de inceput, mai larga decat a listelor, ca la inregistrarea din Signal. */
+/** Onboarding page margin, wider than list margins. */
 private val PageGutter = 24.dp
 
 /**
- * Pornirea, in doi pasi, ca inregistrarea din Signal pe iPhone: numele (cu bula lui care se deseneaza pe masura
- * ce scrii), apoi ce permisiuni cerem si de ce. Restul permisiunilor se cer cand e nevoie de ele.
+ * Onboarding in two steps: your name (the avatar draws as you type), then which permissions we ask for and why.
+ * Other permissions are asked when they're needed.
  */
 @Composable
 fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
@@ -96,11 +94,11 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         onStartMesh()
     }
     val next = {
-        // tastatura coboara cat intra pagina urmatoare, nu dupa
+        // hide the keyboard while the next page slides in, not after
         focus.clearFocus()
         step = 1
     }
-    // oricare ar fi raspunsul, omul intra in aplicatie; ce lipseste apare acolo ca un banner cu buton
+    // whatever the answer, the user enters the app; anything missing shows there as a banner with a button
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { finish() }
     BackHandler(enabled = step == 1) { step = 0 }
 
@@ -111,7 +109,7 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             val push = Motion.Push
             when {
                 reduce -> fadeIn(tween(Motion.QUICK)) togetherWith fadeOut(tween(90))
-                // pagina noua intra din dreapta peste cea veche, care se da o treime la stanga
+                // new page slides in from the right while the old one shifts a third to the left
                 targetState > initialState -> slideInHorizontally(push) { it } togetherWith slideOutHorizontally(push) { -it / 3 }
                 else -> (slideInHorizontally(push) { -it / 3 } togetherWith slideOutHorizontally(push) { it }).apply { targetContentZIndex = -1f }
             }
@@ -174,8 +172,8 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 }
 
 /**
- * O pagina de inceput, opaca, ca sa acopere pagina de dedesubt cat aluneca: sus locul barei (cu inapoi, daca are),
- * apoi continutul care deruleaza, iar jos butoanele, prinse deasupra tastaturii.
+ * An onboarding page, opaque so it covers the page underneath while sliding: the bar slot on top (with back, if any),
+ * then scrolling content, and the buttons pinned above the keyboard.
  */
 @Composable
 private fun StepPage(onBack: (() -> Unit)?, bottom: @Composable ColumnScope.() -> Unit, content: @Composable ColumnScope.() -> Unit) {
@@ -194,7 +192,7 @@ private fun StepPage(onBack: (() -> Unit)?, bottom: @Composable ColumnScope.() -
     }
 }
 
-/** O permisiune: iconita in cercul verde, ce e si de ce o cerem. */
+/** One permission: icon in a green circle, what it is and why we ask. */
 @Composable
 private fun Reason(icon: ImageVector, title: String, text: String) {
     val colors = AppTheme.colors

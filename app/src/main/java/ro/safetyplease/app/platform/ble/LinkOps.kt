@@ -5,17 +5,17 @@ import android.bluetooth.le.AdvertisingSetCallback
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** O singura operatie GATT in zbor pe o legatura; callback-ul stivei o incheie prin [finish]. */
+/** One GATT operation in flight per link; the stack's callback completes it through [finish]. */
 class GattOps<K : Any> {
     private var op: K? = null
     private var signal: CompletableDeferred<Boolean>? = null
 
-    /** Legatura a picat: operatia in zbor si toate cele urmatoare esueaza imediat. */
+    /** The link dropped: the in-flight operation and every later one fail immediately. */
     var dropped = false
         private set
 
     suspend fun run(kind: K, timeoutMs: Long, start: () -> Boolean): Boolean {
-        // stiva accepta cereri si pe o legatura picata; fara asta asteptam timeout-ul intreg
+        // the stack accepts requests on a dropped link too; without this we'd wait out the full timeout
         if (dropped) return false
         val done = CompletableDeferred<Boolean>()
         op = kind
@@ -39,18 +39,18 @@ class GattOps<K : Any> {
     }
 }
 
-/** 143 (GATT_CONNECTION_CONGESTED): cadrul e in coada, dar urmatorul ar fi aruncat daca vine imediat. */
+/** 143 (GATT_CONNECTION_CONGESTED): the frame is queued, but the next one would be dropped if sent right away. */
 fun sendAccepted(status: Int): Boolean =
     status == BluetoothGatt.GATT_SUCCESS || status == BluetoothGatt.GATT_CONNECTION_CONGESTED
 
-/** Esecuri de pornire a advertising-ului la rand; dupa cateva, telefonul se poarta ca frunza pana merge din nou. */
+/** Advertising start failures in a row; after a few, the phone acts as a leaf until starting works again. */
 class AdvertiseFailures {
     var count = 0
         private set
 
     val demoted get() = count >= BleConstants.ADVERTISE_DEMOTE_AFTER
 
-    /** Cat asteptam pana la urmatoarea incercare dupa un start esuat cu [status]. */
+    /** How long to wait before retrying after a start failed with [status]. */
     fun failed(status: Int): Long {
         if (status != AdvertisingSetCallback.ADVERTISE_FAILED_ALREADY_STARTED) count++
         return if (demoted) BleConstants.ADVERTISE_DEMOTED_RETRY_MS else BleConstants.ADVERTISE_RETRY_MS

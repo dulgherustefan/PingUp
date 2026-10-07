@@ -39,12 +39,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-/** Estomparea a ce e in spatele unei bare merge doar de la Android 12; mai jos sticla devine aproape opaca. */
+/** Blurring what's behind a bar needs Android 12+; below that glass is nearly opaque. */
 val CanBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
 /**
- * Ce se vede prin sticla: continutul unui ecran, inregistrat la fiecare desen intr-un strat grafic.
- * Sticla trebuie sa stea langa continut, nu in el: altfel s-ar desena in propria inregistrare.
+ * What shows through glass: a screen's content, recorded into a graphics layer on every draw.
+ * Glass must sit next to the content, not inside it, or it would draw into its own recording.
  */
 @Stable
 class Backdrop internal constructor(internal val layer: GraphicsLayer) {
@@ -57,7 +57,7 @@ fun rememberBackdrop(): Backdrop {
     return remember(layer) { Backdrop(layer) }
 }
 
-/** Marcheaza continutul care se vede prin sticla. Fundalul lui trebuie desenat inauntru, altfel estomparea are goluri. */
+/** Marks the content seen through glass. Its background must be drawn inside, or the blur has gaps. */
 fun Modifier.backdropSource(backdrop: Backdrop): Modifier = this
     .onGloballyPositioned { backdrop.origin = it.positionInRoot() }
     .drawWithContent {
@@ -66,8 +66,8 @@ fun Modifier.backdropSource(backdrop: Backdrop): Modifier = this
     }
 
 /**
- * Sticla iOS 26: continutul din spate estompat, o nuanta peste el, un contur subtire si o umbra moale.
- * Fara [backdrop] (sau sub Android 12) ramane doar nuanta, aproape opaca.
+ * Glass: blurred content behind, a tint, a thin outline and a soft shadow.
+ * Without [backdrop] (or below Android 12) only the tint remains, nearly opaque.
  */
 @Composable
 fun Modifier.glass(backdrop: Backdrop?, shape: Shape, blur: Dp = 24.dp, shadow: Boolean = true): Modifier {
@@ -94,7 +94,7 @@ fun Modifier.glass(backdrop: Backdrop?, shape: Shape, blur: Dp = 24.dp, shadow: 
         .clip(shape)
 }
 
-/** Apasarea pe iPhone: fara unda, doar un strat gri peste ce e apasat, cat timp degetul sta pe el. */
+/** Press feedback without a ripple: a gray layer over the pressed item while the finger is down. */
 class PressHighlight(private val color: Color) : IndicationNodeFactory {
     override fun create(interactionSource: InteractionSource): DelegatableNode = Node(interactionSource, color)
 

@@ -24,7 +24,7 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.Venue
 
-// Fiecare notify() e precedat de canPost(); lint nu vede verificarea de permisiune printr-o functie ajutatoare.
+// Every notify() is preceded by canPost(); lint can't see a permission check made in a helper.
 @SuppressLint("MissingPermission")
 class Notifier(private val context: Context, private val venue: Venue) {
     private val manager = NotificationManagerCompat.from(context)

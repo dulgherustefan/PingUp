@@ -61,7 +61,7 @@ import ro.safetyplease.core.util.nodePrefix
 import ro.safetyplease.core.util.shortHex
 import ro.safetyplease.core.util.toHex
 
-/** Modul demo: exista doar in build-ul debug si aduce uneltele pentru prezentare si depanarea transportului. */
+/** Demo mode, debug builds only: tools for presenting and for debugging the transport. */
 object Demo {
     const val AVAILABLE = true
 
@@ -77,7 +77,7 @@ object Demo {
         return pinger!!
     }
 
-    /** Cheile de staff de demo din build-ul debug; null daca nu corespund cheilor publice din aplicatie. */
+    /** Demo staff keys bundled in debug builds; null if they don't match the app's public staff keys. */
     fun staffCard(context: Context, role: StaffRole, team: String, zone: String): StaffCard? = runCatching {
         val text = context.assets.open("demo_staff.json").bufferedReader().use { it.readText() }
         val json = Json.parseToJsonElement(text).jsonObject

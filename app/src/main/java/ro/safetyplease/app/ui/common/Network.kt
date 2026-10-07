@@ -8,14 +8,14 @@ import ro.safetyplease.core.mesh.MeshState
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.util.nodePrefix
 
-/** Ce arata interfata din starea mesh-ului; se schimba doar cand cineva apare, dispare sau se leaga, nu la fiecare pachet. */
+/** What the UI shows from mesh state; changes only when someone appears, leaves or links, not on every packet. */
 data class Nearby(
     val linked: Set<Long> = emptySet(),
     val seenPrefixes: Set<Int> = emptySet(),
     val readyLinks: Int = 0,
     val radio: RadioStatus = RadioStatus(),
 ) {
-    /** Legat direct de noi, nu doar vazut in scanare. */
+    /** Directly linked to us, not just seen in a scan. */
     fun isLinked(nodeId: Long): Boolean = nodeId in linked
 
     fun isInRange(nodeId: Long): Boolean = isLinked(nodeId) || nodeId.nodePrefix() in seenPrefixes
@@ -30,20 +30,20 @@ data class Nearby(
     }
 }
 
-/** Ce lipseste ca reteaua sa mearga si actiunile care rezolva. */
+/** What's missing for the mesh to work, and the actions that fix it. */
 class RadioGate(
     val hasAccess: Boolean,
     val bluetoothOn: Boolean,
     val locationOff: Boolean,
-    /** Accesul a fost refuzat definitiv: [requestAccess] deschide setarile aplicatiei. */
+    /** Access denied for good: [requestAccess] opens the app settings. */
     val accessBlocked: Boolean,
     val requestAccess: () -> Unit,
     val enableBluetooth: () -> Unit,
 )
 
 /**
- * Starea retelei, sub titlu: un fapt, nu o activitate, ca „Waiting for network…” din Telegram si contorul din bitchat.
- * „Caut…” ramanea pe ecran ore intregi, desi radioul cauta oricum mereu.
+ * Network state under the title. States a fact ("no phones around") rather than an activity,
+ * since the radio is always searching anyway.
  */
 @Composable
 fun networkText(links: Int, gate: RadioGate): String {

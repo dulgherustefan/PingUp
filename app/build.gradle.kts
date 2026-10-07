@@ -40,7 +40,7 @@ android {
         unitTests.isReturnDefaultValues = true
     }
 
-    // Aplicatia isi fixeaza singura limba (romana); impartirea pe limbi a unui App Bundle nu are ce separa.
+    // The app pins its own language (Romanian), so per-language bundle splits have nothing to split.
     bundle {
         language {
             enableSplit = false
@@ -73,7 +73,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.zxing.core)
 
-    // "@aar" opreste si tranzitivitatea: altfel lazysodium trage jna.jar peste jna.aar si clasele se dubleaza.
+    // "@aar" also turns off transitive deps; otherwise lazysodium pulls jna.jar on top of jna.aar and classes clash.
     implementation("${libs.lazysodium.android.get()}@aar")
     implementation("${libs.jna.get()}@aar")
 

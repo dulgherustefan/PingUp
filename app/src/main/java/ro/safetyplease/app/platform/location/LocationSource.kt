@@ -19,7 +19,7 @@ data class GeoFix(val lat: Double, val lon: Double, val accuracyM: Float, val ti
     }
 }
 
-/** Pozitia din GPS_PROVIDER, fara Play Services si fara retea. Fara asistenta A-GPS primul fix poate dura. */
+/** Position from GPS_PROVIDER, without Play Services or network. Without A-GPS the first fix can take a while. */
 class LocationSource(private val context: Context) {
     private val manager: LocationManager? = context.getSystemService(LocationManager::class.java)
     private val _fix = MutableStateFlow<GeoFix?>(null)

@@ -50,7 +50,7 @@ class PayloadsTest {
     fun summaryRejectsBadCounts() {
         assertNull(SummaryCodec.decode(byteArrayOf(2, 0, 0)))
         assertNull(SummaryCodec.decode(byteArrayOf(60)))
-        assertNull("status necunoscut", SummaryCodec.decode(WireWriter().u8(1).i64(1).u8(5).toByteArray()))
+        assertNull("unknown status", SummaryCodec.decode(WireWriter().u8(1).i64(1).u8(5).toByteArray()))
         assertNull(RequestCodec.decode(WireWriter().u8(1).i64(1).u8(0x40).toByteArray()))
     }
 
@@ -94,9 +94,9 @@ class PayloadsTest {
         assertEquals(28.63, d.lon!!, 1e-6)
 
         val old = IncidentBody.decode(without)!!
-        assertNull("raport de dinainte de anulare", old.cancelHash)
+        assertNull("report from before cancelling existed", old.cancelHash)
         assertEquals("Ana", old.nickname)
-        assertNull("hash trunchiat", IncidentBody.decode(with.copyOf(with.size - 1)))
+        assertNull("truncated hash", IncidentBody.decode(with.copyOf(with.size - 1)))
     }
 
     @Test
@@ -117,8 +117,8 @@ class PayloadsTest {
         assertNull(IncidentBody.decode(good.clone().also { it[1] = 0 }))
         assertNull(IncidentBody.decode(good.copyOf(good.size - 1)))
         assertNull(IncidentBody.decode(good + 0))
-        assertNull("flag necunoscut", IncidentBody.decode(good.clone().also { it[6] = 0x08 }))
-        assertNull("flag de anulare fara hash", IncidentBody.decode(good.clone().also { it[6] = 0x04 }))
+        assertNull("unknown flag", IncidentBody.decode(good.clone().also { it[6] = 0x08 }))
+        assertNull("cancel flag without hash", IncidentBody.decode(good.clone().also { it[6] = 0x04 }))
     }
 
     @Test

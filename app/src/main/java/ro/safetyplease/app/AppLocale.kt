@@ -5,9 +5,8 @@ import android.content.res.Configuration
 import java.util.Locale
 
 /**
- * Aplicatia are texte doar in romana. Android alege insa forma de plural dupa limba telefonului, nu dupa
- * limba textului: pe un telefon in engleza, "2" ar lua forma pentru 20+ si ar iesi "2 de hop-uri".
- * De aceea resursele sunt fixate pe romana, indiferent de limba sistemului.
+ * Strings are Romanian only, but Android picks plural rules from the system locale: on an English phone
+ * "2" would get the 20+ form ("2 de hop-uri"). So resources are pinned to Romanian.
  */
 object AppLocale {
     val ROMANIAN: Locale = Locale.forLanguageTag("ro-RO")

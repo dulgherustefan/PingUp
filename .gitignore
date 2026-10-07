@@ -12,3 +12,4 @@ captures/
 .DS_Store
 docs/
 tools/out/
+__pycache__/

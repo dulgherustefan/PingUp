@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Textele modului demo. Nu ajung in build-ul release. -->
+<!-- Demo mode strings. Not shipped in release builds. -->
 <resources>
     <string name="demo_yes">da</string>
     <string name="demo_no">nu</string>

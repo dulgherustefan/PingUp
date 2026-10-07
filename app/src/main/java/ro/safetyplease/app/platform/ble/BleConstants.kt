@@ -2,7 +2,7 @@ package ro.safetyplease.app.platform.ble
 
 import java.util.UUID
 
-/** UUID-urile proprii, generate o singura data. Schimbarea lor rupe compatibilitatea cu versiunile vechi. */
+/** Our own UUIDs, generated once. Changing them breaks compatibility with older versions. */
 object BleConstants {
     val SERVICE: UUID = UUID.fromString("f24a82e1-f0bc-471f-9cae-a9598a2a4dc4")
     val CHARACTERISTIC: UUID = UUID.fromString("c5d82591-cfb9-45dd-bea5-8447e1811ba6")
@@ -17,15 +17,15 @@ object BleConstants {
 
     const val SETUP_TIMEOUT_MS = 20_000L
 
-    /** Doar faza de conectare; de reglat din logurile `conectat ... in N ms`. */
+    /** Connect phase only; tune it from the `connected ... in N ms` log lines. */
     const val CONNECT_TIMEOUT_MS = 20_000L
     const val OPERATION_TIMEOUT_MS = 5_000L
     const val WRITE_TIMEOUT_MS = 3_000L
 
-    /** Dupa un 143 lasam stiva sa goleasca coada cam doua intervale de conexiune. */
+    /** After a 143, give the stack about two connection intervals to drain its queue. */
     const val CONGESTION_PAUSE_MS = 100L
 
-    /** Al doilea set de advertising pe Coded PHY, doar pe telefoanele care il suporta. False il opreste complet. */
+    /** Second advertising set on Coded PHY, only on phones that support it. False turns it off entirely. */
     const val LONG_RANGE = true
 
     const val ADVERTISE_DEBOUNCE_MS = 300L
@@ -33,7 +33,7 @@ object BleConstants {
     const val ADVERTISE_DEMOTE_AFTER = 3
     const val ADVERTISE_DEMOTED_RETRY_MS = 60_000L
 
-    /** Un start de set fara niciun raspuns de la stiva e abandonat dupa atat. */
+    /** A set start with no answer from the stack is abandoned after this long. */
     const val ADVERTISE_START_GIVE_UP_MS = 30_000L
     const val CODED_RETRY_MS = 60_000L
 
@@ -43,10 +43,10 @@ object BleConstants {
     const val LEGACY_PREFERENCE_MS = 3_000L
     const val SIGHTING_FORGET_MS = 60_000L
 
-    /** Android accepta cel mult 5 porniri de scanare in 30 s; cu 6,5 s intre ele nu ajungem la limita. */
+    /** Android allows at most 5 scan starts per 30 s; 6.5 s apart stays under the limit. */
     const val SCAN_START_SPACING_MS = 6_500L
 
-    /** O scanare continua de peste 30 de minute devine oportunista, asa ca o repornim inainte. */
+    /** A continuous scan turns opportunistic after 30 minutes, so restart it before that. */
     const val SCAN_RESTART_MS = 25 * 60_000L
     const val SCAN_SILENCE_RESTART_MS = 3 * 60_000L
 }

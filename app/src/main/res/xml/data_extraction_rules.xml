@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Nimic nu pleaca de pe telefon: nici in backup-ul din cloud, nici la mutarea pe alt telefon.
-     Cheile sunt legate de Keystore-ul acestui telefon, iar mesajele si prietenii sunt date private. -->
+<!--
+    Nothing leaves the phone: no cloud backup, no device-to-device transfer.
+    Keys are bound to this phone's Keystore, and messages and friends are private data.
+-->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="root" path="." />

@@ -65,10 +65,9 @@ import ro.safetyplease.core.data.Role as AppRole
 private enum class MapFocus { MINE, MEETING, ZONE }
 
 /**
- * Harta evenimentului, ca tab sau deschisa din chat, pe fundalul gri al setarilor iOS: harta intr-un
- * card, alegerea intre zona ta si punctul de intalnire, locul ales intr-un grup si, dedesubt, toate zonele.
- * O atingere pe harta sau pe o zona din lista o alege. Venita din chat, zona aleasa pleaca direct in conversatie.
- * Ca tab ([asTab]), in stanga sus sta bula ta, ca pe celelalte taburi, nu sageata inapoi.
+ * Event map, as a tab or opened from a chat: the map in a card, the chosen place in a group, then every zone.
+ * Tapping the map or a zone in the list selects it. Opened from a chat, the chosen zone is sent right away.
+ * As a tab ([asTab]) the top left shows your avatar instead of a back arrow.
  */
 @Composable
 fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
@@ -149,7 +148,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                 )
             }
             item(key = "place") {
-                // zona ta (sau zona atinsa) si punctul de intalnire stau unul sub altul, fara comutator intre ele
+                // your zone (or the tapped one) and the meeting point stacked, no toggle between them
                 InsetGroup(Modifier.padding(top = 16.dp)) {
                     when (focus) {
                         MapFocus.ZONE -> {
@@ -196,7 +195,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                                 if (here != null) stringResource(R.string.map_distance, distanceMeters(here, meeting)) else null,
                             ).joinToString(" · "),
                             leading = { IconCircle(Sym.Flag, colors.orange, Color.White, 36.dp) },
-                            // atins, steagul de pe harta se mareste
+                            // tapping enlarges the flag on the map
                             onClick = {
                                 focus = MapFocus.MEETING
                                 scope.launch { listState.animateScrollToItem(0) }
@@ -205,14 +204,14 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     }
                 }
             }
-            // unealta de test; ramane vizibila cat e pusa o locatie simulata, ca sa poata fi stearsa
+            // test tool; stays visible while a simulated location is set so it can be cleared
             if (Demo.AVAILABLE && (vm.demoUnlocked || simulated)) {
                 item(key = "simulate") {
                     InsetGroup(Modifier.padding(top = 20.dp)) {
                         SwitchRow(stringResource(R.string.demo_simulate_location), simulate, { simulate = it }, icon = Sym.Science)
                         if (simulated) {
                             GroupDivider()
-                            // textul legaturii se aliniaza cu textul randului de deasupra
+                            // align the link text with the row text above
                             TextLink(stringResource(R.string.clear), { vm.setSimulatedLocation(null) }, Modifier.padding(start = 48.dp, top = 4.dp, bottom = 4.dp))
                         }
                     }
@@ -228,7 +227,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             zone.name,
                             value = if (mine) hereLabel else null,
                             onClick = {
-                                // venit din chat: o atingere alege zona si o trimite
+                                // opened from a chat: one tap picks the zone and sends it
                                 if (dest.sendTo != null) setMine(zone.id)
                                 else {
                                     showZone(zone.id)
@@ -248,12 +247,12 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     }
 }
 
-/** Cercul unei zone, in culoarea ei de pe harta, cu initialele in nuanta inchisa, ca bula unui om. */
+/** Zone circle in its map color, initials in the dark tint, like an avatar. */
 @Composable
 private fun ZoneBadge(index: Int, id: String, name: String) {
     val colors = AppTheme.colors
     val size = 36.dp
-    // literele tin de marimea cercului, ca la Avatar
+    // letters scale with the circle, as in Avatar
     val fontSize = with(LocalDensity.current) { (size * 0.42f).toSp() }
     Box(Modifier.size(size).clip(CircleShape).background(colors.zoneFill(index, id)), contentAlignment = Alignment.Center) {
         Text(
@@ -263,7 +262,7 @@ private fun ZoneBadge(index: Int, id: String, name: String) {
     }
 }
 
-/** Locul trimis intr-un mesaj: harta cu punctul omului, apoi zona lui si cat de departe e de tine. */
+/** A place sent in a message: map with the sender's dot, then their zone and how far it is from you. */
 @Composable
 fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
     val position by vm.position.collectAsStateWithLifecycle()

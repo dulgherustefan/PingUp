@@ -16,7 +16,7 @@ data class Candidate(
     val prefix: Int?,
     val flags: Int,
     val rssi: Int,
-    /** De cand e vizibil fara legatura; se reseteaza cand pica o legatura cu el. */
+    /** Visible without a link since when; resets when a link with it drops. */
     val sinceMs: Long,
     val lastSeenMs: Long,
 )
@@ -31,7 +31,7 @@ data class LinkView(
     val lastActivityMs: Long,
 )
 
-/** Decide la cine ne conectam si ce legatura rotim. Fara stare, ca sa poata fi testat direct. */
+/** Decides whom to connect to and which link to rotate. Stateless, so it can be tested directly. */
 object ConnectionPolicy {
     const val FRESH_MS = 15_000L
     const val FALLBACK_MS = 20_000L
@@ -53,7 +53,7 @@ object ConnectionPolicy {
         .filterNot(blocked)
         .filter { c -> links.none { it.address == c.address || (c.prefix != null && it.peerPrefix == c.prefix) } }
         .filter { shouldInitiate(myPrefix, canAdvertise, it) || nowMs - it.sinceMs >= FALLBACK_MS }
-        // rotatia MAC lasa temporar doua adrese pentru acelasi peer; o pastram pe cea mai recenta
+        // MAC rotation briefly leaves two addresses for one peer; keep the most recent
         .groupBy { it.prefix ?: it.address.hashCode() }
         .map { (_, same) -> same.maxByOrNull { it.lastSeenMs }!! }
         .sortedWith(
@@ -63,8 +63,8 @@ object ConnectionPolicy {
         )
 
     /**
-     * Regula initiatorului: se conecteaza cel cu nodeId mai mic, altfel apar legaturi duble.
-     * Un telefon care nu poate face advertising nu poate fi gasit, deci initiaza mereu.
+     * Initiator rule: the lower nodeId connects, otherwise links get duplicated.
+     * A phone that can't advertise can't be found, so it always initiates.
      */
     fun shouldInitiate(myPrefix: Int, canAdvertise: Boolean, c: Candidate): Boolean =
         !canAdvertise || c.prefix == null || Integer.compareUnsigned(myPrefix, c.prefix) <= 0
@@ -83,8 +83,8 @@ object ConnectionPolicy {
     }
 
     /**
-     * Cand sloturile de iesire sunt pline si exista peer-i vizibili neconectati, se inchide cea mai veche
-     * legatura inactiva initiata de noi. Legaturile cu staff si ancore se pastreaza.
+     * When outgoing slots are full and visible peers are unconnected, close our oldest idle outgoing link.
+     * Links to staff and anchors are kept.
      */
     fun rotationVictim(
         myPrefix: Int,

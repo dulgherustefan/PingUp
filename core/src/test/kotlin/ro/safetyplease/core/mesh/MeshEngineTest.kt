@@ -79,7 +79,7 @@ class MeshEngineTest {
             Node(name, id, net, bg, clock, maxFrame, canAdvertise)
     }
 
-    /** Lantul din scenariul de acceptanta: A ignora C si D, B ignora D, deci A - B - C - D. */
+    /** The acceptance scenario chain: A ignores C and D, B ignores D, so A - B - C - D. */
     private fun TestScope.chain(world: World = World(this), midFrame: Int = 514): List<Node> {
         val a = world.node("A", A)
         val b = world.node("B", B, maxFrame = midFrame)
@@ -184,7 +184,7 @@ class MeshEngineTest {
         val short = Packet(PacketType.INCIDENT_CANCEL, 7, 99L, 0L, 0L, null, false, ByteArray(IncidentCancel.SIZE - 1))
         a.radio.inject(link, PacketCodec.encode(short))
         advanceTimeBy(5_000)
-        assertEquals("duplicatul si cel trunchiat se opresc la B", 1, b.ofType(PacketType.INCIDENT_CANCEL).size)
+        assertEquals("the duplicate and the truncated one stop at B", 1, b.ofType(PacketType.INCIDENT_CANCEL).size)
         assertEquals(1, d.ofType(PacketType.INCIDENT_CANCEL).size)
     }
 
@@ -315,9 +315,9 @@ class MeshEngineTest {
         advanceTimeBy(2_000)
         assertEquals(0, b.readyLinks)
         advanceTimeBy(8 * 60_000L)
-        assertEquals("inca ignorat", 0, b.readyLinks)
+        assertEquals("still ignored", 0, b.readyLinks)
         val attempts = a.radio.connectAttempts.size
-        assertTrue("reincercari rare, nu in bucla: $attempts", attempts < 20)
+        assertTrue("rare retries, not a loop: $attempts", attempts < 20)
         advanceTimeBy(4 * 60_000L)
         assertEquals(1, b.readyLinks)
     }
@@ -379,7 +379,7 @@ class MeshEngineTest {
         assertTrue(b.engine.state.value.links.isEmpty())
         advanceTimeBy(15_000)
         assertEquals(1, b.engine.state.value.links.size)
-        assertEquals("A il tine pe mut", 0, a.readyLinks)
+        assertEquals("A keeps the silent peer", 0, a.readyLinks)
     }
 
     @Test
@@ -399,7 +399,7 @@ class MeshEngineTest {
         val world = World(this)
         val a = world.node("A", A)
         world.node("B", B)
-        // A il vede pe B fara sa aiba legatura cu el, ca testul sa prinda doar golirea de la oprirea radioului
+        // A sees B without a link to it, so the test only catches the clearing when the radio stops
         a.engine.setIgnoredPrefixes(setOf(B.nodePrefix()))
         world.net.start()
         advanceTimeBy(5_000)
@@ -407,11 +407,11 @@ class MeshEngineTest {
         assertTrue(a.engine.state.value.links.isEmpty())
         a.radio.powerOff()
         runCurrent()
-        assertTrue("dupa oprirea radioului nu mai ramane niciun candidat", a.engine.state.value.seen.isEmpty())
+        assertTrue("no candidates left after the radio stops", a.engine.state.value.seen.isEmpty())
         a.engine.setIgnoredPrefixes(emptySet())
         a.radio.powerOn()
         advanceTimeBy(5_000)
-        assertEquals("se conecteaza dupa advertising proaspat", 1, a.readyLinks)
+        assertEquals("connects after fresh advertising", 1, a.readyLinks)
     }
 
     @Test
@@ -425,7 +425,7 @@ class MeshEngineTest {
         val attempts = a.radio.connectAttempts.size
         world.net.cut("A", "B")
         advanceTimeBy(14_000)
-        assertEquals("fara conectari in gol la un peer disparut", attempts, a.radio.connectAttempts.size)
+        assertEquals("no blind connects to a vanished peer", attempts, a.radio.connectAttempts.size)
         assertTrue(a.engine.state.value.seen.isEmpty())
         world.net.heal("A", "B")
         advanceTimeBy(5_000)

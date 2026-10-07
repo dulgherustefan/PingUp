@@ -3,7 +3,7 @@ package ro.safetyplease.core.util
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 
-/** Folosit si de protocol (hash-ul de anulare), si de identitate (id-ul nodului). */
+/** Used by the protocol (cancel hash) and by identity (node id). */
 fun sha256(data: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(data)
 
 private const val HEX = "0123456789abcdef"
@@ -38,12 +38,12 @@ fun Long.toBytes(): ByteArray = ByteBuffer.allocate(8).putLong(this).array()
 
 fun ByteArray.toLong(offset: Int = 0): Long = ByteBuffer.wrap(this, offset, 8).long
 
-/** Primii 4 octeti din nodeId, asa cum apar in advertising. */
+/** First 4 bytes of the nodeId, as they appear in advertising. */
 fun Long.nodePrefix(): Int = (this ushr 32).toInt()
 
 fun String.utf8(): ByteArray = toByteArray(Charsets.UTF_8)
 
-/** Taie textul la cel mult [maxBytes] octeti UTF-8 fara sa rupa un caracter. */
+/** Truncates to at most [maxBytes] UTF-8 bytes without splitting a character. */
 fun String.truncateUtf8(maxBytes: Int): String {
     if (utf8().size <= maxBytes) return this
     var end = length

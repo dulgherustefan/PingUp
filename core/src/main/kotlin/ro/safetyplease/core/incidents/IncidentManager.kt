@@ -39,9 +39,9 @@ class ReportDraft(
 )
 
 /**
- * Fluxul de incidente. Participantul sigileaza raportul catre staff si urmareste ACK-urile;
- * telefonul de staff il deschide, confirma automat primirea si poate prelua sau rezolva.
- * Autorul isi poate retrage raportul cu un token pe care doar el il stie; staff-ul confirma cu ACK CANCELLED.
+ * Incident flow. A participant seals the report to staff and tracks the ACKs;
+ * a staff phone opens it, auto-confirms receipt, and can take or resolve it.
+ * The author can withdraw a report with a token only they know; staff confirms with ACK CANCELLED.
  */
 class IncidentManager(
     private val scope: CoroutineScope,
@@ -61,10 +61,10 @@ class IncidentManager(
 
     private val packetToIncident = HashMap<Long, String>()
 
-    /** Anularile proprii pe care staff-ul nu le-a confirmat inca; [Cancel.atMs] e ora cererii, ca [MyReport.updatedAt]. */
+    /** Our cancellations staff hasn't confirmed yet; [Cancel.atMs] is the request time, like [MyReport.updatedAt]. */
     private val cancelling = HashMap<String, Cancel>()
 
-    /** Anulari ajunse la staff inaintea raportului; [Cancel.atMs] e timp monoton. */
+    /** Cancellations that reached staff before the report; [Cancel.atMs] is monotonic time. */
     private val earlyCancels = LinkedHashMap<String, Cancel>()
     private var cancelRetry: Job? = null
 
@@ -88,7 +88,7 @@ class IncidentManager(
 
     // --- participant ---
 
-    /** Cate milisecunde mai are de asteptat utilizatorul pana poate raporta din nou; 0 daca poate acum. */
+    /** Milliseconds until the user may report again; 0 if they can now. */
     fun rateLimitWaitMs(): Long {
         val now = clock.wallMs()
         val data = store.value
@@ -97,7 +97,7 @@ class IncidentManager(
         return recent[recent.size - RATE_MAX] + RATE_WINDOW_MS - now
     }
 
-    /** [bypassRateLimit] e folosit doar de incidentele de test din modul demo. */
+    /** [bypassRateLimit] is only used by the demo's test incidents. */
     fun report(draft: ReportDraft, bypassRateLimit: Boolean = false): Boolean {
         if (!bypassRateLimit && rateLimitWaitMs() > 0) return false
         val now = clock.wallMs()
@@ -119,7 +119,7 @@ class IncidentManager(
             )
             val packet = engine.publishReport(incidentId, staffCrypto.sealReport(body.encode()))
             packetToIncident[packet.id] = report.incidentId
-            // un telefon de staff nu isi primeste propriul raport din retea, asa ca il deschide direct
+            // a staff phone never receives its own report from the network, so it opens it directly
             onReport(packet, hops = 0, alert = false)
             refreshPending()
             onReportSent()
@@ -128,8 +128,8 @@ class IncidentManager(
     }
 
     /**
-     * Retrage un raport propriu pe care staff-ul nu l-a rezolvat inca. Anularea pleaca din nou la fiecare
-     * vecin nou si la fiecare minut, pana vine ACK-ul CANCELLED sau trec [CANCEL_RETRY_MS].
+     * Withdraws one of our reports that staff hasn't resolved yet. The cancel is resent on every new neighbor
+     * and every minute until the CANCELLED ACK arrives or [CANCEL_RETRY_MS] passes.
      */
     fun cancel(incidentId: String) {
         val report = store.value.mine.firstOrNull { it.incidentId == incidentId } ?: return
@@ -144,13 +144,13 @@ class IncidentManager(
             engine.forgetReport(id)
             cancelling[incidentId] = Cancel(token, now)
             engine.publishCancel(id, token)
-            // un telefon de staff nu isi primeste propriul pachet din retea, asa ca isi aplica singur anularea
+            // a staff phone never receives its own packet from the network, so it applies the cancel itself
             onCancel(IncidentCancel(id, token))
             refreshPending()
         }
     }
 
-    /** Sterge raportul doar de pe acest telefon; unul inca deschis e anulat intai. */
+    /** Deletes the report from this phone only; an open one is cancelled first. */
     fun delete(incidentId: String) {
         val report = store.value.mine.firstOrNull { it.incidentId == incidentId } ?: return
         cancel(incidentId)
@@ -158,7 +158,7 @@ class IncidentManager(
         store.update { data ->
             data.copy(
                 mine = data.mine.filterNot { it.incidentId == incidentId },
-                // altfel stergerea ar ocoli limita de rapoarte
+                // otherwise deleting would bypass the rate limit
                 deletedReportTimes = (data.deletedReportTimes + report.createdAt).filter { now - it < RATE_WINDOW_MS },
             )
         }
@@ -170,7 +170,7 @@ class IncidentManager(
 
     fun resolve(incidentId: String) = sendAck(incidentId, AckStatus.RESOLVED)
 
-    /** Scoate incidentul doar din lista acestui telefon, fara niciun mesaj in retea. */
+    /** Removes the incident from this phone's list only, without sending anything. */
     fun dismiss(incidentId: String) {
         store.update { data ->
             data.copy(
@@ -192,12 +192,12 @@ class IncidentManager(
         }
     }
 
-    /** Dupa activarea modului staff, deschide si rapoartele care erau deja in cache-ul de store-and-forward. */
+    /** After staff mode is activated, also opens reports already in the store-and-forward cache. */
     fun reprocessCached() {
         scope.launch { engine.cachedReports().forEach { (packet, hops) -> onReport(packet, hops, alert = true) } }
     }
 
-    // --- evenimente ---
+    // --- events ---
 
     private fun onEvent(event: MeshEvent) {
         when (event) {
@@ -210,7 +210,7 @@ class IncidentManager(
                 val incidentId = packetToIncident.remove(event.packetId) ?: return
                 store.update { data -> data.copy(mine = data.mine.map { if (it.incidentId == incidentId) it.copy(sent = true) else it }) }
             }
-            // un vecin nou poate fi drumul spre staff pe care anularea nu l-a gasit pana acum
+            // a new neighbor may be the path to staff the cancel hasn't found yet
             is MeshEvent.PeerLinked -> if (cancelling.isNotEmpty() && cancelRetry?.isActive != true) {
                 cancelRetry = scope.launch {
                     delay(LINK_SETTLE_MS)
@@ -239,7 +239,7 @@ class IncidentManager(
         store.update { it.copy(staff = (it.staff + incident).takeLast(MAX_STAFF)) }
         engine.cachedAck(incidentId)?.let(::applyAck)
         earlyCancels.remove(key)?.takeIf { clock.monoMs() - it.atMs <= EARLY_CANCEL_MS }?.let { tryCancel(key, it.token, secret) }
-        // daca alta echipa a confirmat deja primirea, un al doilea RECEIVED ar fi doar zgomot in retea
+        // if another team already confirmed receipt, a second RECEIVED would just be network noise
         if (engine.ackStatus(incidentId) == AckStatus.NONE) {
             val ack = staffCrypto.signAck(incidentId, AckStatus.RECEIVED, now / 1000, teamName(), secret)
             engine.publishAck(ack)
@@ -256,7 +256,7 @@ class IncidentManager(
             tryCancel(key, cancel.token, secret)
             return
         }
-        // raportul poate ajunge mai tarziu, pe alt drum; tokenul nu se poate verifica pana atunci
+        // the report may arrive later by another route; the token can't be checked until then
         val now = clock.monoMs()
         earlyCancels.values.removeAll { now - it.atMs > EARLY_CANCEL_MS }
         earlyCancels.remove(key)
@@ -264,7 +264,7 @@ class IncidentManager(
         if (earlyCancels.size > MAX_EARLY_CANCELS) earlyCancels.remove(earlyCancels.keys.first())
     }
 
-    /** Doar tokenul autorului anuleaza, si doar cat timp incidentul nu e rezolvat. */
+    /** Only the author's token cancels, and only while the incident isn't resolved. */
     private fun tryCancel(key: String, token: ByteArray, secret: StaffSecretKeys) {
         val incident = store.value.staff.firstOrNull { it.incidentId == key } ?: return
         if (incident.cancelHash.isEmpty() || incident.status >= AckStatus.RESOLVED) return
@@ -297,7 +297,7 @@ class IncidentManager(
         refreshPending()
     }
 
-    /** Pana la ACK-ul CANCELLED, o anulare se poate pierde ca orice pachet; retrimiterea e mereu un pachet nou. */
+    /** Until the CANCELLED ACK arrives, a cancel can be lost like any packet; every resend is a new packet. */
     private fun retryCancels() {
         val now = clock.wallMs()
         cancelling.entries.removeAll { (id, c) ->
@@ -306,7 +306,7 @@ class IncidentManager(
         for ((id, c) in cancelling) engine.publishCancel(id.hexToBytes(), c.token)
     }
 
-    /** Cache-ul mesh-ului nu supravietuieste unei reporniri, starea anularilor da. */
+    /** The mesh cache doesn't survive a restart; the cancellation state does. */
     private fun resumeCancels() {
         for (r in store.value.mine.filter { it.cancelled }) {
             engine.forgetReport(r.incidentId.hexToBytes())
@@ -314,7 +314,7 @@ class IncidentManager(
         }
     }
 
-    /** Cat timp un raport propriu nu a ajuns la staff, advertising-ul il anunta ca vecinii sa ne prefere. */
+    /** While one of our reports hasn't reached staff, advertising flags it so neighbors prefer us. */
     private fun refreshPending() {
         val now = clock.wallMs()
         engine.setPendingIncident(store.value.mine.any { isPending(it, now) })
@@ -332,7 +332,7 @@ class IncidentManager(
         private const val MAX_EARLY_CANCELS = 64
         private const val LINK_SETTLE_MS = 1_500L
 
-        /** Raport propriu care inca nu a ajuns la staff si nu a fost retras. */
+        /** Our report that hasn't reached staff yet and wasn't withdrawn. */
         fun isPending(report: MyReport, nowMs: Long): Boolean =
             report.status == AckStatus.NONE && !report.cancelled && nowMs - report.createdAt < PENDING_MS
     }

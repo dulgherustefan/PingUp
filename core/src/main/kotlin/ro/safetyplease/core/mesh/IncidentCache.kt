@@ -9,8 +9,8 @@ import ro.safetyplease.core.protocol.SummaryEntry
 import ro.safetyplease.core.util.toLong
 
 /**
- * Store-and-forward pentru incidente si ACK-uri. Tine pachetele [retentionMs] de la primire si,
- * dupa aceea, doar o urma a incidentului, ca nodul sa nu-l mai ceara si retransmita la nesfarsit.
+ * Store-and-forward for incidents and ACKs. Keeps packets for [retentionMs] after receipt, then only a trace
+ * of the incident so the node doesn't request and relay it forever.
  */
 class IncidentCache(
     var retentionMs: Long = 30 * 60_000L,
@@ -40,7 +40,7 @@ class IncidentCache(
         return e
     }
 
-    /** Retine raportul daca incidentul e nou. [packet] trebuie sa aiba deja ttl-ul cu care va fi retrimis. */
+    /** Keeps the report if the incident is new. [packet] must already carry the ttl it will be relayed with. */
     fun offerReport(incidentId: ByteArray, packet: Packet, nowMs: Long, hops: Int = 0): Boolean {
         purge(nowMs)
         val e = entry(incidentId.toLong(), nowMs)
@@ -52,7 +52,7 @@ class IncidentCache(
         return true
     }
 
-    /** Nu mai serveste raportul, dar pastreaza urma, ca sa nu fie cerut sau primit din nou. */
+    /** Stops serving the report but keeps the trace, so it isn't requested or accepted again. */
     fun forgetReport(incidentId: ByteArray, nowMs: Long) {
         purge(nowMs)
         val e = entry(incidentId.toLong(), nowMs)
@@ -60,7 +60,7 @@ class IncidentCache(
         e.report = null
     }
 
-    /** Retine ACK-ul doar daca e mai bun decat cel cunoscut: status mai mare, apoi cel mai vechi, apoi echipa. */
+    /** Keeps the ACK only if it beats the known one: higher status, then oldest, then team. */
     fun offerAck(ack: IncidentAck, packet: Packet, nowMs: Long): Boolean {
         purge(nowMs)
         val e = entry(ack.incidentId.toLong(), nowMs)
@@ -89,12 +89,12 @@ class IncidentCache(
             .map { SummaryEntry(it.id8, it.report != null, if (it.ack != null) it.ackStatus else AckStatus.NONE) }
     }
 
-    /** Ce merita cerut de la un peer care a anuntat [remote]. */
+    /** What's worth requesting from a peer that announced [remote]. */
     fun missing(remote: List<SummaryEntry>, nowMs: Long): List<RequestEntry> {
         purge(nowMs)
         return remote.mapNotNull { r ->
             val local = entries[r.id8]
-            // un raport anulat nu mai trebuie dus nicaieri; ajunge ACK-ul care il inchide
+            // a cancelled report doesn't need to go anywhere; the ACK that closes it is enough
             val cancelled = r.ackStatus == AckStatus.CANCELLED || local?.ackStatus == AckStatus.CANCELLED
             val wantReport = r.hasReport && !cancelled && (local == null || !local.reportSeen)
             val wantAck = r.ackStatus > (local?.ackStatus ?: AckStatus.NONE)
@@ -104,7 +104,7 @@ class IncidentCache(
 
     fun report(id8: Long): Packet? = entries[id8]?.report?.packet
 
-    /** Rapoartele inca pastrate, cu numarul de hop-uri la care au fost primite. */
+    /** Reports still kept, with the hop count they arrived with. */
     fun reports(): List<Pair<Packet, Int>> = entries.values.mapNotNull { e -> e.report?.let { it.packet to it.hops } }
 
     fun ack(id8: Long): Packet? = entries[id8]?.ack?.packet

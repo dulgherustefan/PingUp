@@ -25,7 +25,7 @@ object PacketType {
         else -> "0x%02x".format(type)
     }
 
-    /** Pachete care nu parasesc niciodata legatura pe care au fost trimise. */
+    /** Packets that never leave the link they were sent on. */
     fun isLinkLocal(type: Int): Boolean = type == HELLO || type == SUMMARY || type == REQUEST
 }
 
@@ -42,14 +42,14 @@ class Packet(
     fun withTtl(newTtl: Int) = Packet(type, newTtl, id, sender, timestamp, recipient, encrypted, payload)
 
     /**
-     * Numarul de legaturi traversate pana aici. Originea trimite cu ttl 7, deci un vecin direct
-     * primeste ttl 7 si vede 1 hop; lantul A-B-C-D da 3 la D.
+     * Links traversed so far. The origin sends with ttl 7, so a direct neighbor receives ttl 7 and sees 1 hop;
+     * the chain A-B-C-D gives 3 at D.
      */
     val hops: Int get() = PacketCodec.MAX_TTL - ttl + 1
 
     /**
-     * Cheia de dedup acopera tot ce nu se schimba pe drum, nu doar [id]. Altfel un nod rau-voitor
-     * ar putea opri un pachet trimitand inaintea lui gunoi cu acelasi id.
+     * The dedup key covers everything that doesn't change in transit, not just [id]. Otherwise a malicious node
+     * could block a packet by sending garbage with the same id ahead of it.
      */
     val dedupKey: Long by lazy(LazyThreadSafetyMode.NONE) {
         val md = MessageDigest.getInstance("SHA-256")
@@ -65,7 +65,7 @@ class Packet(
 
 class FragmentInfo(val fragId: Int, val index: Int, val count: Int)
 
-/** Un cadru de pe fir: fie un pachet intreg, fie o bucata dintr-unul. */
+/** A frame on the wire: a whole packet or a fragment of one. */
 class Frame(val packet: Packet, val fragment: FragmentInfo?)
 
 object PacketCodec {
@@ -76,7 +76,7 @@ object PacketCodec {
     const val MAX_PAYLOAD = 480
     const val MAX_TTL = 7
 
-    /** Sub atat nu incape antetul complet plus o bucata utila de payload. */
+    /** Below this the full header plus a useful payload chunk doesn't fit. */
     const val MIN_FRAME = 64
 
     const val FLAG_RECIPIENT = 0x01
@@ -96,8 +96,8 @@ object PacketCodec {
     fun encode(p: Packet): ByteArray = write(p, null, p.payload, 0, p.payload.size)
 
     /**
-     * Imparte pachetul in cadre de cel mult [maxFrame] octeti. Fragmentarea e per legatura:
-     * fiecare hop reasambleaza si refragmenteaza dupa MTU-ul legaturii urmatoare.
+     * Splits the packet into frames of at most [maxFrame] bytes. Fragmentation is per link:
+     * each hop reassembles and re-fragments for the next link's MTU.
      */
     fun toFrames(p: Packet, maxFrame: Int, fragId: Int): List<ByteArray> {
         require(maxFrame >= MIN_FRAME) { "frame too small" }
@@ -127,7 +127,7 @@ object PacketCodec {
         return w.toByteArray()
     }
 
-    /** Intoarce null pentru orice cadru care nu respecta formatul; nimic invalid nu trece mai sus. */
+    /** Returns null for any frame that breaks the format; nothing invalid gets further. */
     fun decode(bytes: ByteArray): Frame? = parseOrNull {
         if (bytes.size < HEADER_SIZE) throw MalformedException("short header")
         val r = WireReader(bytes)

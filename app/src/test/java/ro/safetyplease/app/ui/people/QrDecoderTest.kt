@@ -13,14 +13,14 @@ import ro.safetyplease.core.crypto.StaffRole
 import java.util.Random
 
 /**
- * Camera nu poate fi testata aici, dar pasul de decodare da: imagini QR generate, puse intr-un plan de
- * luminanta asa cum il livreaza camera (linii cu umplutura, imagine rotita, cod mic intr-un cadru mare).
+ * The camera can't be tested here, but decoding can: generated QR images placed in a luminance plane the way
+ * the camera delivers it (padded rows, rotated image, small code in a large frame).
  */
 class QrDecoderTest {
     private val friendCode = QrCodes.encodeFriend(FriendCard("Ioana", ByteArray(32) { it.toByte() }, ByteArray(32) { (it * 3).toByte() }))
     private val staffCode = QrCodes.encodeStaff(StaffCard(ByteArray(32) { 7 }, ByteArray(32) { 9 }, StaffRole.STAFF, "Medical 2", ""))
 
-    /** Deseneaza codul ca pe ecranul "Codul meu": module negre pe alb, cu margine. */
+    /** Draws the code like the "My code" screen: black modules on white, with a margin. */
     private fun qrPixels(text: String, size: Int): Array<BooleanArray> {
         val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, mapOf(EncodeHintType.MARGIN to 2))
         return Array(size) { y -> BooleanArray(size) { x -> matrix[x, y] } }
@@ -28,7 +28,7 @@ class QrDecoderTest {
 
     private class Plane(val data: ByteArray, val rowStride: Int, val width: Int, val height: Int)
 
-    /** Pune codul intr-un cadru gri [width] x [height], cu [padding] octeti de umplutura pe fiecare linie. */
+    /** Puts the code in a gray [width] x [height] frame with [padding] filler bytes per row. */
     private fun frame(code: Array<BooleanArray>, width: Int, height: Int, padding: Int, noise: Int = 0): Plane {
         val stride = width + padding
         val random = Random(42)
@@ -72,7 +72,7 @@ class QrDecoderTest {
 
     @Test
     fun decodesAFrameRotatedByNinetyDegrees() {
-        // camera livreaza de obicei cadrul rotit fata de ecran
+        // the camera usually delivers the frame rotated relative to the screen
         val code = qrPixels(friendCode, 400)
         val rotated = Array(code.size) { y -> BooleanArray(code.size) { x -> code[code.size - 1 - x][y] } }
         assertEquals(friendCode, decode(frame(rotated, 640, 480, padding = 8)))

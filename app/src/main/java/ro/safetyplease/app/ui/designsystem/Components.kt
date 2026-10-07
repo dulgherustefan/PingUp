@@ -95,19 +95,19 @@ import androidx.compose.ui.window.Dialog
 import ro.safetyplease.app.R
 import ro.safetyplease.core.data.MsgStatus
 
-/** Cat loc trebuie lasat jos: bara de taburi plutitoare in ecranele principale, bara de gesturi in rest. */
+/** Bottom space to leave: the floating tab bar on main screens, the gesture bar elsewhere. */
 val LocalBottomClearance = compositionLocalOf { 0.dp }
 
-/** Marginea laterala, ca pe iPhone. */
+/** Horizontal screen margin. */
 val Gutter = 16.dp
 
-/** Inaltimea barei de sus, fara bara de stare. */
+/** Top bar height, excluding the status bar. */
 val NavHeight = 52.dp
 
-/** Primary e albastrul plin, Secondary e gri, Danger e rosul pentru stergere. */
+/** Primary is the filled accent, Secondary gray, Danger red for destructive actions. */
 enum class ButtonKind { Primary, Secondary, Danger }
 
-/** Butonul iOS 26: o capsula plina, text de 17 ingrosat. [compact] e varianta mica, pentru randuri si bannere. */
+/** Filled capsule button with 17sp bold text. [compact] is the small variant for rows and banners. */
 @Composable
 fun AppButton(
     text: String,
@@ -144,7 +144,7 @@ fun AppButton(
     }
 }
 
-/** Butonul simplu: doar textul in culoarea de accent, cu loc de atins de 48. */
+/** Text-only button in the accent color, with a 48dp touch target. */
 @Composable
 fun TextLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = AppTheme.colors.accent) {
     Box(
@@ -155,7 +155,7 @@ fun TextLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, c
     }
 }
 
-/** O iconita care se poate atinge, fara fond. */
+/** Tappable icon without a background. */
 @Composable
 fun IconBtn(icon: ImageVector, description: String?, onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = AppTheme.colors.label) {
     Box(
@@ -165,11 +165,11 @@ fun IconBtn(icon: ImageVector, description: String?, onClick: () -> Unit, modifi
     ) { Icon(icon, null, Modifier.size(22.dp), tint = tint) }
 }
 
-/** Butonul rotund de sticla din bara de sus: inapoi, inchide. */
+/** Round glass button in the top bar: back, close. */
 @Composable
 fun GlassIconButton(icon: ImageVector, description: String, onClick: () -> Unit, backdrop: Backdrop?, modifier: Modifier = Modifier) {
     val press = remember { MutableInteractionSource() }
-    // cercul se vede de 38, dar se atinge pe 48, cat cere Android
+    // 38dp visible circle, 48dp touch target as Android requires
     Box(
         modifier.size(TouchTarget).clip(CircleShape).clickable(press, indication = null, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
@@ -181,27 +181,27 @@ fun GlassIconButton(icon: ImageVector, description: String, onClick: () -> Unit,
     }
 }
 
-/** Marimea vizibila a butoanelor de sticla din bara de sus. */
+/** Visible size of the glass buttons in the top bar. */
 val GlassSize = 38.dp
 
-/** Locul de atins al oricarui buton, cat cere Android: 48 dp, chiar daca cercul vizibil e mai mic. */
+/** Minimum touch target on Android, even when the visible circle is smaller. */
 val TouchTarget = 48.dp
 
-/** Textul din bara de sus creste cu setarile telefonului doar pana la 115%, ca pe iPhone: altfel nu mai incape in bara. */
+/** Top bar text scales with the system font size only up to 115%; beyond that it doesn't fit the bar. */
 @Composable
 fun NavText(content: @Composable () -> Unit) {
     val density = LocalDensity.current
     CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale.coerceAtMost(1.15f)), content = content)
 }
 
-/** Sub bara de sus, cand continutul a urcat sub ea: fundalul, plin pana la marginea barei, apoi se stinge. */
+/** Under the top bar once content scrolls beneath it: solid background up to the bar edge, then a fade. */
 @Composable
 fun TopEdge(top: Dp, color: Color, visible: Boolean) {
     val edge by animateFloatAsState(if (visible) 1f else 0f, tween(Motion.QUICK), label = "edge")
     val solid = top + NavHeight
     val height = solid + 22.dp
     val glow = AppTheme.colors.glow
-    // aceeasi lumina ca fundalul de dedesubt, plina pana la marginea barei, apoi stinsa printr-o masca
+    // same light as the background below, solid up to the bar edge, then faded with a mask
     Box(
         Modifier.fillMaxWidth().height(height)
             .graphicsLayer { alpha = edge; compositingStrategy = CompositingStrategy.Offscreen }
@@ -213,9 +213,8 @@ fun TopEdge(top: Dp, color: Color, visible: Boolean) {
 }
 
 /**
- * Ecranul iOS 26: continutul trece pe sub bara de sus, care are titlul centrat si butoane de sticla in colturi.
- * Cand lista a coborat, sub bara apare o estompare spre culoarea fundalului, ca sa ramana titlul lizibil.
- * [content] primeste spatiul de lasat sus si jos.
+ * Screen whose content scrolls under the top bar (centered title, glass buttons in the corners).
+ * Once scrolled, a fade under the bar keeps the title readable. [content] receives the top and bottom padding.
  */
 @Composable
 fun NavScreen(
@@ -235,8 +234,8 @@ fun NavScreen(
     Box(modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().backdropSource(backdrop).screenBackground(background)) { content(padding) }
         TopEdge(top, background, scrolled)
-        // ca UINavigationBar: titlul sta pe centru cat timp incape intre butoane, altfel se muta spre partea libera;
-        // titlul si randul de sub el se centreaza separat, ca o stare mai lunga sa nu mute titlul
+        // title stays centered while it fits between the buttons, otherwise it shifts to the free side;
+        // title and subtitle center independently so a longer status doesn't move the title
         Layout(
             content = {
                 Box { leading(backdrop) }
@@ -277,7 +276,7 @@ fun NavScreen(
     }
 }
 
-/** Ecranul deschis peste taburi, cu sageata inapoi de sticla. Pastrat pentru ecranul demo. */
+/** Screen pushed over the tabs, with a glass back button. Kept for the demo screen. */
 @Composable
 fun ScreenScaffold(
     title: String,
@@ -308,14 +307,14 @@ fun initials(name: String): String {
 }
 
 /**
- * Bula unui om, ca in Signal: initialele pe o culoare pastel aleasa dupa nume, deci acelasi prieten arata la fel peste tot.
- * Un grup are iconita de grup; cine e in apropiere are un punct verde pe margine.
+ * Avatar: initials on a pastel picked from the name, so a friend looks the same everywhere.
+ * Groups get a group icon; people nearby get a green dot on the edge.
  */
 @Composable
 fun Avatar(name: String, size: Dp = 56.dp, near: Boolean = false, group: Boolean = false) {
     val colors = AppTheme.colors
     val (fill, ink) = colors.avatars[(name.hashCode() and 0x7fffffff) % colors.avatars.size]
-    // literele tin de marimea bulei, nu de marimea textului din setari
+    // letters scale with the avatar, not with the system font size
     val fontSize = with(LocalDensity.current) { (size * 0.42f).toSp() }
     Box {
         Box(Modifier.size(size).clip(CircleShape).background(fill), contentAlignment = Alignment.Center) {
@@ -335,7 +334,7 @@ fun Avatar(name: String, size: Dp = 56.dp, near: Boolean = false, group: Boolean
     }
 }
 
-/** Numarul de necitite: cerc albastru cu cifra alba, cat creste numarul se lungeste. */
+/** Unread count: a filled circle that stretches as the number grows. */
 @Composable
 fun UnreadBadge(count: Int, modifier: Modifier = Modifier, color: Color = AppTheme.colors.accent) {
     Box(
@@ -347,7 +346,7 @@ fun UnreadBadge(count: Int, modifier: Modifier = Modifier, color: Color = AppThe
     }
 }
 
-/** Campul unui formular: un dreptunghi gri, rotunjit, cu textul de ajutor dedesubt. */
+/** Form field: a rounded gray rectangle with helper text below. */
 @Composable
 fun InputField(
     value: String,
@@ -392,7 +391,7 @@ fun InputField(
     }
 }
 
-/** Titlul unui grup de randuri, ca in setarile iOS 26: ingrosat, gri, aliniat cu textul randurilor. */
+/** Section title above a group of rows: bold, gray, aligned with the row text. */
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier, color: Color = AppTheme.colors.secondaryLabel, top: Dp = 24.dp) {
     Text(
@@ -401,7 +400,7 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier, color: Color = App
     )
 }
 
-/** Grupul de randuri al iOS-ului: un card cu colturi mari, pe fundalul gri al ecranului. */
+/** Group of rows: a card with large corners on the gray screen background. */
 @Composable
 fun InsetGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
@@ -410,7 +409,7 @@ fun InsetGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.(
     )
 }
 
-/** Linia subtire dintre doua randuri, care incepe de unde incepe textul. */
+/** Hairline between two rows, starting where the text starts. */
 @Composable
 fun GroupDivider(start: Dp = 56.dp) {
     val hairline = with(LocalDensity.current) { 1.toDp() }
@@ -418,8 +417,8 @@ fun GroupDivider(start: Dp = 56.dp) {
 }
 
 /**
- * Un rand dintr-un grup: iconita, titlul cu o lamurire dedesubt, apoi valoarea si sageata in dreapta.
- * Fara [onClick] randul nu se poate atinge.
+ * A row in a group: icon, title with a subtitle, then the value and a chevron.
+ * Without [onClick] the row isn't tappable.
  */
 @Composable
 fun GroupRow(
@@ -468,7 +467,7 @@ fun GroupRow(
     }
 }
 
-/** Comutatorul iOS: sina verde cand e pornit, gri cand e oprit, cu bila alba care aluneca. */
+/** Switch: green track when on, gray when off, sliding white thumb. */
 @Composable
 fun IosSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
     val c = AppTheme.colors
@@ -485,7 +484,7 @@ fun IosSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier:
     }
 }
 
-/** Randul cu comutator: tot randul se poate atinge. */
+/** Row with a switch; the whole row is tappable. */
 @Composable
 fun SwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier, subtitle: String? = null, icon: ImageVector? = null) {
     GroupRow(
@@ -494,7 +493,7 @@ fun SwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Uni
     )
 }
 
-/** Comutatorul cu segmente al iOS-ului: o sina gri si pastila alba sub varianta aleasa. */
+/** Segmented control: a gray track with a white pill under the selected option. */
 @Composable
 fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
     val c = AppTheme.colors
@@ -523,10 +522,7 @@ fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: 
     }
 }
 
-/**
- * O actiune cu iconita, ca butoanele de sub antetul unui contact in Signal: un dreptunghi rotunjit
- * cu iconita si eticheta in el. Aleasa, se umple cu verde.
- */
+/** Action tile: a rounded rectangle with an icon and a label. Fills with green when selected. */
 @Composable
 fun ActionTile(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false, background: Color = AppTheme.colors.fill) {
     val c = AppTheme.colors
@@ -535,7 +531,7 @@ fun ActionTile(icon: ImageVector, label: String, onClick: () -> Unit, modifier: 
     Column(
         modifier.heightIn(min = 64.dp).clip(RoundedCornerShape(16.dp)).background(fill)
             .selectable(selected = selected, role = Role.Button, onClick = onClick).padding(start = 6.dp, end = 6.dp, top = 14.dp, bottom = 10.dp),
-        // continutul porneste de sus: intr-un rand intins dupa o eticheta pe doua randuri, iconitele raman pe aceeasi linie
+        // content starts at the top so icons stay aligned when a neighbor's label wraps to two lines
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Top,
     ) {
         Icon(icon, null, Modifier.size(24.dp), tint = ink)
@@ -543,13 +539,13 @@ fun ActionTile(icon: ImageVector, label: String, onClick: () -> Unit, modifier: 
     }
 }
 
-/** Eticheta unei placi: se micsoreaza cat sa incapa pe un rand cel mai lung cuvant, ca sa nu se rupa la jumatate. */
+/** Tile label: shrinks until the longest word fits on one line, so words never break. */
 @Composable
 private fun TileLabel(text: String, color: Color, weight: FontWeight) {
     val measurer = rememberTextMeasurer()
     val base = MaterialTheme.typography.caption1.copy(fontWeight = weight, textAlign = TextAlign.Center, color = color)
     var laidOut by remember { mutableStateOf<TextLayoutResult?>(null) }
-    // Layout simplu, nu BoxWithConstraints: placile stau si in randuri care le cer inaltimea intrinseca
+    // plain Layout, not BoxWithConstraints: tiles also sit in rows that ask for intrinsic height
     Layout(
         modifier = Modifier.padding(top = 6.dp).semantics { contentDescription = text }.drawBehind { laidOut?.let { drawText(it) } },
     ) { _, constraints ->
@@ -565,7 +561,7 @@ private fun TileLabel(text: String, color: Color, weight: FontWeight) {
     }
 }
 
-/** Mesajul de deasupra listei cand ceva nu merge: ce lipseste si butonul care rezolva. */
+/** Banner above a list when something is wrong: what's missing and the button that fixes it. */
 @Composable
 fun Banner(
     title: String,
@@ -596,7 +592,7 @@ fun Banner(
     }
 }
 
-/** Ecranul gol, ca pe iPhone: iconita gri, titlul, o fraza si, de obicei, butonul care il umple. */
+/** Empty state: gray icon, title, one sentence and usually the button that fills it. */
 @Composable
 fun EmptyState(
     title: String,
@@ -627,7 +623,7 @@ fun EmptyState(
     }
 }
 
-/** Alerta iOS 26: un card rotunjit in mijloc, titlul si mesajul centrate, butoanele ca doua capsule. */
+/** Alert dialog: a rounded card, centered title and message, two capsule buttons. */
 @Composable
 fun AppDialog(
     onDismiss: () -> Unit,
@@ -682,14 +678,14 @@ fun ConfirmDialog(
     }
 }
 
-/** Meniul contextual iOS: un card rotunjit cu randuri; iconita sta in dreapta textului. */
+/** Context menu: a rounded card of rows with the icon right of the text. */
 @Composable
 fun AppMenu(expanded: Boolean, onDismiss: () -> Unit, offset: DpOffset = DpOffset(0.dp, 4.dp), content: @Composable ColumnScope.() -> Unit) {
     val c = AppTheme.colors
     DropdownMenu(
         expanded = expanded, onDismissRequest = onDismiss, offset = offset, modifier = Modifier.widthIn(min = 240.dp),
         shape = RoundedCornerShape(22.dp), containerColor = c.menu,
-        // o umbra mai mare iese din fereastra meniului si se vede taiata drept
+        // a larger shadow gets clipped by the menu window
         tonalElevation = 0.dp, shadowElevation = 6.dp, border = BorderStroke(0.5.dp, c.glassRim), content = content,
     )
 }
@@ -707,7 +703,7 @@ fun MenuRow(label: String, onClick: () -> Unit, icon: ImageVector? = null, dange
     }
 }
 
-/** Un rand mic de stare: iconita si cuvintele ei. */
+/** Small status line: an icon and its words. */
 @Composable
 fun StatusLabel(text: String, modifier: Modifier = Modifier, icon: ImageVector? = null, color: Color = AppTheme.colors.secondaryLabel) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
@@ -719,13 +715,13 @@ fun StatusLabel(text: String, modifier: Modifier = Modifier, icon: ImageVector? 
     }
 }
 
-/** Randul de lamurire de sub un titlu. */
+/** Subtitle line under a title. */
 @Composable
 fun Hint(text: String, modifier: Modifier = Modifier, color: Color = AppTheme.colors.secondaryLabel) {
     Text(text, style = MaterialTheme.typography.subheadline, color = color, modifier = modifier)
 }
 
-/** Iconita intr-un cerc colorat, in fata unui rand: categoria unui incident, o actiune. */
+/** Icon in a colored circle, leading a row: an incident category, an action. */
 @Composable
 fun IconCircle(icon: ImageVector, container: Color, content: Color, size: Dp = 40.dp) {
     Box(Modifier.size(size).clip(CircleShape).background(container), contentAlignment = Alignment.Center) {
@@ -739,9 +735,9 @@ fun FullScreen(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
 }
 
 /**
- * Starea unui mesaj trimis, desenata ca in Signal: ceasul cat asteapta un telefon, un cerc cu bifa cand a plecat,
- * doua cercuri cand a ajuns, semnul exclamarii cand n-a mers. [behind] e culoarea de sub iconita,
- * cu care al doilea cerc il acopera pe primul.
+ * Delivery state of a sent message: a clock while waiting for a phone, a check when sent,
+ * two circles when delivered, an exclamation mark on failure. [behind] is the color under the icon,
+ * used by the second circle to cover the first.
  */
 @Composable
 fun DeliveryIcon(status: MsgStatus, tint: Color, behind: Color, modifier: Modifier = Modifier, iconSize: Dp = 13.dp) {

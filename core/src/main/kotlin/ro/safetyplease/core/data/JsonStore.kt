@@ -12,8 +12,8 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 /**
- * Stare mica tinuta in memorie si salvata intr-un fisier JSON. Scrierea e amanata putin si atomica
- * (fisier temporar + redenumire), ca un proces omorat la mijloc sa nu lase date corupte.
+ * Small state kept in memory and saved to a JSON file. Writes are briefly debounced and atomic
+ * (temp file + rename), so a process killed mid-write can't corrupt the data.
  */
 class JsonStore<T>(
     private val file: File,

@@ -17,7 +17,7 @@ data class Zone(val id: String, val name: String, val color: String, val polygon
         get() = GeoPoint(polygon.map { it.lat }.average(), polygon.map { it.lon }.average())
 }
 
-/** Layout-ul evenimentului. Vine din assets/venue.json; schimbarea locului inseamna doar alt fisier. */
+/** Event layout, loaded from assets/venue.json; a different venue is just a different file. */
 @Serializable
 data class Venue(
     val name: String,
@@ -38,7 +38,7 @@ data class Venue(
     }
 }
 
-/** Ray casting: numara de cate ori o raza spre est taie laturile poligonului. */
+/** Ray casting: counts how many times a ray going east crosses the polygon edges. */
 fun pointInPolygon(lat: Double, lon: Double, polygon: List<GeoPoint>): Boolean {
     if (polygon.size < 3) return false
     var inside = false

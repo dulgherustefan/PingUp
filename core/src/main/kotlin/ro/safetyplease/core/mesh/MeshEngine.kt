@@ -41,16 +41,16 @@ data class MeshConfig(
     val malformedWindowMs: Long = 60_000,
     val relayJitterMinMs: Long = 50,
     val relayJitterMaxMs: Long = 250,
-    /** 20 de pachete pe secunda per legatura. */
+    /** 20 packets per second per link. */
     val minSendSpacingMs: Long = 50,
     val rxBurst: Double = 30.0,
     val rxPerSecond: Double = 3.0,
-    // putin sub limita de la primire, ca un nod corect sa nu fie niciodata taiat de vecin
+    // a bit under the receive limit so a well-behaved node is never throttled by its neighbor
     val txBurst: Double = 28.0,
     val txPerSecond: Double = 2.8,
     val retentionMs: Long = 30 * 60_000L,
     val anchorRetentionMs: Long = 60 * 60_000L,
-    /** Nickname-ul apare in HELLO doar in build-ul debug, pentru lista de peer-i din modul demo. */
+    /** Nickname is included in HELLO only in debug builds, for the demo peer list. */
     val nicknameInHello: Boolean = false,
     val allowTestPackets: Boolean = false,
 )
@@ -58,7 +58,7 @@ data class MeshConfig(
 sealed interface MeshEvent {
     class Received(val packet: Packet, val viaPeer: Long) : MeshEvent
 
-    /** Un pachet propriu a fost predat cel putin unei legaturi. */
+    /** One of our packets was handed to at least one link. */
     class Sent(val packetId: Long) : MeshEvent
 
     class PeerLinked(val peerId: Long) : MeshEvent
@@ -91,13 +91,13 @@ data class MeshState(
 ) {
     val readyLinks: Int get() = links.count { it.peerId != 0L && !it.muted }
 
-    /** Telefoane, nu adrese: acelasi peer poate aparea scurt timp sub doua adrese dupa ce isi reporneste advertising-ul. */
+    /** Phones, not addresses: a peer can briefly show up under two addresses after restarting its advertising. */
     val visiblePeers: Int get() = seen.map { it.prefix ?: it.address.hashCode() }.distinct().size
 }
 
 /**
- * Nucleul mesh-ului, independent de radio: legaturi, HELLO, dedup, relay cu TTL, cozi cu prioritati,
- * limite anti-abuz si store-and-forward. Toata starea e atinsa dintr-un singur fir (contextul lui [scope]).
+ * Mesh core, independent of the radio: links, HELLO, dedup, TTL relay, priority queues, abuse limits
+ * and store-and-forward. All state is touched from a single thread (the [scope] context).
  */
 class MeshEngine(
     private val scope: CoroutineScope,
@@ -198,7 +198,7 @@ class MeshEngine(
         publishState()
     }
 
-    // --- configurare ---
+    // --- configuration ---
 
     fun setRole(staff: Boolean, anchor: Boolean) {
         val flags = (if (staff) NodeFlags.STAFF else 0) or (if (anchor) NodeFlags.ANCHOR else 0)
@@ -220,7 +220,7 @@ class MeshEngine(
         refreshFlags()
     }
 
-    /** Modul demo: nu ne conectam la aceste prefixe si aruncam tot ce vine de la ele sau ar pleca spre ele. */
+    /** Demo mode: don't connect to these prefixes and drop everything from or to them. */
     fun setIgnoredPrefixes(prefixes: Set<Int>) {
         ignored = prefixes
         for (link in links.values) {
@@ -241,7 +241,7 @@ class MeshEngine(
         publishState()
     }
 
-    // --- trimitere ---
+    // --- sending ---
 
     fun broadcast(type: Int, payload: ByteArray, encrypted: Boolean = false, anonymous: Boolean = false): Packet {
         val packet = newPacket(type, payload, null, encrypted, anonymous)
@@ -271,7 +271,7 @@ class MeshEngine(
         return packet
     }
 
-    /** Fara store-and-forward: autorul o retrimite, ca pachet nou, pana vine ACK-ul CANCELLED. */
+    /** No store-and-forward: the author resends it, as a new packet, until the CANCELLED ACK arrives. */
     fun publishCancel(incidentId: ByteArray, token: ByteArray): Packet {
         val payload = IncidentCancel(incidentId, token).encode()
         val packet = newPacket(PacketType.INCIDENT_CANCEL, payload, null, encrypted = false, anonymous = true)
@@ -279,7 +279,7 @@ class MeshEngine(
         return packet
     }
 
-    /** Dupa o anulare nu mai raspandim propriul raport; urma ramane, ca vecinii sa nu ni-l aduca inapoi. */
+    /** After a cancel we stop spreading our own report; the trace stays so neighbors don't bring it back. */
     fun forgetReport(incidentId: ByteArray) {
         cache.forgetReport(incidentId, clock.monoMs())
         publishState()
@@ -343,7 +343,7 @@ class MeshEngine(
                 val now = clock.monoMs()
                 val wait = maxOf(link.nextSendAtMs - now, link.tx.waitMs(now))
                 if (wait > 0) delay(wait)
-                // alegerea se face abia dupa asteptare: un incident sosit intre timp trece in fata
+                // pick only after the wait, so an incident that arrived meanwhile jumps the queue
                 val out = link.queue.poll() ?: continue
                 link.tx.tryTake(clock.monoMs())
                 link.nextSendAtMs = clock.monoMs() + config.minSendSpacingMs
@@ -371,7 +371,7 @@ class MeshEngine(
         }
     }
 
-    // --- evenimente radio ---
+    // --- radio events ---
 
     private fun handle(event: RadioEvent) {
         when (event) {
@@ -381,7 +381,7 @@ class MeshEngine(
             is RadioEvent.Frame -> onFrame(event.link, event.bytes)
             is RadioEvent.ConnectFailed -> onConnectFailed(event.address)
             is RadioEvent.Status -> {
-                // Cu radioul oprit, tot ce am vazut e expirat: dupa repornire asteptam advertising proaspat.
+                // With the radio off everything seen is stale: after a restart, wait for fresh advertising.
                 if (radioStatus.bluetoothOn && !event.status.bluetoothOn) {
                     seen.clear()
                     connecting = null
@@ -423,10 +423,10 @@ class MeshEngine(
         link.pump?.cancel()
         val now = clock.monoMs()
         log.link(clock.wallMs(), link.label, "link down")
-        // o legatura care pica inainte de HELLO (refuzata de peer, de exemplu) nu se reincearca imediat
+        // a link that drops before HELLO (refused by the peer, say) isn't retried right away
         if (link.outgoing && link.peerId == 0L) registerFailure(link.address)
-        // Dupa o legatura pierduta uitam peer-ul: daca mai e in raza, il revedem in advertising intr-o secunda;
-        // daca a plecat, nu ne mai conectam in gol la ultima lui adresa.
+        // After a lost link, forget the peer: if it's still in range we'll see its advertising within a second;
+        // if it left, we won't keep connecting to its last address.
         val prefix = if (link.peerId != 0L) link.peerId.nodePrefix() else link.advertisedPrefix
         seen.entries.removeAll { (address, c) -> address == link.address || (prefix != null && c.prefix == prefix) }
         if (link.peerId != 0L && links.values.none { it.peerId == link.peerId && it.ready }) {
@@ -445,8 +445,8 @@ class MeshEngine(
         val failures = (addressFailures[address] ?: 0) + 1
         addressFailures[address] = failures
         val base = minOf(5_000L shl minOf(failures - 1, 4), 60_000L)
-        // Doua noduri care esueaza impreuna catre acelasi peer ar reincerca impreuna si s-ar incurca din nou.
-        // Asteptarea e aleatoare intre 0,5x si 1,5x din baza, cu aceeasi medie.
+        // Two nodes failing toward the same peer at once would retry together and collide again,
+        // so the wait is random between 0.5x and 1.5x the base, with the same mean.
         val backoff = base / 2 + random.nextLong(base)
         addressBlockedUntil[address] = clock.monoMs() + backoff
         log.link(clock.wallMs(), address.takeLast(5), "connect failed, retry in ${backoff / 100 / 10.0}s")
@@ -456,17 +456,17 @@ class MeshEngine(
         val link = links[linkId] ?: return
         if (link.closing) return
         val now = clock.monoMs()
-        val frame = PacketCodec.decode(bytes) ?: return malformed(link, "cadru invalid")
+        val frame = PacketCodec.decode(bytes) ?: return malformed(link, "invalid frame")
         val packet = when (val result = link.reassembler.accept(frame, now)) {
             is Reassembler.Result.Complete -> result.packet
             Reassembler.Result.Pending -> return
-            Reassembler.Result.Invalid -> return malformed(link, "fragmente invalide")
+            Reassembler.Result.Invalid -> return malformed(link, "invalid fragments")
         }
         if (!link.rx.tryTake(now)) return drop(packet, link, "rate limit")
         if (packet.type == PacketType.TEST && !config.allowTestPackets) return drop(packet, link, "test")
 
         if (packet.type == PacketType.HELLO) return onHello(link, packet)
-        if (link.peerId == 0L) return drop(packet, link, "inainte de HELLO")
+        if (link.peerId == 0L) return drop(packet, link, "before HELLO")
         if (link.muted) return drop(packet, link, "ignorat")
 
         when (packet.type) {
@@ -487,7 +487,7 @@ class MeshEngine(
             return
         }
         if (link.peerId != 0L) {
-            if (link.peerId != hello.nodeId) return malformed(link, "HELLO cu alt nodeId")
+            if (link.peerId != hello.nodeId) return malformed(link, "HELLO with a different nodeId")
             link.peerFlags = hello.flags
             link.nickname = hello.nickname
             publishState()
@@ -497,7 +497,7 @@ class MeshEngine(
         val twin = links.values.firstOrNull { it !== link && it.peerId == hello.nodeId && !it.closing }
         if (twin != null) {
             val loser = duplicateLoser(older = twin, newer = link, peerId = hello.nodeId)
-            log.link(clock.wallMs(), hello.nodeId.shortHex(), "legatura dubla, inchid ${if (loser === link) "noua" else "veche"}")
+            log.link(clock.wallMs(), hello.nodeId.shortHex(), "duplicate link, closing the ${if (loser === link) "new" else "old"} one")
             close(loser)
             if (loser === link) return
         }
@@ -513,7 +513,7 @@ class MeshEngine(
         publishState()
     }
 
-    /** Ambele capete trebuie sa aleaga la fel fara sa vorbeasca: ramane legatura initiata de nodeId-ul mai mic. */
+    /** Both ends must pick the same link without talking: keep the one initiated by the lower nodeId. */
     private fun duplicateLoser(older: Link, newer: Link, peerId: Long): Link {
         val preferOutgoing = java.lang.Long.compareUnsigned(nodeId, peerId) < 0
         val olderPreferred = older.outgoing == preferOutgoing
@@ -522,15 +522,15 @@ class MeshEngine(
     }
 
     private fun onSummary(link: Link, packet: Packet) {
-        val entries = SummaryCodec.decode(packet.payload) ?: return malformed(link, "SUMMARY invalid")
-        log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${entries.size} intrari")
+        val entries = SummaryCodec.decode(packet.payload) ?: return malformed(link, "invalid SUMMARY")
+        log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${entries.size} entries")
         val wanted = cache.missing(entries, clock.monoMs())
         if (wanted.isNotEmpty()) sendLocal(link, PacketType.REQUEST, RequestCodec.encode(wanted))
     }
 
     private fun onRequest(link: Link, packet: Packet) {
-        val entries = RequestCodec.decode(packet.payload) ?: return malformed(link, "REQUEST invalid")
-        log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${entries.size} intrari")
+        val entries = RequestCodec.decode(packet.payload) ?: return malformed(link, "invalid REQUEST")
+        log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${entries.size} entries")
         for (e in entries) {
             if (e.wantReport) cache.report(e.id8)?.let { link.queue.offer(Outbound(it, own = false)) }
             if (e.wantAck) cache.ack(e.id8)?.let { link.queue.offer(Outbound(it, own = false)) }
@@ -539,25 +539,25 @@ class MeshEngine(
 
     private fun onMeshPacket(link: Link, packet: Packet, now: Long) {
         if (dedup.checkAndAdd(packet.dedupKey, now)) return drop(packet, link, "duplicat")
-        // ce pastram pentru store-and-forward pleaca mai departe cu un hop in minus
+        // what we keep for store-and-forward is relayed with one hop less
         val forwardable = packet.withTtl(maxOf(packet.ttl - 1, 1))
         when (packet.type) {
             PacketType.INCIDENT_REPORT -> {
-                if (!IncidentReportCodec.isWellFormed(packet.payload)) return malformed(link, "raport invalid")
+                if (!IncidentReportCodec.isWellFormed(packet.payload)) return malformed(link, "invalid report")
                 val incidentId = IncidentReportCodec.incidentId(packet.payload)
-                if (!cache.offerReport(incidentId, forwardable, now, packet.hops)) return drop(packet, link, "incident cunoscut")
+                if (!cache.offerReport(incidentId, forwardable, now, packet.hops)) return drop(packet, link, "known incident")
             }
             PacketType.INCIDENT_ACK -> {
                 val ack = IncidentAck.decode(packet.payload) ?: return malformed(link, "ACK invalid")
-                if (!verifyAck(packet.payload)) return malformed(link, "ACK cu semnatura invalida")
-                if (!cache.offerAck(ack, forwardable, now)) return drop(packet, link, "ACK depasit")
+                if (!verifyAck(packet.payload)) return malformed(link, "ACK with invalid signature")
+                if (!cache.offerAck(ack, forwardable, now)) return drop(packet, link, "stale ACK")
             }
             PacketType.INCIDENT_CANCEL -> {
-                if (packet.payload.size != IncidentCancel.SIZE) return malformed(link, "CANCEL invalid")
+                if (packet.payload.size != IncidentCancel.SIZE) return malformed(link, "invalid CANCEL")
             }
             PacketType.PRIVATE -> {
                 if (packet.recipient == null || packet.sender == 0L || !packet.encrypted) {
-                    return malformed(link, "PRIVATE invalid")
+                    return malformed(link, "invalid PRIVATE")
                 }
             }
         }
@@ -590,7 +590,7 @@ class MeshEngine(
     private fun malformed(link: Link, reason: String) {
         droppedCount++
         val now = clock.monoMs()
-        log.link(clock.wallMs(), link.label, "malformat: $reason")
+        log.link(clock.wallMs(), link.label, "malformed: $reason")
         link.malformedAt.addLast(now)
         while (link.malformedAt.isNotEmpty() && now - link.malformedAt.first() > config.malformedWindowMs) {
             link.malformedAt.removeFirst()
@@ -598,7 +598,7 @@ class MeshEngine(
         if (link.malformedAt.size < config.malformedLimit) return
         if (link.peerId != 0L) bannedNodesUntil[link.peerId] = now + config.banMs
         bannedAddressesUntil[link.address] = now + config.banMs
-        log.link(clock.wallMs(), link.label, "ignorat ${config.banMs / 60_000} min")
+        log.link(clock.wallMs(), link.label, "ignored for ${config.banMs / 60_000} min")
         close(link)
     }
 
@@ -609,7 +609,7 @@ class MeshEngine(
         radio.disconnect(link.id)
     }
 
-    // --- intretinere periodica ---
+    // --- periodic maintenance ---
 
     private fun tick() {
         val now = clock.monoMs()
@@ -622,7 +622,7 @@ class MeshEngine(
         for (link in links.values.toList()) {
             if (link.closing) continue
             if (link.peerId == 0L && now - link.upAtMs > config.helloTimeoutMs) {
-                log.link(clock.wallMs(), link.label, "fara HELLO")
+                log.link(clock.wallMs(), link.label, "no HELLO")
                 close(link)
             } else if (link.ready && now - link.summaryAtMs >= config.summaryIntervalMs) {
                 sendSummary(link)

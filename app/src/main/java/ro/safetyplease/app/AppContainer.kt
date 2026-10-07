@@ -52,12 +52,12 @@ object AndroidClock : Clock {
     override fun monoMs(): Long = SystemClock.elapsedRealtime()
 }
 
-/** Tot ce traieste cat procesul: identitate, date, motorul de mesh si managerii de chat si incidente. */
+/** Lives as long as the process: identity, stores, the mesh engine, chat and incident managers. */
 class AppContainer(private val app: Application) {
     val clock: Clock = AndroidClock
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** Un singur fir pentru mesh, radio, chat si incidente: nicio stare de retea nu are nevoie de lacate. */
+    /** One thread for mesh, radio, chat and incidents, so network state needs no locks. */
     val meshScope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1))
 
     val crypto: Crypto = SodiumCrypto(LazySodiumAndroid(SodiumAndroid()))
@@ -89,7 +89,7 @@ class AppContainer(private val app: Application) {
     val notifier = Notifier(app, venue)
     val location = LocationSource(app)
 
-    /** Pana cand (timp monoton) scanarea si advertising-ul raman in LOW_LATENCY dupa un incident trimis. */
+    /** Until when (monotonic) scanning and advertising stay at LOW_LATENCY after an incident is sent. */
     val boostUntil = MutableStateFlow(0L)
 
     @Volatile
@@ -128,7 +128,7 @@ class AppContainer(private val app: Application) {
         }
     }
 
-    /** False daca QR-ul nu apartine acestui eveniment. O ancora nu pastreaza cheile secrete: sta nesupravegheata. */
+    /** False if the QR belongs to another event. Anchors don't keep the secret keys, since they sit unattended. */
     fun activateStaff(card: StaffCard): Boolean {
         val secret = staffCrypto.secretFromSeeds(card.boxSeed, card.signSeed) ?: return false
         if (card.role == StaffRole.ANCHOR) {

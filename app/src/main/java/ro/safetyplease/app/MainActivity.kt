@@ -22,13 +22,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // tema urmeaza modul telefonului, iar iconitele barelor de sistem se intorc odata cu ea
+        // follow the system theme; system bar icons flip with it
         enableEdgeToEdge(
             SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
             SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         Demo.install(vm.c)
-        // la recreare (rotatie, tema, marimea textului) intentul de pornire a fost deja aplicat
+        // on recreation (rotation, theme, font size) the launch intent was already handled
         if (savedInstanceState == null) intent?.getStringExtra(EXTRA_OPEN)?.let(vm::openTarget)
         setContent {
             AppTheme { AppRoot(vm, onStartMesh = ::startMesh) }
@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
-    /** Serviciul porneste doar cu permisiunile acordate: pe Android 14+ altfel nu poate intra in prim-plan. */
+    /** Start only with permissions granted; otherwise Android 14+ won't let the service go foreground. */
     private fun startMesh() {
         if (!vm.c.radio.hasPermissions()) return
         if (MeshService.running) vm.retryRadio() else MeshService.start(this)

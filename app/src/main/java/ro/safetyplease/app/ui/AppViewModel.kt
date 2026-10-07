@@ -43,14 +43,14 @@ sealed interface Dest {
     data object MyReports : Dest
     data class Incident(val id: String) : Dest
 
-    /** Setarile, deschise din bula ta din bara de sus. */
+    /** Your profile and settings. */
     data object Me : Dest
     data object Demo : Dest
     data class Pin(val lat: Double?, val lon: Double?, val zone: String, val label: String) : Dest
 
     /**
-     * Harta evenimentului: zona ta, zonele, punctul de intalnire si, pentru staff, incidentele deschise.
-     * Cu [sendTo], zona aleasa pleaca pe loc in acea conversatie.
+     * Event map: your zone, the zones, the meeting point and, for staff, open incidents.
+     * With [sendTo], the chosen zone is sent straight to that conversation.
      */
     data class Map(val meeting: Boolean = false, val sendTo: String? = null) : Dest
 }
@@ -64,12 +64,12 @@ sealed interface ScanOutcome {
     data object Unknown : ScanOutcome
 }
 
-/** O atingere dubla in timpul tranzitiei nu pune acelasi ecran de doua ori in stiva. */
+/** A double tap during a transition must not push the same screen twice. */
 fun MutableList<Dest>.push(dest: Dest) {
     if (lastOrNull() != dest) add(dest)
 }
 
-/** Pozitia valabila acum: cea simulata din modul demo are prioritate, altfel fixul GPS cat timp e recent. */
+/** Current position: the demo's simulated one wins, otherwise the GPS fix while it's fresh. */
 fun currentPoint(settings: Settings, fix: GeoFix?, nowMs: Long): GeoPoint? {
     val simLat = settings.simLat
     val simLon = settings.simLon
@@ -80,7 +80,7 @@ fun currentPoint(settings: Settings, fix: GeoFix?, nowMs: Long): GeoPoint? {
     }
 }
 
-/** Coordonatele pleaca doar daca nu contrazic zona aleasa: altfel pinul de pe harta staff-ului ar arata alt loc decat zona. */
+/** Coordinates are sent only if they agree with the chosen zone; otherwise the staff map pin would contradict it. */
 fun reportPoint(zone: String, point: GeoPoint?, venue: Venue): GeoPoint? =
     point?.takeIf { zone.isEmpty() || venue.zoneAt(it.lat, it.lon)?.id == zone }
 
@@ -98,7 +98,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val nearby: StateFlow<Nearby> = c.engine.state.map(Nearby::of).distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Nearby.of(c.engine.state.value))
 
-    // fara fixuri noi (sub un cort, cu ecranul stins) pozitia trebuie sa expire si fara niciun alt eveniment
+    // with no new fixes (in a tent, screen off) the position must still expire on its own
     private val ticker = flow {
         while (true) {
             emit(Unit)
@@ -106,7 +106,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Pentru afisare. Ce pleaca in retea citeste [pointNow] chiar in clipa trimiterii. */
+    /** For display only. What goes out on the network reads [pointNow] at send time. */
     val position: StateFlow<GeoPoint?> = combine(c.settings.state, c.location.fix, ticker) { s, fix, _ ->
         currentPoint(s, fix, c.clock.wallMs())
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -115,14 +115,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val stack = mutableStateListOf<Dest>()
     var manualZone by mutableStateOf("")
 
-    /** Accesul refuzat definitiv: Android nu mai arata dialogul, deci butoanele duc in setarile aplicatiei. */
+    /** Access denied for good: Android no longer shows the dialog, so the buttons open the app settings. */
     var radioAccessBlocked by mutableStateOf(false)
     var locationBlocked by mutableStateOf(false)
 
     /**
-     * Uneltele de test (modul demo, locatia simulata, ID-ul tehnic) apar abia dupa 7 atingeri pe Versiune, ca optiunile
-     * pentru dezvoltatori din Android: la festival, un participant nu ajunge din greseala staff si nu-si sterge datele.
-     * Tine doar cat traieste procesul.
+     * Test tools (demo mode, simulated location, technical ID) unlock after 7 taps on Version, like Android's
+     * developer options, so a festival-goer can't become staff or wipe their data by accident. Lasts until the process dies.
      */
     var demoUnlocked by mutableStateOf(false)
 
@@ -154,7 +153,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // --- zona ---
+    // --- zone ---
 
     fun pointNow(): GeoPoint? = currentPoint(c.settings.value, c.location.fix.value, c.clock.wallMs())
 
@@ -162,7 +161,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun currentZoneId(): String = autoZone()?.id ?: manualZone
 
-    // --- setari ---
+    // --- settings ---
 
     fun finishOnboarding(nickname: String) = c.settings.update { it.copy(nickname = nickname.trim(), onboarded = true) }
 
@@ -196,13 +195,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return ScanOutcome.Unknown
     }
 
-    // --- mesaje ---
+    // --- messages ---
 
     fun sendText(conversation: String, text: String) = c.chat.sendText(conversation, text)
 
     fun sendQuick(conversation: String, code: Int) = c.chat.sendQuick(conversation, code)
 
-    /** False daca nu stim nici zona, nici pozitia: utilizatorul trebuie sa aleaga intai o zona pe harta. */
+    /** False if we know neither zone nor position: the user has to pick a zone on the map first. */
     fun sendMyZone(conversation: String): Boolean {
         val zone = currentZoneId()
         val point = reportPoint(zone, pointNow(), venue)
@@ -233,11 +232,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun leaveGroup(groupId: Long) = c.chat.leaveGroup(groupId)
 
-    // --- incidente ---
+    // --- incidents ---
 
     fun rateLimitWaitMs(): Long = c.incidents.rateLimitWaitMs()
 
-    /** Id-ul raportului nou, sau null daca limita de rapoarte l-a oprit. */
+    /** Id of the new report, or null if the rate limit blocked it. */
     fun report(category: Int, severity: Int, zone: String, description: String, anonymous: Boolean): String? {
         val point = reportPoint(zone, pointNow(), venue)
         val nickname = if (anonymous) null else c.settings.value.nickname

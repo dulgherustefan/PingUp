@@ -15,7 +15,7 @@ class FriendCard(val nickname: String, val boxKey: ByteArray, val signKey: ByteA
 
 enum class StaffRole { STAFF, ANCHOR }
 
-/** Continutul QR-ului de staff: seminte din care se deriva cheile, rolul si echipa sau zona. */
+/** Staff QR payload: seeds the keys are derived from, the role, and the team or zone. */
 class StaffCard(
     val boxSeed: ByteArray,
     val signSeed: ByteArray,
@@ -24,7 +24,7 @@ class StaffCard(
     val zone: String,
 )
 
-/** Formatele QR, versionate prin prefix. Acelasi format e produs de tools/gen_staff_keys.py. */
+/** QR formats, versioned by prefix. tools/gen_staff_keys.py produces the same format. */
 object QrCodes {
     private const val FRIEND_PREFIX = "SPF1."
     private const val STAFF_PREFIX = "SPS1."

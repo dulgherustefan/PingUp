@@ -29,8 +29,8 @@ import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.mesh.PowerPolicy
 
 /**
- * Tine mesh-ul pornit cu ecranul stins. Android cere pentru asta un serviciu in prim-plan,
- * cu notificare permanenta, de tipul connectedDevice.
+ * Keeps the mesh running with the screen off. Android requires a connectedDevice foreground service
+ * with a persistent notification for that.
  */
 class MeshService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -58,8 +58,8 @@ class MeshService : Service() {
         try {
             ServiceCompat.startForeground(this, Notifier.FOREGROUND_ID, container.notifier.foreground(0, anchor), type)
         } catch (e: Exception) {
-            // repornirea din fundal dupa ce procesul a fost omorat nu e permisa pe Android 12+; asteptam sa fie deschisa aplicatia
-            Log.w(AppContainer.TAG, "serviciul nu a putut porni in prim-plan: ${e.message}")
+            // Android 12+ forbids starting it from the background after the process was killed; wait for the app to be opened
+            Log.w(AppContainer.TAG, "service could not start in the foreground: ${e.message}")
             stopSelf()
             return
         }
@@ -73,7 +73,7 @@ class MeshService : Service() {
             val links = container.engine.state.map { it.readyLinks }.distinctUntilChanged()
             val role = container.settings.state.map { it.role }.distinctUntilChanged()
             combine(links, role) { count, r -> count to (r == Role.ANCHOR) }.collectLatest { (count, isAnchor) ->
-                // legaturile apar si dispar des; notificarea nu trebuie sa palpaie odata cu ele
+                // links come and go often; the notification shouldn't flicker with them
                 delay(1_000)
                 container.notifier.updateForeground(count, isAnchor)
             }

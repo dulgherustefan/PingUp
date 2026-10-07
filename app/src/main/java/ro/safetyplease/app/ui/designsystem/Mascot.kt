@@ -33,7 +33,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.Dp
 
-// Desenul vine din logo (SVG pe 512): pinul in coordonatele lui, asezat in placa de 512 ca in iconita.
+// Drawn from the logo (512 SVG): the pin in its own coordinates, placed in the 512 tile like the app icon.
 private const val PIN = "M124 196A132 132 0 1 1 388 196C388 286 318 352 274 410Q256 434 238 410C194 352 124 286 124 196Z"
 private const val LEFT = "M256 196L-90 -4V700H256Z"
 private const val CAP = "M256 196L-90 -4V-300H800L584 -33Z"
@@ -56,7 +56,7 @@ private class PinPaths {
     val smile = path(SMILE)
     val rays = RAYS.map(::path)
 
-    /** Grosimea pinului: acelasi contur coborat de doua ori, unit cu banda dintre ele. */
+    /** Pin thickness: the same outline shifted down twice, joined by the band between them. */
     val body: Path = run {
         val low = path(PIN).apply { translate(Offset(0f, 44f)) }
         val mid = path(PIN).apply { translate(Offset(0f, 22f)) }
@@ -68,7 +68,7 @@ private class PinPaths {
 
 private val Paths by lazy { PinPaths() }
 
-/** Pinul, in coordonatele lui de 512 (centrul lentilei e la 256, 196). */
+/** The pin, in its 512 coordinates (lens center at 256, 196). */
 private fun DrawScope.drawPin() {
     val p = Paths
     clipPath(p.body) {
@@ -94,14 +94,14 @@ private fun DrawScope.drawPin() {
     drawPath(p.smile, Color.White.copy(alpha = 0.22f), style = Stroke(6f, cap = StrokeCap.Round))
 }
 
-/** Aseaza pinul in placa: translate(256 232) scale(0.8) translate(-256 -265), ca in SVG. */
+/** Places the pin in the tile: translate(256 232) scale(0.8) translate(-256 -265), as in the SVG. */
 private fun DrawScope.inTile(lift: Float, block: DrawScope.() -> Unit) = withTransform({
     translate(256f, 232f + lift)
     scale(0.8f, 0.8f, Offset.Zero)
     translate(-256f, -265f)
 }) { block() }
 
-/** Cat se ridica pinul din pozitia de repaus, in unitati de 512; zero cand telefonul cere mai putina miscare. */
+/** How far the pin floats above rest, in 512 units; zero when the phone asks for reduced motion. */
 @Composable
 private fun rememberFloat(): Float {
     if (LocalReduceMotion.current) return 0f
@@ -111,13 +111,13 @@ private fun rememberFloat(): Float {
 }
 
 /**
- * Pinul din logo, cu lentila care zambeste: pluteste usor deasupra umbrei lui. Apare acolo unde aplicatia
- * vorbeste despre ea insasi (pornire, liste goale, setari), nu in mijlocul lucrului.
+ * The logo pin with a smiling lens, floating above its shadow. Used where the app talks about itself
+ * (onboarding, empty lists, settings), not in the middle of a task.
  */
 @Composable
 fun PinMascot(size: Dp, modifier: Modifier = Modifier) {
     val lift = rememberFloat()
-    // decupajul placii: pinul si umbra, fara fundal (264 x 360 din cele 512)
+    // tile crop: pin and shadow, no background (264 x 360 of 512)
     Canvas(modifier.size(size * (264f / 360f), size)) {
         val k = this.size.height / 360f
         withTransform({ scale(k, k, Offset.Zero); translate(-124f, -62f) }) {
@@ -128,7 +128,7 @@ fun PinMascot(size: Dp, modifier: Modifier = Modifier) {
     }
 }
 
-/** Iconita aplicatiei desenata intreaga: placa de noapte, razele de sub pin si pinul. */
+/** The full app icon: night tile, rays under the pin, and the pin. */
 @Composable
 fun AppLogo(size: Dp, modifier: Modifier = Modifier) {
     val lift = rememberFloat()

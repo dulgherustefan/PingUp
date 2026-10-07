@@ -1,11 +1,11 @@
 package ro.safetyplease.core.mesh
 
-/** Cat de agresiv scaneaza si face advertising telefonul, in functie de baterie si de incidentele in curs. */
+/** How aggressively the phone scans and advertises, based on battery and pending incidents. */
 object PowerPolicy {
     const val LOW_BATTERY_PERCENT = 20
     const val BOOST_MS = 15_000L
 
-    /** Intoarce (mod de scanare, mod de advertising). [boost] acopera cele 15 s de dupa trimiterea unui incident. */
+    /** Returns (scan mode, advertise mode). [boost] covers the 15 s after an incident is sent. */
     fun modes(batteryPercent: Int, charging: Boolean, pendingIncident: Boolean, boost: Boolean): Pair<PowerMode, PowerMode> {
         val saving = batteryPercent < LOW_BATTERY_PERCENT && !charging
         val base = if (saving) PowerMode.LOW_POWER else PowerMode.BALANCED

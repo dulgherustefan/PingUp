@@ -167,7 +167,7 @@ private fun QrCamera(onResult: (String) -> Unit, modifier: Modifier = Modifier) 
     DisposableEffect(Unit) {
         onDispose {
             disposed.set(true)
-            // fara get() blocant: daca CameraX nu e gata, listenerul de mai jos vede ca am plecat si nu mai leaga nimic
+            // no blocking get(): if CameraX isn't ready yet, the listener below sees we've left and binds nothing
             val future = ProcessCameraProvider.getInstance(context)
             if (future.isDone) runCatching { future.get().unbindAll() }
             executor.shutdown()
@@ -195,7 +195,7 @@ private fun QrCamera(onResult: (String) -> Unit, modifier: Modifier = Modifier) 
     )
 }
 
-/** Colturile vizorului si o linie care urca si coboara: semn ca aparatul cauta un cod. */
+/** Viewfinder corners and a line sweeping up and down: the camera is looking for a code. */
 @Composable
 private fun ScanFrame(modifier: Modifier = Modifier) {
     val reduce = LocalReduceMotion.current
@@ -228,10 +228,7 @@ private fun ScanFrame(modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Adauga prieten, ca ecranul cu codul QR din Signal: comutatorul sus, apoi cardul verde cu codul tau
- * sau camera pentru codul altcuiva.
- */
+/** Add friend: a segmented switch on top, then the green card with your code or the camera for theirs. */
 @Composable
 fun AddFriendScreen(vm: AppViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -243,7 +240,7 @@ fun AddFriendScreen(vm: AppViewModel) {
     val activity = LocalActivity.current
     fun cameraAllowed() = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     var granted by remember { mutableStateOf(cameraAllowed()) }
-    // refuzata definitiv, camera se mai poate da doar din setari; la intoarcere verificam din nou
+    // denied for good, the camera can only be granted from settings; re-check on return
     var blocked by rememberSaveable { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) {
         granted = cameraAllowed()
@@ -262,7 +259,7 @@ fun AddFriendScreen(vm: AppViewModel) {
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
 
     fun handle(text: String) {
-        // camera vede acelasi cod de multe ori pe secunda
+        // the camera sees the same code many times per second
         if (text == lastText) return
         lastText = text
         val result = vm.handleScan(text)
@@ -306,7 +303,7 @@ fun AddFriendScreen(vm: AppViewModel) {
                     Modifier.widthIn(max = QrCardWidth).fillMaxWidth().padding(top = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    // prietenia merge in ambele sensuri: dupa ce l-ai scanat, el trebuie sa te scaneze pe tine
+                    // friendship works both ways: after you scan them, they need to scan you
                     if (success is ScanOutcome.FriendAdded) {
                         AppButton(stringResource(R.string.add_friend_show_mine), {
                             outcome = null
@@ -328,7 +325,7 @@ fun AddFriendScreen(vm: AppViewModel) {
                     stringResource(R.string.add_friend_mine_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
                     textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = QrCardWidth).padding(top = 16.dp),
                 )
-                // scanarea are tabul ei sus; aici ramane doar varianta pentru cand camera nu merge
+                // scanning has its own tab above; this is the fallback for when the camera doesn't work
                 TextLink(stringResource(R.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
             } else {
                 if (granted) {
@@ -381,7 +378,7 @@ fun AddFriendScreen(vm: AppViewModel) {
 private val ScanOutcome.success: Boolean
     get() = this is ScanOutcome.FriendAdded || this == ScanOutcome.StaffOn || this == ScanOutcome.AnchorOn
 
-/** In locul camerei, cand nu avem voie la ea: acelasi patrat, cu explicatia si butonul care cere accesul. */
+/** Shown instead of the camera when we lack access: same square, the explanation and a button to ask. */
 @Composable
 private fun NoCamera(blocked: Boolean, onAllow: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
@@ -405,7 +402,7 @@ private fun NoCamera(blocked: Boolean, onAllow: () -> Unit, modifier: Modifier =
     }
 }
 
-/** Foaia pentru codul ca text: codul tau de copiat, sus, si campul pentru codul prietenului, jos. */
+/** Code-as-text sheet: your code to copy at the top, a field for your friend's code below. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CodeSheet(myCode: String, onUse: (String) -> Unit, onDismiss: () -> Unit) {
@@ -459,8 +456,8 @@ private fun CodeSheet(myCode: String, onUse: (String) -> Unit, onDismiss: () -> 
 }
 
 /**
- * Grup nou, ca in Signal: numele sus, prietenii alesi ca bule deasupra listei, apoi prietenii intr-un card,
- * fiecare cu bifa lui. Butonul de creare pluteste jos, deasupra tastaturii cand e deschisa.
+ * New group: name at the top, chosen friends as avatars above the list, then all friends in a card with checkboxes.
+ * The create button floats at the bottom, above the keyboard when it's open.
  */
 @Composable
 fun NewGroupScreen(vm: AppViewModel) {
@@ -475,7 +472,7 @@ fun NewGroupScreen(vm: AppViewModel) {
     val sorted = remember(friends) { friends.sortedBy { it.nickname.lowercase() } }
     val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
-    // tastatura acopera si bara de gesturi: conteaza doar cea mai inalta dintre ele
+    // the keyboard also covers the gesture bar; only the taller one matters
     val bottom = maxOf(WindowInsets.ime.asPaddingValues().calculateBottomPadding(), LocalBottomClearance.current)
     val fade = with(LocalDensity.current) { 24.dp.toPx() }
 
@@ -547,7 +544,7 @@ fun NewGroupScreen(vm: AppViewModel) {
                     }
                 }
             }
-            // randurile trec pe sub buton printr-o estompare spre fundal, ca sub bara de sus
+            // rows fade into the background under the button, like under the top bar
             Box(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(colors.grouped.copy(alpha = 0f), colors.grouped), endY = fade))
@@ -566,7 +563,7 @@ fun NewGroupScreen(vm: AppViewModel) {
     }
 }
 
-/** Un prieten ales, deasupra listei: bula lui cu un x mic in colt; atinsa, il scoate din grup. */
+/** A chosen friend above the list: their avatar with a small x; tap to remove them. */
 @Composable
 private fun SelectedMember(name: String, onRemove: () -> Unit) {
     val colors = AppTheme.colors
@@ -577,7 +574,7 @@ private fun SelectedMember(name: String, onRemove: () -> Unit) {
     ) {
         Box {
             Avatar(name, 48.dp)
-            // inelul in culoarea fundalului desparte x-ul de bula
+            // a ring in the background color separates the x from the avatar
             Box(
                 Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp).size(22.dp).clip(CircleShape).background(colors.grouped)
                     .padding(2.dp).clip(CircleShape).background(colors.secondaryLabel),
@@ -591,7 +588,7 @@ private fun SelectedMember(name: String, onRemove: () -> Unit) {
     }
 }
 
-/** Bifa rotunda din lista de alegere: cerc gol, sau plin albastru cu bifa alba. */
+/** Round checkbox: empty circle, or filled with a white check. */
 @Composable
 private fun RoundCheck(checked: Boolean) {
     val colors = AppTheme.colors
@@ -602,7 +599,7 @@ private fun RoundCheck(checked: Boolean) {
     ) { if (checked) Icon(Sym.Check, null, Modifier.size(14.dp), tint = colors.onAccent) }
 }
 
-/** Antetul unui om sau al unui grup, ca in Signal: bula mare centrata, numele si un rand de lamurire. */
+/** Header of a person or group: large centered avatar, name and a subtitle line. */
 @Composable
 fun PersonHeader(name: String, note: String, modifier: Modifier = Modifier, near: Boolean = false, group: Boolean = false, size: Dp = 80.dp) {
     val colors = AppTheme.colors
@@ -620,8 +617,8 @@ fun PersonHeader(name: String, note: String, modifier: Modifier = Modifier, near
 }
 
 /**
- * Profilul unui prieten sau al unui grup, ca setarile unei conversatii din Signal: antetul, butonul de mesaj,
- * detaliile in carduri, membrii grupului, apoi, separat, ce se poate sterge.
+ * Profile of a friend or group: header, message button, details in cards, group members,
+ * then, separately, what can be deleted.
  */
 @Composable
 fun ProfileScreen(vm: AppViewModel, conversation: String) {
@@ -636,7 +633,7 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
     var confirm by remember { mutableStateOf(false) }
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
-    // numele urca in bara de sus abia cand cel din antet a trecut pe sub ea
+    // the name moves into the top bar only once the header name has scrolled under it
     val nameUnderBar by remember { derivedStateOf { scroll.value > with(density) { 150.dp.toPx() } } }
     if (friend == null && group == null) {
         LaunchedEffect(Unit) { vm.back() }
@@ -665,7 +662,7 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                 if (friend != null) {
                     GroupRow(stringResource(R.string.profile_added), value = Labels.date(friend.addedAt), icon = Sym.PersonAdd)
                     GroupDivider()
-                    // drumul sta sub titlu: valoarea din dreapta ramane scurta si pe ecranele inguste
+                    // the route goes under the title so the value on the right stays short on narrow screens
                     GroupRow(
                         stringResource(R.string.profile_last_seen),
                         subtitle = if (friend.lastSeenAt > 0) hopsText(friend.lastHops) else null,

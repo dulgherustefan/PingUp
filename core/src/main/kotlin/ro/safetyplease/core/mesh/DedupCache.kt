@@ -1,6 +1,6 @@
 package ro.safetyplease.core.mesh
 
-/** Id-uri de pachete vazute recent: LRU marginit, cu fereastra de timp. */
+/** Recently seen packet ids: a bounded LRU with a time window. */
 class DedupCache(
     private val capacity: Int = 4096,
     private val windowMs: Long = 15 * 60_000L,
@@ -9,7 +9,7 @@ class DedupCache(
 
     val size: Int get() = seen.size
 
-    /** Intoarce true daca id-ul a mai fost vazut in fereastra; altfel il retine. */
+    /** True if the id was seen within the window; otherwise records it. */
     fun checkAndAdd(id: Long, nowMs: Long): Boolean {
         val at = seen[id]
         if (at != null && nowMs - at <= windowMs) return true

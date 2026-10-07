@@ -34,7 +34,7 @@ class SmallPartsTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    // --- point-in-polygon si venue ---
+    // --- point-in-polygon and venue ---
 
     private val square = listOf(GeoPoint(0.0, 0.0), GeoPoint(0.0, 10.0), GeoPoint(10.0, 10.0), GeoPoint(10.0, 0.0))
 
@@ -48,7 +48,7 @@ class SmallPartsTest {
 
     @Test
     fun pointInConcavePolygon() {
-        // un "L": coltul din dreapta sus lipseste
+        // an "L": the top right corner is missing
         val l = listOf(
             GeoPoint(0.0, 0.0), GeoPoint(0.0, 10.0), GeoPoint(5.0, 10.0),
             GeoPoint(5.0, 5.0), GeoPoint(10.0, 5.0), GeoPoint(10.0, 0.0),
@@ -64,14 +64,14 @@ class SmallPartsTest {
     fun bundledVenueParsesAndZonesAreConsistent() {
         val venue = bundledVenue()
         assertTrue(venue.zones.size >= 6)
-        assertEquals("id-uri unice", venue.zones.size, venue.zones.map { it.id }.toSet().size)
+        assertEquals("unique ids", venue.zones.size, venue.zones.map { it.id }.toSet().size)
         for (zone in venue.zones) {
             assertTrue(zone.id, zone.id.toByteArray().size <= 32)
             assertTrue(zone.id, zone.polygon.size >= 3)
             assertTrue(zone.id, zone.color.matches(Regex("#[0-9A-Fa-f]{6}")))
             for (p in zone.polygon) assertTrue(zone.id, venue.bounds.contains(p.lat, p.lon))
             val c = zone.center
-            assertEquals("centrul unei zone e in zona ei", zone.id, venue.zoneAt(c.lat, c.lon)?.id)
+            assertEquals("a zone's center is inside it", zone.id, venue.zoneAt(c.lat, c.lon)?.id)
         }
         val meeting = venue.meetingPoint
         assertNotNull(meeting)
@@ -83,9 +83,9 @@ class SmallPartsTest {
         val venue = bundledVenue()
         assertEquals("main-stage", venue.zoneAt(43.9505, 28.6350)?.id)
         assertEquals("food", venue.zoneAt(43.9494, 28.6329)?.id)
-        assertNull("in afara zonelor", venue.zoneAt(43.9000, 28.6000))
+        assertNull("outside every zone", venue.zoneAt(43.9000, 28.6000))
         assertEquals("Scena principală", venue.zoneName("main-stage"))
-        assertEquals("id necunoscut ramane ca atare", "zona-x", venue.zoneName("zona-x"))
+        assertEquals("unknown id stays as is", "zona-x", venue.zoneName("zona-x"))
     }
 
     // --- clustering ---
@@ -113,7 +113,7 @@ class SmallPartsTest {
         assertEquals(setOf("a", "b", "c"), big.incidents.map { it.incidentId }.toSet())
         assertEquals(Severity.URGENT, big.severity)
         assertEquals("b", big.lead.incidentId)
-        assertEquals("cel mai grav e primul", big, clusters.first())
+        assertEquals("most severe first", big, clusters.first())
     }
 
     @Test
@@ -161,7 +161,7 @@ class SmallPartsTest {
         assertFalse(Clustering.matches(clusterWith(AckStatus.CANCELLED), StatusFilter.ACTIVE))
     }
 
-    // --- persistenta ---
+    // --- persistence ---
 
     @Test
     fun storeSurvivesRestart() = runTest {
@@ -198,7 +198,7 @@ class SmallPartsTest {
         assertFalse(file.exists())
     }
 
-    // --- outbox si energie ---
+    // --- outbox and power ---
 
     @Test
     fun outboxBackoffGrowsAndCaps() {
@@ -218,9 +218,9 @@ class SmallPartsTest {
         val lowButCharging = PowerPolicy.modes(batteryPercent = 15, charging = true, pendingIncident = false, boost = false)
         assertEquals(PowerMode.BALANCED to PowerMode.BALANCED, lowButCharging)
         val boosted = PowerPolicy.modes(batteryPercent = 15, charging = false, pendingIncident = true, boost = true)
-        assertEquals("15 s dupa un incident, chiar si cu baterie putina", PowerMode.LOW_LATENCY to PowerMode.LOW_LATENCY, boosted)
+        assertEquals("15 s after an incident, even on low battery", PowerMode.LOW_LATENCY to PowerMode.LOW_LATENCY, boosted)
         val pending = PowerPolicy.modes(batteryPercent = 80, charging = false, pendingIncident = true, boost = false)
-        assertEquals("advertising rapid cat timp raportul nu a ajuns", PowerMode.BALANCED to PowerMode.LOW_LATENCY, pending)
+        assertEquals("fast advertising while the report hasn't arrived", PowerMode.BALANCED to PowerMode.LOW_LATENCY, pending)
         val pendingLow = PowerPolicy.modes(batteryPercent = 10, charging = false, pendingIncident = true, boost = false)
         assertEquals(PowerMode.LOW_POWER to PowerMode.LOW_LATENCY, pendingLow)
     }

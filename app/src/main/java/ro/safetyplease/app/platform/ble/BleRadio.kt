@@ -51,9 +51,9 @@ import ro.safetyplease.core.util.nodePrefix
 import java.nio.ByteBuffer
 
 /**
- * Radioul BLE: fiecare telefon e simultan peripheral (GATT server + advertising) si central
- * (scanare + clienti GATT). Clientul scrie fara raspuns in caracteristica, serverul raspunde prin notificari.
- * Toata starea e atinsa doar din contextul lui [scope]; callback-urile Android sunt mutate acolo prin [post].
+ * BLE radio: every phone is both peripheral (GATT server + advertising) and central (scanning + GATT
+ * clients). Clients write without response; the server answers with notifications.
+ * All state is touched only from [scope]; Android callbacks are moved there through [post].
  */
 @SuppressLint("MissingPermission")
 class BleRadio(
@@ -77,7 +77,7 @@ class BleRadio(
         var setupJob: Job? = null
         val mutex = Mutex()
 
-        /** Cadre sosite cat timp legatura inca se configureaza; se predau imediat dupa LinkUp. */
+        /** Frames that arrived while the link was still being set up; handed over right after LinkUp. */
         val early = ArrayList<ByteArray>()
     }
 
@@ -87,7 +87,7 @@ class BleRadio(
 
     private enum class AdvOp { START, ENABLE, DISABLE, PARAMETERS, DATA }
 
-    /** Un set de advertising: cel legacy pe 1M, sau cel extins pe Coded PHY pentru raza lunga. */
+    /** One advertising set: legacy on 1M, or extended on Coded PHY for long range. */
     private inner class AdvSet(val coded: Boolean) {
         var set: AdvertisingSet? = null
         var callback: AdvertisingSetCallback? = null
@@ -154,13 +154,13 @@ class BleRadio(
         fun started(advertisingSet: AdvertisingSet?, status: Int) {
             if (status == AdvertisingSetCallback.ADVERTISE_SUCCESS && advertisingSet != null) {
                 set = advertisingSet
-                log("advertising $name pornit")
+                log("advertising $name started")
                 if (!coded) {
-                    if (failures.demoted) log("advertising merge din nou, telefonul nu mai e frunza")
+                    if (failures.demoted) log("advertising works again, no longer a leaf")
                     failures.reset()
                 }
                 publishStatus()
-                // flag-urile sau modul s-au putut schimba cat a durat pornirea
+                // flags or mode may have changed while the start was in progress
                 requestAdvertise()
             } else {
                 callback = null
@@ -237,7 +237,7 @@ class BleRadio(
         tasks.trySend(block)
     }
 
-    // --- ciclu de viata ---
+    // --- lifecycle ---
 
     fun start() {
         if (running) return
@@ -267,7 +267,7 @@ class BleRadio(
         jobs = emptyList()
     }
 
-    /** De chemat dupa ce utilizatorul acorda permisiunile, ca radioul sa porneasca fara restart. */
+    /** Call after the user grants permissions, so the radio starts without an app restart. */
     fun retry() = post { if (running && !active) bringUp() }
 
     fun hasPermissions(): Boolean {
@@ -293,7 +293,7 @@ class BleRadio(
         if (active) return
         val adapter = adapter
         if (adapter == null || !adapter.isEnabled || !hasPermissions()) {
-            val reason = "radio in asteptare: bluetooth=${adapter?.isEnabled} permisiuni=${hasPermissions()}"
+            val reason = "radio waiting: bluetooth=${adapter?.isEnabled} permissions=${hasPermissions()}"
             if (reason != waitingReason) log(reason)
             waitingReason = reason
             publishStatus()
@@ -301,7 +301,7 @@ class BleRadio(
         }
         waitingReason = null
         active = true
-        // isMultipleAdvertisementSupported cere cel putin 5 instante; noua ne ajunge una, iar primul start decide
+        // isMultipleAdvertisementSupported needs at least 5 instances; we need one, so the first start decides
         canAdvertise = adapter.bluetoothLeAdvertiser != null
         failures.reset()
         advertiseInPlace = true
@@ -313,11 +313,11 @@ class BleRadio(
         multipleAdvertisement = adapter.isMultipleAdvertisementSupported
         longRange = BleConstants.LONG_RANGE && codedPhy && extendedAdvertising
         log(
-            "radio pornit, advertising ${if (canAdvertise) "suportat" else "NESUPORTAT (telefon frunza)"}, " +
-                "coded=$codedPhy extins=$extendedAdvertising maxAdv=$maxAdvertisingDataLength " +
-                "multi=$multipleAdvertisement razaLunga=$longRange"
+            "radio up, advertising ${if (canAdvertise) "supported" else "NOT SUPPORTED (leaf phone)"}, " +
+                "coded=$codedPhy extended=$extendedAdvertising maxAdv=$maxAdvertisingDataLength " +
+                "multi=$multipleAdvertisement longRange=$longRange"
         )
-        if (!openServer()) log("GATT server indisponibil")
+        if (!openServer()) log("GATT server unavailable")
         requestScan()
         publishStatus()
     }
@@ -346,7 +346,7 @@ class BleRadio(
         scanned.clear()
         sightings.clear()
         serverMtu.clear()
-        log("radio oprit")
+        log("radio down")
         publishStatus()
     }
 
@@ -362,14 +362,14 @@ class BleRadio(
         if ((!scanning || stale || silent) && scanJob?.isActive != true) requestScan()
         val missingSet = legacyAdv.set == null || codedAdv.wanted() && codedAdv.set == null
         if (legacyAdv.wanted() && missingSet && advertiseJob?.isActive != true) requestAdvertise()
-        // adresele MAC se rotesc; ce nu a mai fost vazut de un minut nu mai e de folos
+        // MAC addresses rotate; anything not seen for a minute is useless
         for (address in sightings.forget(now)) {
             if (!outgoing.containsKey(address)) scanned.remove(address)
         }
         if (now - scanStatsAt >= 60_000) {
             scanStatsAt = now
             val (results, withoutResponse) = sightings.drainStats()
-            if (results > 0) log("scanare: $withoutResponse din $results rezultate fara scan response")
+            if (results > 0) log("scan: $withoutResponse of $results results without scan response")
         }
         publishStatus()
     }
@@ -408,8 +408,8 @@ class BleRadio(
             events.trySend(RadioEvent.ConnectFailed(address))
             return
         }
-        // Doar dispozitive venite dintr-o scanare: getRemoteDevice() pe o adresa aleatoare nu stie tipul
-        // adresei, iar conectarea ramane agatata pana la timeout.
+        // Only devices from a scan: getRemoteDevice() on a random address doesn't know the address type,
+        // and the connection hangs until the timeout.
         val device = scanned[address]
         if (device == null) {
             events.trySend(RadioEvent.ConnectFailed(address))
@@ -422,13 +422,13 @@ class BleRadio(
             if (ok && !link.closed && !link.ops.dropped) {
                 link.ready = true
                 events.trySend(RadioEvent.LinkUp(link.id, address, true, link.mtu - BleConstants.ATT_OVERHEAD))
-                // fara punct de suspendare intre LinkUp si cadrele timpurii, ca ordinea sa ramana cea de pe fir
+                // no suspension point between LinkUp and the early frames, so the order stays the wire order
                 for (frame in link.early) events.trySend(RadioEvent.Frame(link.id, frame))
                 link.early.clear()
-                // PHY-ul ales arata in log daca legatura a mers pe Coded
+                // the PHY in the log shows whether the link went over Coded
                 if (longRange) runCatching { link.gatt?.readPhy() }
             } else if (!link.closed) {
-                log("conectare esuata ${address.takeLast(5)}")
+                log("connect failed ${address.takeLast(5)}")
                 closeOut(link, failed = true)
             }
         }
@@ -445,13 +445,13 @@ class BleRadio(
         return false
     }
 
-    // --- central: clienti GATT ---
+    // --- central: GATT clients ---
 
     private suspend fun setUp(link: OutLink, device: BluetoothDevice): Boolean {
         val callback = ClientCallback(link)
         val startedAt = now()
         if (!link.ops.run(Op.CONNECT, BleConstants.CONNECT_TIMEOUT_MS) {
-                // varianta noua cu BluetoothGattConnectionSettings exista doar pe versiunile recente de Android
+                // the BluetoothGattConnectionSettings variant only exists on recent Android versions
                 @Suppress("DEPRECATION")
                 link.gatt = if (longRange) {
                     device.connectGatt(
@@ -463,28 +463,28 @@ class BleRadio(
                 }
                 link.gatt != null
             }) return false
-        log("conectat ${link.address.takeLast(5)} in ${now() - startedAt} ms")
+        log("connected ${link.address.takeLast(5)} in ${now() - startedAt} ms")
         val gatt = link.gatt ?: return false
-        // unele stive pierd prima operatie daca vine imediat dupa conectare
+        // some stacks drop the first operation if it comes right after connecting
         delay(150)
         if (link.ops.dropped) return false
         if (!link.ops.run(Op.MTU, BleConstants.OPERATION_TIMEOUT_MS) { gatt.requestMtu(BleConstants.REQUESTED_MTU) }) {
-            log("MTU nenegociat cu ${link.address.takeLast(5)}")
+            log("MTU not negotiated with ${link.address.takeLast(5)}")
             return false
         }
         if (!link.ops.run(Op.DISCOVER, BleConstants.OPERATION_TIMEOUT_MS) { gatt.discoverServices() }) {
-            log("descoperirea serviciilor a esuat la ${link.address.takeLast(5)}")
+            log("service discovery failed on ${link.address.takeLast(5)}")
             return false
         }
         val ch = gatt.getService(BleConstants.SERVICE)?.getCharacteristic(BleConstants.CHARACTERISTIC)
         val cccd = ch?.getDescriptor(BleConstants.CCCD)
         if (ch == null || cccd == null) {
-            log("serviciul lipseste la ${link.address.takeLast(5)}")
+            log("service missing on ${link.address.takeLast(5)}")
             return false
         }
         link.characteristic = ch
         if (!gatt.setCharacteristicNotification(ch, true)) {
-            log("notificarile nu au putut fi activate local pentru ${link.address.takeLast(5)}")
+            log("could not enable notifications locally for ${link.address.takeLast(5)}")
             return false
         }
         var accepted = false
@@ -501,10 +501,10 @@ class BleRadio(
             accepted
         }
         if (!subscribed) {
-            // Cele doua cazuri cer diagnostic diferit: stiva a refuzat scrierea, sau a trimis-o si confirmarea nu a venit.
+            // Two cases, two diagnostics: the stack refused the write, or sent it and the confirmation never came.
             log(
-                if (accepted) "abonarea trimisa, dar neconfirmata in ${BleConstants.OPERATION_TIMEOUT_MS / 1000}s de ${link.address.takeLast(5)}"
-                else "stiva a refuzat scrierea de abonare catre ${link.address.takeLast(5)}"
+                if (accepted) "subscription sent but not confirmed within ${BleConstants.OPERATION_TIMEOUT_MS / 1000}s by ${link.address.takeLast(5)}"
+                else "stack refused the subscription write to ${link.address.takeLast(5)}"
             )
         }
         return subscribed
@@ -516,7 +516,7 @@ class BleRadio(
         val gatt = link.gatt
         val ch = link.characteristic
         if (!link.ready || link.closed || gatt == null || ch == null) return false
-        // stiva refuza o scriere cat timp precedenta e inca in zbor; reincercam scurt
+        // the stack refuses a write while the previous one is in flight; retry briefly
         repeat(5) {
             var accepted = false
             val ok = link.ops.run(Op.WRITE, BleConstants.WRITE_TIMEOUT_MS) {
@@ -548,7 +548,7 @@ class BleRadio(
         val gatt = link.gatt
         if (gatt != null) {
             runCatching { gatt.disconnect() }
-            // close() imediat dupa disconnect() poate lasa legatura agatata in controller
+            // close() right after disconnect() can leave the link stuck in the controller
             scope.launch {
                 delay(400)
                 runCatching { gatt.close() }
@@ -562,7 +562,7 @@ class BleRadio(
             if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
                 link.ops.finish(Op.CONNECT, true)
             } else {
-                if (!link.closed) log("deconectat ${link.address.takeLast(5)} status=$status")
+                if (!link.closed) log("disconnected ${link.address.takeLast(5)} status=$status")
                 if (link.ready) closeOut(link, failed = false) else link.ops.drop()
             }
         }
@@ -583,7 +583,7 @@ class BleRadio(
         override fun onCharacteristicWrite(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) = post {
             if (status == BluetoothGatt.GATT_CONNECTION_CONGESTED) {
                 link.pauseUntil = now() + BleConstants.CONGESTION_PAUSE_MS
-                log("congestie (143) la ${link.address.takeLast(5)}")
+                log("congestion (143) on ${link.address.takeLast(5)}")
             }
             link.ops.finish(Op.WRITE, sendAccepted(status))
         }
@@ -593,7 +593,7 @@ class BleRadio(
         }
 
         override fun onPhyUpdate(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) = post {
-            if (status == BluetoothGatt.GATT_SUCCESS) log("phy schimbat ${link.address.takeLast(5)} tx=$txPhy rx=$rxPhy")
+            if (status == BluetoothGatt.GATT_SUCCESS) log("phy changed ${link.address.takeLast(5)} tx=$txPhy rx=$rxPhy")
         }
 
         override fun onCharacteristicChanged(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic, value: ByteArray) {
@@ -603,20 +603,20 @@ class BleRadio(
         @Deprecated("Deprecated in Java")
         @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic) {
-            // sub API 33 valoarea sta in obiectul caracteristicii si e suprascrisa de notificarea urmatoare
+            // below API 33 the value lives on the characteristic and the next notification overwrites it
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) received(ch.value?.clone() ?: return)
         }
 
         private fun received(value: ByteArray) = post {
             if (link.closed) return@post
             if (!link.ready) {
-                // Serverul trimite HELLO imediat ce ne abonam, adesea inainte ca abonarea sa fie confirmata
-                // la noi. Aruncat aici, HELLO-ul s-ar pierde si legatura ar muri dupa timeout.
+                // The server sends HELLO as soon as we subscribe, often before the subscription is confirmed here.
+                // Dropping it would lose the HELLO and the link would die on timeout.
                 if (value.isEmpty()) closeOut(link, failed = true)
                 else if (link.early.size < MAX_EARLY_FRAMES) link.early += value
                 return@post
             }
-            // o notificare goala e semnalul serverului ca a inchis legatura
+            // an empty notification means the server closed the link
             if (value.isEmpty()) closeOut(link, failed = false) else events.trySend(RadioEvent.Frame(link.id, value))
         }
     }
@@ -644,7 +644,7 @@ class BleRadio(
     }
 
     private suspend fun notify(link: InLink, frame: ByteArray): Boolean {
-        // pauza dupa congestie se asteapta in afara mutex-ului, ca sa nu tina pe loc ceilalti clienti
+        // wait out the congestion pause outside the mutex so other clients aren't held up
         val pause = link.pauseUntil - now()
         if (pause > 0) delay(pause)
         return notifyLocked(link, frame)
@@ -663,7 +663,7 @@ class BleRadio(
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     server.notifyCharacteristicChanged(link.device, ch, false, frame) == BluetoothStatusCodes.SUCCESS
                 } else {
-                    // valoarea e comuna tuturor clientilor, de aceea notificarile sunt serializate global
+                    // the value is shared by all clients, so notifications are serialized globally
                     @Suppress("DEPRECATION")
                     ch.value = frame
                     @Suppress("DEPRECATION")
@@ -688,7 +688,7 @@ class BleRadio(
         val server = gattServer
         val ch = characteristic
         if (server != null && ch != null) {
-            // clientul trateaza notificarea goala ca "inchide"; cancelConnection singur nu rupe mereu legatura
+            // the client treats an empty notification as "close"; cancelConnection alone doesn't always drop the link
             runCatching {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     server.notifyCharacteristicChanged(link.device, ch, false, ByteArray(0))
@@ -710,7 +710,7 @@ class BleRadio(
     private val serverCallback = object : BluetoothGattServerCallback() {
         override fun onServiceAdded(status: Int, service: BluetoothGattService) = post {
             serviceReady = status == BluetoothGatt.GATT_SUCCESS
-            if (serviceReady && active) requestAdvertise() else log("serviciul GATT nu a putut fi adaugat: $status")
+            if (serviceReady && active) requestAdvertise() else log("could not add GATT service: $status")
         }
 
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) = post {
@@ -738,12 +738,12 @@ class BleRadio(
             if (!valid) return@post
             val address = device.address
             if (value.contentEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)) {
-                // serverul vede si conexiunile initiate de noi; legatura apare doar cand celalalt se aboneaza
+                // the server also sees connections we started; the link only counts once the peer subscribes
                 if (incoming.containsKey(address) || outgoing.containsKey(address)) return@post
                 val mtu = serverMtu[address] ?: BleConstants.DEFAULT_MTU
                 val link = InLink(nextLinkId++, device, mtu)
                 incoming[address] = link
-                // fara connect() din partea serverului, cancelConnection() nu poate inchide legatura mai tarziu
+                // without a server-side connect(), cancelConnection() can't close the link later
                 runCatching { gattServer?.connect(device, false) }
                 events.trySend(RadioEvent.LinkUp(link.id, address, false, mtu - BleConstants.ATT_OVERHEAD))
             } else {
@@ -778,13 +778,13 @@ class BleRadio(
         override fun onNotificationSent(device: BluetoothDevice, status: Int) = post {
             if (status == BluetoothGatt.GATT_CONNECTION_CONGESTED) {
                 incoming[device.address]?.pauseUntil = now() + BleConstants.CONGESTION_PAUSE_MS
-                log("congestie (143) la ${device.address.takeLast(5)}")
+                log("congestion (143) on ${device.address.takeLast(5)}")
             }
             if (notifyAddress == device.address) notifySignal?.complete(sendAccepted(status))
         }
     }
 
-    // --- scanare ---
+    // --- scanning ---
 
     private fun requestScan() {
         scanJob?.cancel()
@@ -800,7 +800,7 @@ class BleRadio(
 
     private fun startScanNow() {
         val scanner = adapter?.bluetoothLeScanner ?: return
-        // filtrul pe UUID e obligatoriu ca scanarea sa mearga cu ecranul stins
+        // the UUID filter is required for scanning to work with the screen off
         val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(BleConstants.SERVICE)).build()
         val settings = ScanSettings.Builder()
             .setScanMode(
@@ -812,7 +812,7 @@ class BleRadio(
             )
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .setReportDelay(0)
-            // pe 1M si pe Coded; advertising-urile legacy se primesc in continuare
+            // on 1M and Coded; legacy advertisements are still received
             .apply { if (longRange) setLegacy(false).setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED) }
             .build()
         val started = runCatching { scanner.startScan(listOf(filter), settings, scanCallback) }.isSuccess
@@ -820,7 +820,7 @@ class BleRadio(
         if (started) {
             scanning = true
             scanStartedAt = lastScanStartAt
-            log("scanare pornita ($scanMode)")
+            log("scan started ($scanMode)")
         }
     }
 
@@ -840,7 +840,7 @@ class BleRadio(
             scanning = false
             // 6 = SCAN_FAILED_SCANNING_TOO_FREQUENTLY
             scanBlockedUntil = now() + if (errorCode == 6) 30_000L else 10_000L
-            log("scanare esuata: $errorCode")
+            log("scan failed: $errorCode")
             publishStatus()
         }
     }
@@ -864,20 +864,20 @@ class BleRadio(
 
     // --- advertising ---
     //
-    // Fiecare set se porneste o data si apoi se actualizeaza pe loc. Un set nou primeste alta adresa MAC,
-    // iar peer-ii care tocmai se conectau la cea veche raman agatati pana la timeout.
+    // Each set is started once and then updated in place. A new set gets a new MAC address,
+    // and peers that were connecting to the old one hang until the timeout.
 
     private fun AdvSet.wanted(): Boolean {
         val legacyWanted = active && canAdvertise && serviceReady
         if (!coded) return legacyWanted
-        // setul coded vine doar dupa cel legacy, ca sa nu-i ia instanta
+        // the coded set starts after the legacy one so it doesn't take its instance
         return legacyWanted && longRange && !codedDisabled && legacyAdv.set != null && now() >= codedBlockedUntil
     }
 
     private fun requestAdvertise() {
         advertisePending = true
         if (advertiseJob?.isActive == true) return
-        // job-ul nu se anuleaza din afara: o schimbare de parametri nu trebuie taiata la jumatate
+        // never cancelled from outside: a parameter change must not stop halfway
         advertiseJob = scope.launch {
             while (advertisePending) {
                 advertisePending = false
@@ -888,13 +888,13 @@ class BleRadio(
         }
     }
 
-    /** Aduce setul la flag-urile si modul curente; ce nu merge pe loc se face prin oprire si pornire. */
+    /** Bring the set to the current flags and mode; anything that can't change in place is done by stop and start. */
     private suspend fun AdvSet.sync() {
         val advertiser = adapter?.bluetoothLeAdvertiser ?: return
         val current = set
         if (current == null) {
             if (callback == null) return start(advertiser)
-            // pornirea e inca in curs; un al doilea set ar ocupa inca o instanta
+            // start still in progress; a second set would take another instance
             if (now() - startedAt < BleConstants.ADVERTISE_START_GIVE_UP_MS) return
             stop()
             started(null, AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
@@ -912,7 +912,7 @@ class BleRadio(
         if (update()) return true
         if (callback != null) {
             advertiseInPlace = false
-            log("advertising $name: actualizarea pe loc a esuat, de acum repornim setul")
+            log("advertising $name: in-place update failed, restarting the set from now on")
         }
         return false
     }
@@ -928,7 +928,7 @@ class BleRadio(
 
     private suspend fun AdvSet.setInterval(current: AdvertisingSet, interval: Int): Boolean {
         val success = AdvertisingSetCallback.ADVERTISE_SUCCESS
-        // parametrii se schimba doar cu setul oprit; fiecare pas asteapta confirmarea stivei
+        // parameters only change while the set is stopped; each step waits for the stack to confirm
         if (await(AdvOp.DISABLE) { current.enableAdvertising(false, 0, 0) } != success) return false
         if (await(AdvOp.PARAMETERS) { current.setAdvertisingParameters(parameters(interval)) } != success) return false
         if (await(AdvOp.ENABLE) { current.enableAdvertising(true, 0, 0) } != success) return false
@@ -953,7 +953,7 @@ class BleRadio(
             if (coded) advertiser.startAdvertisingSet(parameters, codedData(appliedFlags), null, null, null, cb)
             else advertiser.startAdvertisingSet(parameters, uuidData(), serviceData(appliedFlags), null, null, cb)
         }
-        // o exceptie la pornire nu aduce niciun callback
+        // an exception during start produces no callback
         if (status == AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR && callback === cb && set == null) {
             stop()
             started(null, status)
@@ -964,16 +964,16 @@ class BleRadio(
         when {
             status == AdvertisingSetCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> canAdvertise = false
             status == AdvertisingSetCallback.ADVERTISE_FAILED_TOO_MANY_ADVERTISERS && codedAdv.callback != null -> {
-                // setul coded nu are voie sa ia locul celui legacy; renuntam la el pana la repornirea radioului
+                // the coded set must not displace the legacy one; give it up until the radio restarts
                 codedAdv.stop()
                 codedDisabled = true
-                log("setul coded oprit ca sa elibereze o instanta")
+                log("coded set stopped to free an instance")
                 requestAdvertise()
             }
             else -> advertiseBlockedUntil = now() + failures.failed(status)
         }
-        log("advertising esuat: $status")
-        if (failures.count == BleConstants.ADVERTISE_DEMOTE_AFTER) log("advertising pica repetat, telefonul se poarta ca frunza")
+        log("advertising failed: $status")
+        if (failures.count == BleConstants.ADVERTISE_DEMOTE_AFTER) log("advertising keeps failing, acting as a leaf")
         publishStatus()
     }
 
@@ -981,14 +981,14 @@ class BleRadio(
         val permanent = status == AdvertisingSetCallback.ADVERTISE_FAILED_FEATURE_UNSUPPORTED ||
             status == AdvertisingSetCallback.ADVERTISE_FAILED_DATA_TOO_LARGE
         if (permanent) codedDisabled = true else codedBlockedUntil = now() + BleConstants.CODED_RETRY_MS
-        log("advertising coded esuat: $status")
+        log("coded advertising failed: $status")
         publishStatus()
     }
 
     private fun AdvSet.interval(): Int = when (advertiseMode) {
         PowerMode.LOW_POWER -> AdvertisingSetParameters.INTERVAL_HIGH
         PowerMode.BALANCED -> AdvertisingSetParameters.INTERVAL_MEDIUM
-        // un pachet pe Coded tine de ~8 ori mai mult in aer; nu coboram sub 250 ms
+        // a Coded packet stays ~8x longer on air; don't go below 250 ms
         PowerMode.LOW_LATENCY -> if (coded) AdvertisingSetParameters.INTERVAL_MEDIUM else AdvertisingSetParameters.INTERVAL_LOW
     }
 
@@ -1009,14 +1009,14 @@ class BleRadio(
     private fun payload(flags: Int): ByteArray = ByteBuffer.allocate(BleConstants.ADVERT_DATA_SIZE)
         .put(BleConstants.ADVERT_VERSION.toByte()).put(flags.toByte()).putInt(prefix).array()
 
-    // UUID-ul sta in advertising ca filtrele de scanare sa-l prinda; datele scurte merg in scan response
+    // the UUID goes in the advertisement so scan filters match it; short data goes in the scan response
     private fun uuidData(): AdvertiseData = AdvertiseData.Builder().setIncludeDeviceName(false).setIncludeTxPowerLevel(false)
         .addServiceUuid(ParcelUuid(BleConstants.SERVICE)).build()
 
     private fun serviceData(flags: Int): AdvertiseData = AdvertiseData.Builder().setIncludeDeviceName(false)
         .setIncludeTxPowerLevel(false).addServiceData(ParcelUuid(BleConstants.SERVICE), payload(flags)).build()
 
-    // setul coded nu are scan response: UUID-ul pentru filtre si datele intra amandoua in advertising
+    // the coded set has no scan response: the UUID and the data both go in the advertisement
     private fun codedData(flags: Int): AdvertiseData {
         val uuid = ParcelUuid(BleConstants.SERVICE)
         return AdvertiseData.Builder().setIncludeDeviceName(false).setIncludeTxPowerLevel(false)

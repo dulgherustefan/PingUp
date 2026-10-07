@@ -14,8 +14,8 @@ class TestClock(private val scheduler: TestCoroutineScheduler) : Clock {
 }
 
 /**
- * Un "eter" in memorie: toate radiourile se vad intre ele, mai putin perechile din [outOfRange].
- * Ca pe Android, adresa cu care apare un initiator la tinta difera de cea din advertising.
+ * An in-memory "ether": every radio sees every other, except the pairs in [outOfRange].
+ * As on Android, an initiator shows up at the target under a different address than the one it advertises.
  */
 class SimNet(private val scope: CoroutineScope) {
     private val radios = mutableListOf<SimRadio>()
@@ -87,7 +87,7 @@ class SimRadio(
     val connectAttempts = mutableListOf<String>()
     var framesSent = 0
 
-    /** Daca e setat, cadrele catre exterior trec intai pe aici; null inseamna "pierde cadrul". */
+    /** If set, outgoing frames pass through here first; null means "drop the frame". */
     var tamper: ((ByteArray) -> ByteArray?)? = null
 
     fun announceStatus() {
@@ -115,7 +115,7 @@ class SimRadio(
         return true
     }
 
-    /** Injecteaza un cadru brut pe o legatura, ca un peer care nu respecta protocolul. */
+    /** Injects a raw frame on a link, like a peer that ignores the protocol. */
     fun inject(link: Int, frame: ByteArray) {
         val peer = links[link] ?: return
         peer.radio.events.trySend(RadioEvent.Frame(peer.link, frame))

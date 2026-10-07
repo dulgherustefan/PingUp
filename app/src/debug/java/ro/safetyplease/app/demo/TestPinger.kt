@@ -15,8 +15,8 @@ import ro.safetyplease.core.protocol.parseOrNull
 import ro.safetyplease.core.util.shortHex
 
 /**
- * Pachetele TEST: un ping difuzat la care fiecare nod raspunde cu un ecou adresat.
- * Ecoul aduce inapoi numarul de hop-uri al drumului dus, iar timpul dus-intors se masoara pe un singur ceas.
+ * TEST packets: a broadcast ping that every node answers with an addressed echo.
+ * The echo carries the outbound hop count, so round-trip time is measured on one clock.
  */
 class TestPinger(private val c: AppContainer) {
     private val _lines = MutableStateFlow<List<String>>(emptyList())
@@ -36,7 +36,7 @@ class TestPinger(private val c: AppContainer) {
             val number = ++seq
             val payload = WireWriter().u8(PING).u32(number.toLong()).i64(c.clock.wallMs()).u8(0).toByteArray()
             c.engine.broadcast(PacketType.TEST, payload)
-            add("TEST #$number trimis catre ${c.engine.state.value.readyLinks} legaturi")
+            add("TEST #$number sent to ${c.engine.state.value.readyLinks} links")
         }
     }
 
@@ -48,12 +48,12 @@ class TestPinger(private val c: AppContainer) {
             val originMs = r.i64()
             val hopsThere = r.u8()
             if (kind == PING) {
-                add("TEST #$number de la ${packet.sender.shortHex()}: hop-uri ${packet.hops}")
+                add("TEST #$number from ${packet.sender.shortHex()}: ${packet.hops} hops")
                 val echo = WireWriter().u8(ECHO).u32(number).i64(originMs).u8(packet.hops).toByteArray()
                 c.engine.unicast(PacketType.TEST, packet.sender, echo, encrypted = false)
             } else {
                 val rtt = c.clock.wallMs() - originMs
-                add("ecou #$number de la ${packet.sender.shortHex()}: hop-uri dus $hopsThere, intors ${packet.hops}; $rtt ms dus-intors")
+                add("echo #$number from ${packet.sender.shortHex()}: $hopsThere hops out, ${packet.hops} back; $rtt ms round trip")
             }
         }
     }

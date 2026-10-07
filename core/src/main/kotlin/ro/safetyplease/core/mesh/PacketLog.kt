@@ -31,13 +31,13 @@ private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.ROOT)
 
 private fun formatTime(ms: Long): String = synchronized(timeFormat) { timeFormat.format(Date(ms)) }
 
-/** Jurnalul live din modul demo. Dezactivat in release, unde [packet] si [link] nu fac nimic. */
+/** Live log for demo mode. Disabled in release, where [packet] and [link] do nothing. */
 class PacketLog(private val enabled: Boolean, private val capacity: Int = 500) {
     private val buffer = ArrayDeque<LogEntry>()
     private val _entries = MutableStateFlow<List<LogEntry>>(emptyList())
     val entries: StateFlow<List<LogEntry>> = _entries
 
-    /** Oglinda in logcat; setata de stratul Android. */
+    /** Mirror to logcat; set by the Android layer. */
     var sink: ((String) -> Unit)? = null
 
     fun packet(nowMs: Long, kind: LogKind, packet: Packet, link: String, note: String = "") =

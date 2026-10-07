@@ -109,15 +109,18 @@ import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.Severity
 
-/** Categoriile care sunt urgente daca omul nu spune altfel. */
+/** Categories that are urgent unless the user says otherwise. */
 private fun urgentByDefault(category: Int): Boolean =
     category == IncidentCategory.MEDICAL || category == IncidentCategory.VIOLENCE ||
         category == IncidentCategory.FIRE || category == IncidentCategory.CROWD
 
-/** Banda in care lista se estompeaza deasupra butoanelor care plutesc jos. */
+/** Band where the list fades out above the floating bottom buttons. */
 private val FadeZone = 24.dp
 
-/** O categorie de raport: buton jos, iconita verde in stanga si numele; aleasa, ia culoarea de selectie, nu verdele butonului Trimite. */
+/**
+ * Report category button: low, green icon on the left, then the name. Selected, it takes the selection color,
+ * not the green of the Send button.
+ */
 @Composable
 private fun CategoryChip(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
@@ -139,14 +142,13 @@ private fun CategoryChip(icon: ImageVector, label: String, selected: Boolean, on
     }
 }
 
-/** Cat ramane sus, in tab, raportul tau nerezolvat. */
+/** How long your unresolved report stays pinned at the top of the tab. */
 private const val ACTIVE_REPORT_MS = 2 * 60 * 60_000L
 
 /**
- * Tabul Raporteaza: raportul tau inca deschis, daca ai unul, apoi „Ce se intampla?” si o grila de categorii.
- * Detaliile apar abia dupa ce alegi categoria, stranse intr-un rand care arata ce e setat (urgent, anonim, zona):
- * cele mai multe rapoarte pleaca din doua atingeri, iar cine vrea sa adauge ceva il deschide.
- * Butonul de trimis pluteste deasupra barei de taburi si urca deasupra tastaturii cat scrii descrierea.
+ * Report tab: your still-open report if there is one, then "Ce se intampla?" and a grid of categories.
+ * Details appear only after a category is picked, folded into one row that shows what's set (urgent, anonymous, zone),
+ * so most reports take two taps. The send button floats above the tab bar and rises above the keyboard while typing.
  */
 @Composable
 fun ReportScreen(vm: AppViewModel) {
@@ -161,18 +163,18 @@ fun ReportScreen(vm: AppViewModel) {
     var urgentChosen by rememberSaveable { mutableStateOf(false) }
     var description by rememberSaveable { mutableStateOf("") }
     var anonymous by rememberSaveable { mutableStateOf(true) }
-    // detaliile stau stranse intr-un rand care spune ce e setat; cine are ce adauga il deschide
+    // details stay folded into one summary row; whoever has more to add expands it
     var showDetails by rememberSaveable { mutableStateOf(false) }
     var pickZone by remember { mutableStateOf(false) }
     val autoZone = position?.let { vm.venue.zoneAt(it.lat, it.lon) }
-    // null cat timp zona urmeaza GPS-ul; odata aleasa de utilizator, un fix nou nu o mai schimba
+    // null while the zone follows GPS; once the user picks one, a new fix doesn't change it
     var picked by rememberSaveable { mutableStateOf<String?>(null) }
     val zone = picked ?: autoZone?.id ?: vm.manualZone
     val waitMs by produceState(vm.rateLimitWaitMs(), incidents.mine) {
         while (true) {
             value = vm.rateLimitWaitMs()
             if (value == 0L) break
-            // pana se schimba minutul afisat
+            // until the displayed minute changes
             delay(value % 60_000 + 1)
         }
     }
@@ -183,10 +185,10 @@ fun ReportScreen(vm: AppViewModel) {
     var footer by remember { mutableStateOf(0.dp) }
     val clearance = LocalBottomClearance.current
     val keyboard = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
-    // tastatura acopera bara de taburi, deci butonul se aseaza deasupra ei
+    // the keyboard covers the tab bar, so the button sits above the keyboard
     val typing = keyboard > clearance
     val now = rememberNow()
-    // raportul tau inca deschis sta deasupra formularului, ca sa vezi unde a ajuns fara sa-l cauti
+    // your still-open report sits above the form so you can see its progress without looking for it
     val active = incidents.mine.maxByOrNull { it.createdAt }?.takeIf { it.isOpen() && now - it.createdAt < ACTIVE_REPORT_MS }
 
     Box(Modifier.fillMaxSize()) {
@@ -203,7 +205,7 @@ fun ReportScreen(vm: AppViewModel) {
         ) { padding ->
             Column(
                 Modifier.fillMaxSize()
-                    // cu tastatura deschisa lista se opreste deasupra butonului, ca descrierea sa ramana la vedere
+                    // with the keyboard open the list stops above the button so the description stays visible
                     .padding(bottom = if (typing) (footer - FadeZone).coerceAtLeast(0.dp) else 0.dp)
                     .verticalScroll(scroll)
                     .padding(top = padding.calculateTopPadding(), bottom = if (typing) FadeZone + 8.dp else footer + 8.dp),
@@ -224,10 +226,10 @@ fun ReportScreen(vm: AppViewModel) {
                     stringResource(R.string.report_title), style = MaterialTheme.typography.title2, color = colors.label,
                     modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 14.dp),
                 )
-                // doua coloane de butoane joase, cu iconita in stanga: se citesc ca o lista de optiuni
+                // two columns of low buttons with the icon on the left: they read as a list of options
                 Column(Modifier.padding(horizontal = Gutter), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     IncidentCategory.all.chunked(2).forEach { row ->
-                        // butoanele dintr-un rand iau inaltimea celui cu eticheta pe doua randuri
+                        // buttons in a row take the height of the one whose label wraps to two lines
                         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             for (c in row) {
                                 CategoryChip(
@@ -280,7 +282,7 @@ fun ReportScreen(vm: AppViewModel) {
                             stringResource(R.string.report_zone),
                             subtitle = when {
                                 zone.isNotEmpty() -> if (autoZone?.id == zone) stringResource(R.string.map_source_gps).replaceFirstChar { it.uppercase() } else null
-                                // avem fix GPS, dar in afara zonelor: pozitia pleaca oricum cu raportul
+                                // we have a GPS fix outside every zone: the position is still sent with the report
                                 position != null -> stringResource(R.string.report_zone_outside)
                                 else -> stringResource(R.string.report_zone_manual)
                             },
@@ -363,7 +365,7 @@ fun ReportScreen(vm: AppViewModel) {
     }
 }
 
-/** O optiune din lista de zone: numele, cu bifa albastra in dreapta cand e aleasa. */
+/** A zone option: the name, with a check on the right when selected. */
 @Composable
 private fun ZoneOption(name: String, selected: Boolean, onClick: () -> Unit) {
     val colors = AppTheme.colors
@@ -378,8 +380,8 @@ private fun ZoneOption(name: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * Butoanele care plutesc jos, peste lista. Cand lista trece pe sub ele, fundalul se estompeaza in spatele lor,
- * ca marginea de derulare din iOS. [onHeight] primeste cat ocupa, cu estomparea si [bottom] cu tot.
+ * Buttons floating at the bottom, over the list. When the list scrolls under them the background fades behind them.
+ * [onHeight] receives the space they take, fade and [bottom] included.
  */
 @Composable
 private fun FloatingFooter(
@@ -405,7 +407,7 @@ private fun FloatingFooter(
     }
 }
 
-/** Pasul la care a ajuns raportul, de la 0 (asteapta un telefon) la 4 (rezolvat). */
+/** How far the report got, from 0 (waiting for a phone) to 4 (resolved). */
 fun reportStep(report: MyReport): Int = when {
     report.status >= AckStatus.RESOLVED -> 4
     report.status >= AckStatus.ACKNOWLEDGED -> 3
@@ -414,10 +416,10 @@ fun reportStep(report: MyReport): Int = when {
     else -> 0
 }
 
-/** Raportul inca asteapta ajutor: nici rezolvat, nici anulat de tine. */
+/** The report still needs help: neither resolved nor cancelled by you. */
 private fun MyReport.isOpen() = status < AckStatus.RESOLVED && !cancelled
 
-/** Pasul raportului intr-un rand de lista; o alerta anulata spune doar asta. */
+/** Report step in a list row; a cancelled alert just says so. */
 @Composable
 private fun stepText(report: MyReport): String = when {
     report.status == AckStatus.CANCELLED -> stringResource(R.string.report_cancelled)
@@ -436,8 +438,8 @@ private fun stepLabels(report: MyReport): List<String> = listOf(
 )
 
 /**
- * Drumul raportului, ca urmarirea unei comenzi pe iPhone: pasii facuti au bifa albastra, pasul curent un inel
- * albastru cu punct si ora, cei care urmeaza doar un inel gri; intre ei, o linie subtire.
+ * Report timeline, like order tracking: done steps get a check, the current one a ring with a dot and the time,
+ * upcoming ones a gray ring; a thin line between them.
  */
 @Composable
 fun ReportTimeline(report: MyReport, now: Long, modifier: Modifier = Modifier) {
@@ -451,7 +453,7 @@ fun ReportTimeline(report: MyReport, now: Long, modifier: Modifier = Modifier) {
             val last = index == labels.lastIndex
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                 Column(Modifier.width(24.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    // inelele au 20, cat cercul desenat in iconita de 24 cu bifa
+                    // rings are 20dp, the size of the circle inside the 24dp check icon
                     Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
                         when {
                             done -> Icon(Sym.CheckCircle, null, Modifier.size(24.dp), tint = colors.accent)
@@ -482,7 +484,7 @@ fun ReportTimeline(report: MyReport, now: Long, modifier: Modifier = Modifier) {
 private fun reportSubtitle(vm: AppViewModel, report: MyReport): String =
     listOfNotNull(report.zone.takeIf { it.isNotEmpty() }?.let { vm.venue.zoneName(it) }, Labels.clock(report.createdAt)).joinToString(" · ")
 
-/** Dupa trimitere: ce ai raportat, drumul raportului pana la staff si, jos, butonul de gata. */
+/** After sending: what you reported, the report's path to staff and, at the bottom, the Done button. */
 @Composable
 fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
@@ -527,7 +529,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
                     style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
                 )
-                // drumul spre staff nu mai conteaza pentru o alerta anulata
+                // the path to staff no longer matters for a cancelled alert
                 if (!withdrawn) {
                     InsetGroup(Modifier.padding(top = 20.dp)) {
                         ReportTimeline(report, now, Modifier.padding(horizontal = Gutter, vertical = 16.dp))
@@ -535,7 +537,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
                 }
             }
         }
-        // TextLink are 44 de atins, deci loc destul sub el
+        // TextLink has a 48dp touch target, so there's enough room under it
         FloatingFooter(LocalBottomClearance.current, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
             AppButton(stringResource(R.string.done), { vm.back() }, Modifier.fillMaxWidth())
             if (report.isOpen()) {
@@ -567,7 +569,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
 
 private enum class Confirm { CANCEL, DELETE }
 
-/** Rapoartele trimise, cele noi sus, intr-un grup: categoria, unde si cand, si pasul la care au ajuns. */
+/** Sent reports, newest first, in a group: category, where and when, and the step they reached. */
 @Composable
 fun MyReportsScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()

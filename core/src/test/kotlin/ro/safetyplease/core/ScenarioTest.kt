@@ -32,7 +32,7 @@ import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.utf8
 
-/** Scenariile de acceptanta, rulate cap-coada pe radio simulat. */
+/** End-to-end acceptance scenarios on the simulated radio. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScenarioTest {
     @get:Rule
@@ -48,7 +48,7 @@ class ScenarioTest {
 
     private class Chain(val world: World, val a: TestPhone, val b: TestPhone, val c: TestPhone, val d: TestPhone)
 
-    /** A participant, B si C relay, D staff; A ignora C si D, B ignora D. */
+    /** A participant, B and C relays, D staff; A ignores C and D, B ignores D. */
     private fun TestScope.chain(): Chain {
         val world = World(this)
         val a = world.phone("A")
@@ -69,7 +69,7 @@ class ScenarioTest {
         IncidentCategory.MEDICAL, Severity.URGENT, "main-stage", 43.9505, 28.6350, description, nickname,
     )
 
-    // --- incidente (pasii 1-4 si 6) ---
+    // --- incidents (steps 1-4 and 6) ---
 
     @Test
     fun urgentReportReachesStaffInThreeHopsAndStatusComesBack() = runTest {
@@ -84,12 +84,12 @@ class ScenarioTest {
         assertEquals(Severity.URGENT, atStaff.severity)
         assertEquals("main-stage", atStaff.zone)
         assertEquals("A leșinat cineva", atStaff.description)
-        assertNull("raportul e anonim implicit", atStaff.nickname)
+        assertNull("reports are anonymous by default", atStaff.nickname)
         assertEquals(1, w.d.alerts.size)
 
         val mine = w.a.myReports.single()
         assertTrue(mine.sent)
-        assertEquals("ajuns la staff", AckStatus.RECEIVED, mine.status)
+        assertEquals("reached staff", AckStatus.RECEIVED, mine.status)
         assertTrue(testScheduler.currentTime - start <= 15_000)
 
         w.d.incidents.acknowledge(atStaff.incidentId)
@@ -117,7 +117,7 @@ class ScenarioTest {
         val reports = seen.mapNotNull { PacketCodec.decode(it)?.packet }.filter { it.type == PacketType.INCIDENT_REPORT }
         assertTrue(reports.isNotEmpty())
         for (p in reports) {
-            assertEquals("fara expeditor", 0L, p.sender)
+            assertEquals("no sender", 0L, p.sender)
             assertFalse(String(p.payload, Charsets.ISO_8859_1).contains("secret"))
             assertFalse(String(p.payload, Charsets.ISO_8859_1).contains("Andrei"))
         }
@@ -144,7 +144,7 @@ class ScenarioTest {
         repeat(3) { assertTrue(w.a.incidents.report(medical("r$it"))) }
         assertFalse(w.a.incidents.report(medical("al patrulea")))
         assertTrue(w.a.incidents.rateLimitWaitMs() > 0)
-        assertTrue("incidentele de test din demo trec", w.a.incidents.report(medical("demo"), bypassRateLimit = true))
+        assertTrue("demo test incidents bypass the limit", w.a.incidents.report(medical("demo"), bypassRateLimit = true))
         advanceTimeBy(10 * 60_000L + 1_000)
         assertEquals(0L, w.a.incidents.rateLimitWaitMs())
         assertTrue(w.a.incidents.report(medical("dupa fereastra")))
@@ -159,13 +159,13 @@ class ScenarioTest {
         advanceTimeBy(10_000)
         assertEquals(1, w.c.staffIncidents.size)
         assertEquals(1, w.d.staffIncidents.size)
-        assertEquals("o singura confirmare de primire", 1, w.a.reportUpdates.size)
+        assertEquals("a single receipt confirmation", 1, w.a.reportUpdates.size)
         assertEquals("Medical 2", w.d.staffIncidents.single().teamName)
 
         w.c.incidents.acknowledge(w.c.staffIncidents.single().incidentId)
         advanceTimeBy(5_000)
         assertEquals(AckStatus.ACKNOWLEDGED, w.d.staffIncidents.single().status)
-        assertEquals("ca D sa nu plece la acelasi incident", "Medical 2", w.d.staffIncidents.single().teamName)
+        assertEquals("so D doesn't go to the same incident", "Medical 2", w.d.staffIncidents.single().teamName)
     }
 
     @Test
@@ -208,7 +208,7 @@ class ScenarioTest {
         advanceTimeBy(1_000)
         assertEquals(0, w.d.staffIncidents.single().hops)
         assertEquals(AckStatus.RECEIVED, w.d.myReports.single().status)
-        assertTrue("fara alerta pentru propriul raport", w.d.alerts.isEmpty())
+        assertTrue("no alert for our own report", w.d.alerts.isEmpty())
     }
 
     @Test
@@ -222,7 +222,7 @@ class ScenarioTest {
         assertEquals(AckStatus.NONE, w.a.myReports.single().status)
     }
 
-    // --- anulare si stergere ---
+    // --- cancel and delete ---
 
     @Test
     fun reporterCancelsAndBothSidesSeeItCancelled() = runTest {
@@ -235,23 +235,23 @@ class ScenarioTest {
         assertEquals(AckStatus.RECEIVED, w.d.staffIncidents.single().status)
 
         w.a.incidents.cancel(id)
-        assertTrue("cererea se vede imediat", w.a.myReports.single().cancelled)
+        assertTrue("the request shows immediately", w.a.myReports.single().cancelled)
         advanceTimeBy(10_000)
 
         val atStaff = w.d.staffIncidents.single()
         assertEquals(AckStatus.CANCELLED, atStaff.status)
         assertEquals("Medical 1", atStaff.teamName)
         assertEquals(1, w.d.alerts.size)
-        assertEquals("notificarea de staff dispare", listOf(id), w.d.clearedAlerts)
+        assertEquals("the staff notification is cleared", listOf(id), w.d.clearedAlerts)
         val mine = w.a.myReports.single()
         assertEquals(AckStatus.CANCELLED, mine.status)
         assertTrue(mine.cancelled)
         assertEquals(listOf(AckStatus.RECEIVED, AckStatus.CANCELLED), w.a.reportUpdates.map { it.status })
-        assertEquals("ACK-ul circula ca oricare altul", AckStatus.CANCELLED, w.c.engine.ackStatus(id.hexToBytes()))
+        assertEquals("the ACK travels like any other", AckStatus.CANCELLED, w.c.engine.ackStatus(id.hexToBytes()))
 
         val cancels = seen.mapNotNull { PacketCodec.decode(it)?.packet }.filter { it.type == PacketType.INCIDENT_CANCEL }
         assertTrue(cancels.isNotEmpty())
-        assertTrue("fara expeditor", cancels.all { it.sender == 0L })
+        assertTrue("no sender", cancels.all { it.sender == 0L })
     }
 
     @Test
@@ -287,13 +287,13 @@ class ScenarioTest {
         advanceTimeBy(5_000)
         w.a.incidents.cancel(w.a.myReports.single().incidentId)
         advanceTimeBy(5_000)
-        assertTrue("anularea a trecut de C, raportul nu", cancelsToD > 0 && w.d.staffIncidents.isEmpty())
+        assertTrue("the cancel got past C, the report didn't", cancelsToD > 0 && w.d.staffIncidents.isEmpty())
 
         holdReports = false
         advanceTimeBy(70_000)
         assertEquals(AckStatus.CANCELLED, w.d.staffIncidents.single().status)
-        assertTrue("fara alerta pentru un raport deja anulat", w.d.alerts.isEmpty())
-        assertEquals("fara RECEIVED inainte", listOf(AckStatus.CANCELLED), w.a.reportUpdates.map { it.status })
+        assertTrue("no alert for an already cancelled report", w.d.alerts.isEmpty())
+        assertEquals("no RECEIVED before", listOf(AckStatus.CANCELLED), w.a.reportUpdates.map { it.status })
     }
 
     @Test
@@ -348,17 +348,17 @@ class ScenarioTest {
         assertTrue(w.a.radio.flags and NodeFlags.PENDING_INCIDENT != 0)
         w.a.incidents.cancel(w.a.myReports.single().incidentId)
         advanceTimeBy(1_000)
-        assertEquals("un raport retras nu mai e in asteptare", 0, w.a.radio.flags and NodeFlags.PENDING_INCIDENT)
+        assertEquals("a withdrawn report is no longer pending", 0, w.a.radio.flags and NodeFlags.PENDING_INCIDENT)
 
         advanceTimeBy(3 * 60_000L)
-        assertTrue("retrimisa cat timp staff-ul lipseste: $cancelsSent", cancelsSent >= 3)
+        assertTrue("resent while staff is missing: $cancelsSent", cancelsSent >= 3)
         w.d.radio.powerOn()
         advanceTimeBy(3 * 60_000L)
         assertEquals(AckStatus.CANCELLED, w.a.myReports.single().status)
         assertEquals(AckStatus.CANCELLED, w.d.staffIncidents.single().status)
         val confirmedAt = cancelsSent
         advanceTimeBy(10 * 60_000L)
-        assertEquals("dupa confirmare nu mai pleaca nimic", confirmedAt, cancelsSent)
+        assertEquals("nothing is sent after confirmation", confirmedAt, cancelsSent)
     }
 
     @Test
@@ -417,10 +417,10 @@ class ScenarioTest {
         advanceTimeBy(70_000)
         assertTrue(w.d.staffIncidents.isEmpty())
         assertEquals(1, w.d.alerts.size)
-        assertEquals("nimic nu pleaca in retea", AckStatus.RECEIVED, w.a.myReports.single().status)
+        assertEquals("nothing goes out on the network", AckStatus.RECEIVED, w.a.myReports.single().status)
     }
 
-    // --- chat (pasul 5) ---
+    // --- chat (step 5) ---
 
     @Test
     fun whereAreYouAndZoneReplyRoundTripUnderTenSeconds() = runTest {
@@ -451,7 +451,7 @@ class ScenarioTest {
         assertEquals(MsgStatus.DELIVERED, w.a.messages.single { it.fromMe }.status)
         assertEquals(MsgStatus.DELIVERED, w.c.messages.single { it.fromMe }.status)
         assertTrue(w.a.chatStore.value.outbox.isEmpty() && w.c.chatStore.value.outbox.isEmpty())
-        assertTrue("relay-ul nu vede nimic", w.b.messages.isEmpty())
+        assertTrue("the relay sees nothing", w.b.messages.isEmpty())
     }
 
     @Test
@@ -592,7 +592,7 @@ class ScenarioTest {
         w.c.radio.powerOff()
         advanceTimeBy(2_000)
         w.a.chat.sendText(Conversations.friend(w.c.nodeId), "mai esti?")
-        // la un minut de la trimitere urmatoarea incercare programata e inca departe
+        // a minute after sending, the next scheduled attempt is still far off
         advanceTimeBy(60_000)
         val attempts = w.a.chatStore.value.outbox.single().attempts
         w.a.chat.resend(w.a.messages.single())
@@ -617,7 +617,7 @@ class ScenarioTest {
         assertTrue(c.messages.isEmpty())
     }
 
-    // --- grupuri ---
+    // --- groups ---
 
     @Test
     fun groupMessageFansOutToEveryMemberEvenIfTheyAreNotFriends() = runTest {
@@ -649,7 +649,7 @@ class ScenarioTest {
         c.chat.sendText(conversation, "la intrare")
         advanceTimeBy(5_000)
         assertEquals("la intrare", a.messages.last().text)
-        assertEquals("B primeste de la C desi nu sunt prieteni", "la intrare", b.messages.last().text)
+        assertEquals("B receives from C even though they aren't friends", "la intrare", b.messages.last().text)
         assertEquals(c.nodeId, b.messages.last().senderId)
     }
 
@@ -666,7 +666,7 @@ class ScenarioTest {
         a.chat.createGroup("Doi", listOf(b.nodeId))
         advanceTimeBy(5_000)
         val group = a.groups.value.single()
-        // X stie id-ul grupului si isi construieste local un grup identic
+        // X knows the group id and builds an identical group locally
         x.groups.update { listOf(group) }
         x.chat.sendText(Conversations.group(group.id), "intrus")
         advanceTimeBy(5_000)

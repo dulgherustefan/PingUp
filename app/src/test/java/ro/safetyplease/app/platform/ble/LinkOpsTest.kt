@@ -16,7 +16,7 @@ import org.junit.Test
 class LinkOpsTest {
     private enum class Op { MTU, DISCOVER }
 
-    // --- legatura picata in timpul configurarii ---
+    // --- link dropped during setup ---
 
     @Test
     fun opCompletesWhenTheCallbackArrives() = runTest {
@@ -40,7 +40,7 @@ class LinkOpsTest {
     @Test
     fun dropBetweenOpsFailsTheNextOneImmediately() = runTest {
         val ops = GattOps<Op>()
-        // deconectarea vine cand nicio operatie nu e in zbor, de exemplu in pauza de dupa conectare
+        // the disconnect comes while no operation is in flight, e.g. in the pause after connecting
         ops.drop()
         var started = false
         assertFalse(ops.run(Op.MTU, 5_000) { started = true; true })
@@ -78,7 +78,7 @@ class LinkOpsTest {
         assertFalse(ops.dropped)
     }
 
-    // --- congestie ---
+    // --- congestion ---
 
     @Test
     fun congestedCountsAsSent() {
@@ -93,7 +93,7 @@ class LinkOpsTest {
         assertFalse(sendAccepted(257))
     }
 
-    // --- advertising care pica ---
+    // --- failing advertising ---
 
     @Test
     fun threeFailuresDemoteAndSlowTheRetries() {

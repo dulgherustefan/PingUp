@@ -6,7 +6,7 @@ import com.goterl.lazysodium.interfaces.Sign
 
 class KeyPair(val publicKey: ByteArray, val secretKey: ByteArray)
 
-/** Operatiile criptografice ale aplicatiei. Toate vin din libsodium; aici nu se implementeaza nimic de mana. */
+/** The app's crypto operations. Everything comes from libsodium; nothing is hand-rolled here. */
 interface Crypto {
     fun random(size: Int): ByteArray
 
@@ -18,12 +18,12 @@ interface Crypto {
 
     fun signKeyPairFromSeed(seed: ByteArray): KeyPair
 
-    /** crypto_box cu nonce aleator; intoarce nonce urmat de textul cifrat. */
+    /** crypto_box with a random nonce; returns the nonce followed by the ciphertext. */
     fun box(plain: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray
 
     fun boxOpen(data: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray?
 
-    /** Sealed box: oricine poate cripta catre cheia publica, expeditorul ramane anonim. */
+    /** Sealed box: anyone can encrypt to the public key and the sender stays anonymous. */
     fun seal(plain: ByteArray, recipientPublic: ByteArray): ByteArray
 
     fun sealOpen(data: ByteArray, recipientPublic: ByteArray, recipientSecret: ByteArray): ByteArray?

@@ -37,7 +37,7 @@ fun categoryIcon(category: Int): ImageVector = when (category) {
     else -> Sym.MoreHoriz
 }
 
-/** Cercul categoriei: rosu pal cu iconita rosie cand e urgent, gri cu iconita neagra in rest. */
+/** Category circle: pale red with a red icon when urgent, gray otherwise. */
 @Composable
 fun CategoryCircle(category: Int, urgent: Boolean, size: Dp) {
     val colors = AppTheme.colors
@@ -47,7 +47,7 @@ fun CategoryCircle(category: Int, urgent: Boolean, size: Dp) {
     )
 }
 
-/** Antetul unui raport sau incident, ca antetul unui contact in Signal: cercul categoriei, numele si unde. Rosu cand e urgent. */
+/** Header of a report or incident: category circle, name and location. Red when urgent. */
 @Composable
 fun IncidentHeader(category: Int, urgent: Boolean, subtitle: String, modifier: Modifier = Modifier, status: @Composable () -> Unit = {}) {
     val colors = AppTheme.colors
@@ -61,7 +61,7 @@ fun IncidentHeader(category: Int, urgent: Boolean, subtitle: String, modifier: M
             subtitle, style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, textAlign = TextAlign.Center,
             modifier = Modifier.padding(start = Gutter, end = Gutter, top = 2.dp),
         )
-        // starea sta sub nume, ca in fisa unui contact din Signal, nu pierduta intre butoane si harta
+        // status sits under the name, not lost between the buttons and the map
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (urgent) StatusLabel(stringResource(R.string.sev_urgent), icon = Sym.Priority, color = colors.redInk)
             status()

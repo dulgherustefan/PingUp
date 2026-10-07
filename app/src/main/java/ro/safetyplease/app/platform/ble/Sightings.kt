@@ -2,13 +2,13 @@ package ro.safetyplease.app.platform.ble
 
 import kotlin.math.roundToInt
 
-// un singur esantion variaza cu ~6 dB; ordonam dupa media recenta
+// a single sample varies by ~6 dB; sort by the recent average
 fun smoothRssi(previous: Double?, sample: Int): Double =
     if (previous == null) sample.toDouble() else previous + BleConstants.RSSI_ALPHA * (sample - previous)
 
 /**
- * Un telefon cu raza lunga se aude sub doua adrese cu acelasi prefix: setul legacy (1M) si setul Coded.
- * Motorul primeste una singura: cea de pe 1M cat timp a fost auzita recent, altfel cea auzita ultima.
+ * A long-range phone is heard under two addresses with the same prefix: the legacy set (1M) and the Coded one.
+ * The engine gets one: the 1M address while it was heard recently, otherwise the most recent one.
  */
 fun preferredAddress(legacy: String?, legacyAt: Long, coded: String?, codedAt: Long, now: Long): String? = when {
     legacy == null -> coded
@@ -18,11 +18,11 @@ fun preferredAddress(legacy: String?, legacyAt: Long, coded: String?, codedAt: L
     else -> legacy
 }
 
-/** Cel mult un raport pe secunda per adresa; un rezultat fara scan response nu ascunde unul complet. */
+/** At most one report per second per address; a result without scan response never hides a full one. */
 fun shouldReport(reportedAt: Long?, reportedFull: Boolean, full: Boolean, now: Long): Boolean =
     reportedAt == null || now - reportedAt >= BleConstants.REPORT_WINDOW_MS || (full && !reportedFull)
 
-/** Tot ce a auzit scanarea, per adresa si per prefix; decide ce ajunge la motor ca PeerSeen. */
+/** Everything the scan heard, per address and per prefix; decides what reaches the engine as PeerSeen. */
 class Sightings {
     private class Track(var heardAt: Long) {
         var rssi: Double? = null
@@ -47,8 +47,8 @@ class Sightings {
     private var withoutResponse = 0
 
     /**
-     * Inregistreaza un rezultat de scanare ([prefix] null = fara scan response) si intoarce RSSI-ul mediat
-     * de raportat, sau null daca rezultatul nu trebuie raportat.
+     * Records a scan result ([prefix] null = no scan response) and returns the averaged RSSI to report,
+     * or null if this result shouldn't be reported.
      */
     fun heard(address: String, prefix: Int?, coded: Boolean, rssi: Int, now: Long): Int? {
         val track = tracks.getOrPut(address) { Track(now) }
@@ -73,7 +73,7 @@ class Sightings {
         }
         val known = track.prefix
         if (known != null && byPrefix[known]?.preferred(now) != address) return null
-        // fara scan response nu stim flag-urile; nu stricam ce a raportat recent un rezultat complet
+        // without a scan response we don't know the flags; keep what a recent full result reported
         val fullAt = track.fullAt
         if (!full && fullAt != null && now - fullAt < BleConstants.FULL_RESULT_HOLD_MS) return null
         if (!shouldReport(track.reportedAt, track.reportedFull, full, now)) return null
@@ -82,7 +82,7 @@ class Sightings {
         return track.rssi?.roundToInt()
     }
 
-    /** Uita adresele neauzite de un minut si le intoarce, ca radioul sa-si curete si el starea. */
+    /** Forgets addresses not heard for a minute and returns them, so the radio can clear its state too. */
     fun forget(now: Long): List<String> {
         val gone = tracks.filterValues { now - it.heardAt > BleConstants.SIGHTING_FORGET_MS }.keys.toList()
         gone.forEach(tracks::remove)
@@ -90,7 +90,7 @@ class Sightings {
         return gone
     }
 
-    /** Rezultate legacy si cate dintre ele au venit fara scan response, de la ultimul apel. */
+    /** Legacy results since the last call, and how many of them came without a scan response. */
     fun drainStats(): Pair<Int, Int> {
         val stats = legacyResults to withoutResponse
         legacyResults = 0

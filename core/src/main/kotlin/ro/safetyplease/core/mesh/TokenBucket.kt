@@ -24,7 +24,7 @@ class TokenBucket(
         return true
     }
 
-    /** Cat mai e de asteptat pana la urmatorul jeton; 0 daca exista unul acum. */
+    /** Time until the next token; 0 if one is available now. */
     fun waitMs(nowMs: Long): Long {
         refill(nowMs)
         if (tokens >= 1.0) return 0
