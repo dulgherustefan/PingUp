@@ -13,25 +13,36 @@ A  →  B  →  C  →  D
 - Chat criptat cap-coadă cu prietenii, adăugați prin cod QR (se scanează amândoi). Merg și grupuri de maxim 8 persoane.
 - „Trimite zona mea" apeși pe mesaj și se deschide harta cu un pin.
 - Hartă offline, desenată local, pe baza unui fișier cu zonele evenimentului (`venue.json`).
-- Store-and-forward: dacă un telefon e offline un timp, primește raportul când revine în rețea. – bun dar scris in slop
+- Store-and-forward: dacă un telefon e offline un timp, primește raportul când revine în rețea.
 
 ## Tehnologii
 Kotlin, Jetpack Compose, Bluetooth LE (GATT), libsodium (prin lazysodium), Gradle, Python (script pentru chei de staff).
 
+## Structura
+Două module: `core/` are toată logica (protocolul, rețeaua mesh, criptarea, chatul, incidentele) în Kotlin pur, fără Android; `app/` are Bluetooth-ul, notificările și ecranele. Detalii și reguli în [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Cum rulezi proiectul
-În PowerShell, în folderul proiectului:
+Cel mai simplu: deschizi folderul în Android Studio și dai Run.
+
+Din terminal, cu JDK-ul din Android Studio:
+
+macOS / Linux
+```
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+./gradlew assembleDebug test
+```
+
+Windows (PowerShell)
 ```
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-.\gradlew.bat assembleDebug
-.\gradlew.bat testDebugUnitTest 
+.\gradlew.bat assembleDebug test
 ```
-Apoi instalezi pe telefon (cu USB debugging activat):
+
+`test` rulează testele din ambele module. Apoi instalezi pe telefon (cu USB debugging activat):
 ```
-adb install -r app\build\outputs\apk\debug\app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
-Sau deschizi proiectul în Android Studio și dai Run.
->  Calea proiectului conține `,` și `!`, așa că rulează din PowerShell sau `cmd`, nu din Git Bash.
->
+
 ## Instalare
 
 Se poate instala si de pe [ping-up.org](https://ping-up.org)
