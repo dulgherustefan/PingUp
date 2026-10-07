@@ -24,9 +24,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
-import ro.safetyplease.app.data.Role
-import ro.safetyplease.app.incidents.IncidentManager
-import ro.safetyplease.app.mesh.PowerPolicy
+import ro.safetyplease.core.data.Role
+import ro.safetyplease.core.incidents.IncidentManager
+import ro.safetyplease.core.mesh.PowerPolicy
 
 /**
  * Tine mesh-ul pornit cu ecranul stins. Android cere pentru asta un serviciu in prim-plan,

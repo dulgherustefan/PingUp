@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.BuildConfig
 import ro.safetyplease.app.R
-import ro.safetyplease.app.core.toHex
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
@@ -67,7 +66,8 @@ import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title1
 import ro.safetyplease.app.ui.rememberRadioGate
-import ro.safetyplease.app.data.Role as AppRole
+import ro.safetyplease.core.util.toHex
+import ro.safetyplease.core.data.Role as AppRole
 
 private const val DEMO_UNLOCK_TAPS = 7
 

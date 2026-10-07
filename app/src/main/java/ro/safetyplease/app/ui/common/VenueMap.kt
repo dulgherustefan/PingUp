@@ -37,13 +37,13 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import ro.safetyplease.app.data.StaffIncident
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.Sym
 import ro.safetyplease.app.ui.designsystem.caption1
-import ro.safetyplease.app.venue.GeoPoint
-import ro.safetyplease.app.venue.Venue
-import ro.safetyplease.app.venue.Zone
+import ro.safetyplease.core.data.StaffIncident
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.core.venue.Zone
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.min

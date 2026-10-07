@@ -19,17 +19,17 @@ import kotlinx.coroutines.launch
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.MainActivity
-import ro.safetyplease.app.crypto.QrCodes
-import ro.safetyplease.app.data.ChatMessage
-import ro.safetyplease.app.data.Friend
-import ro.safetyplease.app.data.Role
-import ro.safetyplease.app.data.Settings
-import ro.safetyplease.app.incidents.ReportDraft
 import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.ui.common.Nearby
-import ro.safetyplease.app.venue.GeoPoint
-import ro.safetyplease.app.venue.Venue
-import ro.safetyplease.app.venue.Zone
+import ro.safetyplease.core.crypto.QrCodes
+import ro.safetyplease.core.data.ChatMessage
+import ro.safetyplease.core.data.Friend
+import ro.safetyplease.core.data.Role
+import ro.safetyplease.core.data.Settings
+import ro.safetyplease.core.incidents.ReportDraft
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.core.venue.Zone
 
 enum class Tab { MESSAGES, REPORT, MAP, INCIDENTS }
 

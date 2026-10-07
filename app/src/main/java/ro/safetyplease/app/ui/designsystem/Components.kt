@@ -93,7 +93,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import ro.safetyplease.app.R
-import ro.safetyplease.app.data.MsgStatus
+import ro.safetyplease.core.data.MsgStatus
 
 /** Cat loc trebuie lasat jos: bara de taburi plutitoare in ecranele principale, bara de gesturi in rest. */
 val LocalBottomClearance = compositionLocalOf { 0.dp }

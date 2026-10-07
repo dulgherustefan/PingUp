@@ -5,17 +5,17 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import ro.safetyplease.app.data.Settings
-import ro.safetyplease.app.mesh.LinkInfo
-import ro.safetyplease.app.mesh.MeshState
-import ro.safetyplease.app.mesh.RadioStatus
-import ro.safetyplease.app.mesh.SeenPeer
 import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.ui.common.Nearby
-import ro.safetyplease.app.venue.Bounds
-import ro.safetyplease.app.venue.GeoPoint
-import ro.safetyplease.app.venue.Venue
-import ro.safetyplease.app.venue.Zone
+import ro.safetyplease.core.data.Settings
+import ro.safetyplease.core.mesh.LinkInfo
+import ro.safetyplease.core.mesh.MeshState
+import ro.safetyplease.core.mesh.RadioStatus
+import ro.safetyplease.core.mesh.SeenPeer
+import ro.safetyplease.core.venue.Bounds
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.core.venue.Zone
 
 class UiLogicTest {
     private fun square(id: String, lat: Double, lon: Double) =

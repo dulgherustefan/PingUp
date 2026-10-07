@@ -82,8 +82,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
-import ro.safetyplease.app.mesh.RadioStatus
-import ro.safetyplease.app.protocol.AckStatus
 import ro.safetyplease.app.ui.chat.ConversationScreen
 import ro.safetyplease.app.ui.chat.MessagesScreen
 import ro.safetyplease.app.ui.common.RadioGate
@@ -112,7 +110,9 @@ import ro.safetyplease.app.ui.people.ProfileScreen
 import ro.safetyplease.app.ui.report.MyReportsScreen
 import ro.safetyplease.app.ui.report.ReportScreen
 import ro.safetyplease.app.ui.report.ReportSentScreen
-import ro.safetyplease.app.data.Role as AppRole
+import ro.safetyplease.core.mesh.RadioStatus
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.data.Role as AppRole
 
 /** Fara acestea reteaua nu porneste. */
 fun radioPermissions(): List<String> =

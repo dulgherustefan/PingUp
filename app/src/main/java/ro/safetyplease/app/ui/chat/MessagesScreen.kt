@@ -50,13 +50,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
-import ro.safetyplease.app.data.ChatMessage
-import ro.safetyplease.app.data.Conversations
-import ro.safetyplease.app.data.Friend
-import ro.safetyplease.app.data.Group
-import ro.safetyplease.app.data.MsgKind
-import ro.safetyplease.app.data.MsgStatus
-import ro.safetyplease.app.mesh.RadioStatus
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.listTime
 import ro.safetyplease.app.text.rememberNow
@@ -84,6 +77,13 @@ import ro.safetyplease.app.ui.designsystem.pressScale
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.needsBatteryHint
 import ro.safetyplease.app.ui.rememberRadioGate
+import ro.safetyplease.core.data.ChatMessage
+import ro.safetyplease.core.data.Conversations
+import ro.safetyplease.core.data.Friend
+import ro.safetyplease.core.data.Group
+import ro.safetyplease.core.data.MsgKind
+import ro.safetyplease.core.data.MsgStatus
+import ro.safetyplease.core.mesh.RadioStatus
 
 private class ConversationRow(
     val id: String,

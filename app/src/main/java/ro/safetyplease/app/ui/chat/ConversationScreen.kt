@@ -99,14 +99,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
-import ro.safetyplease.app.data.ChatMessage
-import ro.safetyplease.app.data.Conversations
-import ro.safetyplease.app.data.Friend
-import ro.safetyplease.app.data.Group
-import ro.safetyplease.app.data.MsgKind
-import ro.safetyplease.app.data.MsgStatus
-import ro.safetyplease.app.protocol.Limits
-import ro.safetyplease.app.protocol.QuickCode
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.AppViewModel
@@ -142,7 +134,15 @@ import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.screenBackground
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title2
-import ro.safetyplease.app.venue.GeoPoint
+import ro.safetyplease.core.data.ChatMessage
+import ro.safetyplease.core.data.Conversations
+import ro.safetyplease.core.data.Friend
+import ro.safetyplease.core.data.Group
+import ro.safetyplease.core.data.MsgKind
+import ro.safetyplease.core.data.MsgStatus
+import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.QuickCode
+import ro.safetyplease.core.venue.GeoPoint
 import kotlin.math.max
 
 /** Mesajele aceluiasi om, la mai putin de atat unul de altul, fac un singur sir de baloane lipite. */

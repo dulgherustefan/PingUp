@@ -97,8 +97,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
-import ro.safetyplease.app.data.Conversations
-import ro.safetyplease.app.protocol.Limits
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.hopsText
@@ -141,6 +139,8 @@ import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title1
 import ro.safetyplease.app.ui.openAppSettings
+import ro.safetyplease.core.data.Conversations
+import ro.safetyplease.core.protocol.Limits
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 

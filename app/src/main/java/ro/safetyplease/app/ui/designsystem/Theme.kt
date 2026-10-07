@@ -31,8 +31,8 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import ro.safetyplease.app.R
-import ro.safetyplease.app.protocol.AckStatus
-import ro.safetyplease.app.protocol.Severity
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Severity
 
 /**
  * Culorile aplicatiei: asezarea Signal pe iPhone (iOS 26), cu paleta logo-ului. Verdele pinului e accentul,

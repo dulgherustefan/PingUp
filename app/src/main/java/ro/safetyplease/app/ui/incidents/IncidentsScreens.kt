@@ -48,12 +48,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
-import ro.safetyplease.app.data.StaffIncident
-import ro.safetyplease.app.incidents.Clustering
-import ro.safetyplease.app.incidents.IncidentCluster
-import ro.safetyplease.app.incidents.StatusFilter
-import ro.safetyplease.app.protocol.AckStatus
-import ro.safetyplease.app.protocol.Severity
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.hopsText
@@ -87,6 +81,12 @@ import ro.safetyplease.app.ui.designsystem.footnote
 import ro.safetyplease.app.ui.designsystem.headline
 import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.core.data.StaffIncident
+import ro.safetyplease.core.incidents.Clustering
+import ro.safetyplease.core.incidents.IncidentCluster
+import ro.safetyplease.core.incidents.StatusFilter
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Severity
 
 /**
  * Iconita si culoarea starii, pentru text: nepreluat e portocaliu, preluat e gri, rezolvat e verde.

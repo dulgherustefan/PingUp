@@ -10,10 +10,10 @@ import androidx.compose.ui.platform.LocalResources
 import kotlinx.coroutines.delay
 import ro.safetyplease.app.AppLocale
 import ro.safetyplease.app.R
-import ro.safetyplease.app.protocol.AckStatus
-import ro.safetyplease.app.protocol.IncidentCategory
-import ro.safetyplease.app.protocol.QuickCode
-import ro.safetyplease.app.protocol.Severity
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.QuickCode
+import ro.safetyplease.core.protocol.Severity
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date

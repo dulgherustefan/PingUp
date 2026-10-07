@@ -49,6 +49,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":core"))
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
@@ -77,6 +79,4 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.lazysodium.java)
-    testImplementation(libs.jna)
 }

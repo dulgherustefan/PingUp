@@ -45,21 +45,21 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
-import ro.safetyplease.app.core.hexToBytes
-import ro.safetyplease.app.core.nodePrefix
-import ro.safetyplease.app.core.shortHex
-import ro.safetyplease.app.core.toHex
-import ro.safetyplease.app.crypto.StaffCard
-import ro.safetyplease.app.crypto.StaffRole
-import ro.safetyplease.app.data.Role
-import ro.safetyplease.app.incidents.ReportDraft
-import ro.safetyplease.app.protocol.IncidentCategory
-import ro.safetyplease.app.protocol.NodeFlags
-import ro.safetyplease.app.protocol.Severity
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.designsystem.ConfirmDialog
 import ro.safetyplease.app.ui.designsystem.LocalAppColors
 import ro.safetyplease.app.ui.designsystem.ScreenScaffold
+import ro.safetyplease.core.crypto.StaffCard
+import ro.safetyplease.core.crypto.StaffRole
+import ro.safetyplease.core.data.Role
+import ro.safetyplease.core.incidents.ReportDraft
+import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.NodeFlags
+import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.core.util.hexToBytes
+import ro.safetyplease.core.util.nodePrefix
+import ro.safetyplease.core.util.shortHex
+import ro.safetyplease.core.util.toHex
 
 /** Modul demo: exista doar in build-ul debug si aduce uneltele pentru prezentare si depanarea transportului. */
 object Demo {

@@ -66,11 +66,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import ro.safetyplease.app.R
-import ro.safetyplease.app.data.MyReport
-import ro.safetyplease.app.protocol.AckStatus
-import ro.safetyplease.app.protocol.IncidentCategory
-import ro.safetyplease.app.protocol.Limits
-import ro.safetyplease.app.protocol.Severity
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.rememberNow
@@ -108,6 +103,11 @@ import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title2
 import ro.safetyplease.app.ui.rememberLocationRequest
+import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.Severity
 
 /** Categoriile care sunt urgente daca omul nu spune altfel. */
 private fun urgentByDefault(category: Int): Boolean =

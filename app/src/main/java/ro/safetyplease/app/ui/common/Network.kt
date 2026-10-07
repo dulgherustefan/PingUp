@@ -4,9 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import ro.safetyplease.app.R
-import ro.safetyplease.app.core.nodePrefix
-import ro.safetyplease.app.mesh.MeshState
-import ro.safetyplease.app.mesh.RadioStatus
+import ro.safetyplease.core.mesh.MeshState
+import ro.safetyplease.core.mesh.RadioStatus
+import ro.safetyplease.core.util.nodePrefix
 
 /** Ce arata interfata din starea mesh-ului; se schimba doar cand cineva apare, dispare sau se leaga, nu la fiecare pachet. */
 data class Nearby(

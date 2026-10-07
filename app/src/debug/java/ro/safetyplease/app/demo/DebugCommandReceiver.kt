@@ -6,16 +6,16 @@ import android.content.Intent
 import android.util.Log
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
-import ro.safetyplease.app.core.hexToBytes
-import ro.safetyplease.app.core.nodePrefix
-import ro.safetyplease.app.core.shortHex
-import ro.safetyplease.app.core.toHex
-import ro.safetyplease.app.core.toLong
-import ro.safetyplease.app.crypto.QrCodes
-import ro.safetyplease.app.data.Conversations
-import ro.safetyplease.app.protocol.AckStatus
-import ro.safetyplease.app.protocol.QuickCode
-import ro.safetyplease.app.venue.GeoPoint
+import ro.safetyplease.core.crypto.QrCodes
+import ro.safetyplease.core.data.Conversations
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.QuickCode
+import ro.safetyplease.core.util.hexToBytes
+import ro.safetyplease.core.util.nodePrefix
+import ro.safetyplease.core.util.shortHex
+import ro.safetyplease.core.util.toHex
+import ro.safetyplease.core.util.toLong
+import ro.safetyplease.core.venue.GeoPoint
 
 /**
  * Comenzi de test prin adb, doar in build-ul debug. Raspunsul apare in logcat, tag MeshDebug.

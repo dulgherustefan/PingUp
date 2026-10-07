@@ -15,14 +15,14 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.R
-import ro.safetyplease.app.data.ChatMessage
-import ro.safetyplease.app.data.MsgKind
-import ro.safetyplease.app.data.MyReport
-import ro.safetyplease.app.data.StaffIncident
-import ro.safetyplease.app.protocol.AckStatus
-import ro.safetyplease.app.protocol.Severity
 import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.venue.Venue
+import ro.safetyplease.core.data.ChatMessage
+import ro.safetyplease.core.data.MsgKind
+import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.data.StaffIncident
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.core.venue.Venue
 
 // Fiecare notify() e precedat de canPost(); lint nu vede verificarea de permisiune printr-o functie ajutatoare.
 @SuppressLint("MissingPermission")

@@ -22,4 +22,4 @@ dependencyResolutionManagement {
 
 // Gradle nu accepta spatii in numele proiectului: „Ping Up” devine „PingUp”
 rootProject.name = providers.gradleProperty("appName").get().replace(" ", "")
-include(":app")
+include(":app", ":core")

@@ -34,7 +34,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
-import ro.safetyplease.app.protocol.AckStatus
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.MapPin
@@ -59,8 +58,9 @@ import ro.safetyplease.app.ui.designsystem.initials
 import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.rememberLocationRequest
-import ro.safetyplease.app.venue.GeoPoint
-import ro.safetyplease.app.data.Role as AppRole
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.data.Role as AppRole
 
 private enum class MapFocus { MINE, MEETING, ZONE }
 
