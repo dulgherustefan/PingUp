@@ -25,7 +25,7 @@ import ro.safetyplease.app.data.Friend
 import ro.safetyplease.app.data.Role
 import ro.safetyplease.app.data.Settings
 import ro.safetyplease.app.incidents.ReportDraft
-import ro.safetyplease.app.location.GeoFix
+import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.app.venue.GeoPoint
 import ro.safetyplease.app.venue.Venue

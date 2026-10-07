@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ble
+package ro.safetyplease.app.platform.ble
 
 import java.util.UUID
 

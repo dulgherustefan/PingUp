@@ -6,11 +6,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.app.data.Settings
-import ro.safetyplease.app.location.GeoFix
 import ro.safetyplease.app.mesh.LinkInfo
 import ro.safetyplease.app.mesh.MeshState
 import ro.safetyplease.app.mesh.RadioStatus
 import ro.safetyplease.app.mesh.SeenPeer
+import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.app.venue.Bounds
 import ro.safetyplease.app.venue.GeoPoint

@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ble
+package ro.safetyplease.app.platform.ble
 
 import android.bluetooth.le.AdvertisingSetCallback
 import kotlinx.coroutines.ExperimentalCoroutinesApi

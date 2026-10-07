@@ -1,4 +1,4 @@
-package ro.safetyplease.app.crypto
+package ro.safetyplease.app.platform.keystore
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec

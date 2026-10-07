@@ -1,4 +1,4 @@
-package ro.safetyplease.app.location
+package ro.safetyplease.app.platform.location
 
 import android.Manifest
 import android.annotation.SuppressLint
