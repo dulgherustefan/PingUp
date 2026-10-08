@@ -47,3 +47,25 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Se poate instala si de pe [ping-up.org](https://ping-up.org)
 
+## Release
+
+Un tag `v1.2.3` pornește `.github/workflows/release.yml`: teste, APK de release semnat, release pe GitHub cu
+`ping-up.apk`, SHA-256-ul și amprenta certificatului. Site-ul îl preia singur în câteva minute.
+
+```
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+O singură dată, cheia de semnare (păstreaz-o: fără ea nu mai poți publica actualizări peste instalările existente):
+
+```
+keytool -genkeypair -keystore release.jks -alias pingup -keyalg RSA -keysize 4096 -validity 10000
+base64 -i release.jks
+```
+
+În Settings → Secrets and variables → Actions: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+
+Cheile de staff ale unui eveniment: `python tools/gen_staff_keys.py`. Semințele rămân în `tools/out/`, nu în git.
+Build-ul debug are o pereche separată, publică (`--demo`), pe care release-ul nu o acceptă.
+
