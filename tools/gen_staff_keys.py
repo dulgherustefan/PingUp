@@ -8,8 +8,8 @@ Public keys go into the app (app/src/main/assets/staff_public.json). Secret seed
   python tools/gen_staff_keys.py --teams "Medical 1" "Medical 2" --anchors main-stage bar
 
 Later runs reuse the seeds in tools/out/staff_seeds.json, so you can add teams without changing keys.
---new generates new keys (old QR codes stop working). --demo also copies the seeds into the debug build,
-for "activate staff without QR" in demo mode; never use --demo for a real event.
+--new generates new keys (old QR codes stop working). --demo makes a separate key pair for the debug build only
+("activate staff without QR" in demo mode). Its seeds are public; release builds have other keys and reject them.
 """
 
 import argparse
@@ -30,6 +30,7 @@ OUT = ROOT / "tools" / "out"
 SEEDS = OUT / "staff_seeds.json"
 PUBLIC = ROOT / "app" / "src" / "main" / "assets" / "staff_public.json"
 DEMO = ROOT / "app" / "src" / "debug" / "assets" / "demo_staff.json"
+DEMO_PUBLIC = ROOT / "app" / "src" / "debug" / "assets" / "staff_public.json"
 
 ROLE_STAFF = 1
 ROLE_ANCHOR = 2
@@ -43,8 +44,20 @@ def load_or_create_seeds(new: bool) -> tuple[bytes, bytes]:
         return bytes.fromhex(data["boxSeed"]), bytes.fromhex(data["signSeed"])
     box_seed, sign_seed = os.urandom(32), os.urandom(32)
     OUT.mkdir(parents=True, exist_ok=True)
+    OUT.chmod(0o700)  # the seeds and the staff QR codes are secret
     SEEDS.write_text(json.dumps({"boxSeed": box_seed.hex(), "signSeed": sign_seed.hex()}, indent=2), encoding="utf-8")
     return box_seed, sign_seed
+
+
+def write_demo_keys() -> None:
+    """A separate pair for the debug build: its public key overrides the one from main in debug."""
+    box_seed, sign_seed = os.urandom(32), os.urandom(32)
+    box_public, _ = bindings.crypto_box_seed_keypair(box_seed)
+    sign_public, _ = bindings.crypto_sign_seed_keypair(sign_seed)
+    DEMO.parent.mkdir(parents=True, exist_ok=True)
+    DEMO_PUBLIC.write_text(json.dumps({"box": box_public.hex(), "sign": sign_public.hex()}, indent=2) + "\n", encoding="utf-8")
+    DEMO.write_text(json.dumps({"boxSeed": box_seed.hex(), "signSeed": sign_seed.hex()}, indent=2) + "\n", encoding="utf-8")
+    print(f"demo keys -> {DEMO_PUBLIC.relative_to(ROOT)}, {DEMO.relative_to(ROOT)} (debug build only)")
 
 
 def qr_payload(box_seed: bytes, sign_seed: bytes, role: int, team: str, zone: str) -> str:
@@ -71,8 +84,12 @@ def main() -> None:
     parser.add_argument("--teams", nargs="*", default=["Medical 1", "Securitate 1"], help="staff team names")
     parser.add_argument("--anchors", nargs="*", default=[], help="venue.json zone ids for anchors")
     parser.add_argument("--new", action="store_true", help="generate new keys instead of reusing the saved ones")
-    parser.add_argument("--demo", action="store_true", help="also bundle the seeds in the debug build")
+    parser.add_argument("--demo", action="store_true", help="only a new key pair for the debug build")
     args = parser.parse_args()
+
+    if args.demo:
+        write_demo_keys()
+        return
 
     box_seed, sign_seed = load_or_create_seeds(args.new)
     box_public, _ = bindings.crypto_box_seed_keypair(box_seed)
@@ -81,14 +98,6 @@ def main() -> None:
     PUBLIC.parent.mkdir(parents=True, exist_ok=True)
     PUBLIC.write_text(json.dumps({"box": box_public.hex(), "sign": sign_public.hex()}, indent=2) + "\n", encoding="utf-8")
     print(f"public keys -> {PUBLIC.relative_to(ROOT)}")
-
-    if args.demo:
-        DEMO.parent.mkdir(parents=True, exist_ok=True)
-        DEMO.write_text(json.dumps({"boxSeed": box_seed.hex(), "signSeed": sign_seed.hex()}, indent=2) + "\n", encoding="utf-8")
-        print(f"demo seeds -> {DEMO.relative_to(ROOT)} (debug build only)")
-    elif DEMO.exists():
-        DEMO.unlink()
-        print("demo seeds removed: the debug build can no longer activate staff without a QR")
 
     cards = [(ROLE_STAFF, team, "") for team in args.teams]
     cards += [(ROLE_ANCHOR, f"Ancora {zone}"[:TEAM_BYTES], zone) for zone in args.anchors]

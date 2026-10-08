@@ -157,21 +157,33 @@ class CryptoTest {
         assertEquals(text, QrCodes.encodeStaff(card))
     }
 
+    private fun field(file: String, name: String): ByteArray {
+        val json = java.io.File(file).readText()
+        return Regex("\"$name\"\\s*:\\s*\"([0-9a-f]+)\"").find(json)!!.groupValues[1].hexToBytes()
+    }
+
+    private fun bundledStaff(publicFile: String) = StaffCrypto(
+        crypto,
+        StaffPublicKeys(field(publicFile, "box"), field(publicFile, "sign")),
+    )
+
     @Test
-    fun bundledDemoSeedsMatchBundledStaffPublicKeys() {
-        fun field(file: String, name: String): ByteArray {
-            val json = java.io.File(file).readText()
-            return Regex("\"$name\"\\s*:\\s*\"([0-9a-f]+)\"").find(json)!!.groupValues[1].hexToBytes()
-        }
-        val public = StaffPublicKeys(
-            field("../app/src/main/assets/staff_public.json", "box"),
-            field("../app/src/main/assets/staff_public.json", "sign"),
-        )
-        val secret = StaffCrypto(crypto, public).secretFromSeeds(
+    fun bundledDemoSeedsMatchDebugStaffPublicKeys() {
+        val secret = bundledStaff("../app/src/debug/assets/staff_public.json").secretFromSeeds(
             field("../app/src/debug/assets/demo_staff.json", "boxSeed"),
             field("../app/src/debug/assets/demo_staff.json", "signSeed"),
         )
         assertNotNull("demo mode couldn't activate staff without a QR", secret)
+    }
+
+    @Test
+    fun demoSeedsDoNotUnlockReleaseStaffKeys() {
+        // the demo seeds are public (in the repo and in the debug APK); release builds must have other keys
+        val secret = bundledStaff("../app/src/main/assets/staff_public.json").secretFromSeeds(
+            field("../app/src/debug/assets/demo_staff.json", "boxSeed"),
+            field("../app/src/debug/assets/demo_staff.json", "signSeed"),
+        )
+        assertNull(secret)
     }
 
     private fun staff(): Pair<StaffCrypto, StaffSecretKeys> {
