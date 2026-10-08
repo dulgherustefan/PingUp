@@ -13,3 +13,5 @@ captures/
 docs/
 tools/out/
 __pycache__/
+*.jks
+*.keystore
