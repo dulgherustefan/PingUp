@@ -22,7 +22,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "ro.safetyplease.app"
+        applicationId = "org.pingup.app"
         minSdk = 26
         targetSdk = 36
         versionCode = appVersionCode

@@ -20,7 +20,7 @@ import ro.safetyplease.core.venue.GeoPoint
 /**
  * Test commands over adb, debug builds only. Replies go to logcat, tag MeshDebug.
  *
- *   adb shell am broadcast -n ro.safetyplease.app/.demo.DebugCommandReceiver --es cmd status
+ *   adb shell am broadcast -n org.pingup.app/ro.safetyplease.app.demo.DebugCommandReceiver --es cmd status
  */
 class DebugCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
