@@ -1,17 +1,29 @@
+# build
 .gradle/
 .kotlin/
-.idea/
 build/
-local.properties
-*.iml
-*.apk
-*.aab
 captures/
 .externalNativeBuild/
 .cxx/
+*.apk
+*.aab
+*.hprof
+
+# local machine
+local.properties
+.idea/
+*.iml
 .DS_Store
 docs/
-tools/out/
-__pycache__/
+
+# secrets: signing keys and staff seeds never go into git
 *.jks
 *.keystore
+*.p12
+.env
+.env.*
+tools/out/
+
+# python (tools/)
+__pycache__/
+.venv/
