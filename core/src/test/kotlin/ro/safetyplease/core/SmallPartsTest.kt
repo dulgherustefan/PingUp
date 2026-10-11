@@ -4,6 +4,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -201,25 +206,97 @@ class SmallPartsTest {
     }
 
     @Test
-    fun corruptFileFallsBackToDefaultAndIsReplaced() = runTest {
-        val file = File(tmp.root, "friends.json").apply { writeText("{ nu e json") }
-        val store = JsonStore(file, ListSerializer(Friend.serializer()), emptyList(), backgroundScope)
-        assertTrue(store.value.isEmpty())
-        store.update { it + Friend(1L, "x", "00", "00", 5L) }
+    fun fileFromBeforeVersioningLoadsAsVersionOne() = runTest {
+        val file = File(tmp.root, "settings.json").apply { writeText("""{"nickname":"Ana","onboarded":true}""") }
+        val store = JsonStore(file, Settings.serializer(), Settings(), backgroundScope)
+        assertFalse(store.unreadable)
+        assertEquals("Ana", store.value.nickname)
+        assertTrue(store.value.onboarded)
+        store.update { it.copy(teamName = "Medical 1") }
         store.flush()
-        val again = JsonStore(file, ListSerializer(Friend.serializer()), emptyList(), backgroundScope)
-        assertEquals(1, again.value.size)
+        val saved = Json.parseToJsonElement(file.readText()).jsonObject
+        assertEquals(1, saved.getValue("schemaVersion").jsonPrimitive.int)
+        assertEquals("Ana", saved.getValue("data").jsonObject.getValue("nickname").jsonPrimitive.content)
+        assertEquals("Ana", JsonStore(file, Settings.serializer(), Settings(), backgroundScope).value.nickname)
     }
 
     @Test
-    fun resetClearsStateAndFile() = runTest {
+    fun olderVersionIsMigratedOnLoad() = runTest {
+        // a made-up version 2 that renamed "nick" to "nickname"; the file predates versioning
+        val file = File(tmp.root, "settings.json").apply { writeText("""{"nick":"Ana"}""") }
+        val migratedFrom = mutableListOf<Int>()
+        val store = JsonStore(file, Settings.serializer(), Settings(), backgroundScope, schemaVersion = 2) { version, data ->
+            migratedFrom += version
+            val old = data.jsonObject
+            JsonObject(old - "nick" + ("nickname" to old.getValue("nick")))
+        }
+        assertEquals(listOf(1), migratedFrom)
+        assertEquals("Ana", store.value.nickname)
+        store.flush()
+        assertEquals(2, Json.parseToJsonElement(file.readText()).jsonObject.getValue("schemaVersion").jsonPrimitive.int)
+    }
+
+    @Test
+    fun everyWriteKeepsThePreviousFileAsBackup() = runTest {
+        val file = File(tmp.root, "friends.json")
+        val backup = File(file.path + ".bak")
+        val store = JsonStore(file, ListSerializer(Friend.serializer()), emptyList(), backgroundScope)
+        store.update { it + Friend(1L, "Ana", "00", "00", 5L) }
+        store.flush()
+        assertFalse("nothing to keep before the first write", backup.exists())
+        val first = file.readText()
+        store.update { it + Friend(2L, "Bogdan", "00", "00", 6L) }
+        advanceTimeBy(1_000)
+        assertEquals(first, backup.readText())
+        assertEquals(2, JsonStore(file, ListSerializer(Friend.serializer()), emptyList(), backgroundScope).value.size)
+    }
+
+    @Test
+    fun unreadableFileIsKeptAndNeverWrittenOver() = runTest {
+        val file = File(tmp.root, "friends.json").apply { writeText("{ nu e json") }
+        val store = JsonStore(file, ListSerializer(Friend.serializer()), emptyList(), backgroundScope)
+        assertTrue(store.unreadable)
+        assertTrue(store.value.isEmpty())
+        store.update { it + Friend(1L, "x", "00", "00", 5L) }
+        advanceTimeBy(1_000)
+        store.flush()
+        assertEquals("changes stay in memory", 1, store.value.size)
+        assertEquals("{ nu e json", file.readText())
+        assertFalse(File(file.path + ".bak").exists())
+        assertTrue(JsonStore(file, ListSerializer(Friend.serializer()), emptyList(), backgroundScope).unreadable)
+
+        store.reset()
+        assertFalse("an explicit reset is the way out", store.unreadable)
+        store.update { it + Friend(2L, "y", "00", "00", 6L) }
+        store.flush()
+        assertEquals(1, JsonStore(file, ListSerializer(Friend.serializer()), emptyList(), backgroundScope).value.size)
+    }
+
+    @Test
+    fun fileFromANewerVersionIsNotWrittenOver() = runTest {
+        val newer = """{"schemaVersion":2,"data":{"nickname":"Ana","pronouns":"ea"}}"""
+        val file = File(tmp.root, "settings.json").apply { writeText(newer) }
+        val store = JsonStore(file, Settings.serializer(), Settings(), backgroundScope)
+        assertTrue(store.unreadable)
+        assertEquals("", store.value.nickname)
+        store.update { it.copy(nickname = "Bogdan") }
+        store.flush()
+        assertEquals(newer, file.readText())
+    }
+
+    @Test
+    fun resetClearsStateFileAndBackup() = runTest {
         val file = File(tmp.root, "s.json")
         val store = JsonStore(file, Settings.serializer(), Settings(), backgroundScope)
         store.update { it.copy(nickname = "x") }
         store.flush()
+        store.update { it.copy(nickname = "y") }
+        store.flush()
+        assertTrue(File(file.path + ".bak").exists())
         store.reset()
         assertEquals("", store.value.nickname)
         assertFalse(file.exists())
+        assertFalse(File(file.path + ".bak").exists())
     }
 
     // --- outbox and power ---
