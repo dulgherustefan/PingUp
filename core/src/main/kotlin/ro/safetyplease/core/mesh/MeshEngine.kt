@@ -113,6 +113,8 @@ data class MeshState(
     val received: Long = 0,
     val relayed: Long = 0,
     val dropped: Long = 0,
+    /** Packets lost because a link's send queue was full, refused or evicted for a more important one. */
+    val queueFull: Long = 0,
     val cachedReports: Int = 0,
     val counters: MeshCounters = MeshCounters(),
 ) {
@@ -144,6 +146,7 @@ class MeshEngine(
         val upAtMs: Long,
         var advertisedPrefix: Int?,
         config: MeshConfig,
+        onQueueFull: () -> Unit,
     ) {
         var peerId = 0L
         var peerFlags = 0
@@ -155,7 +158,7 @@ class MeshEngine(
         var nextSendAtMs = 0L
         var fragSeq = 0
         var pump: Job? = null
-        val queue = SendQueue()
+        val queue = SendQueue(onFull = onQueueFull)
         val reassembler = Reassembler()
         val rx = TokenBucket(config.rxBurst, config.rxPerSecond, upAtMs)
         val tx = TokenBucket(config.txBurst, config.txPerSecond, upAtMs)
@@ -199,6 +202,7 @@ class MeshEngine(
     private val sentByType = HashMap<Int, Long>()
     private val receivedByType = HashMap<Int, Long>()
     private val drops = HashMap<DropReason, Long>()
+    private var queueFullCount = 0L
 
     private val _events = MutableSharedFlow<MeshEvent>(extraBufferCapacity = 1024)
     val events: SharedFlow<MeshEvent> = _events
@@ -444,7 +448,7 @@ class MeshEngine(
             radio.disconnect(e.link)
             return
         }
-        val link = Link(e.link, e.address, e.outgoing, e.maxFrame, now, seen[e.address]?.prefix, config)
+        val link = Link(e.link, e.address, e.outgoing, e.maxFrame, now, seen[e.address]?.prefix, config) { queueFullCount++ }
         links[e.link] = link
         log.link(clock.wallMs(), link.label, if (e.outgoing) "link up (out) mtu=${e.maxFrame}" else "link up (in) mtu=${e.maxFrame}")
         startPump(link)
@@ -758,6 +762,7 @@ class MeshEngine(
             received = receivedCount,
             relayed = relayedCount,
             dropped = drops.values.sum(),
+            queueFull = queueFullCount,
             cachedReports = cache.reportCount,
             counters = MeshCounters(sentByType.toMap(), receivedByType.toMap(), drops.toMap(), storeAndForwardCount),
         )

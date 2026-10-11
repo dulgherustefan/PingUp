@@ -417,6 +417,18 @@ class MeshEngineTest {
     }
 
     @Test
+    fun packetsLostToAFullQueueAreCounted() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        world.node("B", B)
+        world.net.start()
+        advanceTimeBy(5_000)
+        repeat(200) { a.engine.broadcast(PacketType.TEST, byteArrayOf(it.toByte())) }
+        advanceTimeBy(1_000)
+        assertEquals("128 fit in the queue", 72L, a.engine.state.value.queueFull)
+    }
+
+    @Test
     fun simultaneousLinksCollapseToTheOneFromLowerId() = runTest {
         val world = World(this)
         val a = world.node("A", A)

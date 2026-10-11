@@ -94,6 +94,19 @@ class MeshPartsTest {
         assertEquals(listOf(10L, 11L, 0L), List(3) { q.poll()!!.packet.id })
     }
 
+    @Test
+    fun fullQueueCountsEveryLostItem() {
+        var lost = 0
+        val q = SendQueue(capacity = 2) { lost++ }
+        repeat(2) { q.offer(Outbound(packet(PacketType.PRIVATE, it.toLong()), true)) }
+        assertEquals(0, lost)
+        q.offer(Outbound(packet(PacketType.PRIVATE, 9), true))
+        assertEquals("refused", 1, lost)
+        q.offer(Outbound(packet(PacketType.INCIDENT_REPORT, 10), true))
+        assertEquals("evicted", 2, lost)
+        assertEquals(2, q.size)
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun awaitItemWakesOnOffer() = runTest {

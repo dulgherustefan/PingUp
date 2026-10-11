@@ -8,9 +8,9 @@ class Outbound(val packet: Packet, val own: Boolean)
 
 /**
  * Per-link send queue. Incidents always go before chat; when full, the least important item is dropped first.
- * Not thread-safe: used only from the mesh context.
+ * [onFull] runs once for every item lost that way, refused or evicted. Not thread-safe: used only from the mesh context.
  */
-class SendQueue(private val capacity: Int = 128) {
+class SendQueue(private val capacity: Int = 128, private val onFull: () -> Unit = {}) {
     private val levels = Array(LEVELS) { ArrayDeque<Outbound>() }
     private val signal = Channel<Unit>(Channel.CONFLATED)
     var size = 0
@@ -19,6 +19,7 @@ class SendQueue(private val capacity: Int = 128) {
     fun offer(item: Outbound): Boolean {
         val level = priorityOf(item.packet.type)
         if (size >= capacity) {
+            onFull()
             val victim = (LEVELS - 1 downTo level + 1).firstOrNull { levels[it].isNotEmpty() } ?: return false
             levels[victim].removeLast()
             size--

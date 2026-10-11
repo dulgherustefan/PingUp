@@ -49,9 +49,9 @@ class TestPhone(
     dir: File,
     event: TestEvent,
     seed: Long,
+    val identity: Identity = Identity.generate(testCrypto),
 ) {
     private val bg = scope.backgroundScope
-    val identity = Identity.generate(testCrypto)
     val nodeId: Long get() = identity.nodeId
     val radio = net.radio(name, nodeId.nodePrefix())
     val engine = MeshEngine(
