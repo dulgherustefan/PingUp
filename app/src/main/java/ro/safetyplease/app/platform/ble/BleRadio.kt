@@ -53,7 +53,8 @@ import java.nio.ByteBuffer
 /**
  * BLE radio: every phone is both peripheral (GATT server + advertising) and central (scanning + GATT
  * clients). Clients write without response; the server answers with notifications.
- * All state is touched only from [scope]; Android callbacks are moved there through [post].
+ * All state is touched only from [scope]; Android callbacks are moved there through [post]. Scan results are
+ * the exception: [Sightings] filters and throttles them on the callback thread, and only what it reports is posted.
  */
 @SuppressLint("MissingPermission")
 class BleRadio(
@@ -172,6 +173,7 @@ class BleRadio(
     }
 
     private val prefix = nodeId.nodePrefix()
+    private val serviceUuid = ParcelUuid(BleConstants.SERVICE)
     private val manager: BluetoothManager? = context.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? get() = manager?.adapter
     private val tasks = Channel<() -> Unit>(Channel.UNLIMITED)
@@ -205,6 +207,10 @@ class BleRadio(
     private var lastScanStartAt = -BleConstants.SCAN_START_SPACING_MS
     private var lastScanResultAt = 0L
     private var scanBlockedUntil = 0L
+    private var scanBatched = false
+
+    /** A batched scan failed to start on this stack; plain scans until the radio restarts. */
+    private var batchingBroken = false
 
     private var canAdvertise = true
     private val failures = AdvertiseFailures()
@@ -307,6 +313,7 @@ class BleRadio(
         advertiseInPlace = true
         codedDisabled = false
         codedBlockedUntil = 0L
+        batchingBroken = false
         codedPhy = adapter.isLeCodedPhySupported
         extendedAdvertising = adapter.isLeExtendedAdvertisingSupported
         maxAdvertisingDataLength = adapter.leMaximumAdvertisingDataLength
@@ -799,9 +806,11 @@ class BleRadio(
     }
 
     private fun startScanNow() {
-        val scanner = adapter?.bluetoothLeScanner ?: return
+        val adapter = adapter ?: return
+        val scanner = adapter.bluetoothLeScanner ?: return
         // the UUID filter is required for scanning to work with the screen off
-        val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(BleConstants.SERVICE)).build()
+        val filter = ScanFilter.Builder().setServiceUuid(serviceUuid).build()
+        val reportDelay = if (batchingBroken) 0L else scanReportDelay(scanMode, adapter.isOffloadedScanBatchingSupported)
         val settings = ScanSettings.Builder()
             .setScanMode(
                 when (scanMode) {
@@ -811,7 +820,7 @@ class BleRadio(
                 }
             )
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-            .setReportDelay(0)
+            .setReportDelay(reportDelay)
             // on 1M and Coded; legacy advertisements are still received
             .apply { if (longRange) setLegacy(false).setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED) }
             .build()
@@ -819,8 +828,9 @@ class BleRadio(
         lastScanStartAt = now()
         if (started) {
             scanning = true
+            scanBatched = reportDelay > 0
             scanStartedAt = lastScanStartAt
-            log("scan started ($scanMode)")
+            log("scan started ($scanMode${if (scanBatched) ", batched" else ""})")
         }
     }
 
@@ -831,9 +841,9 @@ class BleRadio(
     }
 
     private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) = post { onScan(result) }
+        override fun onScanResult(callbackType: Int, result: ScanResult) = heard(listOf(result))
 
-        override fun onBatchScanResults(results: MutableList<ScanResult>) = post { results.forEach(::onScan) }
+        override fun onBatchScanResults(results: MutableList<ScanResult>) = heard(results)
 
         override fun onScanFailed(errorCode: Int) = post {
             if (errorCode == SCAN_FAILED_ALREADY_STARTED) return@post
@@ -841,25 +851,40 @@ class BleRadio(
             // 6 = SCAN_FAILED_SCANNING_TOO_FREQUENTLY
             scanBlockedUntil = now() + if (errorCode == 6) 30_000L else 10_000L
             log("scan failed: $errorCode")
+            if (scanBatched && errorCode != 6 && !batchingBroken) {
+                batchingBroken = true
+                log("batched scan refused, scanning without batches")
+            }
             publishStatus()
         }
     }
 
-    private fun onScan(result: ScanResult) {
-        if (!active) return
-        val now = now()
-        lastScanResultAt = now
-        val address = result.device.address
-        val data = result.scanRecord?.getServiceData(ParcelUuid(BleConstants.SERVICE))
+    /** On the scan callback thread: only [sightings] may be touched here. */
+    private fun heard(results: List<ScanResult>) {
+        val devices = HashMap<String, BluetoothDevice>()
+        val adverts = results.mapNotNull { result -> advert(result)?.also { devices[it.address] = result.device } }
+        val reports = sightings.heard(adverts, now())
+        if (reports.isNotEmpty()) post { seen(reports, devices) }
+    }
+
+    private fun advert(result: ScanResult): Advert? {
+        val data = result.scanRecord?.getServiceData(serviceUuid)
         val known = data != null && data.size >= BleConstants.ADVERT_DATA_SIZE &&
             (data[0].toInt() and 0xff) == BleConstants.ADVERT_VERSION
         val peerFlags = if (known) data[1].toInt() and 0xff else NodeFlags.ACCEPTS_CONNECTIONS
         val peerPrefix = if (known) ByteBuffer.wrap(data, 2, 4).int else null
-        if (peerPrefix == prefix) return
-        scanned[address] = result.device
+        if (peerPrefix == prefix) return null
         val coded = result.primaryPhy == BluetoothDevice.PHY_LE_CODED
-        val rssi = sightings.heard(address, peerPrefix, coded, result.rssi, now) ?: return
-        events.trySend(RadioEvent.PeerSeen(address, peerPrefix, peerFlags, rssi))
+        return Advert(result.device.address, peerPrefix, peerFlags, coded, result.rssi)
+    }
+
+    private fun seen(reports: List<Advert>, devices: Map<String, BluetoothDevice>) {
+        if (!active) return
+        lastScanResultAt = now()
+        for (report in reports) {
+            scanned[report.address] = devices.getValue(report.address)
+            events.trySend(RadioEvent.PeerSeen(report.address, report.prefix, report.flags, report.rssi))
+        }
     }
 
     // --- advertising ---

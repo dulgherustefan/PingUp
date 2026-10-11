@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ro.safetyplease.core.mesh.PowerMode
 
 class SightingsTest {
     // --- RSSI average ---
@@ -145,5 +146,79 @@ class SightingsTest {
         val s = Sightings()
         assertEquals(-60, s.heard("L", 5, coded = false, rssi = -60, now = 0))
         assertEquals(-80, s.heard("C", 6, coded = true, rssi = -80, now = 100))
+    }
+
+    // --- batches, filtered before anything reaches the engine thread ---
+
+    private fun advert(address: String, prefix: Int?, rssi: Int, coded: Boolean = false) =
+        Advert(address, prefix, flags = 1, coded = coded, rssi = rssi)
+
+    @Test
+    fun batchFromOnePhoneGivesOneReport() {
+        val s = Sightings()
+        val batch = listOf(advert("A", 7, -60), advert("A", 7, -90), advert("A", 7, -90))
+        assertEquals(listOf(advert("A", 7, -60)), s.heard(batch, now = 0))
+    }
+
+    @Test
+    fun throttledResultsOfABatchStillFeedTheAverage() {
+        val s = Sightings()
+        s.heard(listOf(advert("A", 7, -60), advert("A", 7, -90), advert("A", 7, -90)), now = 0)
+        // -60 -> -69 -> -75.3 (dropped in the first batch) -> -79.71
+        assertEquals(listOf(advert("A", 7, -80)), s.heard(listOf(advert("A", 7, -90)), now = 1_000))
+    }
+
+    @Test
+    fun batchReportsEachPhoneOnce() {
+        val s = Sightings()
+        val batch = listOf(advert("A", 1, -60), advert("B", 2, -70), advert("A", 1, -60), advert("B", 2, -70))
+        assertEquals(listOf("A", "B"), s.heard(batch, now = 0).map { it.address })
+    }
+
+    @Test
+    fun batchKeepsTheFlagsOfTheReportedResult() {
+        val s = Sightings()
+        val staff = Advert("A", 1, flags = 9, coded = false, rssi = -60)
+        assertEquals(9, s.heard(listOf(staff), now = 0).single().flags)
+    }
+
+    @Test
+    fun batchWithBothPhysReportsTheLegacyAddress() {
+        val s = Sightings()
+        val batch = listOf(advert("L", 5, -60), advert("C", 5, -70, coded = true))
+        assertEquals(listOf("L"), s.heard(batch, now = 0).map { it.address })
+    }
+
+    @Test
+    fun fullResultLaterInTheBatchIsNotHidden() {
+        val s = Sightings()
+        val reports = s.heard(listOf(advert("A", null, -60), advert("A", 9, -60)), now = 0)
+        assertEquals(listOf(null, 9), reports.map { it.prefix })
+    }
+
+    @Test
+    fun everyResultOfABatchCountsForScanResponseStats() {
+        val s = Sightings()
+        s.heard(listOf(advert("A", null, -60), advert("A", null, -60), advert("A", 9, -60), advert("C", 3, -60, coded = true)), now = 0)
+        assertEquals(3 to 2, s.drainStats())
+    }
+
+    @Test
+    fun emptyBatchReportsNothing() {
+        assertTrue(Sightings().heard(emptyList(), now = 0).isEmpty())
+    }
+
+    // --- batched scanning ---
+
+    @Test
+    fun scanIsBatchedOnlyWhereTheControllerQueuesResults() {
+        assertEquals(BleConstants.SCAN_BATCH_DELAY_MS, scanReportDelay(PowerMode.BALANCED, offloadedBatching = true))
+        assertEquals(BleConstants.SCAN_BATCH_DELAY_MS, scanReportDelay(PowerMode.LOW_POWER, offloadedBatching = true))
+        assertEquals(0L, scanReportDelay(PowerMode.BALANCED, offloadedBatching = false))
+    }
+
+    @Test
+    fun hurriedScanIsNeverBatched() {
+        assertEquals(0L, scanReportDelay(PowerMode.LOW_LATENCY, offloadedBatching = true))
     }
 }

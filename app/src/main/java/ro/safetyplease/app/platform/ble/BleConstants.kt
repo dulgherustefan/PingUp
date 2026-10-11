@@ -43,6 +43,9 @@ object BleConstants {
     const val LEGACY_PREFERENCE_MS = 3_000L
     const val SIGHTING_FORGET_MS = 60_000L
 
+    /** One batch per report window: the engine gets at most one sighting per second per address anyway. */
+    const val SCAN_BATCH_DELAY_MS = REPORT_WINDOW_MS
+
     /** Android allows at most 5 scan starts per 30 s; 6.5 s apart stays under the limit. */
     const val SCAN_START_SPACING_MS = 6_500L
 

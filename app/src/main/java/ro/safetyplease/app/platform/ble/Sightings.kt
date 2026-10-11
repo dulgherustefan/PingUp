@@ -1,6 +1,10 @@
 package ro.safetyplease.app.platform.ble
 
+import ro.safetyplease.core.mesh.PowerMode
 import kotlin.math.roundToInt
+
+/** A scan result of our service; [prefix] is null when the scan response didn't arrive. */
+data class Advert(val address: String, val prefix: Int?, val flags: Int, val coded: Boolean, val rssi: Int)
 
 // a single sample varies by ~6 dB; sort by the recent average
 fun smoothRssi(previous: Double?, sample: Int): Double =
@@ -22,7 +26,17 @@ fun preferredAddress(legacy: String?, legacyAt: Long, coded: String?, codedAt: L
 fun shouldReport(reportedAt: Long?, reportedFull: Boolean, full: Boolean, now: Long): Boolean =
     reportedAt == null || now - reportedAt >= BleConstants.REPORT_WINDOW_MS || (full && !reportedFull)
 
-/** Everything the scan heard, per address and per prefix; decides what reaches the engine as PeerSeen. */
+/**
+ * Batches where the controller queues results itself, so the phone wakes once per batch, not once per advertisement.
+ * LOW_LATENCY is the hurry mode (right after a report): there every result comes as soon as it is heard.
+ */
+fun scanReportDelay(mode: PowerMode, offloadedBatching: Boolean): Long =
+    if (offloadedBatching && mode != PowerMode.LOW_LATENCY) BleConstants.SCAN_BATCH_DELAY_MS else 0L
+
+/**
+ * Everything the scan heard, per address and per prefix; decides what reaches the engine as PeerSeen.
+ * It runs on the scan callback thread, before anything is posted to the engine's thread, hence the locks.
+ */
 class Sightings {
     private class Track(var heardAt: Long) {
         var rssi: Double? = null
@@ -50,6 +64,7 @@ class Sightings {
      * Records a scan result ([prefix] null = no scan response) and returns the averaged RSSI to report,
      * or null if this result shouldn't be reported.
      */
+    @Synchronized
     fun heard(address: String, prefix: Int?, coded: Boolean, rssi: Int, now: Long): Int? {
         val track = tracks.getOrPut(address) { Track(now) }
         track.heardAt = now
@@ -82,7 +97,17 @@ class Sightings {
         return track.rssi?.roundToInt()
     }
 
+    /**
+     * The results of one scan callback, single or batched. Every result feeds the averages and the statistics;
+     * only the ones to report come back, with the averaged RSSI.
+     */
+    @Synchronized
+    fun heard(batch: List<Advert>, now: Long): List<Advert> = batch.mapNotNull { advert ->
+        heard(advert.address, advert.prefix, advert.coded, advert.rssi, now)?.let { advert.copy(rssi = it) }
+    }
+
     /** Forgets addresses not heard for a minute and returns them, so the radio can clear its state too. */
+    @Synchronized
     fun forget(now: Long): List<String> {
         val gone = tracks.filterValues { now - it.heardAt > BleConstants.SIGHTING_FORGET_MS }.keys.toList()
         gone.forEach(tracks::remove)
@@ -91,6 +116,7 @@ class Sightings {
     }
 
     /** Legacy results since the last call, and how many of them came without a scan response. */
+    @Synchronized
     fun drainStats(): Pair<Int, Int> {
         val stats = legacyResults to withoutResponse
         legacyResults = 0
@@ -98,6 +124,7 @@ class Sightings {
         return stats
     }
 
+    @Synchronized
     fun clear() {
         tracks.clear()
         byPrefix.clear()
