@@ -20,12 +20,12 @@ import org.junit.rules.TemporaryFolder
 import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.JsonStore
+import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Clustering
+import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.StatusFilter
-import ro.safetyplease.core.mesh.PowerMode
-import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Severity
@@ -337,7 +337,7 @@ class SmallPartsTest {
         assertFalse(File(file.path + ".bak").exists())
     }
 
-    // --- outbox and power ---
+    // --- outbox ---
 
     @Test
     fun outboxBackoffGrowsAndCaps() {
@@ -348,17 +348,22 @@ class SmallPartsTest {
         assertEquals(300_000L, ChatManager.backoffMs(40))
     }
 
+    // --- own reports ---
+
     @Test
-    fun powerPolicyFollowsBatteryAndOnlyScanningSpeedsUpAfterAReport() {
-        val normal = PowerPolicy.modes(batteryPercent = 80, charging = false, boost = false)
-        assertEquals(PowerMode.BALANCED to PowerMode.BALANCED, normal)
-        val low = PowerPolicy.modes(batteryPercent = 15, charging = false, boost = false)
-        assertEquals(PowerMode.LOW_POWER to PowerMode.LOW_POWER, low)
-        val lowButCharging = PowerPolicy.modes(batteryPercent = 15, charging = true, boost = false)
-        assertEquals(PowerMode.BALANCED to PowerMode.BALANCED, lowButCharging)
-        val boosted = PowerPolicy.modes(batteryPercent = 80, charging = false, boost = true)
-        assertEquals("advertising keeps its pace, so the reporter doesn't stand out", PowerMode.LOW_LATENCY to PowerMode.BALANCED, boosted)
-        val boostedLow = PowerPolicy.modes(batteryPercent = 15, charging = false, boost = true)
-        assertEquals("15 s after a report, even on low battery", PowerMode.LOW_LATENCY to PowerMode.LOW_POWER, boostedLow)
+    fun pendingLastsUntilTheNewestReportWaitingForStaffTimesOut() {
+        fun report(id: String, at: Long, status: Int = AckStatus.NONE, cancelled: Boolean = false) =
+            MyReport(id, category = 1, severity = 1, zone = "", createdAt = at, status = status, cancelled = cancelled)
+        val pending = IncidentManager.PENDING_MS
+        assertNull(IncidentManager.pendingUntil(emptyList(), 0))
+        val mine = listOf(
+            report("a", at = 0),
+            report("b", at = 60_000),
+            report("c", at = 120_000, status = AckStatus.RECEIVED),
+            report("d", at = 180_000, cancelled = true),
+        )
+        assertEquals(60_000 + pending, IncidentManager.pendingUntil(mine, 120_000))
+        assertEquals(60_000 + pending, IncidentManager.pendingUntil(mine, pending + 1))
+        assertNull(IncidentManager.pendingUntil(mine, 60_000 + pending))
     }
 }

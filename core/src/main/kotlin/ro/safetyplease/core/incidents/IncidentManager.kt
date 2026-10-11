@@ -338,6 +338,10 @@ class IncidentManager(
         fun isPending(report: MyReport, nowMs: Long): Boolean =
             report.status == AckStatus.NONE && !report.cancelled && nowMs - report.createdAt < PENDING_MS
 
+        /** When the last of our pending reports stops being pending, unless staff answers first; null if none is. */
+        fun pendingUntil(mine: List<MyReport>, nowMs: Long): Long? =
+            mine.filter { isPending(it, nowMs) }.maxOfOrNull { it.createdAt + PENDING_MS }
+
         /** The sealed copy is only for publishing a pending report again; once it stops being pending, it goes. */
         private fun List<MyReport>.withoutStaleSeals(nowMs: Long): List<MyReport> =
             map { if (it.sealed.isNotEmpty() && !isPending(it, nowMs)) it.copy(sealed = "") else it }

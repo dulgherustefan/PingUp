@@ -43,6 +43,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import ro.safetyplease.core.mesh.PowerMode
+import ro.safetyplease.core.mesh.PowerPlan
 import ro.safetyplease.core.mesh.Radio
 import ro.safetyplease.core.mesh.RadioEvent
 import ro.safetyplease.core.mesh.RadioStatus
@@ -212,6 +213,9 @@ class BleRadio(
     private var lastScanResultAt = 0L
     private var scanBlockedUntil = 0L
     private var scanBatched = false
+    private val cycle = ScanCycle()
+    private var cycleJob: Job? = null
+    private var plan: PowerPlan? = null
 
     /** A batched scan failed to start on this stack; plain scans until the radio restarts. */
     private var batchingBroken = false
@@ -341,6 +345,8 @@ class BleRadio(
         }
         active = false
         scanJob?.cancel()
+        cycleJob?.cancel()
+        cycle.resume()
         advertiseJob?.cancel()
         stopScanNow()
         legacyAdv.stop()
@@ -371,7 +377,8 @@ class BleRadio(
         val now = now()
         val stale = scanning && now - scanStartedAt > BleConstants.SCAN_RESTART_MS
         val silent = scanning && now - maxOf(lastScanResultAt, scanStartedAt) > BleConstants.SCAN_SILENCE_RESTART_MS
-        if ((!scanning || stale || silent) && scanJob?.isActive != true) requestScan()
+        val down = !scanning && !cycle.paused
+        if ((down || stale || silent) && scanJob?.isActive != true) requestScan()
         val missingSet = legacyAdv.set == null || codedAdv.wanted() && codedAdv.set == null
         if (legacyAdv.wanted() && missingSet && advertiseJob?.isActive != true) requestAdvertise()
         // MAC addresses rotate; anything not seen for a minute is useless
@@ -388,7 +395,7 @@ class BleRadio(
 
     private fun publishStatus() {
         val status = RadioStatus(
-            active, scanning, legacyAdv.set != null, canAdvertise && !failures.demoted,
+            active, scanning || cycle.paused, legacyAdv.set != null, canAdvertise && !failures.demoted,
             codedPhy, extendedAdvertising, maxAdvertisingDataLength, multipleAdvertisement, codedAdv.set != null,
         )
         if (status == lastStatus) return
@@ -412,6 +419,18 @@ class BleRadio(
         if (!active) return
         if (scanChanged) requestScan()
         if (advertiseChanged && serviceReady) requestAdvertise()
+    }
+
+    /** Applies a profile from [ro.safetyplease.core.mesh.PowerPolicy]: the stack's modes and our scan duty cycle. */
+    fun setPower(plan: PowerPlan) {
+        if (plan == this.plan) return
+        this.plan = plan
+        log("power: ${plan.profile} scan=${plan.scan} advertise=${plan.advertise} duty=${plan.duty}")
+        val scanChanged = plan.scan != scanMode
+        setPowerMode(plan.scan, plan.advertise)
+        if (!cycle.set(plan.duty) || !active || scanChanged) return
+        // a scan already running keeps its start time; a paused one starts again under the new duty
+        if (scanning) scheduleCycle() else requestScan()
     }
 
     override fun connect(address: String) {
@@ -849,6 +868,26 @@ class BleRadio(
             scanBatched = reportDelay > 0
             scanStartedAt = lastScanStartAt
             log("scan started ($scanMode${if (scanBatched) ", batched" else ""})")
+            cycle.resume()
+            scheduleCycle()
+        }
+    }
+
+    private fun scheduleCycle() {
+        cycleJob?.cancel()
+        val at = cycle.nextAt(scanning, scanStartedAt) ?: return
+        cycleJob = scope.launch {
+            delay(at - now())
+            if (!active) return@launch
+            if (cycle.paused) {
+                // out of the pause even if the start fails, so the periodic check retries it
+                cycle.resume()
+                requestScan()
+            } else {
+                stopScanNow()
+                cycle.pause(now())
+                scheduleCycle()
+            }
         }
     }
 

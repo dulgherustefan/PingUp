@@ -9,6 +9,7 @@ import android.content.pm.ServiceInfo
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -18,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -26,6 +28,7 @@ import kotlinx.coroutines.launch
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.core.data.Role
+import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.mesh.PowerPolicy
 
 /**
@@ -35,16 +38,25 @@ import ro.safetyplease.core.mesh.PowerPolicy
 class MeshService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var container: AppContainer
-    private var batteryPercent = 100
-    private var charging = false
+    private val battery = MutableStateFlow(Battery(percent = 100, charging = false))
+    private val screenOn = MutableStateFlow(true)
+    private val boosting = MutableStateFlow(false)
+    private val reportPending = MutableStateFlow(false)
+
+    private data class Battery(val percent: Int, val charging: Boolean)
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
             val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
-            if (level >= 0 && scale > 0) batteryPercent = level * 100 / scale
-            charging = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
-            applyPower()
+            val percent = if (level >= 0 && scale > 0) level * 100 / scale else battery.value.percent
+            battery.value = Battery(percent, intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0)
+        }
+    }
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            screenOn.value = intent.action == Intent.ACTION_SCREEN_ON
         }
     }
 
@@ -71,6 +83,9 @@ class MeshService : Service() {
         ContextCompat.registerReceiver(
             this, batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        screenOn.value = getSystemService(PowerManager::class.java)?.isInteractive ?: true
+        val screenEvents = IntentFilter(Intent.ACTION_SCREEN_ON).apply { addAction(Intent.ACTION_SCREEN_OFF) }
+        ContextCompat.registerReceiver(this, screenReceiver, screenEvents, ContextCompat.RECEIVER_NOT_EXPORTED)
 
         scope.launch {
             val links = container.engine.state.map { it.readyLinks }.distinctUntilChanged()
@@ -83,20 +98,32 @@ class MeshService : Service() {
         }
         scope.launch {
             container.boostUntil.collectLatest { until ->
-                applyPower()
                 val remaining = until - container.clock.monoMs()
+                boosting.value = remaining > 0
                 if (remaining > 0) {
                     delay(remaining)
-                    applyPower()
+                    boosting.value = false
                 }
             }
         }
-    }
-
-    private fun applyPower() {
-        val boost = container.clock.monoMs() < container.boostUntil.value
-        val (scan, advertise) = PowerPolicy.modes(batteryPercent, charging, boost)
-        container.meshScope.launch { container.radio.setPowerMode(scan, advertise) }
+        scope.launch {
+            container.incidentStore.state.map { it.mine }.distinctUntilChanged().collectLatest { mine ->
+                while (true) {
+                    val until = IncidentManager.pendingUntil(mine, container.clock.wallMs())
+                    reportPending.value = until != null
+                    if (until == null) break
+                    delay(until - container.clock.wallMs())
+                }
+            }
+        }
+        scope.launch {
+            val role = container.settings.state.map { it.role }.distinctUntilChanged()
+            combine(role, battery, screenOn, boosting, reportPending) { r, b, screen, boost, pending ->
+                PowerPolicy.plan(r == Role.STAFF, r == Role.ANCHOR, b.percent, b.charging, screen, boost, pending)
+            }.distinctUntilChanged().collect { plan ->
+                container.meshScope.launch { container.radio.setPower(plan) }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -105,6 +132,7 @@ class MeshService : Service() {
         if (running) {
             running = false
             runCatching { unregisterReceiver(batteryReceiver) }
+            runCatching { unregisterReceiver(screenReceiver) }
             container.meshScope.launch { container.radio.stop() }
         }
         scope.cancel()
