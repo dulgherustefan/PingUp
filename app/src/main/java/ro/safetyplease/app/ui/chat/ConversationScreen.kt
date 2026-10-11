@@ -100,6 +100,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
+import ro.safetyplease.app.text.hopsText
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
@@ -505,6 +506,8 @@ private fun MessageItem(
     val sender = if (!mine && inGroup) vm.c.chat.nameOf(message.senderId) else null
     val clock = Labels.clock(message.timeMs)
     val stateWords = if (mine) stringResource(messageStateLabel(message.status)) else null
+    // the route is known only for received messages: a delivery receipt doesn't say which way ours went
+    val route = if (mine) null else hopsText(message.hops)
 
     Column(modifier.fillMaxWidth(), horizontalAlignment = if (mine) Alignment.End else Alignment.Start) {
         Row(
@@ -557,10 +560,10 @@ private fun MessageItem(
                         }
                         BubbleText(preview, ink, bold = message.kind == MsgKind.ZONE) {
                             Row(
-                                Modifier.clearAndSetSemantics { contentDescription = listOfNotNull(stateWords, clock).joinToString(", ") },
+                                Modifier.clearAndSetSemantics { contentDescription = listOfNotNull(stateWords, clock, route).joinToString(", ") },
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(clock, style = MaterialTheme.typography.caption1, color = meta)
+                                Text(listOfNotNull(clock, route).joinToString(" · "), style = MaterialTheme.typography.caption1, color = meta)
                                 if (mine) {
                                     Spacer(Modifier.width(4.dp))
                                     DeliveryIcon(message.status, meta, colors.bubbleOut, iconSize = 12.dp)
@@ -605,7 +608,8 @@ private fun BubbleText(text: String, color: Color, bold: Boolean, footer: @Compo
         },
     ) { measurables, constraints ->
         val text = measurables[0].measure(constraints.copy(minWidth = 0))
-        val foot = measurables[1].measure(Constraints())
+        // with the route next to the time, at large font sizes the bottom line would stick out of the bubble
+        val foot = measurables[1].measure(Constraints(maxWidth = constraints.maxWidth))
         val gap = 6.dp.roundToPx()
         val lastRight = holder[0]?.let { it.getLineRight(it.lineCount - 1).toInt() } ?: text.width
         val inline = lastRight + gap + foot.width <= constraints.maxWidth

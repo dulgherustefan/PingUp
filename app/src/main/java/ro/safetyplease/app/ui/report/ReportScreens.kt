@@ -41,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -77,6 +79,7 @@ import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.categoryIcon
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppDialog
+import ro.safetyplease.app.ui.designsystem.AppMenu
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.ConfirmDialog
 import ro.safetyplease.app.ui.designsystem.EmptyState
@@ -87,10 +90,12 @@ import ro.safetyplease.app.ui.designsystem.Gutter
 import ro.safetyplease.app.ui.designsystem.InputField
 import ro.safetyplease.app.ui.designsystem.InsetGroup
 import ro.safetyplease.app.ui.designsystem.LocalBottomClearance
+import ro.safetyplease.app.ui.designsystem.MenuRow
 import ro.safetyplease.app.ui.designsystem.Motion
 import ro.safetyplease.app.ui.designsystem.NavScreen
 import ro.safetyplease.app.ui.designsystem.SectionTitle
 import ro.safetyplease.app.ui.designsystem.StatusLabel
+import ro.safetyplease.app.ui.designsystem.SwipeRow
 import ro.safetyplease.app.ui.designsystem.SwitchRow
 import ro.safetyplease.app.ui.designsystem.Sym
 import ro.safetyplease.app.ui.designsystem.TextLink
@@ -102,6 +107,7 @@ import ro.safetyplease.app.ui.designsystem.pressScale
 import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title2
+import ro.safetyplease.app.ui.isOpen
 import ro.safetyplease.app.ui.rememberLocationRequest
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.protocol.AckStatus
@@ -190,6 +196,8 @@ fun ReportScreen(vm: AppViewModel) {
     val now = rememberNow()
     // your still-open report sits above the form so you can see its progress without looking for it
     val active = incidents.mine.maxByOrNull { it.createdAt }?.takeIf { it.isOpen() && now - it.createdAt < ACTIVE_REPORT_MS }
+    var activeMenu by remember { mutableStateOf(false) }
+    var cancelId by remember { mutableStateOf<String?>(null) }
 
     Box(Modifier.fillMaxSize()) {
         NavScreen(
@@ -213,13 +221,22 @@ fun ReportScreen(vm: AppViewModel) {
                 if (active != null) {
                     SectionTitle(stringResource(R.string.report_active), top = 8.dp)
                     InsetGroup(Modifier.padding(bottom = 24.dp)) {
-                        GroupRow(
-                            stringResource(Labels.category(active.category)),
-                            subtitle = reportSubtitle(vm, active) + " · " + stepText(active),
-                            chevron = true,
-                            onClick = { vm.open(Dest.ReportSent(active.incidentId)) },
-                            leading = { CategoryCircle(active.category, active.severity == Severity.URGENT, 36.dp) },
-                        )
+                        Box {
+                            GroupRow(
+                                stringResource(Labels.category(active.category)),
+                                subtitle = reportSubtitle(vm, active) + " · " + stepText(active),
+                                chevron = true,
+                                onClick = { vm.open(Dest.ReportSent(active.incidentId)) },
+                                onLongClick = { activeMenu = true },
+                                leading = { CategoryCircle(active.category, active.severity == Severity.URGENT, 36.dp) },
+                            )
+                            AppMenu(activeMenu, { activeMenu = false }) {
+                                MenuRow(stringResource(R.string.report_cancel), {
+                                    activeMenu = false
+                                    cancelId = active.incidentId
+                                }, icon = Sym.Close, danger = true)
+                            }
+                        }
                     }
                 }
                 Text(
@@ -363,6 +380,7 @@ fun ReportScreen(vm: AppViewModel) {
             }
         }
     }
+    cancelId?.let { CancelReportDialog(vm, it) { cancelId = null } }
 }
 
 /** A zone option: the name, with a check on the right when selected. */
@@ -415,9 +433,6 @@ fun reportStep(report: MyReport): Int = when {
     report.sent -> 1
     else -> 0
 }
-
-/** The report still needs help: neither resolved nor cancelled by you. */
-private fun MyReport.isOpen() = status < AckStatus.RESOLVED && !cancelled
 
 /** Report step in a list row; a cancelled alert just says so. */
 @Composable
@@ -496,7 +511,6 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
     val more by remember { derivedStateOf { scroll.canScrollForward } }
     var footer by remember { mutableStateOf(0.dp) }
     var confirm by remember { mutableStateOf<Confirm?>(null) }
-    val haptics = rememberHaptics()
     if (report == null) {
         LaunchedEffect(Unit) { vm.back() }
         return
@@ -549,39 +563,72 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
     }
 
     when (confirm) {
-        Confirm.CANCEL -> ConfirmDialog(
-            stringResource(R.string.report_cancel_title), stringResource(R.string.report_cancel_text),
-            onDismiss = { confirm = null }, confirmLabel = stringResource(R.string.report_cancel_confirm), destructive = true,
-        ) {
-            vm.cancelReport(report.incidentId)
-            haptics.confirm()
-        }
-        Confirm.DELETE -> ConfirmDialog(
-            stringResource(R.string.report_delete_title), stringResource(R.string.report_delete_text),
-            onDismiss = { confirm = null }, confirmLabel = stringResource(R.string.delete), destructive = true,
-        ) {
-            vm.deleteReport(report.incidentId)
-            vm.back()
-        }
+        Confirm.CANCEL -> CancelReportDialog(vm, report.incidentId) { confirm = null }
+        // without the report this screen pops itself; another back() would also pop the screen below
+        Confirm.DELETE -> DeleteReportDialog(vm, report.incidentId) { confirm = null }
         null -> Unit
     }
 }
 
 private enum class Confirm { CANCEL, DELETE }
 
+/** Asked before cancelling an alert: staff will learn that help is no longer needed. */
+@Composable
+private fun CancelReportDialog(vm: AppViewModel, incidentId: String, onDismiss: () -> Unit) {
+    val haptics = rememberHaptics()
+    ConfirmDialog(
+        stringResource(R.string.report_cancel_title), stringResource(R.string.report_cancel_text),
+        onDismiss = onDismiss, confirmLabel = stringResource(R.string.report_cancel_confirm), destructive = true,
+    ) {
+        vm.cancelReport(incidentId)
+        haptics.confirm()
+    }
+}
+
+@Composable
+private fun DeleteReportDialog(vm: AppViewModel, incidentId: String, onDismiss: () -> Unit) {
+    val haptics = rememberHaptics()
+    ConfirmDialog(
+        stringResource(R.string.report_delete_title), stringResource(R.string.report_delete_text),
+        onDismiss = onDismiss, confirmLabel = stringResource(R.string.delete), destructive = true,
+    ) {
+        vm.deleteReport(incidentId)
+        haptics.confirm()
+    }
+}
+
 /** Sent reports, newest first, in a group: category, where and when, and the step they reached. */
 @Composable
 fun MyReportsScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val mine = incidents.mine.sortedByDescending { it.createdAt }
+    val closed = mine.count { !it.isOpen() }
     val colors = AppTheme.colors
+    val haptics = rememberHaptics()
     val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.canScrollBackward } }
+    var menu by remember { mutableStateOf(false) }
+    var cancelId by remember { mutableStateOf<String?>(null) }
+    var deleteId by remember { mutableStateOf<String?>(null) }
+    var clearClosed by remember { mutableStateOf(false) }
     NavScreen(
         title = stringResource(R.string.report_mine),
         background = colors.grouped,
         scrolled = scrolled,
         leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        trailing = { backdrop ->
+            if (closed > 0) {
+                Box {
+                    GlassIconButton(Sym.More, stringResource(R.string.more_options), { menu = true }, backdrop)
+                    AppMenu(menu, { menu = false }) {
+                        MenuRow(stringResource(R.string.report_delete_closed), {
+                            menu = false
+                            clearClosed = true
+                        }, icon = Sym.Delete, danger = true)
+                    }
+                }
+            }
+        },
     ) { padding ->
         if (mine.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -592,16 +639,65 @@ fun MyReportsScreen(vm: AppViewModel) {
                 item(key = "reports") {
                     InsetGroup(Modifier.padding(top = 8.dp)) {
                         mine.forEachIndexed { index, report ->
-                            GroupRow(
-                                stringResource(Labels.category(report.category)),
-                                subtitle = reportSubtitle(vm, report) + " · " + stepText(report),
-                                chevron = true,
-                                onClick = { vm.open(Dest.ReportSent(report.incidentId)) },
-                                leading = { CategoryCircle(report.category, report.severity == Severity.URGENT, 36.dp) },
-                            )
+                            // each row keeps its own swipe state: after a delete the next row doesn't inherit it
+                            key(report.incidentId) {
+                                MyReportRow(vm, report, onCancel = { cancelId = report.incidentId }, onDelete = { deleteId = report.incidentId })
+                            }
                             if (index < mine.lastIndex) GroupDivider(start = 64.dp)
                         }
                     }
+                }
+            }
+        }
+    }
+
+    cancelId?.let { CancelReportDialog(vm, it) { cancelId = null } }
+    deleteId?.let { DeleteReportDialog(vm, it) { deleteId = null } }
+    if (clearClosed) {
+        ConfirmDialog(
+            pluralStringResource(R.plurals.report_delete_closed_title, closed, closed), stringResource(R.string.report_delete_closed_text),
+            onDismiss = { clearClosed = false }, confirmLabel = stringResource(R.string.delete), destructive = true,
+        ) {
+            vm.deleteClosedReports()
+            haptics.confirm()
+        }
+    }
+}
+
+/**
+ * A report in the history. Swiped left, a closed one is deleted at once, while an open one is cancelled after a question
+ * and stays in the list as "Se anuleaza". Long-pressed, it offers the same action in a menu.
+ */
+@Composable
+private fun MyReportRow(vm: AppViewModel, report: MyReport, onCancel: () -> Unit, onDelete: () -> Unit) {
+    val open = report.isOpen()
+    var menu by remember { mutableStateOf(false) }
+    SwipeRow(
+        if (open) Sym.Close else Sym.Delete,
+        stringResource(if (open) R.string.report_cancel_confirm else R.string.delete),
+        keep = open,
+        onAction = { if (open) onCancel() else vm.deleteReport(report.incidentId) },
+    ) {
+        Box {
+            GroupRow(
+                stringResource(Labels.category(report.category)),
+                subtitle = reportSubtitle(vm, report) + " · " + stepText(report),
+                chevron = true,
+                onClick = { vm.open(Dest.ReportSent(report.incidentId)) },
+                onLongClick = { menu = true },
+                leading = { CategoryCircle(report.category, report.severity == Severity.URGENT, 36.dp) },
+            )
+            AppMenu(menu, { menu = false }) {
+                if (open) {
+                    MenuRow(stringResource(R.string.report_cancel), {
+                        menu = false
+                        onCancel()
+                    }, icon = Sym.Close, danger = true)
+                } else {
+                    MenuRow(stringResource(R.string.report_delete), {
+                        menu = false
+                        onDelete()
+                    }, icon = Sym.Delete, danger = true)
                 }
             }
         }

@@ -1,7 +1,7 @@
 package ro.safetyplease.app.ui.incidents
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -75,7 +76,9 @@ import ro.safetyplease.app.ui.designsystem.NavScreen
 import ro.safetyplease.app.ui.designsystem.SectionTitle
 import ro.safetyplease.app.ui.designsystem.SegmentedControl
 import ro.safetyplease.app.ui.designsystem.StatusLabel
+import ro.safetyplease.app.ui.designsystem.SwipeRow
 import ro.safetyplease.app.ui.designsystem.Sym
+import ro.safetyplease.app.ui.designsystem.TextLink
 import ro.safetyplease.app.ui.designsystem.body
 import ro.safetyplease.app.ui.designsystem.footnote
 import ro.safetyplease.app.ui.designsystem.headline
@@ -119,13 +122,29 @@ private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier
     StatusLabel(Labels.staffStatus(LocalContext.current, status, team), modifier, icon = icon, color = color)
 }
 
-/** Incidents tab: your avatar top left, a segmented filter under the bar, then one row per incident. */
+private fun dismissCluster(vm: AppViewModel, cluster: IncidentCluster) = cluster.incidents.forEach { vm.dismissIncident(it.incidentId) }
+
+// Take and Resolve only touch the reports in the group that aren't in that state already
+private fun takeCluster(vm: AppViewModel, cluster: IncidentCluster) =
+    cluster.incidents.filter { it.status < AckStatus.ACKNOWLEDGED }.forEach { vm.acknowledge(it.incidentId) }
+
+private fun resolveCluster(vm: AppViewModel, cluster: IncidentCluster) =
+    cluster.incidents.filter { it.status < AckStatus.RESOLVED }.forEach { vm.resolve(it.incidentId) }
+
+/**
+ * Incidents tab: your avatar top left, a segmented filter under the bar, then one row per incident.
+ * At the end of the "Inchise" filter, a link removes them all from the list.
+ */
 @Composable
 fun IncidentsScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val now = rememberNow()
+    val colors = AppTheme.colors
+    val haptics = rememberHaptics()
     var filter by rememberSaveable { mutableStateOf(StatusFilter.ACTIVE) }
+    var confirmDismiss by remember { mutableStateOf<IncidentCluster?>(null) }
+    var confirmClear by remember { mutableStateOf(false) }
     val clusters = remember(incidents.staff) { Clustering.cluster(incidents.staff) }
     // unassigned urgent incidents first, resolved ones last
     val shown = remember(clusters, filter) {
@@ -139,6 +158,7 @@ fun IncidentsScreen(vm: AppViewModel) {
     // two filters: what's still open and what's closed; unassigned urgent ones are always first
     val activeCount = clusters.count { Clustering.matches(it, StatusFilter.ACTIVE) }
     val activeLabel = stringResource(R.string.filter_active)
+    val closedCount = clusters.count { Clustering.matches(it, StatusFilter.RESOLVED) }
     val options = listOf(
         StatusFilter.ACTIVE to if (activeCount > 0) "$activeLabel · $activeCount" else activeLabel,
         StatusFilter.RESOLVED to stringResource(R.string.filter_resolved),
@@ -164,8 +184,43 @@ fun IncidentsScreen(vm: AppViewModel) {
                     else EmptyState(stringResource(R.string.incidents_filter_empty), null, icon = Sym.Check)
                 }
             } else {
-                items(shown, key = { it.lead.incidentId }) { cluster -> ClusterRow(vm, cluster, now, Modifier.animateItem()) }
+                items(shown, key = { it.lead.incidentId }) { cluster ->
+                    ClusterRow(
+                        vm, cluster, now,
+                        onDismiss = { dismissCluster(vm, cluster) },
+                        onAskDismiss = { confirmDismiss = cluster },
+                        modifier = Modifier.animateItem(),
+                    )
+                }
+                if (filter == StatusFilter.RESOLVED) {
+                    item(key = "clear") {
+                        TextLink(
+                            stringResource(R.string.incidents_dismiss_closed), { confirmClear = true },
+                            Modifier.animateItem().fillMaxWidth().wrapContentWidth().padding(top = 8.dp), color = colors.redInk,
+                        )
+                    }
+                }
             }
+        }
+    }
+
+    confirmDismiss?.let { cluster ->
+        ConfirmDialog(
+            stringResource(R.string.incident_dismiss_title), stringResource(R.string.incident_dismiss_text),
+            onDismiss = { confirmDismiss = null }, confirmLabel = stringResource(R.string.delete), destructive = true,
+        ) {
+            dismissCluster(vm, cluster)
+            haptics.confirm()
+        }
+    }
+    if (confirmClear) {
+        ConfirmDialog(
+            pluralStringResource(R.plurals.incidents_dismiss_closed_title, closedCount, closedCount),
+            stringResource(R.string.incidents_dismiss_closed_text),
+            onDismiss = { confirmClear = false }, confirmLabel = stringResource(R.string.delete), destructive = true,
+        ) {
+            vm.dismissClosedIncidents()
+            haptics.confirm()
         }
     }
 }
@@ -173,59 +228,102 @@ fun IncidentsScreen(vm: AppViewModel) {
 /**
  * Incident row: 44dp category circle (red while an urgent one is unassigned), category and status on the first line,
  * "Urgent", location, age and route on the second, then up to two lines of description.
+ * Swiped left, it leaves the list: at once if closed, after a question if still open.
+ * Long-pressed, it offers the actions of the incident page.
  */
 @Composable
-private fun ClusterRow(vm: AppViewModel, cluster: IncidentCluster, now: Long, modifier: Modifier = Modifier) {
+private fun ClusterRow(
+    vm: AppViewModel,
+    cluster: IncidentCluster,
+    now: Long,
+    onDismiss: () -> Unit,
+    onAskDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val lead = cluster.lead
     val colors = AppTheme.colors
+    val haptics = rememberHaptics()
+    var menu by remember { mutableStateOf(false) }
+    val closed = cluster.status >= AckStatus.RESOLVED
     val alarm = cluster.severity == Severity.URGENT && cluster.status < AckStatus.ACKNOWLEDGED
     val place = if (lead.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(lead.zone)
     val title = stringResource(Labels.category(lead.category)) +
         if (cluster.count > 1) " · " + pluralStringResource(R.plurals.reports, cluster.count, cluster.count) else ""
     val (statusIcon, statusColor) = statusLook(cluster.status)
-    Row(
-        modifier.fillMaxWidth().clickable(role = Role.Button) { vm.open(Dest.Incident(lead.incidentId)) }
-            .padding(horizontal = Gutter, vertical = 12.dp),
-        verticalAlignment = Alignment.Top,
+    SwipeRow(
+        Sym.Delete, stringResource(R.string.delete), keep = !closed,
+        onAction = if (closed) onDismiss else onAskDismiss, modifier = modifier,
     ) {
-        IconCircle(
-            categoryIcon(lead.category), if (alarm) colors.red.copy(alpha = 0.15f) else colors.fill,
-            if (alarm) colors.red else colors.label, size = 44.dp,
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+        Box {
+            Row(
+                Modifier.fillMaxWidth()
+                    .combinedClickable(
+                        role = Role.Button, onLongClickLabel = stringResource(R.string.more_options), onLongClick = { menu = true },
+                    ) { vm.open(Dest.Incident(lead.incidentId)) }
+                    .padding(horizontal = Gutter, vertical = 12.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                IconCircle(
+                    categoryIcon(lead.category), if (alarm) colors.red.copy(alpha = 0.15f) else colors.fill,
+                    if (alarm) colors.red else colors.label, size = 44.dp,
                 )
-                Spacer(Modifier.width(8.dp))
-                Icon(statusIcon, null, Modifier.size(16.dp), tint = statusColor)
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    stringResource(statusWord(cluster.status)), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
-                    color = statusColor, maxLines = 1,
-                )
-            }
-            // urgency is spelled out, not only colored: a red circle alone fails people who can't tell colors apart
-            val urgent = stringResource(R.string.sev_urgent)
-            val details = listOf(place, agoText(cluster.latestAt, now), hopsText(lead.hops)).joinToString(" · ")
-            Text(
-                buildAnnotatedString {
-                    if (cluster.severity == Severity.URGENT) {
-                        withStyle(SpanStyle(color = colors.redInk, fontWeight = FontWeight.SemiBold)) { append(urgent) }
-                        append(" · ")
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Icon(statusIcon, null, Modifier.size(16.dp), tint = statusColor)
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            stringResource(statusWord(cluster.status)), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
+                            color = statusColor, maxLines = 1,
+                        )
                     }
-                    append(details)
-                },
-                style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp),
-            )
-            if (lead.description.isNotEmpty()) {
-                Text(
-                    lead.description, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
-                )
+                    // urgency is spelled out, not only colored: a red circle alone fails people who can't tell colors apart
+                    val urgent = stringResource(R.string.sev_urgent)
+                    val details = listOf(place, agoText(cluster.latestAt, now), hopsText(lead.hops)).joinToString(" · ")
+                    Text(
+                        buildAnnotatedString {
+                            if (cluster.severity == Severity.URGENT) {
+                                withStyle(SpanStyle(color = colors.redInk, fontWeight = FontWeight.SemiBold)) { append(urgent) }
+                                append(" · ")
+                            }
+                            append(details)
+                        },
+                        style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp),
+                    )
+                    if (lead.description.isNotEmpty()) {
+                        Text(
+                            lead.description, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                }
+            }
+            // like the incident page: what's already done isn't offered
+            AppMenu(menu, { menu = false }) {
+                if (cluster.status < AckStatus.ACKNOWLEDGED) {
+                    MenuRow(stringResource(R.string.incident_take), {
+                        menu = false
+                        takeCluster(vm, cluster)
+                        haptics.confirm()
+                    }, icon = Sym.Check)
+                }
+                if (cluster.status < AckStatus.RESOLVED) {
+                    MenuRow(stringResource(R.string.incident_mark_resolved), {
+                        menu = false
+                        resolveCluster(vm, cluster)
+                        haptics.confirm()
+                    }, icon = Sym.CheckCircle)
+                }
+                MenuRow(stringResource(R.string.incident_dismiss), {
+                    menu = false
+                    onAskDismiss()
+                }, icon = Sym.Delete, danger = true)
             }
         }
     }
@@ -268,8 +366,9 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
             stringResource(R.string.incident_dismiss_title), stringResource(R.string.incident_dismiss_text),
             onDismiss = { confirmDismiss = false }, confirmLabel = stringResource(R.string.delete), destructive = true,
         ) {
-            cluster.incidents.forEach { vm.dismissIncident(it.incidentId) }
-            vm.back()
+            // without the incident this screen pops itself; another back() would also pop the screen below
+            dismissCluster(vm, cluster)
+            haptics.confirm()
         }
     }
 
@@ -303,7 +402,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 canTake -> AppButton(
                     stringResource(R.string.incident_take),
                     {
-                        cluster.incidents.filter { it.status < AckStatus.ACKNOWLEDGED }.forEach { vm.acknowledge(it.incidentId) }
+                        takeCluster(vm, cluster)
                         haptics.confirm()
                     },
                     Modifier.fillMaxWidth().padding(horizontal = Gutter),
@@ -311,7 +410,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 canResolve -> AppButton(
                     stringResource(R.string.incident_mark_resolved),
                     {
-                        cluster.incidents.filter { it.status < AckStatus.RESOLVED }.forEach { vm.resolve(it.incidentId) }
+                        resolveCluster(vm, cluster)
                         haptics.confirm()
                     },
                     Modifier.fillMaxWidth().padding(horizontal = Gutter),

@@ -7,11 +7,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.ui.common.Nearby
+import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.Settings
+import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.mesh.LinkInfo
 import ro.safetyplease.core.mesh.MeshState
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.mesh.SeenPeer
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
@@ -132,6 +137,46 @@ class UiLogicTest {
         assertEquals(listOf<Dest>(Dest.Conversation("f:1")), stack)
         stack.push(Dest.Profile("f:1"))
         assertEquals(2, stack.size)
+    }
+
+    // --- clearing closed ones ---
+
+    private fun report(id: String, status: Int = AckStatus.NONE, cancelled: Boolean = false) = MyReport(
+        incidentId = id, category = IncidentCategory.MEDICAL, severity = Severity.URGENT, zone = "a", createdAt = 0,
+        status = status, cancelled = cancelled,
+    )
+
+    @Test
+    fun onlyReportsThatNoLongerWaitForHelpAreClosed() {
+        val open = listOf(report("nou"), report("primit", AckStatus.RECEIVED), report("preluat", AckStatus.ACKNOWLEDGED))
+        val closed = listOf(
+            report("rezolvat", AckStatus.RESOLVED),
+            report("se-anuleaza", AckStatus.RECEIVED, cancelled = true),
+            report("anulat", AckStatus.CANCELLED, cancelled = true),
+        )
+        assertTrue(open.all { it.isOpen() })
+        assertEquals(listOf("rezolvat", "se-anuleaza", "anulat"), closedReports(open + closed))
+        assertEquals(emptyList<String>(), closedReports(open))
+    }
+
+    private fun staff(id: String, zone: String, atMin: Int, status: Int) = StaffIncident(
+        incidentId = id, category = IncidentCategory.MEDICAL, severity = Severity.MEDIUM, zone = zone,
+        reportedAt = atMin * 60_000L, receivedAt = atMin * 60_000L, hops = 2, status = status,
+    )
+
+    @Test
+    fun clearingClosedIncidentsTakesOnlyGroupsWhereEveryReportIsClosed() {
+        val incidents = listOf(
+            staff("rezolvat", "a", 0, AckStatus.RESOLVED),
+            staff("anulat", "a", 1, AckStatus.CANCELLED),
+            staff("rezolvat-langa-deschis", "b", 0, AckStatus.RESOLVED),
+            staff("deschis", "b", 1, AckStatus.RECEIVED),
+            staff("preluat", "", 0, AckStatus.ACKNOWLEDGED),
+        )
+        assertEquals(
+            "a resolved report grouped with an open one isn't under \"Inchise\", so it stays",
+            setOf("rezolvat", "anulat"), closedIncidents(incidents).toSet(),
+        )
     }
 
     @Test

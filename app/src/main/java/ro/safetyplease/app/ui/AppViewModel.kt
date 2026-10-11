@@ -24,9 +24,14 @@ import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.core.crypto.QrCodes
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.Friend
+import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
+import ro.safetyplease.core.data.StaffIncident
+import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.ReportDraft
+import ro.safetyplease.core.incidents.StatusFilter
+import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
@@ -83,6 +88,16 @@ fun currentPoint(settings: Settings, fix: GeoFix?, nowMs: Long): GeoPoint? {
 /** Coordinates are sent only if they agree with the chosen zone; otherwise the staff map pin would contradict it. */
 fun reportPoint(zone: String, point: GeoPoint?, venue: Venue): GeoPoint? =
     point?.takeIf { zone.isEmpty() || venue.zoneAt(it.lat, it.lon)?.id == zone }
+
+/** The report still needs help: neither resolved nor cancelled by you. */
+fun MyReport.isOpen() = status < AckStatus.RESOLVED && !cancelled
+
+/** Your reports that no longer wait for help: resolved, cancelled or being cancelled. */
+fun closedReports(mine: List<MyReport>): List<String> = mine.filterNot { it.isOpen() }.map { it.incidentId }
+
+/** Incidents under the "Inchise" filter: only groups where every report is resolved or cancelled. */
+fun closedIncidents(staff: List<StaffIncident>): List<String> =
+    Clustering.cluster(staff).filter { Clustering.matches(it, StatusFilter.RESOLVED) }.flatMap { cluster -> cluster.incidents.map { it.incidentId } }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     val c: AppContainer = (app as App).container
@@ -252,7 +267,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteReport(incidentId: String) = c.incidents.delete(incidentId)
 
+    fun deleteClosedReports() = closedReports(c.incidentStore.value.mine).forEach(c.incidents::delete)
+
     fun dismissIncident(incidentId: String) = c.incidents.dismiss(incidentId)
+
+    fun dismissClosedIncidents() = closedIncidents(c.incidentStore.value.staff).forEach(c.incidents::dismiss)
 
     fun retryRadio() {
         c.meshScope.launch { c.radio.retry() }

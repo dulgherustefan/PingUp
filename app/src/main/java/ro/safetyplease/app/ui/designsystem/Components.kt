@@ -1,6 +1,7 @@
 package ro.safetyplease.app.ui.designsystem
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -10,6 +11,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,18 +48,25 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
@@ -70,12 +79,15 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
@@ -94,6 +106,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import ro.safetyplease.app.R
 import ro.safetyplease.core.data.MsgStatus
+import kotlin.math.roundToInt
 
 /** Bottom space to leave: the floating tab bar on main screens, the gesture bar elsewhere. */
 val LocalBottomClearance = compositionLocalOf { 0.dp }
@@ -418,7 +431,7 @@ fun GroupDivider(start: Dp = 56.dp) {
 
 /**
  * A row in a group: icon, title with a subtitle, then the value and a chevron.
- * Without [onClick] the row isn't tappable.
+ * Without [onClick] the row isn't tappable; [onLongClick] usually opens a menu.
  */
 @Composable
 fun GroupRow(
@@ -430,13 +443,22 @@ fun GroupRow(
     tint: Color = AppTheme.colors.label,
     chevron: Boolean = false,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val c = AppTheme.colors
     Row(
         modifier.fillMaxWidth().heightIn(min = 52.dp)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .then(
+                when {
+                    onClick != null && onLongClick != null -> Modifier.combinedClickable(
+                        role = Role.Button, onLongClickLabel = stringResource(R.string.more_options), onLongClick = onLongClick, onClick = onClick,
+                    )
+                    onClick != null -> Modifier.clickable(role = Role.Button, onClick = onClick)
+                    else -> Modifier
+                },
+            )
             .padding(horizontal = Gutter, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -700,6 +722,74 @@ fun MenuRow(label: String, onClick: () -> Unit, icon: ImageVector? = null, dange
     ) {
         Text(label, style = MaterialTheme.typography.body, color = color, modifier = Modifier.weight(1f))
         if (icon != null) Icon(icon, null, Modifier.size(20.dp), tint = color)
+    }
+}
+
+/**
+ * A row you drag to the left, as in iOS lists: the action shows underneath, on red.
+ * With [keep] the row slides back after [onAction], which asks first or only changes its state;
+ * otherwise the row collapses and then [onAction] removes it from the list.
+ */
+@Composable
+fun SwipeRow(
+    icon: ImageVector,
+    label: String,
+    keep: Boolean,
+    onAction: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    // a short fling to the left is enough, a slow drag has to pass 40% of the width. The state isn't saved,
+    // so a swiped row doesn't come back swiped, firing the action again, when the screen is recreated
+    val state = remember { SwipeToDismissBoxState(SwipeToDismissBoxValue.Settled) { it * 0.4f } }
+    val haptics = rememberHaptics()
+    val reduce = LocalReduceMotion.current
+    val height = remember { Animatable(1f) }
+    val action by rememberUpdatedState(onAction)
+    val stays by rememberUpdatedState(keep)
+    val settled = state.settledValue
+    LaunchedEffect(settled) {
+        if (settled != SwipeToDismissBoxValue.EndToStart) return@LaunchedEffect
+        // what counts is what the row was when it was swiped, not what it became while collapsing
+        val act = action
+        if (stays) {
+            act()
+            state.reset()
+        } else {
+            haptics.confirm()
+            if (!reduce) height.animateTo(0f, tween(Motion.STANDARD, easing = Motion.Standard))
+            act()
+        }
+    }
+    SwipeToDismissBox(
+        state,
+        backgroundContent = { SwipeAction(state, icon, label) },
+        modifier = modifier.clipToBounds().layout { measurable, constraints ->
+            val row = measurable.measure(constraints)
+            layout(row.width, (row.height * height.value).roundToInt()) { row.place(0, 0) }
+        },
+        enableDismissFromStartToEnd = false,
+    ) { content() }
+}
+
+/** Under the dragged row: only the uncovered strip is red, with the action's icon and label at its end. */
+@Composable
+private fun SwipeAction(state: SwipeToDismissBoxState, icon: ImageVector, label: String) {
+    val red = AppTheme.colors.red
+    Box(
+        Modifier.fillMaxSize().clearAndSetSemantics {}.drawWithContent {
+            if (state.dismissDirection != SwipeToDismissBoxValue.EndToStart) return@drawWithContent
+            clipRect(left = size.width + state.requireOffset()) {
+                drawRect(red)
+                this@drawWithContent.drawContent()
+            }
+        },
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        Column(Modifier.padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, null, Modifier.size(22.dp), tint = Color.White)
+            Text(label, style = MaterialTheme.typography.caption1, fontWeight = FontWeight.Medium, color = Color.White, maxLines = 1)
+        }
     }
 }
 
