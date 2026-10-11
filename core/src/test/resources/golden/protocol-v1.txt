@@ -1,0 +1,84 @@
+# Ping Up wire format v1: golden vectors. Format: "<name> <value>"; values are lowercase hex, except qr.* (text).
+# Lines starting with # are comments. Checked both ways by core/src/test/.../protocol/GoldenVectorsTest.kt.
+# Any change to these bytes is a wire change: see PROTOCOL.md, "Golden vectors".
+#
+# Conventions: seed(B) = the 32 bytes B, B+1, ..., B+31. TIME = 1760000000 (0x68e77800).
+# INCIDENT_ID = 00112233445566778899aabbccddeeff. TOKEN = 202122...2f (16 bytes).
+# MSG = 0102030405060708, GROUP = 1112131415161718, OTHER = 2122232425262728.
+
+# X25519 key pairs come from crypto_box_seed_keypair, Ed25519 from crypto_sign_seed_keypair (libsodium).
+# staff: box seed(0x10), sign seed(0x30); alice: box seed(0x50), sign seed(0x70); bob: box seed(0x90), sign seed(0xb0).
+key.staff.box 0427a5d75c1471e72fc176011f82968caa76dbd2bd661cd736b6e8834ac58f0e
+key.staff.sign 8bb04e1c1b83dddf311f5bcddf7c50ede3c0802f47ec796e2a131cf41298d9f3
+key.alice.box 1084f97dcc3125bdd2c3ccbe57dc872fe246539a43565830f47e6e78257b3a72
+key.alice.sign 1ce56a48c82ff99162a14bc544612674e5d61fb9317e65d4055780fdbcb4dc35
+key.bob.box f7b4a75fae0c61698d629f65c0ef21b380434bcc43c139f6b0d5255e3641d863
+key.bob.sign 74fca2a3b389fb1a64d9bf52cc0dd4c2964f3804c0cf7c755e8513c6db8198dc
+# nodeId = first 8 bytes of SHA-256(sign public || box public).
+node.alice 79388b6b02a70d49
+node.bob a172a384b1dc84a5
+
+# Whole frame: TEST, ttl 7, id 0123456789abcdef, sender f0e1d2c3b4a59687, TIME, no recipient, E=0, payload "ping".
+frame.test 017f07000123456789abcdeff0e1d2c3b4a5968768e77800000470696e67
+# Whole frame: PRIVATE, ttl 5, id 0123456789abcdef, sender node.alice, TIME, recipient node.bob, E=1, payload private.box.
+frame.private 012005050123456789abcdef79388b6b02a70d4968e778000045a172a384b1dc84a5e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7bcc50159847f3c091d324a3c6dbd75d6137db72ae9d85fcef99d38bbe145743426c021490c4e822f631249d007
+# PRIVATE, ttl 7, id 0011223344556677, sender node.alice, TIME, recipient node.bob, E=1, payload 00 01 ... 3b (60 bytes),
+# split for a 64-byte frame with fragId beef: chunks of 26, 26 and 8 bytes.
+frame.fragment.0 01200707001122334455667779388b6b02a70d4968e77800001aa172a384b1dc84a5beef0003000102030405060708090a0b0c0d0e0f10111213141516171819
+frame.fragment.1 01200707001122334455667779388b6b02a70d4968e77800001aa172a384b1dc84a5beef01031a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233
+frame.fragment.2 01200707001122334455667779388b6b02a70d4968e778000008a172a384b1dc84a5beef02033435363738393a3b
+# Dedup key of frame.private (local, never sent; informative).
+dedup.private ec0ee9d19e53affb
+
+# HELLO: version 1, nodeId node.alice, flags STAFF|ACCEPTS_CONNECTIONS (0x09), no nickname.
+hello 0179388b6b02a70d490900
+# HELLO: version 1, nodeId node.alice, flags PENDING_INCIDENT (0x04), nickname "Ana" (debug builds only).
+hello.nick 0179388b6b02a70d490403416e61
+# SUMMARY: (00112233..77, report, NONE), (0102030405060708, no report, RESOLVED), (fffffffffffffffe, report, CANCELLED).
+summary 03001122334455667780010203040506070803fffffffffffffffe84
+# REQUEST: (00112233..77, report), (0102030405060708, ack), (fffffffffffffffe, report and ack).
+request 03001122334455667780010203040506070801fffffffffffffffe81
+
+# Incident body: MEDICAL, URGENT, TIME, zone "Scena mare", 44.426765, 26.102538,
+# description "Persoană căzută lângă gard", nickname "Ana", cancelHash = incident.cancelHash.
+incident.body 010368e77800070a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef7
+# Incident body: CROWD, LOW, TIME, zone "", no coordinates, description "", no nickname, no cancel hash.
+incident.body.minimal 050168e7780000000000
+# First 16 bytes of SHA-256("SP-CANCEL-v1" || TOKEN).
+incident.cancelHash 0117b666bb268fe792c6157cd295fef7
+# INCIDENT_REPORT payload: INCIDENT_ID || crypto_box_seal(incident.body) to key.staff.box, with the ephemeral key pair
+# crypto_box_seed_keypair(seed(0xd0)) instead of a random one. Real seals are randomized; only opening is fixed.
+incident.report 00112233445566778899aabbccddeeffea831a2f8791781cc3cabafbe15ae5dc6c5f9d8023c0f4df9094ecffe0981132eb2f5972d5b556fe16b3808dd6e52c618d8c865aeaac0bb596441050ad4356e18b8a4b4b890c1756a1f82a61e029c0ac673fb1be80a9ae231e335c75973e17b68df11711189a739bc2f4f37a0c4b6836564c8be113578f7eb33037b9c68b2e
+# Bytes the ACK signature covers: "SP-ACK-v1" || INCIDENT_ID, ACKNOWLEDGED, TIME+60, team "Medical 1".
+incident.ack.signed 53502d41434b2d763100112233445566778899aabbccddeeff0268e7783c094d65646963616c2031
+# INCIDENT_ACK payload: the fields above || Ed25519 signature with the staff sign key.
+incident.ack 00112233445566778899aabbccddeeff0268e7783c094d65646963616c20314c70941e2332c2f411e48c13b32a8f32560815b1dfadc4b5df15688c7e75d22ee75b6a19c219504675b9db8d231e8c5a166756a24d876eb42c2ed811dd140f07
+# INCIDENT_CANCEL payload: INCIDENT_ID || TOKEN.
+incident.cancel 00112233445566778899aabbccddeeff202122232425262728292a2b2c2d2e2f
+
+# Inner messages (plaintext inside PRIVATE).
+# Text: MSG, no group, "Ne vedem la scenă?"
+inner.text 010102030405060708004e6520766564656d206c61207363656ec4833f
+# Text: MSG, GROUP, "salut"
+inner.text.group 01010203040506070801111213141516171873616c7574
+# Quick: MSG, no group, MEET_AT_POINT (4)
+inner.quick 0201020304050607080004
+# Zone: MSG, GROUP, "bar", -22.951916, -43.210487
+inner.zone 03010203040506070803111213141516171803626172fea1c814fd6ca909
+# Zone: MSG, no group, "bar", no coordinates
+inner.zone.plain 0301020304050607080003626172
+# Ping: MSG
+inner.ping 040102030405060708
+# Pong: MSG, pingId OTHER
+inner.pong 0501020304050607082122232425262728
+# Delivered: MSG, deliveredId OTHER
+inner.delivered 0601020304050607082122232425262728
+# GroupInvite: MSG, GROUP, "Prietenii", members (node.bob, key.bob.box, "Bob"), (3132333435363738, seed(0x40), "Cora")
+inner.invite 0701020304050607081112131415161718095072696574656e696902a172a384b1dc84a5f7b4a75fae0c61698d629f65c0ef21b380434bcc43c139f6b0d5255e3641d86303426f623132333435363738404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f04436f7261
+# PRIVATE payload: nonce e0 e1 ... f7 || crypto_box(inner.text) from alice's box key to bob's.
+private.box e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7bcc50159847f3c091d324a3c6dbd75d6137db72ae9d85fcef99d38bbe145743426c021490c4e822f631249d007
+
+# Friend QR for alice, nickname "Ana".
+qr.friend SPF1.EIT5fcwxJb3Sw8y-V9yHL-JGU5pDVlgw9H5ueCV7OnIc5WpIyC_5kWKhS8VEYSZ05dYfuTF-ZdQFV4D9vLTcNQNBbmE
+# Staff QR: box seed(0x10), sign seed(0x30), role STAFF, team "Medical 1", no zone.
+qr.staff SPS1.EBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4_QEFCQ0RFRkdISUpLTE1OTwEJTWVkaWNhbCAxAA
