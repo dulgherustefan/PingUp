@@ -38,13 +38,18 @@ object BleConstants {
     const val CODED_RETRY_MS = 60_000L
 
     const val RSSI_ALPHA = 0.3
-    const val REPORT_WINDOW_MS = 1_000L
+
+    /** One batch a second: the engine gets about one sighting per second per address anyway. */
+    const val SCAN_BATCH_DELAY_MS = 1_000L
+
+    /**
+     * Just under the batch delay: a batch that arrives a few ms early still reports each address,
+     * instead of skipping it until the next batch.
+     */
+    const val REPORT_WINDOW_MS = SCAN_BATCH_DELAY_MS - 100
     const val FULL_RESULT_HOLD_MS = 10_000L
     const val LEGACY_PREFERENCE_MS = 3_000L
     const val SIGHTING_FORGET_MS = 60_000L
-
-    /** One batch per report window: the engine gets at most one sighting per second per address anyway. */
-    const val SCAN_BATCH_DELAY_MS = REPORT_WINDOW_MS
 
     /** Android allows at most 5 scan starts per 30 s; 6.5 s apart stays under the limit. */
     const val SCAN_START_SPACING_MS = 6_500L

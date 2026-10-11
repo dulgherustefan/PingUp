@@ -99,7 +99,7 @@ data class MyReport(
     val cancelToken: String = "",
     /** Cancellation was requested; it's confirmed only when [status] becomes CANCELLED. */
     val cancelled: Boolean = false,
-    /** The report as sealed for staff, hex; published again after a restart while it's pending. */
+    /** The report as sealed for staff, hex; published again after a restart while it's pending, then cleared. */
     val sealed: String = "",
 )
 

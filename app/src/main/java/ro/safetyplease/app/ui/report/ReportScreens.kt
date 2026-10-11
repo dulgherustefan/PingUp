@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -179,6 +180,7 @@ fun ReportScreen(vm: AppViewModel) {
     var urgent by rememberSaveable { mutableStateOf(false) }
     var urgentChosen by rememberSaveable { mutableStateOf(false) }
     var description by rememberSaveable { mutableStateOf("") }
+    var describing by remember { mutableStateOf(false) }
     var anonymous by rememberSaveable { mutableStateOf(true) }
     // details stay folded into one summary row; whoever has more to add expands it
     var showDetails by rememberSaveable { mutableStateOf(false) }
@@ -325,7 +327,9 @@ fun ReportScreen(vm: AppViewModel) {
                     }
                     InputField(
                         description, { description = it.take(Limits.DESCRIPTION_CHARS) }, stringResource(R.string.report_description),
-                        Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 20.dp), maxLines = 4,
+                        Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 20.dp)
+                            .onFocusChanged { describing = it.hasFocus },
+                        maxLines = 4,
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         supporting = "${description.length}/${Limits.DESCRIPTION_CHARS}", background = colors.cell,
                     )
@@ -334,13 +338,15 @@ fun ReportScreen(vm: AppViewModel) {
         }
 
         FloatingFooter((if (typing) keyboard else clearance) + 8.dp, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
-            // the app doesn't replace 112, so calling it stays one tap away while reporting
-            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.report_not_112), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
-                    modifier = Modifier.weight(1f).padding(end = 12.dp),
-                )
-                Call112Button(compact = true)
+            // the app doesn't replace 112, so calling it stays one tap away while reporting, except while typing the description
+            if (!(describing && typing)) {
+                Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.report_not_112), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                        modifier = Modifier.weight(1f).padding(end = 12.dp),
+                    )
+                    Call112Button(compact = true)
+                }
             }
             if (waitMs > 0) {
                 StatusLabel(

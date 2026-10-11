@@ -50,20 +50,25 @@ class SightingsTest {
     }
 
     @Test
-    fun clearDropsAverages() {
+    fun stopDropsAveragesAndLateResults() {
         val s = Sightings()
         s.heard("A", 1, coded = false, rssi = -60, now = 0)
-        s.clear()
+        s.stop()
+        assertNull("a callback after the radio went down", s.heard("A", 1, coded = false, rssi = -60, now = 2_000))
+        assertTrue(s.heard(listOf(advert("B", 2, -60)), now = 2_000).isEmpty())
+        assertEquals(0 to 0, s.drainStats())
+        s.start()
         assertEquals(-90, s.heard("A", 1, coded = false, rssi = -90, now = 5_000))
     }
 
     // --- reporting window ---
 
     @Test
-    fun reportWindowIsOneSecond() {
+    fun reportWindowEndsJustBeforeTheNextBatch() {
         assertTrue(shouldReport(null, false, full = true, now = 0))
-        assertEquals(false, shouldReport(0, true, full = true, now = 999))
-        assertTrue(shouldReport(0, true, full = true, now = 1_000))
+        assertEquals(false, shouldReport(0, true, full = true, now = BleConstants.REPORT_WINDOW_MS - 1))
+        assertTrue(shouldReport(0, true, full = true, now = BleConstants.REPORT_WINDOW_MS))
+        assertTrue("a batch a few ms early", shouldReport(0, true, full = true, now = BleConstants.SCAN_BATCH_DELAY_MS - 20))
     }
 
     @Test

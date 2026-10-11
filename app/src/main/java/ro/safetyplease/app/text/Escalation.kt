@@ -26,3 +26,22 @@ fun escalationsBetween(mine: List<MyReport>, afterMs: Long, untilMs: Long): List
 
 /** The next escalation moment after [afterMs], if any report still has one coming. */
 fun nextEscalation(mine: List<MyReport>, afterMs: Long): Long? = mine.mapNotNull(::escalationAt).filter { it > afterMs }.minOrNull()
+
+/**
+ * Which escalations to post as notifications. Only moments that pass after [startMs] count, so an old report doesn't
+ * ring again after a restart. A moment that passes while the app is in the foreground is held and posted when the app
+ * goes to the background, if the report still needs it then.
+ */
+class EscalationReminder(startMs: Long) {
+    private var checkedMs = startMs
+    private val held = LinkedHashSet<String>()
+
+    fun due(mine: List<MyReport>, nowMs: Long, foreground: Boolean): List<MyReport> {
+        escalationsBetween(mine, checkedMs, nowMs).forEach { held += it.incidentId }
+        checkedMs = nowMs
+        if (foreground) return emptyList()
+        val due = mine.filter { it.incidentId in held && it.needsEscalation(nowMs) }
+        held.clear()
+        return due
+    }
+}

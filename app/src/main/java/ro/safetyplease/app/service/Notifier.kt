@@ -72,10 +72,13 @@ class Notifier(private val context: Context, private val venue: Venue) {
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setContentIntent(open(MainActivity.OPEN_HOME, 0))
+            .setContentIntent(open(MainActivity.OPEN_HOME, RequestCodes.OPEN_HOME))
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
         // an anchor only relays; its screen has no report tab
-        if (!anchor) builder.addAction(R.drawable.ic_report, context.getString(R.string.action_report), open(MainActivity.OPEN_REPORT, REQUEST_REPORT))
+        if (!anchor) {
+            val report = open(MainActivity.OPEN_REPORT, RequestCodes.REPORT_ACTION)
+            builder.addAction(R.drawable.ic_report, context.getString(R.string.action_report), report)
+        }
         return builder.build()
     }
 
@@ -86,12 +89,13 @@ class Notifier(private val context: Context, private val venue: Venue) {
     /** The mesh couldn't come back on its own. Same id as the running notification, which replaces it on restart. */
     fun meshStopped() {
         if (!canPost()) return
-        val notification = NotificationCompat.Builder(context, CHANNEL_MESH)
+        // the mesh channel is silent; this one has to be noticed
+        val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.notif_mesh_stopped_title, context.getString(R.string.app_name)))
             .setContentText(context.getString(R.string.notif_mesh_stopped_text))
             .setAutoCancel(true)
-            .setContentIntent(open(MainActivity.OPEN_HOME, 0))
+            .setContentIntent(open(MainActivity.OPEN_HOME, RequestCodes.MESH_STOPPED))
             .build()
         manager.notify(FOREGROUND_ID, notification)
     }
@@ -171,7 +175,6 @@ class Notifier(private val context: Context, private val venue: Venue) {
 
     companion object {
         const val FOREGROUND_ID = 1
-        private const val REQUEST_REPORT = 2
         private const val CHANNEL_MESH = "mesh"
         private const val CHANNEL_URGENT = "incident_urgent"
         private const val CHANNEL_INCIDENT = "incident"

@@ -7,6 +7,8 @@ import kotlin.math.roundToInt
 object NodeFlags {
     const val STAFF = 0x01
     const val ANCHOR = 0x02
+
+    /** Set by older versions while their report was pending. No longer sent or read; kept so the bit isn't reused. */
     const val PENDING_INCIDENT = 0x04
     const val ACCEPTS_CONNECTIONS = 0x08
 }

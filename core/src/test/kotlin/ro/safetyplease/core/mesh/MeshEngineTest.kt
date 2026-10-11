@@ -395,7 +395,8 @@ class MeshEngineTest {
         assertTrue("rare retries, not a loop: $attempts", attempts < 20)
         val drops = b.engine.state.value.counters.drops
         assertEquals(5L, drops[DropReason.MALFORMED])
-        assertTrue((drops[DropReason.BANNED] ?: 0) >= 1)
+        assertTrue(b.engine.state.value.counters.refusedBanned >= 1)
+        assertEquals("refusals aren't packets", drops.values.sum(), b.engine.state.value.dropped)
         advanceTimeBy(4 * 60_000L)
         assertEquals(1, b.readyLinks)
     }
@@ -473,7 +474,7 @@ class MeshEngineTest {
     }
 
     @Test
-    fun advertisedFlagsFollowRoleAndFreeSlotsButNeverAPendingReport() = runTest {
+    fun flagsFollowRoleAndFreeSlotsAndHelloTellsTheSame() = runTest {
         val world = World(this)
         val a = world.node("A", A)
         val b = world.node("B", B)
@@ -481,12 +482,9 @@ class MeshEngineTest {
         runCurrent()
         assertEquals(NodeFlags.ACCEPTS_CONNECTIONS, a.radio.flags)
         a.engine.setRole(staff = true, anchor = false)
-        a.engine.setPendingIncident(true)
         assertEquals(NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, a.radio.flags)
         advanceTimeBy(5_000)
-        val atB = b.engine.state.value.links.single()
-        assertTrue("a linked neighbor still learns it from HELLO", atB.flags and NodeFlags.PENDING_INCIDENT != 0)
-        assertTrue(a.radio.advertised.none { it and NodeFlags.PENDING_INCIDENT != 0 })
+        assertEquals(NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, b.engine.state.value.links.single().flags)
     }
 
     @Test

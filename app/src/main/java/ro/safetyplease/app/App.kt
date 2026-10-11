@@ -17,12 +17,12 @@ class App : Application() {
 
             override fun onActivityStarted(activity: Activity) {
                 started++
-                container.inForeground = true
+                container.foreground.value = true
             }
 
             override fun onActivityStopped(activity: Activity) {
                 started--
-                container.inForeground = started > 0
+                container.foreground.value = started > 0
             }
 
             override fun onActivityCreated(activity: Activity, state: Bundle?) = Unit

@@ -12,12 +12,25 @@ import ro.safetyplease.app.App
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (!revives(intent.action) || !MeshService.wanted(context)) return
-        val container = (context.applicationContext as App).container
-        // without the Bluetooth permissions a connectedDevice service can't go foreground on Android 14+
-        val started = container.radio.hasPermissions() && runCatching { MeshService.start(context) }.isSuccess
-        if (!started) container.notifier.meshStopped()
+        val container by lazy { (context.applicationContext as App).container }
+        when (afterBoot(intent.action, MeshService.wanted(context)) { container.radio.hasPermissions() }) {
+            BootAction.NOTHING -> Unit
+            BootAction.START -> if (runCatching { MeshService.start(context) }.isFailure) container.notifier.meshStopped()
+            BootAction.NOTIFY -> container.notifier.meshStopped()
+        }
     }
+}
+
+enum class BootAction { NOTHING, START, NOTIFY }
+
+/**
+ * After [action]: the mesh comes back only if it was running before. Without the Bluetooth permissions a
+ * connectedDevice service can't go foreground on Android 14+, so the user is asked to open the app instead.
+ */
+fun afterBoot(action: String?, wanted: Boolean, hasPermissions: () -> Boolean): BootAction = when {
+    !revives(action) || !wanted -> BootAction.NOTHING
+    hasPermissions() -> BootAction.START
+    else -> BootAction.NOTIFY
 }
 
 /** The broadcasts after which Android lets us start the mesh from the background. */

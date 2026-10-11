@@ -323,6 +323,7 @@ class BleRadio(
         maxAdvertisingDataLength = adapter.leMaximumAdvertisingDataLength
         multipleAdvertisement = adapter.isMultipleAdvertisementSupported
         longRange = BleConstants.LONG_RANGE && codedPhy && extendedAdvertising
+        sightings.start()
         log(
             "radio up, advertising ${if (canAdvertise) "supported" else "NOT SUPPORTED (leaf phone)"}, " +
                 "coded=$codedPhy extended=$extendedAdvertising maxAdv=$maxAdvertisingDataLength " +
@@ -355,7 +356,7 @@ class BleRadio(
         serviceReady = false
         notifySignal?.complete(false)
         scanned.clear()
-        sightings.clear()
+        sightings.stop()
         serverMtu.clear()
         log("radio down")
         publishStatus()

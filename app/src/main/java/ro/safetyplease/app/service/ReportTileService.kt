@@ -21,7 +21,8 @@ class ReportTileService : TileService() {
             .putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_REPORT)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startActivityAndCollapse(PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+            val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            startActivityAndCollapse(PendingIntent.getActivity(this, RequestCodes.REPORT_TILE, intent, flags))
         } else {
             startActivityAndCollapse(intent)
         }

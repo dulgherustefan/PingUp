@@ -73,11 +73,6 @@ class IncidentManager(
         scope.launch {
             resumeCancels()
             republishPending()
-            refreshPending()
-            while (isActive) {
-                delay(30_000)
-                refreshPending()
-            }
         }
         scope.launch {
             while (isActive) {
@@ -117,13 +112,12 @@ class IncidentManager(
             lat = draft.lat, lon = draft.lon, description = description, anonymous = nickname == null,
             createdAt = now, updatedAt = now, cancelToken = cancelToken.toHex(), sealed = sealed.toHex(),
         )
-        store.update { it.copy(mine = (it.mine + report).takeLast(MAX_MINE)) }
+        store.update { it.copy(mine = (it.mine.withoutStaleSeals(now) + report).takeLast(MAX_MINE)) }
         scope.launch {
             val packet = engine.publishReport(incidentId, sealed)
             packetToIncident[packet.id] = report.incidentId
             // a staff phone never receives its own report from the network, so it opens it directly
             onReport(packet, hops = 0, alert = false)
-            refreshPending()
             onReportSent()
         }
         return true
@@ -138,7 +132,8 @@ class IncidentManager(
         if (report.cancelled || report.status >= AckStatus.RESOLVED || report.cancelToken.isEmpty()) return
         val now = clock.wallMs()
         store.update { data ->
-            data.copy(mine = data.mine.map { if (it.incidentId == incidentId) it.copy(cancelled = true, updatedAt = now) else it })
+            val mine = data.mine.map { if (it.incidentId == incidentId) it.copy(cancelled = true, updatedAt = now) else it }
+            data.copy(mine = mine.withoutStaleSeals(now))
         }
         val id = incidentId.hexToBytes()
         val token = report.cancelToken.hexToBytes()
@@ -148,7 +143,6 @@ class IncidentManager(
             engine.publishCancel(id, token)
             // a staff phone never receives its own packet from the network, so it applies the cancel itself
             onCancel(IncidentCancel(id, token))
-            refreshPending()
         }
     }
 
@@ -287,7 +281,7 @@ class IncidentManager(
                     if (it.incidentId == key && ack.status > it.status) {
                         it.copy(status = ack.status, teamName = ack.teamName, updatedAt = now, sent = true).also { r -> updated = r }
                     } else it
-                },
+                }.withoutStaleSeals(now),
                 staff = data.staff.map {
                     if (it.incidentId == key && ack.status > it.status) it.copy(status = ack.status, teamName = ack.teamName, statusAt = now)
                     else it
@@ -296,7 +290,6 @@ class IncidentManager(
         }
         updated?.let(onReportUpdate)
         if (clearsAlert) onStaffAlertCleared(key)
-        refreshPending()
     }
 
     /** Until the CANCELLED ACK arrives, a cancel can be lost like any packet; every resend is a new packet. */
@@ -319,17 +312,14 @@ class IncidentManager(
     /** The cache was lost with the process; a report still waiting for staff must not be lost with it. */
     private fun republishPending() {
         val now = clock.wallMs()
+        if (store.value.mine.any { it.sealed.isNotEmpty() && !isPending(it, now) }) {
+            store.update { it.copy(mine = it.mine.withoutStaleSeals(now)) }
+        }
         for (r in store.value.mine) {
             if (!isPending(r, now) || r.sealed.isEmpty()) continue
             val packet = engine.publishReport(r.incidentId.hexToBytes(), r.sealed.hexToBytes())
             packetToIncident[packet.id] = r.incidentId
         }
-    }
-
-    /** While one of our reports hasn't reached staff, new neighbors learn it from our HELLO. */
-    private fun refreshPending() {
-        val now = clock.wallMs()
-        engine.setPendingIncident(store.value.mine.any { isPending(it, now) })
     }
 
     companion object {
@@ -347,5 +337,9 @@ class IncidentManager(
         /** Our report that hasn't reached staff yet and wasn't withdrawn. */
         fun isPending(report: MyReport, nowMs: Long): Boolean =
             report.status == AckStatus.NONE && !report.cancelled && nowMs - report.createdAt < PENDING_MS
+
+        /** The sealed copy is only for publishing a pending report again; once it stops being pending, it goes. */
+        private fun List<MyReport>.withoutStaleSeals(nowMs: Long): List<MyReport> =
+            map { if (it.sealed.isNotEmpty() && !isPending(it, nowMs)) it.copy(sealed = "") else it }
     }
 }

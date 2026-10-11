@@ -215,7 +215,7 @@ class ScenarioTest {
     }
 
     @Test
-    fun pendingReportNeverReachesTheAdvertising() = runTest {
+    fun pendingReportReachesNeitherTheAdvertisingNorHello() = runTest {
         val w = chain()
         w.d.radio.powerOff()
         advanceTimeBy(2_000)
@@ -224,6 +224,8 @@ class ScenarioTest {
         assertTrue("still waiting for staff", IncidentManager.isPending(w.a.myReports.single(), w.world.clock.wallMs()))
         assertTrue(w.a.radio.advertised.isNotEmpty())
         assertTrue(w.a.radio.advertised.none { it and NodeFlags.PENDING_INCIDENT != 0 })
+        val fromA = w.b.engine.state.value.links.single { it.peerId == w.a.nodeId }
+        assertEquals(0, fromA.flags and NodeFlags.PENDING_INCIDENT)
     }
 
     /** Stands in for the app being killed and started again: a new phone on the same incident store. */
@@ -244,6 +246,7 @@ class ScenarioTest {
         a.incidents.report(medical())
         advanceTimeBy(2_000)
         val id = a.myReports.single().incidentId
+        assertTrue("kept while pending", a.myReports.single().sealed.isNotEmpty())
 
         // killed before any neighbor showed up: the report lived only in the mesh cache
         val again = restart(world, a, "A2")
@@ -252,6 +255,7 @@ class ScenarioTest {
         advanceTimeBy(30_000)
         assertEquals(id, d.staffIncidents.single().incidentId)
         assertEquals(AckStatus.RECEIVED, again.myReports.single().status)
+        assertEquals("staff has it, the copy goes", "", again.myReports.single().sealed)
     }
 
     @Test
@@ -266,8 +270,11 @@ class ScenarioTest {
         a.incidents.cancel(a.myReports.last().incidentId)
         advanceTimeBy(2_000)
 
+        assertEquals("withdrawn, the copy goes", "", a.myReports.last().sealed)
+
         val again = restart(world, a, "A2")
         assertEquals(0, again.engine.state.value.cachedReports)
+        assertTrue("expired, the copy goes", again.myReports.all { it.sealed.isEmpty() })
         world.net.start()
         advanceTimeBy(30_000)
         assertTrue(d.staffIncidents.isEmpty())

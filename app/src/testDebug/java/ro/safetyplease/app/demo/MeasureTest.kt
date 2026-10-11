@@ -3,7 +3,9 @@ package ro.safetyplease.app.demo
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import ro.safetyplease.app.platform.ble.Advert
+import ro.safetyplease.core.mesh.DropReason
 import ro.safetyplease.core.mesh.LinkInfo
+import ro.safetyplease.core.mesh.MeshCounters
 import ro.safetyplease.core.mesh.MeshState
 import ro.safetyplease.core.mesh.SeenPeer
 
@@ -72,11 +74,15 @@ class MeasureTest {
         val state = MeshState(
             links = listOf(LinkInfo(1, "A", 7L, null, 1, true, false, 0), LinkInfo(2, "B", 0L, null, 1, false, false, 0)),
             seen = listOf(SeenPeer("A", 1, 1, -60, 0), SeenPeer("B", 1, 1, -70, 0), SeenPeer("C", 2, 1, -80, 0)),
-            sent = 10, received = 20, relayed = 5, dropped = 2, cachedReports = 3,
+            sent = 10, received = 20, relayed = 5, dropped = 2, queueFull = 4, cachedReports = 3,
+            counters = MeshCounters(
+                drops = mapOf(DropReason.RATE_LIMIT to 1L, DropReason.DUPLICATE to 1L), storeAndForward = 6, refusedBanned = 7,
+            ),
         )
         assertEquals(
             listOf("mesh_sent" to "10", "mesh_received" to "20", "mesh_relayed" to "5", "mesh_dropped" to "2",
-                "cached_reports" to "3", "links" to "1", "visible_peers" to "2"),
+                "mesh_queue_full" to "4", "mesh_refused_banned" to "7", "mesh_store_and_forward" to "6",
+                "cached_reports" to "3", "links" to "1", "visible_peers" to "2", "drop_duplicate" to "1", "drop_rate_limit" to "1"),
             meshStats(state).map { it.name to it.value },
         )
     }

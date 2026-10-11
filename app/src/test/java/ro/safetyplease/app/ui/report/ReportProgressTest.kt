@@ -7,6 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.ESCALATE_AFTER_MS
+import ro.safetyplease.app.text.EscalationReminder
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.escalationAt
 import ro.safetyplease.app.text.escalationsBetween
@@ -106,6 +107,36 @@ class ReportProgressTest {
         assertEquals(at + 60_000, nextEscalation(mine, at))
         assertNull(nextEscalation(mine, at + 60_000))
         assertEquals("moments before the app started aren't told", emptyList<MyReport>(), escalationsBetween(mine, at + 90_000, at + 150_000))
+    }
+
+    @Test
+    fun momentPassedInTheForegroundIsToldWhenTheAppLeaves() {
+        val waiting = report("a")
+        val at = t0 + ESCALATE_AFTER_MS
+        val reminder = EscalationReminder(t0)
+        assertEquals(emptyList<MyReport>(), reminder.due(listOf(waiting), at, foreground = true))
+        assertEquals(emptyList<MyReport>(), reminder.due(listOf(waiting), at + 30_000, foreground = true))
+        assertEquals(listOf(waiting), reminder.due(listOf(waiting), at + 60_000, foreground = false))
+        assertEquals("only once", emptyList<MyReport>(), reminder.due(listOf(waiting), at + 90_000, foreground = false))
+    }
+
+    @Test
+    fun heldMomentIsDroppedIfStaffConfirmsMeanwhile() {
+        val at = t0 + ESCALATE_AFTER_MS
+        val reminder = EscalationReminder(t0)
+        reminder.due(listOf(report("a")), at, foreground = true)
+        val taken = report("a", status = AckStatus.ACKNOWLEDGED, team = "Medical 1")
+        assertEquals(emptyList<MyReport>(), reminder.due(listOf(taken), at + 60_000, foreground = false))
+    }
+
+    @Test
+    fun inTheBackgroundTheMomentIsToldRightAway() {
+        val waiting = report("a")
+        val reminder = EscalationReminder(t0)
+        assertEquals(listOf(waiting), reminder.due(listOf(waiting), t0 + ESCALATE_AFTER_MS, foreground = false))
+        val restarted = EscalationReminder(t0 + ESCALATE_AFTER_MS)
+        val later = t0 + 2 * ESCALATE_AFTER_MS
+        assertEquals("not again after a restart", emptyList<MyReport>(), restarted.due(listOf(waiting), later, foreground = false))
     }
 
     // --- where help is measured from ---

@@ -86,9 +86,6 @@ enum class DropReason(val label: String) {
     QUEUE_FULL("queue full"),
     RATE_LIMIT("rate limit"),
     MALFORMED("malformed"),
-
-    /** Counts links and HELLOs refused because the peer is banned, not single packets. */
-    BANNED("banned"),
     BEFORE_HELLO("before HELLO"),
     IGNORED("ignorat"),
     TEST("test"),
@@ -103,6 +100,8 @@ data class MeshCounters(
     val drops: Map<DropReason, Long> = emptyMap(),
     /** Reports and ACKs queued for a neighbor that requested them after a SUMMARY. */
     val storeAndForward: Long = 0,
+    /** Links and HELLOs refused because the peer is banned. Not packets, so not in [MeshState.dropped]. */
+    val refusedBanned: Long = 0,
 )
 
 data class MeshState(
@@ -112,8 +111,13 @@ data class MeshState(
     val sent: Long = 0,
     val received: Long = 0,
     val relayed: Long = 0,
+    /** Packets dropped on the way in or out, the sum of [MeshCounters.drops]. */
     val dropped: Long = 0,
-    /** Packets lost because a link's send queue was full, refused or evicted for a more important one. */
+    /**
+     * Packets lost because a link's send queue was full, refused or evicted for a more important one. Overlaps
+     * [dropped]: a flooded packet the queue refuses is counted in both, as [DropReason.QUEUE_FULL]; an evicted one,
+     * or a refused link-local packet or store-and-forward reply, only here.
+     */
     val queueFull: Long = 0,
     val cachedReports: Int = 0,
     val counters: MeshCounters = MeshCounters(),
@@ -192,7 +196,6 @@ class MeshEngine(
     private var roleFlags = 0
     private var limits = LinkLimits.DEFAULT
     private var nickname: String? = null
-    private var pendingIncident = false
     private var advertisedFlags = -1
 
     private var sentCount = 0L
@@ -203,6 +206,7 @@ class MeshEngine(
     private val receivedByType = HashMap<Int, Long>()
     private val drops = HashMap<DropReason, Long>()
     private var queueFullCount = 0L
+    private var refusedBannedCount = 0L
 
     private val _events = MutableSharedFlow<MeshEvent>(extraBufferCapacity = 1024)
     val events: SharedFlow<MeshEvent> = _events
@@ -249,11 +253,6 @@ class MeshEngine(
 
     fun setNickname(value: String?) {
         nickname = value?.truncateUtf8(Limits.NICK_BYTES)
-    }
-
-    /** Told only to neighbors in HELLO; advertising never carries it. */
-    fun setPendingIncident(pending: Boolean) {
-        pendingIncident = pending
     }
 
     /** Demo mode: don't connect to these prefixes and drop everything from or to them. */
@@ -363,7 +362,7 @@ class MeshEngine(
 
     private fun sendHello(link: Link) {
         val nick = if (config.nicknameInHello) nickname else null
-        sendLocal(link, PacketType.HELLO, Hello(PacketCodec.VERSION, nodeId, helloFlags(), nick).encode())
+        sendLocal(link, PacketType.HELLO, Hello(PacketCodec.VERSION, nodeId, currentFlags(), nick).encode())
     }
 
     private fun sendSummary(link: Link) {
@@ -443,7 +442,7 @@ class MeshEngine(
         val banned = (bannedAddressesUntil[e.address] ?: 0) > now
         val overLimit = !e.outgoing && links.values.count { !it.outgoing && !it.closing } >= limits.maxIn
         if (banned || overLimit || e.maxFrame < PacketCodec.MIN_FRAME) {
-            if (banned) drops.bump(DropReason.BANNED)
+            if (banned) refusedBannedCount++
             log.link(clock.wallMs(), e.address.takeLast(5), "refuzat")
             radio.disconnect(e.link)
             return
@@ -533,7 +532,7 @@ class MeshEngine(
         val now = clock.monoMs()
         val banned = (bannedNodesUntil[hello.nodeId] ?: 0) > now
         if (hello.nodeId == nodeId || banned) {
-            if (banned) drops.bump(DropReason.BANNED)
+            if (banned) refusedBannedCount++
             close(link)
             return
         }
@@ -731,8 +730,11 @@ class MeshEngine(
         close(link)
     }
 
-    /** What any scanner nearby sees: a pending report stays out of it, so the reporter isn't a beacon. */
-    private fun advertisingFlags(): Int {
+    /**
+     * What any scanner nearby sees and what HELLO tells a neighbor. A pending report stays out of both,
+     * so the reporter isn't a beacon.
+     */
+    private fun currentFlags(): Int {
         var flags = roleFlags
         if (links.values.count { !it.outgoing && !it.closing } < limits.maxIn) {
             flags = flags or NodeFlags.ACCEPTS_CONNECTIONS
@@ -740,11 +742,8 @@ class MeshEngine(
         return flags
     }
 
-    private fun helloFlags(): Int =
-        if (pendingIncident) advertisingFlags() or NodeFlags.PENDING_INCIDENT else advertisingFlags()
-
     private fun refreshFlags() {
-        val flags = advertisingFlags()
+        val flags = currentFlags()
         if (flags == advertisedFlags) return
         advertisedFlags = flags
         radio.setAdvertisedFlags(flags)
@@ -764,7 +763,9 @@ class MeshEngine(
             dropped = drops.values.sum(),
             queueFull = queueFullCount,
             cachedReports = cache.reportCount,
-            counters = MeshCounters(sentByType.toMap(), receivedByType.toMap(), drops.toMap(), storeAndForwardCount),
+            counters = MeshCounters(
+                sentByType.toMap(), receivedByType.toMap(), drops.toMap(), storeAndForwardCount, refusedBannedCount,
+            ),
         )
     }
 

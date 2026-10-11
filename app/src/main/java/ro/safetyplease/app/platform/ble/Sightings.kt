@@ -22,7 +22,7 @@ fun preferredAddress(legacy: String?, legacyAt: Long, coded: String?, codedAt: L
     else -> legacy
 }
 
-/** At most one report per second per address; a result without scan response never hides a full one. */
+/** About one report per second per address; a result without scan response never hides a full one. */
 fun shouldReport(reportedAt: Long?, reportedFull: Boolean, full: Boolean, now: Long): Boolean =
     reportedAt == null || now - reportedAt >= BleConstants.REPORT_WINDOW_MS || (full && !reportedFull)
 
@@ -36,6 +36,7 @@ fun scanReportDelay(mode: PowerMode, offloadedBatching: Boolean): Long =
 /**
  * Everything the scan heard, per address and per prefix; decides what reaches the engine as PeerSeen.
  * It runs on the scan callback thread, before anything is posted to the engine's thread, hence the locks.
+ * After [stop] it ignores results until [start]: a scan callback can still arrive after the radio went down.
  */
 class Sightings {
     private class Track(var heardAt: Long) {
@@ -59,6 +60,7 @@ class Sightings {
     private val byPrefix = HashMap<Int, Addresses>()
     private var legacyResults = 0
     private var withoutResponse = 0
+    private var on = true
 
     /**
      * Records a scan result ([prefix] null = no scan response) and returns the averaged RSSI to report,
@@ -66,6 +68,7 @@ class Sightings {
      */
     @Synchronized
     fun heard(address: String, prefix: Int?, coded: Boolean, rssi: Int, now: Long): Int? {
+        if (!on) return null
         val track = tracks.getOrPut(address) { Track(now) }
         track.heardAt = now
         track.rssi = smoothRssi(track.rssi, rssi)
@@ -125,7 +128,14 @@ class Sightings {
     }
 
     @Synchronized
-    fun clear() {
+    fun start() {
+        on = true
+    }
+
+    /** Forgets everything heard. */
+    @Synchronized
+    fun stop() {
+        on = false
         tracks.clear()
         byPrefix.clear()
         drainStats()

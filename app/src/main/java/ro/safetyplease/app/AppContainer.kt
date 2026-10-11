@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -21,7 +22,7 @@ import ro.safetyplease.app.platform.ble.BleRadio
 import ro.safetyplease.app.platform.keystore.KeyVault
 import ro.safetyplease.app.platform.location.LocationSource
 import ro.safetyplease.app.service.Notifier
-import ro.safetyplease.app.text.escalationsBetween
+import ro.safetyplease.app.text.EscalationReminder
 import ro.safetyplease.app.text.nextEscalation
 import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.crypto.Crypto
@@ -96,8 +97,8 @@ class AppContainer(private val app: Application) {
     /** Until when (monotonic) scanning and advertising stay at LOW_LATENCY after an incident is sent. */
     val boostUntil = MutableStateFlow(0L)
 
-    @Volatile
-    var inForeground = false
+    /** An activity of the app is started. */
+    val foreground = MutableStateFlow(false)
 
     @Volatile
     var openConversation: String? = null
@@ -106,7 +107,7 @@ class AppContainer(private val app: Application) {
         meshScope, engine, crypto, identity, friends, groups, chatStore, clock, SecureRandom().asKotlinRandom(),
         myNickname = { settings.value.nickname },
     ) { message, sender ->
-        if (!inForeground || openConversation != message.conversation) notifier.chatMessage(message, sender)
+        if (!foreground.value || openConversation != message.conversation) notifier.chatMessage(message, sender)
     }
 
     val incidents = IncidentManager(
@@ -115,7 +116,7 @@ class AppContainer(private val app: Application) {
         teamName = { settings.value.teamName },
         onStaffAlert = { notifier.staffAlert(it) },
         onStaffAlertCleared = { notifier.cancelStaffAlert(it) },
-        onReportUpdate = { if (!inForeground) notifier.reportUpdate(it, clock.wallMs()) },
+        onReportUpdate = { if (!foreground.value) notifier.reportUpdate(it, clock.wallMs()) },
         onReportSent = { boostUntil.value = clock.monoMs() + PowerPolicy.BOOST_MS },
     )
 
@@ -133,18 +134,14 @@ class AppContainer(private val app: Application) {
         meshScope.launch { remindUnconfirmed() }
     }
 
-    /**
-     * When an urgent report of yours has waited too long for a person on staff, tells you so if the app is in the background.
-     * Only moments that pass while the process runs count, so an old report doesn't ring again after a restart.
-     */
+    /** When an urgent report of yours has waited too long for a person on staff, tells you so from the background. */
     private suspend fun remindUnconfirmed() {
-        var checked = clock.wallMs()
-        incidentStore.state.collectLatest { data ->
+        val reminder = EscalationReminder(clock.wallMs())
+        combine(incidentStore.state, foreground) { data, fg -> data.mine to fg }.collectLatest { (mine, fg) ->
             while (true) {
                 val now = clock.wallMs()
-                escalationsBetween(data.mine, checked, now).forEach { if (!inForeground) notifier.reportUpdate(it, now) }
-                checked = now
-                val next = nextEscalation(data.mine, now) ?: break
+                reminder.due(mine, now, fg).forEach { notifier.reportUpdate(it, now) }
+                val next = nextEscalation(mine, now) ?: break
                 delay(next - now)
             }
         }
