@@ -17,6 +17,8 @@ data class Settings(
     val simLat: Double? = null,
     val simLon: Double? = null,
     val batteryHintDismissed: Boolean = false,
+    /** Zone the user said they're in, used while there's no GPS fix. */
+    val manualZone: String = "",
 )
 
 @Serializable

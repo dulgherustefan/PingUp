@@ -13,14 +13,15 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
+import ro.safetyplease.app.text.needsEscalation
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MsgKind
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.StaffIncident
-import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.Venue
 
@@ -65,7 +66,7 @@ class Notifier(private val context: Context, private val venue: Venue) {
             links == 0 -> context.getString(R.string.notif_mesh_searching)
             else -> context.resources.getQuantityString(R.plurals.notif_mesh_links, links, links)
         }
-        return NotificationCompat.Builder(context, CHANNEL_MESH)
+        val builder = NotificationCompat.Builder(context, CHANNEL_MESH)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(if (anchor) R.string.notif_mesh_title_anchor else R.string.notif_mesh_title))
             .setContentText(text)
@@ -73,7 +74,9 @@ class Notifier(private val context: Context, private val venue: Venue) {
             .setOnlyAlertOnce(true)
             .setContentIntent(open(MainActivity.OPEN_HOME, 0))
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build()
+        // an anchor only relays; its screen has no report tab
+        if (!anchor) builder.addAction(R.drawable.ic_report, context.getString(R.string.action_report), open(MainActivity.OPEN_REPORT, REQUEST_REPORT))
+        return builder.build()
     }
 
     fun updateForeground(links: Int, anchor: Boolean) {
@@ -102,22 +105,35 @@ class Notifier(private val context: Context, private val venue: Venue) {
 
     fun cancelStaffAlert(incidentId: String) = manager.cancel(incidentId.hashCode())
 
-    fun reportUpdate(report: MyReport) {
+    /**
+     * Status of your report, in the same words as its screen. An urgent report nobody on staff has confirmed in time
+     * tells you to look for help in person and offers to call 112.
+     */
+    fun reportUpdate(report: MyReport, nowMs: Long) {
         if (!canPost()) return
-        val text = when (report.status) {
-            AckStatus.RECEIVED -> context.getString(R.string.status_received)
-            AckStatus.ACKNOWLEDGED -> context.getString(R.string.status_acknowledged, report.teamName)
-            AckStatus.RESOLVED -> context.getString(R.string.status_resolved)
-            else -> return
+        val status = Labels.myReportStatus(report.status, report.teamName.isNotEmpty())?.let {
+            if (it == R.string.status_acknowledged) context.getString(it, report.teamName) else context.getString(it)
         }
-        val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
+        val escalate = report.needsEscalation(nowMs)
+        if (status == null && !escalate) return
+        val id = report.incidentId.hashCode() xor 0x5a5a
+        val builder = NotificationCompat.Builder(context, CHANNEL_STATUS)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.notif_report_title))
-            .setContentText(text)
             .setAutoCancel(true)
-            .setContentIntent(open(MainActivity.OPEN_REPORT, 1))
-            .build()
-        manager.notify(report.incidentId.hashCode() xor 0x5a5a, notification)
+            .setContentIntent(open(MainActivity.OPEN_REPORT_PREFIX + report.incidentId, id))
+        if (escalate) {
+            val advice = context.getString(R.string.report_escalate_text)
+            val call = PendingIntent.getActivity(
+                context, id, Emergency.dialIntent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE,
+            )
+            builder.setContentTitle(context.getString(R.string.report_escalate_title))
+                .setContentText(advice)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(listOfNotNull(advice, status).joinToString("\n")))
+                .addAction(R.drawable.ic_phone, context.getString(R.string.emergency_call), call)
+        } else {
+            builder.setContentTitle(context.getString(R.string.notif_report_title)).setContentText(status)
+        }
+        manager.notify(id, builder.build())
     }
 
     fun chatMessage(message: ChatMessage, senderName: String) {
@@ -142,6 +158,7 @@ class Notifier(private val context: Context, private val venue: Venue) {
 
     companion object {
         const val FOREGROUND_ID = 1
+        private const val REQUEST_REPORT = 2
         private const val CHANNEL_MESH = "mesh"
         private const val CHANNEL_URGENT = "incident_urgent"
         private const val CHANNEL_INCIDENT = "incident"

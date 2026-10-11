@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.core.data.MyReport
@@ -177,6 +178,21 @@ class UiLogicTest {
             "a resolved report grouped with an open one isn't under \"Inchise\", so it stays",
             setOf("rezolvat", "anulat"), closedIncidents(incidents).toSet(),
         )
+    }
+
+    // --- links from outside the app ---
+
+    @Test
+    fun reportLinkOpensTheCategoriesWithNothingOnTop() {
+        assertEquals(Tab.REPORT to null, landing(MainActivity.OPEN_REPORT))
+    }
+
+    @Test
+    fun linksLandOnTheirTabAndScreen() {
+        assertEquals(Tab.REPORT to Dest.ReportSent("ab12"), landing(MainActivity.OPEN_REPORT_PREFIX + "ab12"))
+        assertEquals(Tab.MESSAGES to Dest.Conversation("f1"), landing(MainActivity.OPEN_CHAT_PREFIX + "f1"))
+        assertEquals(Tab.INCIDENTS to null, landing(MainActivity.OPEN_INCIDENTS))
+        assertNull("home keeps the tab the user was on", landing(MainActivity.OPEN_HOME))
     }
 
     @Test

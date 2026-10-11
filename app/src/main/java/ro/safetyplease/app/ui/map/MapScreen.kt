@@ -110,14 +110,15 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val colors = AppTheme.colors
     var simulate by rememberSaveable { mutableStateOf(false) }
-    var focus by rememberSaveable { mutableStateOf(if (dest.meeting) MapFocus.SPOT else MapFocus.MINE) }
-    var spotType by rememberSaveable { mutableStateOf(if (dest.meeting) Venue.MEETING else "") }
+    var focus by rememberSaveable { mutableStateOf(if (dest.spot.isNotEmpty()) MapFocus.SPOT else MapFocus.MINE) }
+    var spotType by rememberSaveable { mutableStateOf(dest.spot) }
     var tapped by rememberSaveable { mutableStateOf("") }
     val here = position
     val simulated = settings.simLat != null
     val autoZone = here?.let { vm.venue.zoneAt(it.lat, it.lon) }
-    val myZoneId = autoZone?.id ?: vm.manualZone
-    val origin = here ?: vm.venue.zone(vm.manualZone)?.center
+    val manualZone = settings.manualZone
+    val myZoneId = autoZone?.id ?: manualZone
+    val origin = here ?: vm.venue.zone(manualZone)?.center
     val spot = if (focus == MapFocus.SPOT) vm.venue.nearest(spotType, origin) else null
     val requestLocation = rememberLocationRequest(vm)
     val listState = rememberLazyListState()
@@ -155,7 +156,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
         focus = MapFocus.ZONE
     }
 
-    // on opening, the map shows where you are, or the route to the meeting point
+    // on opening, the map shows where you are, or the route to the place it was opened for
     LaunchedEffect(camera) {
         snapshotFlow { camera.ready }.first { it }
         val points = if (focus == MapFocus.SPOT) listOfNotNull(origin, vm.venue.nearest(spotType, origin)?.point) else listOfNotNull(origin)
@@ -164,7 +165,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
 
     val haptics = rememberHaptics()
     fun setMine(id: String) {
-        vm.manualZone = id
+        vm.setManualZone(id)
         val to = dest.sendTo
         if (to != null && vm.sendMyZone(to)) {
             haptics.confirm()
@@ -205,7 +206,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     val whereText = when {
                         autoZone != null -> stringResource(R.string.map_here_at, autoZone.name)
                         here != null -> stringResource(R.string.map_outside)
-                        vm.manualZone.isNotEmpty() -> stringResource(R.string.map_here_at, vm.venue.zoneName(vm.manualZone))
+                        manualZone.isNotEmpty() -> stringResource(R.string.map_here_at, vm.venue.zoneName(manualZone))
                         else -> stringResource(R.string.map_where_tap)
                     }
                     WherePill(whereText, known = origin != null, Modifier.align(Alignment.TopStart).padding(10.dp)) { showMine() }
@@ -276,7 +277,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             val (title, subtitle) = when {
                                 autoZone != null -> autoZone.name to "$yourZone · $source"
                                 here != null -> stringResource(R.string.map_outside) to stringResource(R.string.map_outside_text)
-                                vm.manualZone.isNotEmpty() -> vm.venue.zoneName(vm.manualZone) to "$yourZone · $manual"
+                                manualZone.isNotEmpty() -> vm.venue.zoneName(manualZone) to "$yourZone · $manual"
                                 else -> stringResource(R.string.map_pick_zone) to stringResource(R.string.map_pick_zone_text)
                             }
                             GroupRow(

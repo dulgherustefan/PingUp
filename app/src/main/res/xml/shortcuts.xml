@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long press on the launcher icon: "Raportează" opens the report categories; nothing is sent from here. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="report"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_report"
+        android:shortcutShortLabel="@string/action_report"
+        android:shortcutLongLabel="@string/action_report_long">
+        <!-- the extra is MainActivity.EXTRA_OPEN = OPEN_REPORT; the package is the applicationId -->
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="ro.safetyplease.app.MainActivity"
+            android:targetPackage="org.pingup.app">
+            <extra android:name="open" android:value="report" />
+        </intent>
+    </shortcut>
+</shortcuts>

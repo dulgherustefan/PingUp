@@ -55,8 +55,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -67,9 +69,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
+import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.R
+import ro.safetyplease.app.text.ESCALATE_AFTER_MS
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
+import ro.safetyplease.app.text.escalationAt
+import ro.safetyplease.app.text.needsEscalation
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
@@ -81,6 +87,8 @@ import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppDialog
 import ro.safetyplease.app.ui.designsystem.AppMenu
 import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.Banner
+import ro.safetyplease.app.ui.designsystem.ButtonKind
 import ro.safetyplease.app.ui.designsystem.ConfirmDialog
 import ro.safetyplease.app.ui.designsystem.EmptyState
 import ro.safetyplease.app.ui.designsystem.GlassIconButton
@@ -114,6 +122,9 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.compassSector
+import ro.safetyplease.core.venue.distanceMeters
 
 /** Categories that are urgent unless the user says otherwise. */
 private fun urgentByDefault(category: Int): Boolean =
@@ -175,7 +186,7 @@ fun ReportScreen(vm: AppViewModel) {
     val autoZone = position?.let { vm.venue.zoneAt(it.lat, it.lon) }
     // null while the zone follows GPS; once the user picks one, a new fix doesn't change it
     var picked by rememberSaveable { mutableStateOf<String?>(null) }
-    val zone = picked ?: autoZone?.id ?: vm.manualZone
+    val zone = picked ?: autoZone?.id ?: settings.manualZone
     val waitMs by produceState(vm.rateLimitWaitMs(), incidents.mine) {
         while (true) {
             value = vm.rateLimitWaitMs()
@@ -224,7 +235,7 @@ fun ReportScreen(vm: AppViewModel) {
                         Box {
                             GroupRow(
                                 stringResource(Labels.category(active.category)),
-                                subtitle = reportSubtitle(vm, active) + " · " + stepText(active),
+                                subtitle = reportSubtitle(vm, active) + " · " + stepText(active, now),
                                 chevron = true,
                                 onClick = { vm.open(Dest.ReportSent(active.incidentId)) },
                                 onLongClick = { activeMenu = true },
@@ -323,6 +334,14 @@ fun ReportScreen(vm: AppViewModel) {
         }
 
         FloatingFooter((if (typing) keyboard else clearance) + 8.dp, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
+            // the app doesn't replace 112, so calling it stays one tap away while reporting
+            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.report_not_112), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                    modifier = Modifier.weight(1f).padding(end = 12.dp),
+                )
+                Call112Button(compact = true)
+            }
             if (waitMs > 0) {
                 StatusLabel(
                     stringResource(R.string.report_rate_limited, (waitMs / 60_000 + 1).toInt()), Modifier.padding(bottom = 8.dp),
@@ -334,7 +353,7 @@ fun ReportScreen(vm: AppViewModel) {
                 {
                     val id = vm.report(category, if (urgent) Severity.URGENT else Severity.MEDIUM, zone, description, anonymous)
                     if (id != null) {
-                        if (autoZone == null) vm.manualZone = zone
+                        if (autoZone == null) vm.setManualZone(zone)
                         haptics.confirm()
                         picked = null
                         category = 0
@@ -425,32 +444,29 @@ private fun FloatingFooter(
     }
 }
 
-/** How far the report got, from 0 (waiting for a phone) to 4 (resolved). */
-fun reportStep(report: MyReport): Int = when {
-    report.status >= AckStatus.RESOLVED -> 4
-    report.status >= AckStatus.ACKNOWLEDGED -> 3
-    report.status >= AckStatus.RECEIVED -> 2
-    report.sent -> 1
-    else -> 0
-}
-
-/** Report step in a list row; a cancelled alert just says so. */
+/** Report step in a list row; a cancelled alert just says so, an urgent one nobody confirmed in time says that. */
 @Composable
-private fun stepText(report: MyReport): String = when {
+private fun stepText(report: MyReport, now: Long): String = when {
     report.status == AckStatus.CANCELLED -> stringResource(R.string.report_cancelled)
     report.cancelled -> stringResource(R.string.report_cancelling)
-    else -> stepLabels(report)[reportStep(report)]
+    report.needsEscalation(now) -> stringResource(R.string.report_escalate_title)
+    else -> stepName(reportStep(report), report)
 }
 
 @Composable
-private fun stepLabels(report: MyReport): List<String> = listOf(
-    stringResource(R.string.status_waiting_link),
-    stringResource(R.string.status_sending),
-    stringResource(R.string.status_received),
-    if (report.status >= AckStatus.ACKNOWLEDGED && report.teamName.isNotEmpty()) stringResource(R.string.status_acknowledged, report.teamName)
-    else stringResource(R.string.status_acknowledged_pending),
-    stringResource(R.string.status_resolved),
-)
+private fun stepName(step: Int, report: MyReport): String = stepLabel(step, report).let { label ->
+    if (label == R.string.status_acknowledged) stringResource(label, report.teamName) else stringResource(label)
+}
+
+/** Opens the dialer with 112 filled in; the person places the call. */
+@Composable
+private fun Call112Button(modifier: Modifier = Modifier, compact: Boolean = false) {
+    val context = LocalContext.current
+    AppButton(
+        stringResource(R.string.emergency_call), { Emergency.dial(context) }, modifier, ButtonKind.Secondary,
+        compact = compact, icon = Sym.Phone,
+    )
+}
 
 /**
  * Report timeline, like order tracking: done steps get a check, the current one a ring with a dot and the time,
@@ -459,7 +475,7 @@ private fun stepLabels(report: MyReport): List<String> = listOf(
 @Composable
 fun ReportTimeline(report: MyReport, now: Long, modifier: Modifier = Modifier) {
     val current = reportStep(report)
-    val labels = stepLabels(report)
+    val labels = (0..4).map { stepName(it, report) }
     val colors = AppTheme.colors
     Column(modifier) {
         labels.forEachIndexed { index, label ->
@@ -486,8 +502,14 @@ fun ReportTimeline(report: MyReport, now: Long, modifier: Modifier = Modifier) {
                         label, style = if (isCurrent) MaterialTheme.typography.headline else MaterialTheme.typography.body,
                         color = if (done || isCurrent) colors.label else colors.secondaryLabel,
                     )
-                    if (isCurrent && report.updatedAt > 0) {
-                        Text(agoText(report.updatedAt, now), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
+                    if (isCurrent) {
+                        val detail = listOfNotNull(
+                            stepNote(index)?.let { stringResource(it) },
+                            if (report.updatedAt > 0) agoText(report.updatedAt, now) else null,
+                        )
+                        if (detail.isNotEmpty()) {
+                            Text(detail.joinToString(" · "), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
+                        }
                     }
                 }
             }
@@ -499,10 +521,15 @@ fun ReportTimeline(report: MyReport, now: Long, modifier: Modifier = Modifier) {
 private fun reportSubtitle(vm: AppViewModel, report: MyReport): String =
     listOfNotNull(report.zone.takeIf { it.isNotEmpty() }?.let { vm.venue.zoneName(it) }, Labels.clock(report.createdAt)).joinToString(" · ")
 
-/** After sending: what you reported, the report's path to staff and, at the bottom, the Done button. */
+/**
+ * After sending: what you reported, the report's path to staff and, at the bottom, 112 and the Done button.
+ * While no phone has taken the report, or an urgent one has gone unconfirmed too long, it says what to do meanwhile.
+ */
 @Composable
 fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
+    val position by vm.position.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
     val report = incidents.mine.firstOrNull { it.incidentId == incidentId }
     val now = rememberNow()
     val colors = AppTheme.colors
@@ -515,6 +542,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
         LaunchedEffect(Unit) { vm.back() }
         return
     }
+    val escalated = rememberEscalated(report)
     Box(Modifier.fillMaxSize()) {
         NavScreen(
             title = stringResource(R.string.report_next_title),
@@ -524,11 +552,12 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
         ) { padding ->
             Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = padding.calculateTopPadding(), bottom = footer + 8.dp)) {
                 val withdrawn = report.cancelled || report.status == AckStatus.CANCELLED
+                val waiting = reportStep(report) == 0 && !withdrawn
                 IncidentHeader(
                     report.category, report.severity == Severity.URGENT && !withdrawn, reportSubtitle(vm, report),
                     status = {
                         if (withdrawn) {
-                            StatusLabel(stepText(report), icon = Sym.Close, color = colors.secondaryLabel)
+                            StatusLabel(stepText(report, now), icon = Sym.Close, color = colors.secondaryLabel)
                         }
                     },
                 )
@@ -537,12 +566,23 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
                         when {
                             report.status == AckStatus.CANCELLED -> R.string.report_cancelled_text
                             report.cancelled -> R.string.report_cancelling_text
+                            waiting -> R.string.report_waiting_text
                             else -> R.string.report_next_text
                         },
                     ),
                     style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
                 )
+                if (escalated) {
+                    Banner(
+                        stringResource(R.string.report_escalate_title), stringResource(R.string.report_escalate_text),
+                        Modifier.padding(start = Gutter, end = Gutter, top = 20.dp), warning = true,
+                    )
+                }
+                if (waiting || escalated) {
+                    // staying put contradicts the escalation, which sends you to a steward
+                    HelpSteps(vm, helpOrigin(position, report, settings.manualZone, vm.venue), stay = !escalated)
+                }
                 // the path to staff no longer matters for a cancelled alert
                 if (!withdrawn) {
                     InsetGroup(Modifier.padding(top = 20.dp)) {
@@ -553,7 +593,11 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
         }
         // TextLink has a 48dp touch target, so there's enough room under it
         FloatingFooter(LocalBottomClearance.current, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
-            AppButton(stringResource(R.string.done), { vm.back() }, Modifier.fillMaxWidth())
+            // the call button keeps its full label; Done takes the rest of the row
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Call112Button()
+                AppButton(stringResource(R.string.done), { vm.back() }, Modifier.weight(1f))
+            }
             if (report.isOpen()) {
                 TextLink(stringResource(R.string.report_cancel), { confirm = Confirm.CANCEL }, Modifier.padding(top = 4.dp), color = colors.redInk)
             } else {
@@ -571,6 +615,56 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
 }
 
 private enum class Confirm { CANCEL, DELETE }
+
+/** True from the moment an urgent report has waited [ESCALATE_AFTER_MS] for a person on staff, until one confirms it. */
+@Composable
+private fun rememberEscalated(report: MyReport): Boolean {
+    val at = escalationAt(report)
+    val escalated by produceState(report.needsEscalation(System.currentTimeMillis()), at) {
+        value = at != null && System.currentTimeMillis() >= at
+        if (at != null && !value) {
+            delay(at - System.currentTimeMillis())
+            value = true
+        }
+    }
+    return escalated
+}
+
+/**
+ * What to do meanwhile: walk to the nearest medical point (with distance and direction when we know where you are)
+ * or, if [stay], stay put and ask the people around; and call 112.
+ */
+@Composable
+private fun HelpSteps(vm: AppViewModel, origin: GeoPoint?, stay: Boolean) {
+    val context = LocalContext.current
+    val medical = vm.venue.nearest(MEDICAL, origin)
+    val directions = stringArrayResource(R.array.map_directions)
+    SectionTitle(stringResource(R.string.report_help_title))
+    InsetGroup {
+        if (medical != null) {
+            GroupRow(
+                stringResource(R.string.report_help_medical),
+                subtitle = if (origin != null) {
+                    stringResource(R.string.map_route, distanceMeters(origin, medical.point), directions[compassSector(origin, medical.point)])
+                } else {
+                    stringResource(R.string.map_route_unknown)
+                },
+                icon = Sym.Walk, chevron = true, onClick = { vm.open(Dest.Map(spot = MEDICAL)) },
+            )
+        } else {
+            GroupRow(stringResource(R.string.report_help_steward), icon = Sym.Walk)
+        }
+        if (stay) {
+            GroupDivider()
+            GroupRow(stringResource(R.string.report_help_stay), subtitle = stringResource(R.string.report_help_stay_text), icon = Sym.Place)
+        }
+        GroupDivider()
+        GroupRow(
+            stringResource(R.string.emergency_call), subtitle = stringResource(R.string.report_help_call_text), icon = Sym.Phone,
+            onClick = { Emergency.dial(context) },
+        )
+    }
+}
 
 /** Asked before cancelling an alert: staff will learn that help is no longer needed. */
 @Composable
@@ -603,6 +697,7 @@ fun MyReportsScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val mine = incidents.mine.sortedByDescending { it.createdAt }
     val closed = mine.count { !it.isOpen() }
+    val now = rememberNow()
     val colors = AppTheme.colors
     val haptics = rememberHaptics()
     val listState = rememberLazyListState()
@@ -641,7 +736,7 @@ fun MyReportsScreen(vm: AppViewModel) {
                         mine.forEachIndexed { index, report ->
                             // each row keeps its own swipe state: after a delete the next row doesn't inherit it
                             key(report.incidentId) {
-                                MyReportRow(vm, report, onCancel = { cancelId = report.incidentId }, onDelete = { deleteId = report.incidentId })
+                                MyReportRow(vm, report, now, onCancel = { cancelId = report.incidentId }, onDelete = { deleteId = report.incidentId })
                             }
                             if (index < mine.lastIndex) GroupDivider(start = 64.dp)
                         }
@@ -669,7 +764,7 @@ fun MyReportsScreen(vm: AppViewModel) {
  * and stays in the list as "Se anuleaza". Long-pressed, it offers the same action in a menu.
  */
 @Composable
-private fun MyReportRow(vm: AppViewModel, report: MyReport, onCancel: () -> Unit, onDelete: () -> Unit) {
+private fun MyReportRow(vm: AppViewModel, report: MyReport, now: Long, onCancel: () -> Unit, onDelete: () -> Unit) {
     val open = report.isOpen()
     var menu by remember { mutableStateOf(false) }
     SwipeRow(
@@ -681,7 +776,7 @@ private fun MyReportRow(vm: AppViewModel, report: MyReport, onCancel: () -> Unit
         Box {
             GroupRow(
                 stringResource(Labels.category(report.category)),
-                subtitle = reportSubtitle(vm, report) + " · " + stepText(report),
+                subtitle = reportSubtitle(vm, report) + " · " + stepText(report, now),
                 chevron = true,
                 onClick = { vm.open(Dest.ReportSent(report.incidentId)) },
                 onLongClick = { menu = true },

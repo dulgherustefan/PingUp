@@ -59,10 +59,16 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        // res/xml/shortcuts.xml repeats EXTRA_OPEN and OPEN_REPORT
         const val EXTRA_OPEN = "open"
         const val OPEN_HOME = "home"
         const val OPEN_INCIDENTS = "incidents"
+
+        /** The report categories, for a new report; the tile, the shortcut and the mesh notification open it. */
         const val OPEN_REPORT = "report"
+
+        /** One of your reports, by id. */
+        const val OPEN_REPORT_PREFIX = "report:"
         const val OPEN_CHAT_PREFIX = "chat:"
     }
 }

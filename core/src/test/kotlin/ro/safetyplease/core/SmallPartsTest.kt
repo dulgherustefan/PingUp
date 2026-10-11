@@ -221,6 +221,19 @@ class SmallPartsTest {
     }
 
     @Test
+    fun manualZoneSurvivesRestartAndOlderFilesLoadWithoutIt() = runTest {
+        val file = File(tmp.root, "settings.json").apply { writeText("""{"nickname":"Ana","onboarded":true}""") }
+        val first = JsonStore(file, Settings.serializer(), Settings(), backgroundScope)
+        assertEquals("Ana", first.value.nickname)
+        assertEquals("", first.value.manualZone)
+        first.update { it.copy(manualZone = "camping") }
+        first.flush()
+        val second = JsonStore(file, Settings.serializer(), Settings(), backgroundScope)
+        assertEquals("camping", second.value.manualZone)
+        assertEquals("Ana", second.value.nickname)
+    }
+
+    @Test
     fun olderVersionIsMigratedOnLoad() = runTest {
         // a made-up version 2 that renamed "nick" to "nickname"; the file predates versioning
         val file = File(tmp.root, "settings.json").apply { writeText("""{"nick":"Ana"}""") }

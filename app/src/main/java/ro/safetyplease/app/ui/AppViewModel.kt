@@ -55,9 +55,10 @@ sealed interface Dest {
 
     /**
      * Event map: your zone, the zones, the meeting point and, for staff, open incidents.
+     * With [spot] (a place type, like "medical"), it opens on the way to the nearest such place.
      * With [sendTo], the chosen zone is sent straight to that conversation.
      */
-    data class Map(val meeting: Boolean = false, val sendTo: String? = null) : Dest
+    data class Map(val spot: String = "", val sendTo: String? = null) : Dest
 }
 
 sealed interface ScanOutcome {
@@ -67,6 +68,15 @@ sealed interface ScanOutcome {
     data object AnchorOn : ScanOutcome
     data object WrongEvent : ScanOutcome
     data object Unknown : ScanOutcome
+}
+
+/** Where a link from a notification, the tile or a shortcut lands: a tab and maybe a screen on top; null for neither. */
+fun landing(target: String): Pair<Tab, Dest?>? = when {
+    target == MainActivity.OPEN_INCIDENTS -> Tab.INCIDENTS to null
+    target == MainActivity.OPEN_REPORT -> Tab.REPORT to null
+    target.startsWith(MainActivity.OPEN_REPORT_PREFIX) -> Tab.REPORT to Dest.ReportSent(target.removePrefix(MainActivity.OPEN_REPORT_PREFIX))
+    target.startsWith(MainActivity.OPEN_CHAT_PREFIX) -> Tab.MESSAGES to Dest.Conversation(target.removePrefix(MainActivity.OPEN_CHAT_PREFIX))
+    else -> null
 }
 
 /** A double tap during a transition must not push the same screen twice. */
@@ -128,7 +138,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     var tab by mutableStateOf(Tab.MESSAGES)
     val stack = mutableStateListOf<Dest>()
-    var manualZone by mutableStateOf("")
 
     /** Access denied for good: Android no longer shows the dialog, so the buttons open the app settings. */
     var radioAccessBlocked by mutableStateOf(false)
@@ -155,17 +164,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openTarget(target: String) {
         stack.clear()
-        when {
-            target == MainActivity.OPEN_INCIDENTS -> tab = Tab.INCIDENTS
-            target == MainActivity.OPEN_REPORT -> {
-                tab = Tab.REPORT
-                open(Dest.MyReports)
-            }
-            target.startsWith(MainActivity.OPEN_CHAT_PREFIX) -> {
-                tab = Tab.MESSAGES
-                open(Dest.Conversation(target.removePrefix(MainActivity.OPEN_CHAT_PREFIX)))
-            }
-        }
+        val (tab, dest) = landing(target) ?: return
+        this.tab = tab
+        dest?.let(::open)
     }
 
     // --- zone ---
@@ -174,7 +175,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun autoZone(): Zone? = pointNow()?.let { venue.zoneAt(it.lat, it.lon) }
 
-    fun currentZoneId(): String = autoZone()?.id ?: manualZone
+    fun currentZoneId(): String = autoZone()?.id ?: c.settings.value.manualZone
+
+    /** Saved, so the zone you picked stands in for GPS even after Android kills the app. */
+    fun setManualZone(id: String) = c.settings.update { it.copy(manualZone = id) }
 
     // --- settings ---
 

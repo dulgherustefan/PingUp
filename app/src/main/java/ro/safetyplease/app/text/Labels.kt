@@ -53,6 +53,18 @@ object Labels {
         else -> R.string.quick_meet
     }
 
+    /**
+     * Your report's status, claiming no more than we know: RECEIVED comes automatically from the first staff phone,
+     * so only ACKNOWLEDGED says a person saw it. Null when there's nothing to tell.
+     */
+    @StringRes
+    fun myReportStatus(status: Int, hasTeam: Boolean): Int? = when (status) {
+        AckStatus.RECEIVED -> R.string.status_received_full
+        AckStatus.ACKNOWLEDGED -> if (hasTeam) R.string.status_acknowledged else R.string.status_acknowledged_pending
+        AckStatus.RESOLVED -> R.string.status_resolved
+        else -> null
+    }
+
     fun staffStatus(context: Context, status: Int, team: String): String = when (status) {
         AckStatus.CANCELLED -> context.getString(R.string.staff_status_cancelled)
         AckStatus.RESOLVED -> context.getString(R.string.staff_status_resolved, team)

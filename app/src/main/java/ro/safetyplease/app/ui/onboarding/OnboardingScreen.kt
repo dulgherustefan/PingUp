@@ -127,6 +127,7 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     stringResource(R.string.onboarding_intro), style = MaterialTheme.typography.body, color = colors.secondaryLabel,
                     modifier = Modifier.padding(top = 12.dp),
                 )
+                Hint(stringResource(R.string.onboarding_not_112), Modifier.padding(top = 12.dp))
                 Box(Modifier.fillMaxWidth().padding(vertical = 28.dp), contentAlignment = Alignment.Center) {
                     if (name.isBlank()) {
                         Box(Modifier.size(72.dp).clip(CircleShape).background(colors.fill), contentAlignment = Alignment.Center) {

@@ -120,7 +120,7 @@ val NavHeight = 52.dp
 /** Primary is the filled accent, Secondary gray, Danger red for destructive actions. */
 enum class ButtonKind { Primary, Secondary, Danger }
 
-/** Filled capsule button with 17sp bold text. [compact] is the small variant for rows and banners. */
+/** Filled capsule button with 17sp bold text, optionally led by [icon]. [compact] is the small variant for rows and banners. */
 @Composable
 fun AppButton(
     text: String,
@@ -129,6 +129,7 @@ fun AppButton(
     kind: ButtonKind = ButtonKind.Primary,
     enabled: Boolean = true,
     compact: Boolean = false,
+    icon: ImageVector? = null,
 ) {
     val c = AppTheme.colors
     val fill = when {
@@ -144,12 +145,17 @@ fun AppButton(
         else -> Color.White
     }
     val press = remember { MutableInteractionSource() }
-    Box(
+    Row(
         modifier.pressScale(press, 0.97f).heightIn(min = if (compact) 36.dp else 50.dp).clip(CircleShape).background(fill)
             .clickable(press, LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = if (compact) 16.dp else 24.dp),
-        contentAlignment = Alignment.Center,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (icon != null) {
+            Icon(icon, null, Modifier.size(if (compact) 16.dp else 20.dp), tint = ink)
+            Spacer(Modifier.width(if (compact) 6.dp else 8.dp))
+        }
         Text(
             text, style = if (compact) MaterialTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold) else MaterialTheme.typography.headline,
             color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis,

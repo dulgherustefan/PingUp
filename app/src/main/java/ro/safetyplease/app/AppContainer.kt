@@ -9,7 +9,9 @@ import com.goterl.lazysodium.SodiumAndroid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -19,6 +21,8 @@ import ro.safetyplease.app.platform.ble.BleRadio
 import ro.safetyplease.app.platform.keystore.KeyVault
 import ro.safetyplease.app.platform.location.LocationSource
 import ro.safetyplease.app.service.Notifier
+import ro.safetyplease.app.text.escalationsBetween
+import ro.safetyplease.app.text.nextEscalation
 import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.Identity
@@ -111,7 +115,7 @@ class AppContainer(private val app: Application) {
         teamName = { settings.value.teamName },
         onStaffAlert = { notifier.staffAlert(it) },
         onStaffAlertCleared = { notifier.cancelStaffAlert(it) },
-        onReportUpdate = { if (!inForeground) notifier.reportUpdate(it) },
+        onReportUpdate = { if (!inForeground) notifier.reportUpdate(it, clock.wallMs()) },
         onReportSent = { boostUntil.value = clock.monoMs() + PowerPolicy.BOOST_MS },
     )
 
@@ -124,6 +128,24 @@ class AppContainer(private val app: Application) {
                 engine.setRole(staff = s.role == Role.STAFF, anchor = s.role == Role.ANCHOR)
                 engine.setNickname(s.nickname)
                 engine.setIgnoredPrefixes(s.ignoredPrefixes.toSet())
+            }
+        }
+        meshScope.launch { remindUnconfirmed() }
+    }
+
+    /**
+     * When an urgent report of yours has waited too long for a person on staff, tells you so if the app is in the background.
+     * Only moments that pass while the process runs count, so an old report doesn't ring again after a restart.
+     */
+    private suspend fun remindUnconfirmed() {
+        var checked = clock.wallMs()
+        incidentStore.state.collectLatest { data ->
+            while (true) {
+                val now = clock.wallMs()
+                escalationsBetween(data.mine, checked, now).forEach { if (!inForeground) notifier.reportUpdate(it, now) }
+                checked = now
+                val next = nextEscalation(data.mine, now) ?: break
+                delay(next - now)
             }
         }
     }
