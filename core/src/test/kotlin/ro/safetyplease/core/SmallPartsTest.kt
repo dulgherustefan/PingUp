@@ -234,18 +234,16 @@ class SmallPartsTest {
     }
 
     @Test
-    fun powerPolicyFollowsBatteryAndIncidents() {
-        val normal = PowerPolicy.modes(batteryPercent = 80, charging = false, pendingIncident = false, boost = false)
+    fun powerPolicyFollowsBatteryAndOnlyScanningSpeedsUpAfterAReport() {
+        val normal = PowerPolicy.modes(batteryPercent = 80, charging = false, boost = false)
         assertEquals(PowerMode.BALANCED to PowerMode.BALANCED, normal)
-        val low = PowerPolicy.modes(batteryPercent = 15, charging = false, pendingIncident = false, boost = false)
+        val low = PowerPolicy.modes(batteryPercent = 15, charging = false, boost = false)
         assertEquals(PowerMode.LOW_POWER to PowerMode.LOW_POWER, low)
-        val lowButCharging = PowerPolicy.modes(batteryPercent = 15, charging = true, pendingIncident = false, boost = false)
+        val lowButCharging = PowerPolicy.modes(batteryPercent = 15, charging = true, boost = false)
         assertEquals(PowerMode.BALANCED to PowerMode.BALANCED, lowButCharging)
-        val boosted = PowerPolicy.modes(batteryPercent = 15, charging = false, pendingIncident = true, boost = true)
-        assertEquals("15 s after an incident, even on low battery", PowerMode.LOW_LATENCY to PowerMode.LOW_LATENCY, boosted)
-        val pending = PowerPolicy.modes(batteryPercent = 80, charging = false, pendingIncident = true, boost = false)
-        assertEquals("fast advertising while the report hasn't arrived", PowerMode.BALANCED to PowerMode.LOW_LATENCY, pending)
-        val pendingLow = PowerPolicy.modes(batteryPercent = 10, charging = false, pendingIncident = true, boost = false)
-        assertEquals(PowerMode.LOW_POWER to PowerMode.LOW_LATENCY, pendingLow)
+        val boosted = PowerPolicy.modes(batteryPercent = 80, charging = false, boost = true)
+        assertEquals("advertising keeps its pace, so the reporter doesn't stand out", PowerMode.LOW_LATENCY to PowerMode.BALANCED, boosted)
+        val boostedLow = PowerPolicy.modes(batteryPercent = 15, charging = false, boost = true)
+        assertEquals("15 s after a report, even on low battery", PowerMode.LOW_LATENCY to PowerMode.LOW_POWER, boostedLow)
     }
 }

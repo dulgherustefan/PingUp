@@ -52,6 +52,9 @@ class ChatManager(
     private val attempts = LinkedHashMap<Long, Pair<Long, Long>>()
     private var linkRetry: Job? = null
 
+    /** When we last confirmed each (sender, msgId), so copies of one message don't each cost a DELIVERED flood. */
+    private val confirmedAt = LinkedHashMap<Pair<Long, Long>, Long>()
+
     fun start() {
         scope.launch { engine.events.collect(::onEvent) }
         scope.launch {
@@ -240,7 +243,7 @@ class ChatManager(
 
     private fun retryOutbox(linkTrigger: Boolean) {
         val now = clock.wallMs()
-        val expired = chat.value.outbox.filter { now - it.createdAt > OUTBOX_TTL_MS }
+        val expired = chat.value.outbox.filter { now - it.createdAt > OUTBOX_TTL_MS || gaveUp(it, now) }
         if (expired.isNotEmpty()) {
             val failed = expired.map { it.msgId }.toSet()
             chat.update { data ->
@@ -254,11 +257,17 @@ class ChatManager(
         }
         if (engine.state.value.readyLinks == 0) return
         for (item in chat.value.outbox) {
+            if (item.attempts >= MAX_ATTEMPTS) continue
             val backoff = backoffMs(item.attempts)
-            val wait = if (linkTrigger) minOf(backoff, LINK_RETRY_MIN_MS) else backoff
+            // in a crowd links come and go every few seconds; a new one brings a retry forward at most once per window
+            val wait = if (linkTrigger) minOf(backoff, LINK_RETRY_WINDOW_MS) else backoff
             if (item.attempts == 0 || now - item.lastAttemptAt >= wait) attempt(item)
         }
     }
+
+    /** The last attempt had as long as the next one would have waited and no DELIVERED came back. */
+    private fun gaveUp(item: OutboxItem, now: Long): Boolean =
+        item.attempts >= MAX_ATTEMPTS && now - item.lastAttemptAt >= backoffMs(item.attempts)
 
     // --- receiving ---
 
@@ -326,8 +335,7 @@ class ChatManager(
             if (!isFriend(sender)) return
             conversation = Conversations.friend(sender)
         }
-        // acknowledge duplicates too: the first ack may have been lost
-        sendDirect(sender, Inner.Delivered(newId(), msgId))
+        confirm(sender, msgId)
         if (chat.value.messages.any { it.msgId == msgId && it.senderId == sender && !it.fromMe }) return
         val message = ChatMessage(
             msgId = msgId, conversation = conversation, senderId = sender, fromMe = false, kind = kind,
@@ -355,7 +363,7 @@ class ChatManager(
 
     private fun onInvite(sender: Long, invite: Inner.GroupInvite) {
         val inviter = friends.value.firstOrNull { it.nodeId == sender } ?: return
-        sendDirect(sender, Inner.Delivered(newId(), invite.msgId))
+        confirm(sender, invite.msgId)
         if (groups.value.any { it.id == invite.groupId }) return
         val me = GroupMember(identity.nodeId, myNickname(), identity.box.publicKey.toHex())
         val others = invite.members.filter { it.nodeId != identity.nodeId && it.nodeId != sender }
@@ -368,6 +376,21 @@ class ChatManager(
         )
         chat.update { it.copy(messages = (it.messages + notice).takeLast(MAX_MESSAGES)) }
         onIncoming(notice, inviter.nickname)
+    }
+
+    /**
+     * A copy of a message we already confirmed is answered again only after [CONFIRM_REPEAT_MS]: a retry that
+     * late means the first DELIVERED was lost, while closer copies (replays, retries crossing it) get nothing.
+     */
+    private fun confirm(sender: Long, msgId: Long) {
+        val key = sender to msgId
+        val now = clock.wallMs()
+        val last = confirmedAt[key]
+        if (last != null && now - last < CONFIRM_REPEAT_MS) return
+        confirmedAt.remove(key)
+        confirmedAt[key] = now
+        while (confirmedAt.size > 512) confirmedAt.remove(confirmedAt.keys.first())
+        sendDirect(sender, Inner.Delivered(newId(), msgId))
     }
 
     // --- helpers ---
@@ -407,7 +430,13 @@ class ChatManager(
         const val OUTBOX_TTL_MS = 24 * 60 * 60_000L
         const val RETRY_TICK_MS = 5_000L
         const val LINK_SETTLE_MS = 1_500L
-        const val LINK_RETRY_MIN_MS = 5_000L
+        const val LINK_RETRY_WINDOW_MS = 60_000L
+
+        /** Every attempt floods the whole region, so an undelivered message gets this many and then fails. */
+        const val MAX_ATTEMPTS = 20
+
+        /** Under the first retry delay, so a retry after a lost DELIVERED is still answered. */
+        const val CONFIRM_REPEAT_MS = 10_000L
 
         fun backoffMs(attempts: Int): Long = when {
             attempts <= 0 -> 0

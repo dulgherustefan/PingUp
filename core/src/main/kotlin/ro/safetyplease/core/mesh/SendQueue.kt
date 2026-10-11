@@ -46,14 +46,16 @@ class SendQueue(private val capacity: Int = 128) {
     }
 
     companion object {
-        private const val LEVELS = 5
+        private const val LEVELS = 6
 
+        /** SUMMARY and REQUEST carry store-and-forward, so chat load must not push them out. */
         fun priorityOf(type: Int): Int = when (type) {
             PacketType.HELLO -> 0
             PacketType.INCIDENT_REPORT -> 1
             PacketType.INCIDENT_ACK, PacketType.INCIDENT_CANCEL -> 2
-            PacketType.PRIVATE -> 3
-            else -> 4
+            PacketType.SUMMARY, PacketType.REQUEST -> 3
+            PacketType.PRIVATE -> 4
+            else -> 5
         }
     }
 }

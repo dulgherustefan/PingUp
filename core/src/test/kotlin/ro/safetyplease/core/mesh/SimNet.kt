@@ -121,8 +121,12 @@ class SimRadio(
         peer.radio.events.trySend(RadioEvent.Frame(peer.link, frame))
     }
 
+    /** Every flag set the engine asked to advertise, in order. */
+    val advertised = mutableListOf<Int>()
+
     override fun setAdvertisedFlags(flags: Int) {
         this.flags = flags
+        advertised += flags
     }
 
     override fun setPowerMode(scan: PowerMode, advertise: PowerMode) = Unit

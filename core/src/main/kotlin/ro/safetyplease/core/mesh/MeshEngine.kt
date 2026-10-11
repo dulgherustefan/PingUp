@@ -79,6 +79,32 @@ data class LinkInfo(
 
 data class SeenPeer(val address: String, val prefix: Int?, val flags: Int, val rssi: Int, val lastSeenMs: Long)
 
+enum class DropReason(val label: String) {
+    DUPLICATE("duplicat"),
+    KNOWN_INCIDENT("known incident"),
+    STALE_ACK("stale ACK"),
+    QUEUE_FULL("queue full"),
+    RATE_LIMIT("rate limit"),
+    MALFORMED("malformed"),
+
+    /** Counts links and HELLOs refused because the peer is banned, not single packets. */
+    BANNED("banned"),
+    BEFORE_HELLO("before HELLO"),
+    IGNORED("ignorat"),
+    TEST("test"),
+}
+
+/** Totals since the engine was created, for the field measurement export. */
+data class MeshCounters(
+    /** Every packet written to a link, by type: ours, relayed and link-local. */
+    val sentByType: Map<Int, Long> = emptyMap(),
+    /** Every complete packet that arrived from a link, by type, before any check. */
+    val receivedByType: Map<Int, Long> = emptyMap(),
+    val drops: Map<DropReason, Long> = emptyMap(),
+    /** Reports and ACKs queued for a neighbor that requested them after a SUMMARY. */
+    val storeAndForward: Long = 0,
+)
+
 data class MeshState(
     val radio: RadioStatus = RadioStatus(),
     val links: List<LinkInfo> = emptyList(),
@@ -88,6 +114,7 @@ data class MeshState(
     val relayed: Long = 0,
     val dropped: Long = 0,
     val cachedReports: Int = 0,
+    val counters: MeshCounters = MeshCounters(),
 ) {
     val readyLinks: Int get() = links.count { it.peerId != 0L && !it.muted }
 
@@ -144,6 +171,9 @@ class MeshEngine(
     private val dedup = DedupCache()
     private val cache = IncidentCache(config.retentionMs)
 
+    /** Packets waiting out the relay jitter, with the links that already gave us a copy. */
+    private val relaying = HashMap<Long, MutableSet<Int>>()
+
     private val addressBlockedUntil = HashMap<String, Long>()
     private val addressFailures = HashMap<String, Int>()
     private val prefixCooldownUntil = HashMap<Int, Long>()
@@ -165,7 +195,10 @@ class MeshEngine(
     private var sentCount = 0L
     private var receivedCount = 0L
     private var relayedCount = 0L
-    private var droppedCount = 0L
+    private var storeAndForwardCount = 0L
+    private val sentByType = HashMap<Int, Long>()
+    private val receivedByType = HashMap<Int, Long>()
+    private val drops = HashMap<DropReason, Long>()
 
     private val _events = MutableSharedFlow<MeshEvent>(extraBufferCapacity = 1024)
     val events: SharedFlow<MeshEvent> = _events
@@ -214,10 +247,9 @@ class MeshEngine(
         nickname = value?.truncateUtf8(Limits.NICK_BYTES)
     }
 
+    /** Told only to neighbors in HELLO; advertising never carries it. */
     fun setPendingIncident(pending: Boolean) {
-        if (pendingIncident == pending) return
         pendingIncident = pending
-        refreshFlags()
     }
 
     /** Demo mode: don't connect to these prefixes and drop everything from or to them. */
@@ -245,21 +277,22 @@ class MeshEngine(
 
     fun broadcast(type: Int, payload: ByteArray, encrypted: Boolean = false, anonymous: Boolean = false): Packet {
         val packet = newPacket(type, payload, null, encrypted, anonymous)
-        flood(packet, exceptLink = null, own = true)
+        flood(packet, own = true)
         return packet
     }
 
     fun unicast(type: Int, recipient: Long, payload: ByteArray, encrypted: Boolean = true): Packet {
         val packet = newPacket(type, payload, recipient, encrypted, anonymous = false)
-        flood(packet, exceptLink = null, own = true)
+        flood(packet, own = true)
         return packet
     }
 
+    /** Our own report: the cache keeps it until staff confirms receipt, whatever else arrives. */
     fun publishReport(incidentId: ByteArray, sealed: ByteArray): Packet {
         val payload = IncidentReportCodec.encode(incidentId, sealed)
         val packet = newPacket(PacketType.INCIDENT_REPORT, payload, null, encrypted = true, anonymous = true)
-        cache.offerReport(incidentId, packet, clock.monoMs())
-        flood(packet, exceptLink = null, own = true)
+        cache.offerReport(incidentId, packet, clock.monoMs(), own = true)
+        flood(packet, own = true)
         publishState()
         return packet
     }
@@ -267,7 +300,7 @@ class MeshEngine(
     fun publishAck(ack: IncidentAck): Packet? {
         val packet = newPacket(PacketType.INCIDENT_ACK, ack.encode(), null, encrypted = false, anonymous = false)
         if (!cache.offerAck(ack, packet, clock.monoMs())) return null
-        flood(packet, exceptLink = null, own = true)
+        flood(packet, own = true)
         return packet
     }
 
@@ -275,7 +308,7 @@ class MeshEngine(
     fun publishCancel(incidentId: ByteArray, token: ByteArray): Packet {
         val payload = IncidentCancel(incidentId, token).encode()
         val packet = newPacket(PacketType.INCIDENT_CANCEL, payload, null, encrypted = false, anonymous = true)
-        flood(packet, exceptLink = null, own = true)
+        flood(packet, own = true)
         return packet
     }
 
@@ -310,11 +343,11 @@ class MeshEngine(
         return packet
     }
 
-    private fun flood(packet: Packet, exceptLink: Int?, own: Boolean): Int {
+    private fun flood(packet: Packet, except: Set<Int> = emptySet(), own: Boolean): Int {
         var count = 0
         for (link in links.values) {
-            if (!link.ready || link.id == exceptLink) continue
-            if (link.queue.offer(Outbound(packet, own))) count++ else drop(packet, link, "queue full")
+            if (!link.ready || link.id in except) continue
+            if (link.queue.offer(Outbound(packet, own))) count++ else drop(packet, link, DropReason.QUEUE_FULL)
         }
         return count
     }
@@ -326,7 +359,7 @@ class MeshEngine(
 
     private fun sendHello(link: Link) {
         val nick = if (config.nicknameInHello) nickname else null
-        sendLocal(link, PacketType.HELLO, Hello(PacketCodec.VERSION, nodeId, currentFlags(), nick).encode())
+        sendLocal(link, PacketType.HELLO, Hello(PacketCodec.VERSION, nodeId, helloFlags(), nick).encode())
     }
 
     private fun sendSummary(link: Link) {
@@ -363,6 +396,7 @@ class MeshEngine(
     private fun onWritten(link: Link, out: Outbound) {
         val packet = out.packet
         log.packet(clock.wallMs(), if (out.own) LogKind.TX else LogKind.RELAY, packet, link.label)
+        sentByType.bump(packet.type)
         if (PacketType.isLinkLocal(packet.type)) return
         link.lastActivityMs = clock.monoMs()
         if (out.own) {
@@ -405,6 +439,7 @@ class MeshEngine(
         val banned = (bannedAddressesUntil[e.address] ?: 0) > now
         val overLimit = !e.outgoing && links.values.count { !it.outgoing && !it.closing } >= limits.maxIn
         if (banned || overLimit || e.maxFrame < PacketCodec.MIN_FRAME) {
+            if (banned) drops.bump(DropReason.BANNED)
             log.link(clock.wallMs(), e.address.takeLast(5), "refuzat")
             radio.disconnect(e.link)
             return
@@ -462,12 +497,15 @@ class MeshEngine(
             Reassembler.Result.Pending -> return
             Reassembler.Result.Invalid -> return malformed(link, "invalid fragments")
         }
-        if (!link.rx.tryTake(now)) return drop(packet, link, "rate limit")
-        if (packet.type == PacketType.TEST && !config.allowTestPackets) return drop(packet, link, "test")
+        receivedByType.bump(packet.type)
+        // a copy we already have costs no receive token
+        if (isDuplicate(link, packet, now)) return drop(packet, link, DropReason.DUPLICATE)
+        if (!link.rx.tryTake(now)) return drop(packet, link, DropReason.RATE_LIMIT)
+        if (packet.type == PacketType.TEST && !config.allowTestPackets) return drop(packet, link, DropReason.TEST)
 
         if (packet.type == PacketType.HELLO) return onHello(link, packet)
-        if (link.peerId == 0L) return drop(packet, link, "before HELLO")
-        if (link.muted) return drop(packet, link, "ignorat")
+        if (link.peerId == 0L) return drop(packet, link, DropReason.BEFORE_HELLO)
+        if (link.muted) return drop(packet, link, DropReason.IGNORED)
 
         when (packet.type) {
             PacketType.SUMMARY -> onSummary(link, packet)
@@ -476,13 +514,22 @@ class MeshEngine(
         }
     }
 
+    /** The link that sent it already has it, so a pending relay skips that link. */
+    private fun isDuplicate(link: Link, packet: Packet, now: Long): Boolean {
+        if (PacketType.isLinkLocal(packet.type) || !dedup.contains(packet.dedupKey, now)) return false
+        relaying[packet.dedupKey]?.add(link.id)
+        return true
+    }
+
     private fun onHello(link: Link, packet: Packet) {
         val hello = Hello.decode(packet.payload)
         if (hello == null || hello.version != PacketCodec.VERSION || hello.nodeId != packet.sender) {
             return malformed(link, "HELLO invalid")
         }
         val now = clock.monoMs()
-        if (hello.nodeId == nodeId || (bannedNodesUntil[hello.nodeId] ?: 0) > now) {
+        val banned = (bannedNodesUntil[hello.nodeId] ?: 0) > now
+        if (hello.nodeId == nodeId || banned) {
+            if (banned) drops.bump(DropReason.BANNED)
             close(link)
             return
         }
@@ -532,25 +579,29 @@ class MeshEngine(
         val entries = RequestCodec.decode(packet.payload) ?: return malformed(link, "invalid REQUEST")
         log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${entries.size} entries")
         for (e in entries) {
-            if (e.wantReport) cache.report(e.id8)?.let { link.queue.offer(Outbound(it, own = false)) }
-            if (e.wantAck) cache.ack(e.id8)?.let { link.queue.offer(Outbound(it, own = false)) }
+            if (e.wantReport) cache.report(e.id8)?.let { serve(link, it) }
+            if (e.wantAck) cache.ack(e.id8)?.let { serve(link, it) }
         }
     }
 
+    private fun serve(link: Link, packet: Packet) {
+        if (link.queue.offer(Outbound(packet, own = false))) storeAndForwardCount++
+    }
+
     private fun onMeshPacket(link: Link, packet: Packet, now: Long) {
-        if (dedup.checkAndAdd(packet.dedupKey, now)) return drop(packet, link, "duplicat")
+        dedup.add(packet.dedupKey, now)
         // what we keep for store-and-forward is relayed with one hop less
         val forwardable = packet.withTtl(maxOf(packet.ttl - 1, 1))
         when (packet.type) {
             PacketType.INCIDENT_REPORT -> {
                 if (!IncidentReportCodec.isWellFormed(packet.payload)) return malformed(link, "invalid report")
                 val incidentId = IncidentReportCodec.incidentId(packet.payload)
-                if (!cache.offerReport(incidentId, forwardable, now, packet.hops)) return drop(packet, link, "known incident")
+                if (!cache.offerReport(incidentId, forwardable, now, packet.hops)) return drop(packet, link, DropReason.KNOWN_INCIDENT)
             }
             PacketType.INCIDENT_ACK -> {
                 val ack = IncidentAck.decode(packet.payload) ?: return malformed(link, "ACK invalid")
                 if (!verifyAck(packet.payload)) return malformed(link, "ACK with invalid signature")
-                if (!cache.offerAck(ack, forwardable, now)) return drop(packet, link, "stale ACK")
+                if (!cache.offerAck(ack, forwardable, now)) return drop(packet, link, DropReason.STALE_ACK)
             }
             PacketType.INCIDENT_CANCEL -> {
                 if (packet.payload.size != IncidentCancel.SIZE) return malformed(link, "invalid CANCEL")
@@ -575,20 +626,23 @@ class MeshEngine(
     private fun relay(packet: Packet, from: Link) {
         relayedCount++
         val jitter = random.nextLong(config.relayJitterMinMs, config.relayJitterMaxMs + 1)
-        val fromId = from.id
+        val key = packet.dedupKey
+        val delivered = mutableSetOf(from.id)
+        relaying[key] = delivered
         scope.launch {
             delay(jitter)
-            flood(packet, exceptLink = fromId, own = false)
+            relaying.remove(key)
+            flood(packet, except = delivered, own = false)
         }
     }
 
-    private fun drop(packet: Packet, link: Link, reason: String) {
-        droppedCount++
-        log.packet(clock.wallMs(), LogKind.DROP, packet, link.label, reason)
+    private fun drop(packet: Packet, link: Link, reason: DropReason) {
+        drops.bump(reason)
+        log.packet(clock.wallMs(), LogKind.DROP, packet, link.label, reason.label)
     }
 
     private fun malformed(link: Link, reason: String) {
-        droppedCount++
+        drops.bump(DropReason.MALFORMED)
         val now = clock.monoMs()
         log.link(clock.wallMs(), link.label, "malformed: $reason")
         link.malformedAt.addLast(now)
@@ -673,17 +727,20 @@ class MeshEngine(
         close(link)
     }
 
-    private fun currentFlags(): Int {
+    /** What any scanner nearby sees: a pending report stays out of it, so the reporter isn't a beacon. */
+    private fun advertisingFlags(): Int {
         var flags = roleFlags
-        if (pendingIncident) flags = flags or NodeFlags.PENDING_INCIDENT
         if (links.values.count { !it.outgoing && !it.closing } < limits.maxIn) {
             flags = flags or NodeFlags.ACCEPTS_CONNECTIONS
         }
         return flags
     }
 
+    private fun helloFlags(): Int =
+        if (pendingIncident) advertisingFlags() or NodeFlags.PENDING_INCIDENT else advertisingFlags()
+
     private fun refreshFlags() {
-        val flags = currentFlags()
+        val flags = advertisingFlags()
         if (flags == advertisedFlags) return
         advertisedFlags = flags
         radio.setAdvertisedFlags(flags)
@@ -700,8 +757,13 @@ class MeshEngine(
             sent = sentCount,
             received = receivedCount,
             relayed = relayedCount,
-            dropped = droppedCount,
+            dropped = drops.values.sum(),
             cachedReports = cache.reportCount,
+            counters = MeshCounters(sentByType.toMap(), receivedByType.toMap(), drops.toMap(), storeAndForwardCount),
         )
+    }
+
+    private fun <K> HashMap<K, Long>.bump(key: K) {
+        this[key] = (this[key] ?: 0L) + 1
     }
 }

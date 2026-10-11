@@ -25,7 +25,6 @@ import kotlinx.coroutines.launch
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.core.data.Role
-import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.mesh.PowerPolicy
 
 /**
@@ -79,8 +78,7 @@ class MeshService : Service() {
             }
         }
         scope.launch {
-            val pending = container.incidentStore.state.map { data -> hasPending() }.distinctUntilChanged()
-            combine(pending, container.boostUntil) { _, until -> until }.collectLatest { until ->
+            container.boostUntil.collectLatest { until ->
                 applyPower()
                 val remaining = until - container.clock.monoMs()
                 if (remaining > 0) {
@@ -91,14 +89,9 @@ class MeshService : Service() {
         }
     }
 
-    private fun hasPending(): Boolean {
-        val now = container.clock.wallMs()
-        return container.incidentStore.value.mine.any { IncidentManager.isPending(it, now) }
-    }
-
     private fun applyPower() {
         val boost = container.clock.monoMs() < container.boostUntil.value
-        val (scan, advertise) = PowerPolicy.modes(batteryPercent, charging, hasPending(), boost)
+        val (scan, advertise) = PowerPolicy.modes(batteryPercent, charging, boost)
         container.meshScope.launch { container.radio.setPowerMode(scan, advertise) }
     }
 

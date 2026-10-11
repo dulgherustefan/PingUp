@@ -26,18 +26,19 @@ class MeshPartsTest {
     @Test
     fun dedupRemembersWithinWindow() {
         val d = DedupCache(capacity = 4096, windowMs = 15 * 60_000L)
-        assertFalse(d.checkAndAdd(1L, 0))
-        assertTrue(d.checkAndAdd(1L, 14 * 60_000L))
-        assertFalse("new again after the window", d.checkAndAdd(1L, 14 * 60_000L + 15 * 60_000L + 1))
+        assertFalse(d.contains(1L, 0))
+        d.add(1L, 0)
+        assertTrue(d.contains(1L, 14 * 60_000L))
+        assertFalse("new again after the window", d.contains(1L, 15 * 60_000L + 1))
     }
 
     @Test
     fun dedupEvictsOldestBeyondCapacity() {
         val d = DedupCache(capacity = 3, windowMs = 60_000)
-        for (i in 1L..4L) d.checkAndAdd(i, i)
+        for (i in 1L..4L) d.add(i, i)
         assertEquals(3, d.size)
-        assertFalse("1 was evicted", d.checkAndAdd(1L, 10))
-        assertTrue(d.checkAndAdd(4L, 10))
+        assertFalse("1 was evicted", d.contains(1L, 10))
+        assertTrue(d.contains(4L, 10))
     }
 
     // --- token bucket ---
@@ -66,7 +67,9 @@ class MeshPartsTest {
         q.offer(Outbound(packet(PacketType.INCIDENT_CANCEL, 7), true))
         q.offer(Outbound(packet(PacketType.INCIDENT_REPORT, 5), true))
         q.offer(Outbound(packet(PacketType.HELLO, 6), true))
-        assertEquals(listOf(6L, 4L, 5L, 3L, 7L, 2L, 1L), List(7) { q.poll()!!.packet.id })
+        q.offer(Outbound(packet(PacketType.REQUEST, 8), true))
+        q.offer(Outbound(packet(PacketType.SUMMARY, 9), true))
+        assertEquals(listOf(6L, 4L, 5L, 3L, 7L, 8L, 9L, 2L, 1L), List(9) { q.poll()!!.packet.id })
         assertNull(q.poll())
     }
 
@@ -79,6 +82,16 @@ class MeshPartsTest {
         assertEquals(3, q.size)
         assertEquals(10L, q.poll()!!.packet.id)
         assertEquals(listOf(0L, 1L), List(2) { q.poll()!!.packet.id })
+    }
+
+    @Test
+    fun chatCannotPushOutStoreAndForward() {
+        val q = SendQueue(capacity = 3)
+        repeat(3) { q.offer(Outbound(packet(PacketType.PRIVATE, it.toLong()), true)) }
+        assertTrue(q.offer(Outbound(packet(PacketType.SUMMARY, 10), true)))
+        assertTrue(q.offer(Outbound(packet(PacketType.REQUEST, 11), true)))
+        assertFalse(q.offer(Outbound(packet(PacketType.PRIVATE, 12), true)))
+        assertEquals(listOf(10L, 11L, 0L), List(3) { q.poll()!!.packet.id })
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -203,6 +216,32 @@ class MeshPartsTest {
         assertNotNull(c.report(60L))
     }
 
+    @Test
+    fun ownReportOutlastsFiftyForeignOnesUntilStaffHasIt() {
+        val c = IncidentCache(maxReports = 50)
+        c.offerReport(id(1), packet(PacketType.INCIDENT_REPORT, 1), 0, own = true)
+        for (i in 2..80) c.offerReport(id(i), packet(PacketType.INCIDENT_REPORT, i.toLong()), i.toLong())
+        assertEquals(50, c.reportCount)
+        assertNotNull("ours is the oldest, yet it stays", c.report(1L))
+        assertNull("the oldest foreign ones went instead", c.report(2L))
+
+        c.offerAck(ack(1, AckStatus.RECEIVED), packet(PacketType.INCIDENT_ACK), 100)
+        c.offerReport(id(81), packet(PacketType.INCIDENT_REPORT, 81), 101)
+        assertNull("once staff has it, it goes like any other", c.report(1L))
+        assertEquals(50, c.reportCount)
+    }
+
+    @Test
+    fun reportsStaffAlreadyHasAreEvictedFirst() {
+        val c = IncidentCache(maxReports = 3)
+        for (i in 1..3) c.offerReport(id(i), packet(PacketType.INCIDENT_REPORT, i.toLong()), i.toLong())
+        c.offerAck(ack(3, AckStatus.ACKNOWLEDGED), packet(PacketType.INCIDENT_ACK), 4)
+        c.offerReport(id(4), packet(PacketType.INCIDENT_REPORT, 4), 5)
+        assertNull("the newest, but already with staff", c.report(3L))
+        assertNotNull(c.report(1L))
+        assertNotNull(c.report(4L))
+    }
+
     // --- connection policy ---
 
     private fun cand(addr: String, prefix: Int?, flags: Int = NodeFlags.ACCEPTS_CONNECTIONS, rssi: Int = -60, since: Long = 0, seen: Long = 0) =
@@ -240,15 +279,16 @@ class MeshPartsTest {
     }
 
     @Test
-    fun prefersStaffThenPendingIncidentThenRssi() {
+    fun prefersStaffThenRssi() {
         val accept = NodeFlags.ACCEPTS_CONNECTIONS
         val c = listOf(
             cand("near", 100, rssi = -40),
+            // an older version still advertises its pending report; it gets no precedence for it
             cand("pending", 101, accept or NodeFlags.PENDING_INCIDENT, rssi = -80),
             cand("anchor", 102, accept or NodeFlags.ANCHOR, rssi = -90),
         )
         val order = ConnectionPolicy.eligible(1, true, c, emptyList(), 0, none).map { it.address }
-        assertEquals(listOf("anchor", "pending", "near"), order)
+        assertEquals(listOf("anchor", "near", "pending"), order)
     }
 
     @Test

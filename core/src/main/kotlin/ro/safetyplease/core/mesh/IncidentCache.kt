@@ -28,6 +28,11 @@ class IncidentCache(
         var ackTimestamp = 0L
         var ackTeam = ""
         var touchedMs = 0L
+
+        /** This phone wrote the report. */
+        var own = false
+
+        val ownPending: Boolean get() = own && ackStatus < AckStatus.RECEIVED
     }
 
     private val entries = LinkedHashMap<Long, Entry>()
@@ -41,15 +46,26 @@ class IncidentCache(
     }
 
     /** Keeps the report if the incident is new. [packet] must already carry the ttl it will be relayed with. */
-    fun offerReport(incidentId: ByteArray, packet: Packet, nowMs: Long, hops: Int = 0): Boolean {
+    fun offerReport(incidentId: ByteArray, packet: Packet, nowMs: Long, hops: Int = 0, own: Boolean = false): Boolean {
         purge(nowMs)
         val e = entry(incidentId.toLong(), nowMs)
         if (e.reportSeen) return false
         e.reportSeen = true
+        e.own = own
         e.report = Stored(packet, nowMs, hops)
-        val stored = entries.values.filter { it.report != null }
-        if (stored.size > maxReports) stored.minByOrNull { it.report!!.atMs }?.report = null
+        if (reportCount > maxReports) evictReport()
         return true
+    }
+
+    /**
+     * Reports staff already has go first, then the oldest. Our own report stays until staff confirms it,
+     * so a burst of foreign (or fake) reports can't push it out.
+     */
+    private fun evictReport() {
+        entries.values
+            .filter { it.report != null && !it.ownPending }
+            .minWithOrNull(compareBy<Entry> { it.ackStatus < AckStatus.RECEIVED }.thenBy { it.report!!.atMs })
+            ?.report = null
     }
 
     /** Stops serving the report but keeps the trace, so it isn't requested or accepted again. */

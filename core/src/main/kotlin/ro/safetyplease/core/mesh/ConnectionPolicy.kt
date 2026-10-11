@@ -58,7 +58,6 @@ object ConnectionPolicy {
         .map { (_, same) -> same.maxByOrNull { it.lastSeenMs }!! }
         .sortedWith(
             compareByDescending<Candidate> { it.flags and PRIORITY_ROLES != 0 }
-                .thenByDescending { it.flags and NodeFlags.PENDING_INCIDENT != 0 }
                 .thenByDescending { it.rssi }
         )
 

@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.core.protocol.AckStatus
@@ -303,6 +304,80 @@ class MeshEngineTest {
     }
 
     @Test
+    fun duplicatesCostNoReceiveTokens() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        val b = world.node("B", B)
+        world.net.start()
+        advanceTimeBy(5_000)
+        val link = a.radio.links.keys.single()
+        val copy = PacketCodec.encode(Packet(PacketType.TEST, 7, 500L, A, 0, null, false, byteArrayOf(1)))
+        repeat(100) { a.radio.inject(link, copy) }
+        advanceTimeBy(100)
+        repeat(20) {
+            val p = Packet(PacketType.TEST, 7, 1000L + it, A, 0, null, false, byteArrayOf(2))
+            a.radio.inject(link, PacketCodec.encode(p))
+        }
+        advanceTimeBy(100)
+        assertEquals("the 99 copies left the burst for new packets", 21, b.ofType(PacketType.TEST).size)
+        val drops = b.engine.state.value.counters.drops
+        assertEquals(99L, drops[DropReason.DUPLICATE])
+        assertNull(drops[DropReason.RATE_LIMIT])
+    }
+
+    @Test
+    fun relaySkipsLinksThatAlreadyGaveUsTheCopy() = runTest {
+        val world = World(this)
+        val hub = world.node("H", 0x0100_0000_0000_0001L)
+        val a = world.node("A", A)
+        val c = world.node("C", C)
+        val d = world.node("D", D)
+        val leaves = listOf(a, c, d)
+        for (x in leaves) for (y in leaves) if (x !== y) world.net.outOfRange += setOf(x.name, y.name)
+        world.net.start()
+        advanceTimeBy(10_000)
+        assertEquals(3, hub.readyLinks)
+        val frame = PacketCodec.encode(Packet(PacketType.TEST, 7, 77L, A, 0, null, false, byteArrayOf(5)))
+        a.radio.inject(a.radio.links.keys.single(), frame)
+        // the second copy lands inside the hub's relay jitter
+        advanceTimeBy(20)
+        c.radio.inject(c.radio.links.keys.single(), frame)
+        advanceTimeBy(2_000)
+        assertEquals(1, hub.ofType(PacketType.TEST).size)
+        assertEquals(1, d.ofType(PacketType.TEST).size)
+        assertTrue("no echo to the links it came from", a.received.isEmpty() && c.received.isEmpty())
+    }
+
+    @Test
+    fun countersFollowTheTraffic() = runTest {
+        val (a, b, c, d) = chain()
+        d.radio.powerOff()
+        advanceTimeBy(5_000)
+        a.engine.publishReport(incidentId(1), ByteArray(80))
+        a.engine.broadcast(PacketType.TEST, byteArrayOf(1))
+        advanceTimeBy(5_000)
+        d.radio.powerOn()
+        advanceTimeBy(30_000)
+
+        val atA = a.engine.state.value.counters
+        assertEquals(1L, atA.sentByType[PacketType.INCIDENT_REPORT])
+        assertTrue((atA.sentByType[PacketType.HELLO] ?: 0) >= 1)
+        val atB = b.engine.state.value
+        assertEquals(1L, atB.counters.receivedByType[PacketType.INCIDENT_REPORT])
+        assertEquals(1L, atB.counters.receivedByType[PacketType.TEST])
+        assertEquals(2L, atB.relayed)
+        assertTrue("C hands the report to D when it comes back", c.engine.state.value.counters.storeAndForward >= 1)
+        val atD = d.engine.state.value
+        assertEquals(1, d.ofType(PacketType.INCIDENT_REPORT).size)
+        assertEquals(1, atD.cachedReports)
+        assertTrue(atD.readyLinks >= 1)
+        assertTrue((atD.counters.receivedByType[PacketType.SUMMARY] ?: 0) >= 1)
+        for (state in listOf(a, b, c, d).map { it.engine.state.value }) {
+            assertEquals(state.counters.drops.values.sum(), state.dropped)
+        }
+    }
+
+    @Test
     fun peerSendingGarbageIsBannedForTenMinutes() = runTest {
         val world = World(this)
         val a = world.node("A", A)
@@ -318,6 +393,9 @@ class MeshEngineTest {
         assertEquals("still ignored", 0, b.readyLinks)
         val attempts = a.radio.connectAttempts.size
         assertTrue("rare retries, not a loop: $attempts", attempts < 20)
+        val drops = b.engine.state.value.counters.drops
+        assertEquals(5L, drops[DropReason.MALFORMED])
+        assertTrue((drops[DropReason.BANNED] ?: 0) >= 1)
         advanceTimeBy(4 * 60_000L)
         assertEquals(1, b.readyLinks)
     }
@@ -383,15 +461,20 @@ class MeshEngineTest {
     }
 
     @Test
-    fun advertisedFlagsFollowRoleAndFreeSlots() = runTest {
+    fun advertisedFlagsFollowRoleAndFreeSlotsButNeverAPendingReport() = runTest {
         val world = World(this)
         val a = world.node("A", A)
+        val b = world.node("B", B)
         world.net.start()
         runCurrent()
         assertEquals(NodeFlags.ACCEPTS_CONNECTIONS, a.radio.flags)
         a.engine.setRole(staff = true, anchor = false)
         a.engine.setPendingIncident(true)
-        assertEquals(NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF or NodeFlags.PENDING_INCIDENT, a.radio.flags)
+        assertEquals(NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, a.radio.flags)
+        advanceTimeBy(5_000)
+        val atB = b.engine.state.value.links.single()
+        assertTrue("a linked neighbor still learns it from HELLO", atB.flags and NodeFlags.PENDING_INCIDENT != 0)
+        assertTrue(a.radio.advertised.none { it and NodeFlags.PENDING_INCIDENT != 0 })
     }
 
     @Test

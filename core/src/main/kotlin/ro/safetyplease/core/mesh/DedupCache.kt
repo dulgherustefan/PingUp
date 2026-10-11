@@ -9,12 +9,10 @@ class DedupCache(
 
     val size: Int get() = seen.size
 
-    /** True if the id was seen within the window; otherwise records it. */
-    fun checkAndAdd(id: Long, nowMs: Long): Boolean {
-        val at = seen[id]
-        if (at != null && nowMs - at <= windowMs) return true
-        add(id, nowMs)
-        return false
+    /** True if the id was seen within the window. */
+    fun contains(id: Long, nowMs: Long): Boolean {
+        val at = seen[id] ?: return false
+        return nowMs - at <= windowMs
     }
 
     fun add(id: Long, nowMs: Long) {

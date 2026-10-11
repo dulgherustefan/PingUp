@@ -72,6 +72,7 @@ class IncidentManager(
         scope.launch { engine.events.collect(::onEvent) }
         scope.launch {
             resumeCancels()
+            republishPending()
             refreshPending()
             while (isActive) {
                 delay(30_000)
@@ -106,18 +107,19 @@ class IncidentManager(
         val description = draft.description.trim().take(Limits.DESCRIPTION_CHARS).truncateUtf8(Limits.DESCRIPTION_BYTES)
         val zone = draft.zone.truncateUtf8(Limits.ZONE_BYTES)
         val nickname = draft.nickname?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
+        val body = IncidentBody(
+            draft.category, draft.severity, now / 1000, zone, draft.lat, draft.lon, description, nickname,
+            IncidentCancel.hash(cancelToken),
+        )
+        val sealed = staffCrypto.sealReport(body.encode())
         val report = MyReport(
             incidentId = incidentId.toHex(), category = draft.category, severity = draft.severity, zone = zone,
             lat = draft.lat, lon = draft.lon, description = description, anonymous = nickname == null,
-            createdAt = now, updatedAt = now, cancelToken = cancelToken.toHex(),
+            createdAt = now, updatedAt = now, cancelToken = cancelToken.toHex(), sealed = sealed.toHex(),
         )
         store.update { it.copy(mine = (it.mine + report).takeLast(MAX_MINE)) }
         scope.launch {
-            val body = IncidentBody(
-                draft.category, draft.severity, now / 1000, zone, draft.lat, draft.lon, description, nickname,
-                IncidentCancel.hash(cancelToken),
-            )
-            val packet = engine.publishReport(incidentId, staffCrypto.sealReport(body.encode()))
+            val packet = engine.publishReport(incidentId, sealed)
             packetToIncident[packet.id] = report.incidentId
             // a staff phone never receives its own report from the network, so it opens it directly
             onReport(packet, hops = 0, alert = false)
@@ -314,7 +316,17 @@ class IncidentManager(
         }
     }
 
-    /** While one of our reports hasn't reached staff, advertising flags it so neighbors prefer us. */
+    /** The cache was lost with the process; a report still waiting for staff must not be lost with it. */
+    private fun republishPending() {
+        val now = clock.wallMs()
+        for (r in store.value.mine) {
+            if (!isPending(r, now) || r.sealed.isEmpty()) continue
+            val packet = engine.publishReport(r.incidentId.hexToBytes(), r.sealed.hexToBytes())
+            packetToIncident[packet.id] = r.incidentId
+        }
+    }
+
+    /** While one of our reports hasn't reached staff, new neighbors learn it from our HELLO. */
     private fun refreshPending() {
         val now = clock.wallMs()
         engine.setPendingIncident(store.value.mine.any { isPending(it, now) })

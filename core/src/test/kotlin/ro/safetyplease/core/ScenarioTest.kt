@@ -3,6 +3,7 @@ package ro.safetyplease.core
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -11,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.crypto.StaffCrypto
 import ro.safetyplease.core.crypto.StaffPublicKeys
 import ro.safetyplease.core.crypto.testCrypto
@@ -31,6 +33,7 @@ import ro.safetyplease.core.protocol.QuickCode
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.utf8
+import java.io.File
 
 /** End-to-end acceptance scenarios on the simulated radio. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -212,6 +215,65 @@ class ScenarioTest {
     }
 
     @Test
+    fun pendingReportNeverReachesTheAdvertising() = runTest {
+        val w = chain()
+        w.d.radio.powerOff()
+        advanceTimeBy(2_000)
+        w.a.incidents.report(medical())
+        advanceTimeBy(10 * 60_000L)
+        assertTrue("still waiting for staff", IncidentManager.isPending(w.a.myReports.single(), w.world.clock.wallMs()))
+        assertTrue(w.a.radio.advertised.isNotEmpty())
+        assertTrue(w.a.radio.advertised.none { it and NodeFlags.PENDING_INCIDENT != 0 })
+    }
+
+    /** Stands in for the app being killed and started again: a new phone on the same incident store. */
+    private fun TestScope.restart(world: World, phone: TestPhone, name: String): TestPhone {
+        phone.incidentStore.flush()
+        phone.radio.powerOff()
+        File(tmp.root, "${phone.name}-incidents.json").copyTo(File(tmp.root, "$name-incidents.json"))
+        return world.phone(name).also { runCurrent() }
+    }
+
+    @Test
+    fun pendingReportIsPublishedAgainAfterARestart() = runTest {
+        val world = World(this)
+        val a = world.phone("A")
+        val d = world.phone("D")
+        d.staffSecret = world.event.secret
+        d.engine.setRole(staff = true, anchor = false)
+        a.incidents.report(medical())
+        advanceTimeBy(2_000)
+        val id = a.myReports.single().incidentId
+
+        // killed before any neighbor showed up: the report lived only in the mesh cache
+        val again = restart(world, a, "A2")
+        assertEquals(1, again.engine.state.value.cachedReports)
+        world.net.start()
+        advanceTimeBy(30_000)
+        assertEquals(id, d.staffIncidents.single().incidentId)
+        assertEquals(AckStatus.RECEIVED, again.myReports.single().status)
+    }
+
+    @Test
+    fun expiredOrWithdrawnReportsAreNotPublishedAgain() = runTest {
+        val world = World(this)
+        val a = world.phone("A")
+        val d = world.phone("D")
+        d.staffSecret = world.event.secret
+        a.incidents.report(medical("vechi"))
+        advanceTimeBy(IncidentManager.PENDING_MS + 60_000L)
+        a.incidents.report(medical("retras"))
+        a.incidents.cancel(a.myReports.last().incidentId)
+        advanceTimeBy(2_000)
+
+        val again = restart(world, a, "A2")
+        assertEquals(0, again.engine.state.value.cachedReports)
+        world.net.start()
+        advanceTimeBy(30_000)
+        assertTrue(d.staffIncidents.isEmpty())
+    }
+
+    @Test
     fun wrongStaffKeyCannotOpenReports() = runTest {
         val w = chain()
         val other = TestEvent()
@@ -345,10 +407,9 @@ class ScenarioTest {
         w.a.radio.tamper = { frame -> frame.also { if (it[1].toInt() == PacketType.INCIDENT_CANCEL) cancelsSent++ } }
         w.a.incidents.report(medical())
         advanceTimeBy(5_000)
-        assertTrue(w.a.radio.flags and NodeFlags.PENDING_INCIDENT != 0)
         w.a.incidents.cancel(w.a.myReports.single().incidentId)
         advanceTimeBy(1_000)
-        assertEquals("a withdrawn report is no longer pending", 0, w.a.radio.flags and NodeFlags.PENDING_INCIDENT)
+        assertFalse("a withdrawn report is no longer pending", IncidentManager.isPending(w.a.myReports.single(), w.world.clock.wallMs()))
 
         advanceTimeBy(3 * 60_000L)
         assertTrue("resent while staff is missing: $cancelsSent", cancelsSent >= 3)
@@ -550,6 +611,98 @@ class ScenarioTest {
         assertEquals(MsgStatus.DELIVERED, a.messages.single().status)
         assertEquals(1, c.messages.size)
         assertEquals(1, c.incoming.size)
+    }
+
+    /** Collects the distinct PRIVATE packets [phone] originates: every attempt is a new packet and a new flood. */
+    private fun floodsFrom(phone: TestPhone): Set<Long> {
+        val ids = mutableSetOf<Long>()
+        phone.radio.tamper = { frame ->
+            val p = PacketCodec.decode(frame)?.packet
+            if (p != null && p.type == PacketType.PRIVATE && p.sender == phone.nodeId) ids += p.id
+            frame
+        }
+        return ids
+    }
+
+    @Test
+    fun undeliverableMessageFloodsAtMostTwentyTimesOverHours() = runTest {
+        val world = World(this)
+        val a = world.phone("A")
+        val b = world.phone("B")
+        val c = world.phone("C")
+        a.befriend(c)
+        world.net.start()
+        advanceTimeBy(10_000)
+        c.radio.powerOff()
+        advanceTimeBy(5_000)
+        val floods = floodsFrom(a)
+        a.chat.sendText(Conversations.friend(c.nodeId), "ma auzi?")
+        advanceTimeBy(3 * 60 * 60_000L)
+        assertEquals(1, b.engine.state.value.readyLinks)
+        assertEquals(ChatManager.MAX_ATTEMPTS, floods.size)
+        assertEquals(MsgStatus.FAILED, a.messages.single().status)
+        assertTrue(a.chatStore.value.outbox.isEmpty())
+    }
+
+    @Test
+    fun linkChurnDoesNotMultiplyRetries() = runTest {
+        val world = World(this)
+        val a = world.phone("A")
+        world.phone("B")
+        val c = world.phone("C")
+        a.befriend(c)
+        world.net.start()
+        advanceTimeBy(10_000)
+        c.radio.powerOff()
+        advanceTimeBy(5_000)
+        val floods = floodsFrom(a)
+        a.chat.sendText(Conversations.friend(c.nodeId), "ma auzi?")
+        // the only neighbor keeps leaving and coming back, as in a moving crowd
+        var afterTenMinutes = 0
+        repeat(600) {
+            advanceTimeBy(10_000)
+            world.net.cut("A", "B")
+            advanceTimeBy(2_000)
+            world.net.heal("A", "B")
+            if (it == 49) afterTenMinutes = floods.size
+        }
+        assertTrue("$afterTenMinutes floods in 10 minutes, about one a minute", afterTenMinutes <= 14)
+        assertTrue("${floods.size} floods in 2 hours", floods.size <= ChatManager.MAX_ATTEMPTS)
+        assertEquals(MsgStatus.FAILED, a.messages.single().status)
+    }
+
+    @Test
+    fun copiesOfOneMessageGetOneDeliveredUntilARetryShowsItWasLost() = runTest {
+        val world = World(this)
+        val a = world.phone("A")
+        val c = world.phone("C")
+        a.befriend(c)
+        world.net.start()
+        advanceTimeBy(10_000)
+        val receipts = mutableSetOf<Long>()
+        c.radio.tamper = { frame ->
+            val p = PacketCodec.decode(frame)?.packet
+            if (p != null && p.type == PacketType.PRIVATE) {
+                receipts += p.id
+                null
+            } else frame
+        }
+        a.chat.sendText(Conversations.friend(c.nodeId), "o data")
+        advanceTimeBy(1_000)
+        repeat(3) {
+            a.chat.resend(a.messages.single())
+            advanceTimeBy(1_000)
+        }
+        assertEquals(4, a.chatStore.value.outbox.single().attempts)
+        assertEquals(1, c.messages.size)
+        assertEquals("four copies, one DELIVERED", 1, receipts.size)
+
+        c.radio.tamper = null
+        advanceTimeBy(10_000)
+        a.chat.resend(a.messages.single())
+        advanceTimeBy(5_000)
+        assertEquals(MsgStatus.DELIVERED, a.messages.single().status)
+        assertEquals(1, c.messages.size)
     }
 
     @Test
