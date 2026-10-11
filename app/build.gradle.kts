@@ -65,6 +65,13 @@ android {
         unitTests.isReturnDefaultValues = true
     }
 
+    // JNA also ships armeabi, mips and mips64, which no supported phone runs and libsodium doesn't have.
+    packaging {
+        jniLibs {
+            excludes += listOf("lib/armeabi/**", "lib/mips/**", "lib/mips64/**")
+        }
+    }
+
     // The app pins its own language (Romanian), so per-language bundle splits have nothing to split.
     bundle {
         language {

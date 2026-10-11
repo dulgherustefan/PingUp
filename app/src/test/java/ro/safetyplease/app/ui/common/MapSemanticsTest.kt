@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
+import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
@@ -34,6 +35,7 @@ class MapSemanticsTest {
         here = "aici ești",
         meeting = "Punct de întâlnire",
         incident = "Incident",
+        urgency = { if (it == Severity.URGENT) "Urgent" else "Nu e urgent" },
         directions = listOf("nord", "nord-est", "est", "sud-est", "sud", "sud-vest", "vest", "nord-vest"),
         route = { meters, direction -> "$meters m spre $direction" },
     )
@@ -79,7 +81,14 @@ class MapSemanticsTest {
         val all = nodes(position = inStage)
         // the camping's center is 0.001 degrees east, about 80 m at this latitude
         assertEquals("Camping, 80 m spre est", all[1].description)
-        assertEquals("Fântână, apă potabilă, 111 m spre nord", all[4].description)
+        assertEquals("rounded to 5 m", "Fântână, apă potabilă, 110 m spre nord", all[4].description)
+    }
+
+    @Test
+    fun aStepDoesNotChangeWhatIsRead() {
+        val before = nodes(position = GeoPoint(44.0005, 28.0005))[4].description
+        val oneMeterNorth = nodes(position = GeoPoint(44.000509, 28.0005))[4].description
+        assertEquals(before, oneMeterNorth)
     }
 
     @Test
@@ -88,6 +97,14 @@ class MapSemanticsTest {
         assertEquals("Incident, Camping", nodes(pins = listOf(pin)).last().description)
         val outside = MapPin(GeoPoint(44.0018, 28.0028), Color.Red, "i2")
         assertEquals("Incident", nodes(pins = listOf(outside)).last().description)
+    }
+
+    @Test
+    fun anIncidentPinSaysHowUrgentItIs() {
+        val urgent = MapPin(GeoPoint(44.0005, 28.0015), Color.Red, "i1", Severity.URGENT)
+        val medium = MapPin(GeoPoint(44.0005, 28.0015), Color.Red, "i2", Severity.MEDIUM)
+        assertEquals("Incident, Urgent, Camping", nodes(pins = listOf(urgent)).last().description)
+        assertEquals("Incident, Nu e urgent, Camping", nodes(pins = listOf(medium)).last().description)
     }
 
     @Test

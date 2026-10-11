@@ -35,7 +35,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `venue/` | Harta evenimentului din `venue.json`: zone, punct de întâlnire. |
 | `util/` | Octeți, hex, `sha256`, ceasul. |
 
-Testele de aici (140) rulează pe JVM simplu, fără emulator. Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.
+Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.
 
 ## `:app`: Android și interfața
 

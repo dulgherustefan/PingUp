@@ -91,7 +91,8 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 
-class MapPin(val point: GeoPoint, val color: Color, val key: String = "")
+/** [severity] is set on incident pins, so TalkBack can say how urgent they are. */
+class MapPin(val point: GeoPoint, val color: Color, val key: String = "", val severity: Int? = null)
 
 private val MapInset = 12.dp
 private val CompactInset = 8.dp

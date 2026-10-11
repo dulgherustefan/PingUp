@@ -155,6 +155,8 @@ A node sends SUMMARY after the peer's HELLO and then every 60 s on each ready li
 
 Relays cannot open the body. They check only that the payload is longer than 64 bytes (16 + 48). At most 16 + 391 + 48 = 455 bytes.
 
+`IncidentReportCodec.incidentId` and `IncidentReportCodec.sealed` slice the payload without checking its length and throw on a payload shorter than 16 bytes. Callers must check `IncidentReportCodec.isWellFormed` first; `MeshEngine` does, before it stores, relays or delivers a report, so the app only ever sees well-formed ones.
+
 `IncidentBody`, the plaintext only staff can read:
 
 | Size | Field | Rule |
@@ -245,7 +247,7 @@ Per-type checks, at every hop:
 
 | Type | Check | On failure |
 |---|---|---|
-| INCIDENT_REPORT | payload longer than 64 bytes; then stored if the `incidentId` is new | malformed; a known `incidentId` is dropped and not relayed |
+| INCIDENT_REPORT | payload longer than 64 bytes; then stored if its `id8` is new | malformed; a known `id8` is dropped and not relayed |
 | INCIDENT_ACK | decodes and the signature verifies; then stored if it supersedes the stored ACK (section 8) | malformed; an ACK that doesn't supersede is dropped and not relayed |
 | INCIDENT_CANCEL | payload exactly 32 bytes | malformed |
 | PRIVATE | R set, `sender ≠ 0`, E set | malformed |
@@ -256,7 +258,7 @@ Relaying: after a random delay of 50..250 ms, the packet goes with `ttl − 1` t
 
 Hops: a receiver computes `hops = 8 − ttl`, so a direct neighbour sees 1.
 
-Store-and-forward: a stored report or ACK keeps `max(ttl − 1, 1)` and is served with that `ttl` when a neighbour requests it; the origin stores its own report or ACK with `ttl 7`. The TTL therefore limits only the live flood. Through SUMMARY and REQUEST a report can travel any number of hops. Reports and ACKs are kept 30 minutes (60 on anchors), at most 50 reports per node, in memory only.
+Store-and-forward: a stored report or ACK keeps `max(ttl − 1, 1)` and is served with that `ttl` when a neighbour requests it; the origin stores its own report or ACK with `ttl 7`. The TTL therefore limits only the live flood. Through SUMMARY and REQUEST a report can travel any number of hops. Reports and ACKs are kept 30 minutes (60 on anchors), at most 50 reports per node, in memory only. `IncidentCache` keys both on `id8`, the first 8 bytes of the `incidentId` read as `i64` (the same `id8` as in SUMMARY and REQUEST, section 6.2), not on all 16 bytes: two reports whose ids share their first 8 bytes are one incident to a relay, so the second is dropped as known, and their ACKs compete for one slot.
 
 Dedup key (`Packet.dedupKey`): the first 8 bytes, as `i64`, of SHA-256 over
 
@@ -271,7 +273,8 @@ It covers everything except `ttl`, so a node can't block a packet by sending gar
 - The reporter draws a random 16-byte `incidentId` and a random 16-byte cancel token, puts `cancelHash = SHA-256("SP-CANCEL-v1" ‖ token)`, first 16 bytes, into the body, seals the body and floods the report with `sender 0`.
 - The first staff phone that opens a report sends RECEIVED by itself, unless an ACK for it is already known. Staff then send ACKNOWLEDGED and RESOLVED by hand.
 - ACK status values: 0 NONE (only in SUMMARY), 1 RECEIVED, 2 ACKNOWLEDGED, 3 RESOLVED, 4 CANCELLED.
-- Supersede order (`IncidentCache.isBetter`): a higher status wins; for equal status the older `timestamp` wins; for equal timestamps the smaller team name wins (Kotlin string order, by UTF-16 code units). The status therefore never goes down, and a RESOLVED incident cannot be reopened.
+- Relays track an incident by `id8` (section 7): `IncidentCache` stores one report and one ACK per `id8`, and SUMMARY and REQUEST name incidents by it. The reporter and staff phones match reports, ACKs and cancels on all 16 bytes of the `incidentId`.
+- Supersede order (`IncidentCache.isBetter`, per `id8`): a higher status wins; for equal status the older `timestamp` wins; for equal timestamps the smaller team name wins (Kotlin string order, by UTF-16 code units). The status therefore never goes down, and a RESOLVED incident cannot be reopened.
 - Cancelling: the author floods INCIDENT_CANCEL with `sender 0`, again every 60 s and after each new link, for up to 30 minutes or until the status reaches RESOLVED or CANCELLED. A staff phone that holds the report checks `SHA-256("SP-CANCEL-v1" ‖ token)[0..16] == cancelHash` and that the status is below RESOLVED, then signs a CANCELLED ACK. A cancel that arrives before its report is kept for 60 minutes (64 at most). A body without `cancelHash` cannot be cancelled.
 - Relays can verify ACKs and nothing else about an incident.
 
@@ -368,8 +371,8 @@ Inputs are deterministic. Seeds are 32 consecutive byte values (`seed(0x10)` = `
 
 **Fuzzing.** `DecoderFuzzTest` uses `kotlin.random.Random` with a fixed seed and no extra library, and runs in under 3 seconds. Every test has a 10-second timeout. For `PacketCodec.decode`, all payload decoders, the `Reassembler` and both QR decoders, it feeds valid encodings of random objects and mutations of them: random bytes, bit flips, truncation, trailing bytes, boundary values in single bytes (most often a length or a count), cut and inserted ranges, and fragments forged with arbitrary counters and lengths. It checks that:
 
-- nothing throws;
-- every call allocates less than 32 KiB, which catches a buffer sized from an untrusted length;
+- nothing throws, except `IncidentReportCodec.incidentId` and `sealed` on payloads shorter than 16 bytes, which `isWellFormed` rejects (section 6.3);
+- every call allocates less than 32 KiB, which catches a buffer sized from an untrusted length; the test fails if the JVM can't measure per-thread allocation, rather than passing without the check;
 - a successful decode re-encodes to the same bytes, unless a string came back with U+FFFD (open question 4);
 - the `Reassembler` never holds more than 8 sets or returns more than 480 bytes, and rebuilds any packet from its frames in any order, with repeats;
 - any change to a sealed report, a boxed PRIVATE payload or a signed ACK makes opening or verifying fail.

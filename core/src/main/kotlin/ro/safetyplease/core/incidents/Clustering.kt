@@ -32,11 +32,14 @@ object Clustering {
     /** Two patients in the same zone are two cases, so these are never called the same incident. */
     private val perPerson = setOf(IncidentCategory.MEDICAL, IncidentCategory.VIOLENCE, IncidentCategory.LOST_PERSON)
 
-    /** The hint of every report that came close to others; a report on its own has no entry. */
+    /**
+     * The hint of every open report that came close to other open ones; a report on its own has no entry.
+     * Resolved and cancelled reports neither get a hint nor count in one: they are no longer work for staff.
+     */
     fun suggestions(incidents: List<StaffIncident>): Map<String, DuplicateHint> {
         val hints = mutableMapOf<String, DuplicateHint>()
         // without a zone we can't tell it's the same place
-        val located = incidents.filter { it.zone.isNotEmpty() }.sortedBy { it.reportedAt }
+        val located = incidents.filter { it.zone.isNotEmpty() && StatusFilter.ACTIVE.matches(it) }.sortedBy { it.reportedAt }
         for (group in located.groupBy { it.category to it.zone }.values) {
             val windows = mutableListOf<MutableList<StaffIncident>>()
             for (incident in group) {

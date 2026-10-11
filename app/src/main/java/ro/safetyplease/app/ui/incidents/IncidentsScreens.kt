@@ -362,9 +362,10 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
         .sortedByDescending { it.reportedAt }
     val canTake = incident.status < AckStatus.ACKNOWLEDGED
     val canResolve = incident.status < AckStatus.RESOLVED
-    // the others in gray, this report on top in its severity color
-    val pins = others.mapNotNull { other -> incidentPoint(vm.venue, other)?.let { MapPin(it, colors.secondaryLabel, other.incidentId) } } +
-        listOfNotNull(incidentPoint(vm.venue, incident)?.let { MapPin(it, colors.severity(incident.severity), incident.incidentId) })
+    // the others faded in their own severity color, this report on top at full strength
+    val pins = others.mapNotNull { other ->
+        incidentPoint(vm.venue, other)?.let { MapPin(it, colors.severity(other.severity).copy(alpha = 0.45f), other.incidentId, other.severity) }
+    } + listOfNotNull(incidentPoint(vm.venue, incident)?.let { MapPin(it, colors.severity(incident.severity), incident.incidentId, incident.severity) })
     val place = if (incident.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(incident.zone)
     var menu by remember { mutableStateOf(false) }
     var confirmDismiss by remember { mutableStateOf(false) }

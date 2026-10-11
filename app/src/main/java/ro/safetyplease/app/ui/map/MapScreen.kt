@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -132,7 +134,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val pins = remember(incidents.staff, settings.role, colors) {
         if (settings.role != AppRole.STAFF) emptyList()
         else incidents.staff.filter { it.status < AckStatus.RESOLVED }.mapNotNull { incident ->
-            incidentPoint(vm.venue, incident)?.let { MapPin(it, colors.severity(incident.severity), incident.incidentId) }
+            incidentPoint(vm.venue, incident)?.let { MapPin(it, colors.severity(incident.severity), incident.incidentId, incident.severity) }
         }
     }
 
@@ -223,7 +225,8 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
             }
             item(key = "quick") {
                 Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Gutter, vertical = 12.dp),
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Gutter, vertical = 12.dp)
+                        .selectableGroup(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     QuickChip(Sym.MyLocation, stringResource(R.string.map_quick_me), null, colors.accent, focus == MapFocus.MINE) { showMine() }
@@ -419,7 +422,7 @@ private fun QuickChip(icon: ImageVector, label: String, meters: Int?, tone: Colo
     val fill by animateColorAsState(if (selected) tone else colors.cell, label = "chip")
     Row(
         Modifier.pressScale(press, 0.95f).heightIn(min = 40.dp).clip(CircleShape).background(fill)
-            .clickable(press, indication = null, role = Role.Button, onClick = onClick)
+            .selectable(selected, interactionSource = press, indication = null, role = Role.Tab, onClick = onClick)
             .padding(start = 6.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

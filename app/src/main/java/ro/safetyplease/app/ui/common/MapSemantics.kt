@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.R
+import ro.safetyplease.app.text.Labels
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
@@ -30,7 +31,7 @@ import ro.safetyplease.core.venue.pointInPolygon
 import kotlin.math.roundToInt
 
 /** The words TalkBack reads on the map, resolved once from resources so [mapNodes] stays testable. */
-class MapWords(
+internal class MapWords(
     /** Place type to its name, e.g. "wc" to "toalete". */
     val types: Map<String, String>,
     /** A zone without a known type. */
@@ -38,6 +39,8 @@ class MapWords(
     val here: String,
     val meeting: String,
     val incident: String,
+    /** A pin's severity, e.g. "Urgent". */
+    val urgency: (Int) -> String,
     /** The eight compass sectors, north first. */
     val directions: List<String>,
     /** Distance in meters and direction: "120 m spre nord". */
@@ -45,15 +48,16 @@ class MapWords(
 )
 
 /** One thing TalkBack can focus on the map. [zone] is set on zone nodes, [pin] on incident pins. */
-class MapNode(val description: String, val point: GeoPoint, val zone: Zone? = null, val pin: MapPin? = null)
+internal class MapNode(val description: String, val point: GeoPoint, val zone: Zone? = null, val pin: MapPin? = null)
 
 /**
  * What the map says to TalkBack: every zone first, then the useful points, the meeting point and the [pins].
  * Each says its name, its type unless the name already says it, then "aici ești" for your zone or the distance and
  * direction from [position] when it's known.
  */
-fun mapNodes(venue: Venue, words: MapWords, position: GeoPoint?, myZone: String, pins: List<MapPin>): List<MapNode> {
-    fun route(to: GeoPoint) = position?.let { words.route(distanceMeters(it, to), words.directions[compassSector(it, to)]) }
+internal fun mapNodes(venue: Venue, words: MapWords, position: GeoPoint?, myZone: String, pins: List<MapPin>): List<MapNode> {
+    // rounded so TalkBack doesn't re-announce a place for every meter you walk
+    fun route(to: GeoPoint) = position?.let { words.route(roundToFive(distanceMeters(it, to)), words.directions[compassSector(it, to)]) }
 
     val zones = venue.zones.map { zone ->
         val mine = zone.id == myZone || (position != null && pointInPolygon(position.lat, position.lon, zone.polygon))
@@ -63,10 +67,12 @@ fun mapNodes(venue: Venue, words: MapWords, position: GeoPoint?, myZone: String,
     val meeting = listOfNotNull(venue.meetingPoint?.let { MapNode(describe(words.meeting, null, route(it)), it) })
     val incidents = pins.map { pin ->
         val zone = venue.zoneAt(pin.point.lat, pin.point.lon)?.name
-        MapNode(listOfNotNull(words.incident, zone, route(pin.point)).joinToString(", "), pin.point, pin = pin)
+        MapNode(listOfNotNull(words.incident, pin.severity?.let(words.urgency), zone, route(pin.point)).joinToString(", "), pin.point, pin = pin)
     }
     return zones + pois + meeting + incidents
 }
+
+private fun roundToFive(meters: Int): Int = (meters + 2) / 5 * 5
 
 private fun describe(name: String, type: String?, where: String?): String =
     listOfNotNull(name.takeIf { it.isNotEmpty() }, type?.takeUnless { name.contains(it, ignoreCase = true) }, where).joinToString(", ")
@@ -88,6 +94,7 @@ private fun mapWords(resources: Resources) = MapWords(
     here = resources.getString(R.string.map_a11y_here),
     meeting = resources.getString(R.string.map_meeting_point),
     incident = resources.getString(R.string.map_a11y_incident),
+    urgency = { resources.getString(Labels.urgency(it)) },
     directions = resources.getStringArray(R.array.map_directions).toList(),
     route = { meters, direction -> resources.getString(R.string.map_route, meters, direction) },
 )

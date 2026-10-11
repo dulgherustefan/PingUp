@@ -173,6 +173,28 @@ class SmallPartsTest {
     }
 
     @Test
+    fun closedReportsNeitherGetNorCountInAHint() {
+        val hints = Clustering.suggestions(
+            listOf(
+                incident("open", IncidentCategory.CROWD, "bar", 0.0),
+                incident("resolved", IncidentCategory.CROWD, "bar", 1.0, status = AckStatus.RESOLVED),
+                incident("cancelled", IncidentCategory.CROWD, "bar", 2.0, status = AckStatus.CANCELLED),
+            )
+        )
+        assertTrue("an open report next to closed ones stands alone", hints.isEmpty())
+
+        val withTaken = Clustering.suggestions(
+            listOf(
+                incident("resolved", IncidentCategory.FIRE, "food", 0.0, status = AckStatus.RESOLVED),
+                incident("taken", IncidentCategory.FIRE, "food", 1.0, status = AckStatus.ACKNOWLEDGED),
+                incident("new", IncidentCategory.FIRE, "food", 2.0),
+            )
+        )
+        assertEquals("a taken report is still work and counts", listOf("taken", "new"), withTaken.getValue("new").incidentIds)
+        assertNull(withTaken["resolved"])
+    }
+
+    @Test
     fun reportsWithoutZoneGetNoHint() {
         val hints = Clustering.suggestions(listOf(incident("a", IncidentCategory.CROWD, "", 0.0), incident("b", IncidentCategory.CROWD, "", 1.0)))
         assertTrue(hints.isEmpty())

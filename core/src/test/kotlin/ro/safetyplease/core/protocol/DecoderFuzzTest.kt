@@ -4,6 +4,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -85,6 +86,23 @@ class DecoderFuzzTest {
             val value = bounded(codec.name, input) { codec.decode(input) } ?: return@repeat
             if (codec.strings(value).any { '\uFFFD' in it }) return@repeat
             assertArrayEquals("${codec.name} is not canonical", input, codec.encode(value))
+        }
+    }
+
+    @Test(timeout = 10_000)
+    fun reportAccessorsThrowOnPayloadsThatAreNotWellFormed() {
+        // incidentId and sealed slice without checking; callers check isWellFormed first (PROTOCOL.md, section 6.3)
+        repeat(ROUNDS / 10) {
+            val short = random.nextBytes(random.nextInt(0, INCIDENT_ID_SIZE))
+            assertFalse(IncidentReportCodec.isWellFormed(short))
+            assertThrows(RuntimeException::class.java) { IncidentReportCodec.incidentId(short) }
+            assertThrows(RuntimeException::class.java) { IncidentReportCodec.sealed(short) }
+        }
+        for (size in 0..INCIDENT_ID_SIZE + IncidentReportCodec.SEAL_OVERHEAD + 1) {
+            val payload = random.nextBytes(size)
+            val wellFormed = IncidentReportCodec.isWellFormed(payload)
+            assertEquals("size $size", size > INCIDENT_ID_SIZE + IncidentReportCodec.SEAL_OVERHEAD, wellFormed)
+            if (wellFormed) assertArrayEquals(payload, IncidentReportCodec.incidentId(payload) + IncidentReportCodec.sealed(payload))
         }
     }
 
@@ -172,6 +190,7 @@ class DecoderFuzzTest {
 
     /** Counts the bytes [block] allocates; a [pure] block runs once before, so class loading isn't counted. */
     private fun <T> bounded(name: String, input: ByteArray, pure: Boolean = true, block: () -> T): T {
+        val threads = allocationMeter ?: throw AssertionError("this JVM can't measure thread allocation, so the 32 KiB guard would pass anything")
         if (pure) block()
         val before = threads.currentThreadAllocatedBytes
         val result = block()
@@ -190,7 +209,8 @@ class DecoderFuzzTest {
          */
         const val MAX_ALLOCATION = 32 * 1024
 
-        val threads = ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean
+        val allocationMeter = (ManagementFactory.getThreadMXBean() as? com.sun.management.ThreadMXBean)
+            ?.takeIf { it.isThreadAllocatedMemorySupported && it.isThreadAllocatedMemoryEnabled }
     }
 }
 
