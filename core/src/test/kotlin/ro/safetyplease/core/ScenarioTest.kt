@@ -19,6 +19,7 @@ import ro.safetyplease.core.crypto.testCrypto
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.MsgKind
 import ro.safetyplease.core.data.MsgStatus
+import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.ReportDraft
 import ro.safetyplease.core.mesh.SimNet
@@ -169,6 +170,28 @@ class ScenarioTest {
         advanceTimeBy(5_000)
         assertEquals(AckStatus.ACKNOWLEDGED, w.d.staffIncidents.single().status)
         assertEquals("so D doesn't go to the same incident", "Medical 2", w.d.staffIncidents.single().teamName)
+    }
+
+    @Test
+    fun twoMedicalCasesInTheSameZoneAMinuteApartAreTakenOneByOne() = runTest {
+        val w = chain()
+        assertTrue(w.a.incidents.report(medical("A leșinat cineva lângă bar")))
+        advanceTimeBy(60_000)
+        assertTrue(w.b.incidents.report(medical("Cineva nu mai respiră")))
+        advanceTimeBy(15_000)
+
+        val atStaff = w.d.staffIncidents
+        assertEquals(2, atStaff.size)
+        val hint = Clustering.suggestions(atStaff).getValue(atStaff.first().incidentId)
+        assertEquals("staff is told about the other report", 2, hint.count)
+        assertFalse(hint.sameEvent)
+
+        val first = w.a.myReports.single().incidentId
+        w.d.incidents.acknowledge(first)
+        advanceTimeBy(15_000)
+        assertEquals(AckStatus.ACKNOWLEDGED, w.a.myReports.single().status)
+        assertEquals("the second patient isn't shown as taken", AckStatus.RECEIVED, w.b.myReports.single().status)
+        assertEquals(AckStatus.RECEIVED, w.d.staffIncidents.single { it.incidentId != first }.status)
     }
 
     @Test

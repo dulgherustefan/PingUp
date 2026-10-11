@@ -166,7 +166,7 @@ class UiLogicTest {
     )
 
     @Test
-    fun clearingClosedIncidentsTakesOnlyGroupsWhereEveryReportIsClosed() {
+    fun clearingClosedIncidentsTakesEveryClosedReportOnItsOwn() {
         val incidents = listOf(
             staff("rezolvat", "a", 0, AckStatus.RESOLVED),
             staff("anulat", "a", 1, AckStatus.CANCELLED),
@@ -175,8 +175,8 @@ class UiLogicTest {
             staff("preluat", "", 0, AckStatus.ACKNOWLEDGED),
         )
         assertEquals(
-            "a resolved report grouped with an open one isn't under \"Inchise\", so it stays",
-            setOf("rezolvat", "anulat"), closedIncidents(incidents).toSet(),
+            "an open report from the same zone, a minute later, is another incident and stays",
+            setOf("rezolvat", "anulat", "rezolvat-langa-deschis"), closedIncidents(incidents).toSet(),
         )
     }
 

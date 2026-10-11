@@ -385,4 +385,14 @@
         <item quantity="other">Ștergi %d de incidente închise din listă?</item>
     </plurals>
     <string name="incidents_dismiss_closed_text">Dispar doar de pe acest telefon. Celelalte echipe le văd în continuare.</string>
+
+    <!-- Reports from the same zone at the same time: a hint, never a shared action -->
+    <string name="incident_maybe_same">Posibil același incident</string>
+    <plurals name="incident_same_zone">
+        <item quantity="one">Încă un raport din aceeași zonă</item>
+        <item quantity="few">Încă %d rapoarte din aceeași zonă</item>
+        <item quantity="other">Încă %d de rapoarte din aceeași zonă</item>
+    </plurals>
+    <string name="incident_same_zone_title">Din aceeași zonă</string>
+    <string name="incident_each_separately">Fiecare raport se preia și se rezolvă separat.</string>
 </resources>

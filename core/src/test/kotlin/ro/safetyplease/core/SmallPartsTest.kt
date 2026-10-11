@@ -117,7 +117,7 @@ class SmallPartsTest {
         assertEquals(6, compassSector(o, GeoPoint(43.949, 28.633)))
     }
 
-    // --- clustering ---
+    // --- possible duplicates ---
 
     private fun incident(id: String, category: Int, zone: String, atMin: Double, severity: Int = Severity.MEDIUM, status: Int = 0) =
         StaffIncident(
@@ -126,68 +126,71 @@ class SmallPartsTest {
         )
 
     @Test
-    fun sameCategoryAndZoneWithinFiveMinutesIsOneCard() {
-        val clusters = Clustering.cluster(
+    fun twoMedicalCasesInTheSameZoneAMinuteApartAreTwoIncidents() {
+        val first = incident("a", IncidentCategory.MEDICAL, "main-stage", 0.0, Severity.URGENT)
+        val second = incident("b", IncidentCategory.MEDICAL, "main-stage", 1.0, Severity.URGENT)
+        val hints = Clustering.suggestions(listOf(first, second))
+
+        val hint = hints.getValue("a")
+        assertTrue("both rows carry the same hint", hint === hints["b"])
+        assertEquals(listOf("a", "b"), hint.incidentIds)
+        assertFalse("two patients are never called one incident", hint.sameEvent)
+
+        val afterTake = listOf(first.copy(status = AckStatus.ACKNOWLEDGED), second)
+        assertEquals("taking one leaves the other unassigned", listOf("b"), afterTake.filter(StatusFilter.OPEN::matches).map { it.incidentId })
+    }
+
+    @Test
+    fun violenceAndLostPersonAreNeverOneIncidentEither() {
+        for (category in listOf(IncidentCategory.VIOLENCE, IncidentCategory.LOST_PERSON)) {
+            val hint = Clustering.suggestions(listOf(incident("a", category, "bar", 0.0), incident("b", category, "bar", 2.0))).getValue("b")
+            assertEquals(2, hint.count)
+            assertFalse(hint.sameEvent)
+        }
+    }
+
+    @Test
+    fun crowdAndFireReportsStillGroupWithinFiveMinutesOfTheFirst() {
+        val hints = Clustering.suggestions(
             listOf(
-                incident("a", IncidentCategory.MEDICAL, "main-stage", 0.0),
-                incident("b", IncidentCategory.MEDICAL, "main-stage", 2.0, severity = Severity.URGENT),
-                incident("c", IncidentCategory.MEDICAL, "main-stage", 4.9),
-                incident("d", IncidentCategory.MEDICAL, "main-stage", 9.0),
-                incident("e", IncidentCategory.MEDICAL, "food", 1.0),
+                incident("c", IncidentCategory.CROWD, "main-stage", 4.9),
+                incident("a", IncidentCategory.CROWD, "main-stage", 0.0),
+                incident("b", IncidentCategory.CROWD, "main-stage", 2.0, severity = Severity.URGENT),
+                incident("d", IncidentCategory.CROWD, "main-stage", 9.0),
+                incident("e", IncidentCategory.CROWD, "food", 1.0),
                 incident("f", IncidentCategory.FIRE, "main-stage", 1.0),
+                incident("g", IncidentCategory.FIRE, "main-stage", 3.0),
             )
         )
-        assertEquals(4, clusters.size)
-        val big = clusters.first { it.count == 3 }
-        assertEquals(setOf("a", "b", "c"), big.incidents.map { it.incidentId }.toSet())
-        assertEquals(Severity.URGENT, big.severity)
-        assertEquals("b", big.lead.incidentId)
-        assertEquals("most severe first", big, clusters.first())
+        val crowd = hints.getValue("a")
+        assertEquals("oldest first", listOf("a", "b", "c"), crowd.incidentIds)
+        assertTrue(crowd.sameEvent)
+        assertTrue(hints["b"] === crowd && hints["c"] === crowd)
+        assertNull("more than five minutes after the first", hints["d"])
+        assertNull("another zone", hints["e"])
+        assertEquals("another category is another hint", listOf("f", "g"), hints.getValue("g").incidentIds)
+        assertTrue(hints.getValue("g").sameEvent)
     }
 
     @Test
-    fun reportsWithoutZoneStayAlone() {
-        val clusters = Clustering.cluster(
-            listOf(incident("a", IncidentCategory.MEDICAL, "", 0.0), incident("b", IncidentCategory.MEDICAL, "", 1.0))
-        )
-        assertEquals(2, clusters.size)
+    fun reportsWithoutZoneGetNoHint() {
+        val hints = Clustering.suggestions(listOf(incident("a", IncidentCategory.CROWD, "", 0.0), incident("b", IncidentCategory.CROWD, "", 1.0)))
+        assertTrue(hints.isEmpty())
     }
 
     @Test
-    fun clustersSortBySeverityThenRecency() {
-        val clusters = Clustering.cluster(
-            listOf(
-                incident("old-urgent", IncidentCategory.FIRE, "bar", 0.0, Severity.URGENT),
-                incident("new-low", IncidentCategory.OTHER, "food", 50.0, Severity.LOW),
-                incident("new-urgent", IncidentCategory.MEDICAL, "food", 40.0, Severity.URGENT),
-                incident("medium", IncidentCategory.CROWD, "entrance", 45.0, Severity.MEDIUM),
-            )
-        )
-        assertEquals(listOf("new-urgent", "old-urgent", "medium", "new-low"), clusters.map { it.lead.incidentId })
-    }
-
-    @Test
-    fun clusterStatusFollowsLeastAdvancedReportAndFilters() {
-        val cluster = Clustering.cluster(
-            listOf(
-                incident("a", IncidentCategory.MEDICAL, "bar", 0.0, status = AckStatus.RESOLVED),
-                incident("b", IncidentCategory.MEDICAL, "bar", 1.0, status = AckStatus.RECEIVED),
-            )
-        ).single()
-        assertEquals(AckStatus.RECEIVED, cluster.status)
-        assertTrue(Clustering.matches(cluster, StatusFilter.OPEN))
-        assertTrue(Clustering.matches(cluster, StatusFilter.ALL))
-        assertFalse(Clustering.matches(cluster, StatusFilter.RESOLVED))
-        assertFalse(Clustering.matches(cluster, StatusFilter.TAKEN))
-    }
-
-    @Test
-    fun activeFilterKeepsNewAndTakenButNotClosed() {
-        fun clusterWith(status: Int) = Clustering.cluster(listOf(incident("x", IncidentCategory.MEDICAL, "bar", 0.0, status = status))).single()
-        assertTrue(Clustering.matches(clusterWith(AckStatus.RECEIVED), StatusFilter.ACTIVE))
-        assertTrue(Clustering.matches(clusterWith(AckStatus.ACKNOWLEDGED), StatusFilter.ACTIVE))
-        assertFalse(Clustering.matches(clusterWith(AckStatus.RESOLVED), StatusFilter.ACTIVE))
-        assertFalse(Clustering.matches(clusterWith(AckStatus.CANCELLED), StatusFilter.ACTIVE))
+    fun filtersLookAtEachReportOnItsOwn() {
+        fun with(status: Int) = incident("x", IncidentCategory.MEDICAL, "bar", 0.0, status = status)
+        assertTrue(StatusFilter.OPEN.matches(with(AckStatus.RECEIVED)))
+        assertFalse(StatusFilter.OPEN.matches(with(AckStatus.ACKNOWLEDGED)))
+        assertTrue(StatusFilter.TAKEN.matches(with(AckStatus.ACKNOWLEDGED)))
+        assertTrue(StatusFilter.ACTIVE.matches(with(AckStatus.RECEIVED)))
+        assertTrue(StatusFilter.ACTIVE.matches(with(AckStatus.ACKNOWLEDGED)))
+        assertFalse(StatusFilter.ACTIVE.matches(with(AckStatus.RESOLVED)))
+        assertFalse(StatusFilter.ACTIVE.matches(with(AckStatus.CANCELLED)))
+        assertTrue(StatusFilter.RESOLVED.matches(with(AckStatus.CANCELLED)))
+        assertFalse(StatusFilter.RESOLVED.matches(with(AckStatus.ACKNOWLEDGED)))
+        assertTrue(StatusFilter.ALL.matches(with(AckStatus.NONE)))
     }
 
     // --- persistence ---

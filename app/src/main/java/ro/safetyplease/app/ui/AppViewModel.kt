@@ -28,7 +28,6 @@ import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.data.StaffIncident
-import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.ReportDraft
 import ro.safetyplease.core.incidents.StatusFilter
 import ro.safetyplease.core.protocol.AckStatus
@@ -105,9 +104,8 @@ fun MyReport.isOpen() = status < AckStatus.RESOLVED && !cancelled
 /** Your reports that no longer wait for help: resolved, cancelled or being cancelled. */
 fun closedReports(mine: List<MyReport>): List<String> = mine.filterNot { it.isOpen() }.map { it.incidentId }
 
-/** Incidents under the "Inchise" filter: only groups where every report is resolved or cancelled. */
-fun closedIncidents(staff: List<StaffIncident>): List<String> =
-    Clustering.cluster(staff).filter { Clustering.matches(it, StatusFilter.RESOLVED) }.flatMap { cluster -> cluster.incidents.map { it.incidentId } }
+/** Incidents under the "Inchise" filter: resolved or cancelled, each on its own whatever came from the same zone. */
+fun closedIncidents(staff: List<StaffIncident>): List<String> = staff.filter(StatusFilter.RESOLVED::matches).map { it.incidentId }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     val c: AppContainer = (app as App).container
