@@ -58,6 +58,10 @@ sealed interface Dest {
      * With [sendTo], the chosen zone is sent straight to that conversation.
      */
     data class Map(val spot: String = "", val sendTo: String? = null) : Dest
+
+    /** Offline first-aid sheets, then one of them by [id]. */
+    data object FirstAid : Dest
+    data class FirstAidSheet(val id: String) : Dest
 }
 
 sealed interface ScanOutcome {

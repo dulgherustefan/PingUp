@@ -89,6 +89,7 @@ private fun mapWords(resources: Resources) = MapWords(
         "medical" to R.string.map_type_medical, "entrance" to R.string.map_type_entrance, "exit" to R.string.map_type_exit,
         "camping" to R.string.map_type_camping, "chill" to R.string.map_type_chill, "water" to R.string.map_type_water,
         "wc" to R.string.map_type_wc, "info" to R.string.map_type_info, "charge" to R.string.map_type_charge,
+        Venue.DEA to R.string.map_type_dea,
     ).mapValues { resources.getString(it.value) },
     zone = resources.getString(R.string.map_type_zone),
     here = resources.getString(R.string.map_a11y_here),

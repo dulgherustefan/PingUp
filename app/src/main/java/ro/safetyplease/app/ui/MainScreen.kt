@@ -98,6 +98,8 @@ import ro.safetyplease.app.ui.designsystem.pressScale
 import ro.safetyplease.app.ui.designsystem.rememberBackdrop
 import ro.safetyplease.app.ui.incidents.IncidentDetailScreen
 import ro.safetyplease.app.ui.incidents.IncidentsScreen
+import ro.safetyplease.app.ui.firstaid.FirstAidScreen
+import ro.safetyplease.app.ui.firstaid.FirstAidSheetScreen
 import ro.safetyplease.app.ui.map.MapScreen
 import ro.safetyplease.app.ui.map.PinScreen
 import ro.safetyplease.app.ui.me.AnchorScreen
@@ -265,6 +267,8 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         Dest.Demo -> Demo.Screen(vm)
         is Dest.Pin -> PinScreen(vm, dest)
         is Dest.Map -> MapScreen(vm, dest)
+        Dest.FirstAid -> FirstAidScreen(vm)
+        is Dest.FirstAidSheet -> FirstAidSheetScreen(vm, dest.id)
         null -> if (role == AppRole.ANCHOR) AnchorScreen(vm) else MainTabs(vm, role == AppRole.STAFF, onStartMesh)
     }
 }

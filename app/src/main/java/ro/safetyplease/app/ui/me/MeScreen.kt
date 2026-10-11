@@ -71,7 +71,7 @@ private const val DEMO_UNLOCK_TAPS = 7
 
 /**
  * Your profile: your code large at the top with your name (tap to change it), then only what someone at a festival
- * might change: the staff code and, on phones that kill background apps, battery settings.
+ * might change: the staff code and, on phones that kill background apps, battery settings; then the first-aid sheets.
  * Technical tools (network, ID, demo mode) unlock after 7 taps on Version.
  */
 @Composable
@@ -125,6 +125,10 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                             onClick = { BatteryExemption.request(context) },
                         )
                     }
+                }
+
+                InsetGroup {
+                    GroupRow(stringResource(R.string.first_aid_title), icon = Sym.Medical, chevron = true, onClick = { vm.open(Dest.FirstAid) })
                 }
 
                 InsetGroup(Modifier.padding(bottom = 24.dp)) {

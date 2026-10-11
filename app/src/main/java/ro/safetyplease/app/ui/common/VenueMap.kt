@@ -217,7 +217,7 @@ private class MapPaint(colors: AppColors) {
     val halo = if (colors.dark) Color(0xD9111813) else Color(0xE6FFFFFF)
 }
 
-private val GlyphTypes = listOf("stage", "food", "bar", "medical", "entrance", "exit", "camping", "chill", "water", "wc", "info", "charge")
+private val GlyphTypes = listOf("stage", "food", "bar", "medical", "entrance", "exit", "camping", "chill", "water", "wc", "info", "charge", Venue.DEA)
 
 @Composable
 private fun rememberGlyphs(): Map<String, Painter> = GlyphTypes.associateWith { rememberVectorPainter(typeGlyph(it)!!) }

@@ -82,8 +82,10 @@ import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.CategoryCircle
 import ro.safetyplease.app.ui.common.IncidentHeader
+import ro.safetyplease.app.ui.common.MapGlyph
 import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.categoryIcon
+import ro.safetyplease.app.ui.common.routeText
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppDialog
 import ro.safetyplease.app.ui.designsystem.AppMenu
@@ -124,6 +126,7 @@ import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.compassSector
 import ro.safetyplease.core.venue.distanceMeters
 
@@ -638,7 +641,7 @@ private fun rememberEscalated(report: MyReport): Boolean {
 
 /**
  * What to do meanwhile: walk to the nearest medical point (with distance and direction when we know where you are)
- * or, if [stay], stay put and ask the people around; and call 112.
+ * or, if [stay], stay put and ask the people around; the first-aid sheets, the nearest defibrillator and 112.
  */
 @Composable
 private fun HelpSteps(vm: AppViewModel, origin: GeoPoint?, stay: Boolean) {
@@ -663,6 +666,18 @@ private fun HelpSteps(vm: AppViewModel, origin: GeoPoint?, stay: Boolean) {
         if (stay) {
             GroupDivider()
             GroupRow(stringResource(R.string.report_help_stay), subtitle = stringResource(R.string.report_help_stay_text), icon = Sym.Place)
+        }
+        GroupDivider()
+        GroupRow(
+            stringResource(R.string.first_aid_title), subtitle = stringResource(R.string.report_help_first_aid_text), icon = Sym.Medical,
+            chevron = true, onClick = { vm.open(Dest.FirstAid) },
+        )
+        vm.venue.nearest(Venue.DEA, origin)?.let { dea ->
+            GroupDivider()
+            GroupRow(
+                stringResource(R.string.nearest_dea), subtitle = routeText(origin, dea.point), icon = MapGlyph.Dea,
+                chevron = true, onClick = { vm.open(Dest.Map(spot = Venue.DEA)) },
+            )
         }
         GroupDivider()
         GroupRow(

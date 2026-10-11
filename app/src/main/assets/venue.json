@@ -77,7 +77,9 @@
     { "type": "water", "name": "Apă potabilă est", "lat": 43.94893, "lon": 28.63740 },
     { "type": "water", "name": "Apă lângă scenă", "lat": 43.95030, "lon": 28.63320 },
     { "type": "info", "name": "Punct de informare", "lat": 43.94850, "lon": 28.63520 },
-    { "type": "charge", "name": "Încărcare telefon", "lat": 43.94893, "lon": 28.63640 }
+    { "type": "charge", "name": "Încărcare telefon", "lat": 43.94893, "lon": 28.63640 },
+    { "type": "dea", "name": "DEA punct medical", "lat": 43.94870, "lon": 28.63615 },
+    { "type": "dea", "name": "DEA scena principală", "lat": 43.95010, "lon": 28.63600 }
   ],
   "paths": [
     [ { "lat": 43.94805, "lon": 28.63212 }, { "lat": 43.95106, "lon": 28.63212 }, { "lat": 43.95106, "lon": 28.63808 }, { "lat": 43.94805, "lon": 28.63808 }, { "lat": 43.94805, "lon": 28.63212 } ],

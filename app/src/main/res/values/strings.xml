@@ -417,4 +417,16 @@
     <string name="map_type_wc">toalete</string>
     <string name="map_type_info">punct de informare</string>
     <string name="map_type_charge">încărcare telefon</string>
+
+    <!-- First aid and defibrillators (DEA) -->
+    <string name="map_quick_dea">DEA</string>
+    <string name="map_type_dea">defibrilator</string>
+    <string name="nearest_dea">Cel mai apropiat DEA</string>
+    <string name="first_aid_title">Prim ajutor</string>
+    <string name="first_aid_intro">Ce faci până ajunge echipa medicală. Funcționează și fără semnal.</string>
+    <string name="first_aid_draft_title">Schiță, de aprobat de șeful medical al evenimentului</string>
+    <string name="first_aid_draft_text">Textul nu a fost încă verificat de un medic.</string>
+    <string name="first_aid_warning">Atenție</string>
+    <string name="first_aid_approved">Aprobat: %1$s</string>
+    <string name="report_help_first_aid_text">Ce faci până ajunge echipa, pas cu pas.</string>
 </resources>

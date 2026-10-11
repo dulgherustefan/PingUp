@@ -97,14 +97,14 @@ import ro.safetyplease.core.venue.distanceMeters
 import ro.safetyplease.core.data.Role as AppRole
 
 /** Places the quick chips lead to, in chip order. */
-private val SpotTypes = listOf("medical", "exit", Venue.MEETING, "water", "wc", "info", "charge")
+private val SpotTypes = listOf("medical", "exit", Venue.MEETING, "water", "wc", "info", "charge", Venue.DEA)
 
 private enum class MapFocus { MINE, ZONE, SPOT }
 
 /**
  * Event map, as a tab or opened from a chat. On top the big map, which opens on where you are; below it, shortcuts
- * to the nearest medical point, exit, meeting point, water, toilets, info and charging, each with its distance,
- * then the chosen place and every zone. Without GPS, the zone you picked stands in for your position.
+ * to the nearest medical point, exit, meeting point, water, toilets, info, charging and defibrillator (DEA), each
+ * with its distance, then the chosen place and every zone. Without GPS, the zone you picked stands in for your position.
  * Opened from a chat, the chosen zone is sent right away. As a tab ([asTab]) the top left shows your avatar instead of a back arrow.
  */
 @Composable
@@ -361,6 +361,7 @@ private fun spotLabel(type: String): String = stringResource(
         "water" -> R.string.map_quick_water
         "wc" -> R.string.map_quick_wc
         "info" -> R.string.map_quick_info
+        Venue.DEA -> R.string.map_quick_dea
         else -> R.string.map_quick_charge
     },
 )

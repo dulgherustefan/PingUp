@@ -30,6 +30,12 @@ object MapGlyph {
     )
     val Info by glyph("M10.75 10h2.5v9h-2.5Z M12 4.5a1.75 1.75 0 1 1 0 3.5a1.75 1.75 0 1 1 0-3.5Z")
     val Charge by glyph("M13.5 2L5 13.5h5.5L9.5 22 19 9.5h-5.5Z")
+    /** A heart with a lightning bolt cut out, as on defibrillator signs. */
+    val Dea by glyph(
+        "M12 21l-1.45-1.32C5.4 15.36 2 12.28 2 8.5C2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 " +
+            "C19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54Z M13 6L8 13h3.2l-0.7 5.5L16 11h-3.2Z",
+        evenOdd = true,
+    )
     val Minus by glyph("M5 10.75h14v2.5H5Z")
     val Plus by glyph("M10.75 5h2.5v5.75H19v2.5h-5.75V19h-2.5v-5.75H5v-2.5h5.75Z")
 }
@@ -53,6 +59,7 @@ fun typeGlyph(type: String): ImageVector? = when (type) {
     "wc" -> MapGlyph.Wc
     "info" -> MapGlyph.Info
     "charge" -> MapGlyph.Charge
+    Venue.DEA -> MapGlyph.Dea
     else -> null
 }
 
@@ -81,7 +88,7 @@ fun zoneTone(venue: Venue, index: Int): Int = when (venue.zones[index].type) {
 
 /** Solid color of a place, for the circle under its icon. */
 fun spotColor(colors: AppColors, type: String): Color = when (type) {
-    "medical" -> colors.zoneSolid(SLATE, MEDICAL_ZONE)
+    "medical", Venue.DEA -> colors.zoneSolid(SLATE, MEDICAL_ZONE)
     "exit" -> colors.zoneSolid(PINE)
     Venue.MEETING -> colors.orange
     "water" -> colors.zoneSolid(SLATE)

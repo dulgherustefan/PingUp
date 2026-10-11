@@ -22,7 +22,7 @@ data class Zone(val id: String, val name: String, val color: String, val polygon
         get() = GeoPoint(polygon.map { it.lat }.average(), polygon.map { it.lon }.average())
 }
 
-/** A useful point on the map: exit, wc, water, info, charge. */
+/** A useful point on the map: exit, wc, water, info, charge, dea (a defibrillator). */
 @Serializable
 data class Poi(val type: String, val lat: Double, val lon: Double, val name: String = "") {
     val point: GeoPoint get() = GeoPoint(lat, lon)
@@ -63,6 +63,7 @@ data class Venue(
         private val json = Json { ignoreUnknownKeys = true }
 
         const val MEETING = "meeting"
+        const val DEA = "dea"
 
         fun parse(text: String): Venue = json.decodeFromString(serializer(), text)
     }
