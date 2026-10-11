@@ -26,7 +26,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 
 | Pachet | Ce face |
 |---|---|
-| `protocol/` | Formatul pachetelor pe fir: codare, decodare, fragmentare. |
+| `protocol/` | Formatul pachetelor pe fir: codare, decodare, fragmentare. Specificația, cu vectorii de test, e în `PROTOCOL.md`. |
 | `mesh/` | Rutarea mesh: cui trimitem, ce am văzut deja, cozi, limite, consum. `Radio` e interfața pe care o implementează Bluetooth-ul. |
 | `crypto/` | Identitatea, criptarea cap-coadă (libsodium), codurile QR de prieten și de staff. |
 | `chat/` | Prietenii, grupurile, mesajele și reîncercările. |
@@ -63,7 +63,7 @@ Testele de aici (140) rulează pe JVM simplu, fără emulator. Telefoanele simul
 
 ## Unde pun cod nou
 
-- Un tip de pachet nou sau o regulă de rutare: `core/protocol/` sau `core/mesh/`, cu test în `core/src/test/`.
+- Un tip de pachet nou sau o regulă de rutare: `core/protocol/` sau `core/mesh/`, cu test în `core/src/test/`. Dacă se schimbă octeții de pe fir, se actualizează și `PROTOCOL.md` și vectorii golden.
 - Un ecran nou: un pachet nou în `ui/`; mută în `ui/common/` doar ce ajunge să fie folosit și de alt ecran.
 - Ceva ce cere un API Android: o interfață în `:core` și implementarea în `platform/`.
 
