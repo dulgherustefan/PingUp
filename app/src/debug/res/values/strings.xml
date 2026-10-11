@@ -25,5 +25,14 @@
     <string name="demo_tests_empty">Apasă „Trimite TEST”. Fiecare telefon care îl primește răspunde cu un ecou.</string>
     <string name="demo_log">Jurnal de pachete (%1$d)</string>
     <string name="demo_log_export">Exportă</string>
+    <string name="demo_measure">Măsurători de teren</string>
+    <string name="demo_measure_idle">Nu se înregistrează nimic. Fișierele CSV rămân pe telefon până le exporți.</string>
+    <string name="demo_measure_field">Se înregistrează în %1$s · rânduri: %2$d</string>
+    <string name="demo_measure_census">Recensământ în %1$s · secunde: %2$d. Ecranul rămâne aprins.</string>
+    <string name="demo_measure_start">Măsoară</string>
+    <string name="demo_measure_census_start">Recensământ BLE</string>
+    <string name="demo_measure_stop">Oprește</string>
+    <string name="demo_measure_failed">Înregistrarea n-a pornit. Verifică Bluetooth-ul și permisiunile.</string>
+    <string name="demo_measure_none">Nicio înregistrare încă.</string>
     <string name="demo_radio_caps">Coded PHY: %1$s · advertising extins: %2$s (max %3$d B) · multi-advertising: %4$s · rază lungă activă: %5$s</string>
 </resources>

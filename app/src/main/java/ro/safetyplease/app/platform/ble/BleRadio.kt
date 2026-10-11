@@ -65,6 +65,10 @@ class BleRadio(
 ) : Radio {
     override val events = Channel<RadioEvent>(Channel.UNLIMITED)
 
+    /** Field measurements (debug builds); null otherwise. */
+    @Volatile
+    var probe: RadioProbe? = null
+
     private enum class Op { CONNECT, MTU, DISCOVER, DESCRIPTOR, WRITE }
 
     private inner class OutLink(val id: Int, val address: String) {
@@ -432,8 +436,8 @@ class BleRadio(
                 // no suspension point between LinkUp and the early frames, so the order stays the wire order
                 for (frame in link.early) events.trySend(RadioEvent.Frame(link.id, frame))
                 link.early.clear()
-                // the PHY in the log shows whether the link went over Coded
-                if (longRange) runCatching { link.gatt?.readPhy() }
+                // the PHY in the log shows whether the link went over Coded; field measurements want it on every link
+                if (longRange || probe != null) runCatching { link.gatt?.readPhy() }
             } else if (!link.closed) {
                 log("connect failed ${address.takeLast(5)}")
                 closeOut(link, failed = true)
@@ -596,11 +600,15 @@ class BleRadio(
         }
 
         override fun onPhyRead(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) = post {
-            if (status == BluetoothGatt.GATT_SUCCESS) log("phy ${link.address.takeLast(5)} tx=$txPhy rx=$rxPhy")
+            if (status != BluetoothGatt.GATT_SUCCESS) return@post
+            log("phy ${link.address.takeLast(5)} tx=$txPhy rx=$rxPhy")
+            probe?.phy(link.address, txPhy, rxPhy)
         }
 
         override fun onPhyUpdate(gatt: BluetoothGatt, txPhy: Int, rxPhy: Int, status: Int) = post {
-            if (status == BluetoothGatt.GATT_SUCCESS) log("phy changed ${link.address.takeLast(5)} tx=$txPhy rx=$rxPhy")
+            if (status != BluetoothGatt.GATT_SUCCESS) return@post
+            log("phy changed ${link.address.takeLast(5)} tx=$txPhy rx=$rxPhy")
+            probe?.phy(link.address, txPhy, rxPhy)
         }
 
         override fun onCharacteristicChanged(gatt: BluetoothGatt, ch: BluetoothGattCharacteristic, value: ByteArray) {
@@ -753,6 +761,7 @@ class BleRadio(
                 // without a server-side connect(), cancelConnection() can't close the link later
                 runCatching { gattServer?.connect(device, false) }
                 events.trySend(RadioEvent.LinkUp(link.id, address, false, mtu - BleConstants.ATT_OVERHEAD))
+                if (probe != null) runCatching { gattServer?.readPhy(device) }
             } else {
                 val link = incoming.remove(address) ?: return@post
                 events.trySend(RadioEvent.LinkDown(link.id))
@@ -780,6 +789,14 @@ class BleRadio(
                 val link = incoming[device.address] ?: return@post
                 events.trySend(RadioEvent.Frame(link.id, frame))
             }
+        }
+
+        override fun onPhyRead(device: BluetoothDevice, txPhy: Int, rxPhy: Int, status: Int) = post {
+            if (status == BluetoothGatt.GATT_SUCCESS) probe?.phy(device.address, txPhy, rxPhy)
+        }
+
+        override fun onPhyUpdate(device: BluetoothDevice, txPhy: Int, rxPhy: Int, status: Int) = post {
+            if (status == BluetoothGatt.GATT_SUCCESS) probe?.phy(device.address, txPhy, rxPhy)
         }
 
         override fun onNotificationSent(device: BluetoothDevice, status: Int) = post {
@@ -859,10 +876,11 @@ class BleRadio(
         }
     }
 
-    /** On the scan callback thread: only [sightings] may be touched here. */
+    /** On the scan callback thread: only [sightings] and [probe] may be touched here. */
     private fun heard(results: List<ScanResult>) {
         val devices = HashMap<String, BluetoothDevice>()
         val adverts = results.mapNotNull { result -> advert(result)?.also { devices[it.address] = result.device } }
+        probe?.let { p -> adverts.forEach(p::heard) }
         val reports = sightings.heard(adverts, now())
         if (reports.isNotEmpty()) post { seen(reports, devices) }
     }

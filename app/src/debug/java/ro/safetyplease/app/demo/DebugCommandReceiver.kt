@@ -21,6 +21,10 @@ import ro.safetyplease.core.venue.GeoPoint
  * Test commands over adb, debug builds only. Replies go to logcat, tag MeshDebug.
  *
  *   adb shell am broadcast -n org.pingup.app/ro.safetyplease.app.demo.DebugCommandReceiver --es cmd status
+ *
+ * Field measurements (see [FieldRecorder]): --es cmd measure --es action start|census|stop|export;
+ * start also takes --ei pings 100 --ei every 1000 to send TEST packets while recording. The CSV files:
+ *   adb pull /sdcard/Android/data/org.pingup.app/files/measure/
  */
 class DebugCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -99,8 +103,21 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 c.settings.update { it.copy(simLat = point.lat, simLon = point.lon) }
                 "simulated location ${GeoPoint(point.lat, point.lon)}"
             }
+            "measure" -> measure(Demo.recorder(context, c), arg("action"), intent)
             else -> "unknown command"
         }
+    }
+
+    private fun measure(recorder: FieldRecorder, action: String, intent: Intent): String = when (action) {
+        "start" -> {
+            val pings = intent.getIntExtra("pings", 0)
+            val file = recorder.start(FieldRecorder.Mode.FIELD, pings, intent.getIntExtra("every", 1_000).toLong())
+            "recording to ${file.name}" + if (pings > 0) ", $pings TEST packets" else ""
+        }
+        "census" -> "census to ${recorder.start(FieldRecorder.Mode.CENSUS).name}; keep the screen on"
+        "stop" -> recorder.stop()?.let { "stopped, ${it.rows} rows in ${it.file.name}" } ?: "not recording"
+        "export" -> "${recorder.files().size} files: adb pull ${recorder.directory}/"
+        else -> "unknown action $action"
     }
 
     private fun status(c: AppContainer): String {

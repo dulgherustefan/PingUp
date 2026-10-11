@@ -1,5 +1,6 @@
 package ro.safetyplease.app.demo
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
@@ -27,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -68,6 +71,11 @@ object Demo {
     @Volatile
     private var pinger: TestPinger? = null
 
+    // it keeps only the application context
+    @SuppressLint("StaticFieldLeak")
+    @Volatile
+    private var recorder: FieldRecorder? = null
+
     fun install(container: AppContainer) {
         if (pinger == null) pinger = TestPinger(container).also { it.start() }
     }
@@ -75,6 +83,11 @@ object Demo {
     fun pinger(container: AppContainer): TestPinger {
         install(container)
         return pinger!!
+    }
+
+    fun recorder(context: Context, container: AppContainer): FieldRecorder {
+        if (recorder == null) recorder = FieldRecorder(context.applicationContext, container, pinger(container))
+        return recorder!!
     }
 
     /** Demo staff keys bundled in debug builds; null if they don't match the app's public staff keys. */
@@ -128,8 +141,19 @@ object Demo {
         val log by c.log.entries.collectAsStateWithLifecycle()
         val pinger = remember { pinger(c) }
         val tests by pinger.lines.collectAsStateWithLifecycle()
+        val recorder = remember { recorder(context, c) }
+        val recording by recorder.recording.collectAsStateWithLifecycle()
         var confirmWipe by remember { mutableStateOf(false) }
         var notice by remember { mutableStateOf<String?>(null) }
+        var measureNotice by remember { mutableStateOf<String?>(null) }
+
+        // Android pauses unfiltered scans with the screen off
+        val view = LocalView.current
+        val census = recording?.mode == FieldRecorder.Mode.CENSUS
+        DisposableEffect(census) {
+            view.keepScreenOn = census
+            onDispose { view.keepScreenOn = false }
+        }
 
         val peers = buildList {
             for (link in mesh.links.filter { it.peerId != 0L }) {
@@ -232,6 +256,35 @@ object Demo {
                     }
                     notice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     OutlinedButton(onClick = { confirmWipe = true }) { Text(stringResource(R.string.demo_wipe)) }
+                }
+
+                Card(stringResource(R.string.demo_measure)) {
+                    val current = recording
+                    Text(
+                        if (current == null) stringResource(R.string.demo_measure_idle)
+                        else stringResource(
+                            if (current.mode == FieldRecorder.Mode.FIELD) R.string.demo_measure_field else R.string.demo_measure_census,
+                            current.file.name, current.rows,
+                        ),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val failed = stringResource(R.string.demo_measure_failed)
+                        val none = stringResource(R.string.demo_measure_none)
+                        fun start(mode: FieldRecorder.Mode) {
+                            measureNotice = if (runCatching { recorder.start(mode) }.isSuccess) null else failed
+                        }
+                        if (current == null) {
+                            Button(onClick = { start(FieldRecorder.Mode.FIELD) }) { Text(stringResource(R.string.demo_measure_start)) }
+                            FilledTonalButton(onClick = { start(FieldRecorder.Mode.CENSUS) }) { Text(stringResource(R.string.demo_measure_census_start)) }
+                            OutlinedButton(onClick = { measureNotice = if (recorder.share(context)) null else none }) {
+                                Text(stringResource(R.string.demo_log_export))
+                            }
+                        } else {
+                            Button(onClick = { recorder.stop() }) { Text(stringResource(R.string.demo_measure_stop)) }
+                        }
+                    }
+                    measureNotice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 }
 
                 Card(stringResource(R.string.demo_tests)) {
