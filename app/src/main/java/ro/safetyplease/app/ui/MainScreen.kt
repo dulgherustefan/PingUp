@@ -84,6 +84,8 @@ import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.ui.chat.ConversationScreen
 import ro.safetyplease.app.ui.chat.MessagesScreen
 import ro.safetyplease.app.ui.common.RadioGate
+import ro.safetyplease.app.ui.control.ControlScreen
+import ro.safetyplease.app.ui.control.ControlWindow
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.Backdrop
 import ro.safetyplease.app.ui.designsystem.FullScreen
@@ -230,6 +232,7 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
         kept = entries
     }
 
+    if (settings.role == AppRole.CONTROL) ControlWindow()
     FullScreen {
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         if (!settings.onboarded) OnboardingScreen(vm, onStartMesh)
@@ -269,7 +272,11 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         is Dest.Map -> MapScreen(vm, dest)
         Dest.FirstAid -> FirstAidScreen(vm)
         is Dest.FirstAidSheet -> FirstAidSheetScreen(vm, dest.id)
-        null -> if (role == AppRole.ANCHOR) AnchorScreen(vm) else MainTabs(vm, role == AppRole.STAFF, onStartMesh)
+        null -> when (role) {
+            AppRole.ANCHOR -> AnchorScreen(vm)
+            AppRole.CONTROL -> ControlScreen(vm, onStartMesh)
+            else -> MainTabs(vm, role == AppRole.STAFF, onStartMesh)
+        }
     }
 }
 

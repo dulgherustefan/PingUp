@@ -5,7 +5,7 @@ Public keys go into the app (app/src/main/assets/staff_public.json). Secret seed
 (ignored by git) and only travel inside staff QR codes.
 
   pip install pynacl "qrcode[pil]"
-  python tools/gen_staff_keys.py --teams "Medical 1" "Medical 2" --anchors main-stage bar
+  python tools/gen_staff_keys.py --teams "Medical 1" "Medical 2" --anchors main-stage bar --control Control
 
 Later runs reuse the seeds in tools/out/staff_seeds.json, so you can add teams without changing keys.
 --new generates new keys (old QR codes stop working). --demo makes a separate key pair for the debug build only
@@ -34,6 +34,8 @@ DEMO_PUBLIC = ROOT / "app" / "src" / "debug" / "assets" / "staff_public.json"
 
 ROLE_STAFF = 1
 ROLE_ANCHOR = 2
+ROLE_CONTROL = 3
+ROLE_NAMES = {ROLE_STAFF: "staff", ROLE_ANCHOR: "anchor", ROLE_CONTROL: "control"}
 TEAM_BYTES = 24
 ZONE_BYTES = 32
 
@@ -83,6 +85,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--teams", nargs="*", default=["Medical 1", "Securitate 1"], help="staff team names")
     parser.add_argument("--anchors", nargs="*", default=[], help="venue.json zone ids for anchors")
+    parser.add_argument("--control", nargs="*", default=[], help="names of the control-room consoles")
     parser.add_argument("--new", action="store_true", help="generate new keys instead of reusing the saved ones")
     parser.add_argument("--demo", action="store_true", help="only a new key pair for the debug build")
     args = parser.parse_args()
@@ -101,14 +104,15 @@ def main() -> None:
 
     cards = [(ROLE_STAFF, team, "") for team in args.teams]
     cards += [(ROLE_ANCHOR, f"Ancora {zone}"[:TEAM_BYTES], zone) for zone in args.anchors]
+    cards += [(ROLE_CONTROL, name, "") for name in args.control]
     lines = []
     for role, team, zone in cards:
         text = qr_payload(box_seed, sign_seed, role, team, zone)
         name = re.sub(r"[^A-Za-z0-9]+", "_", team).strip("_").lower()
-        image = OUT / f"{'anchor' if role == ROLE_ANCHOR else 'staff'}_{name}.png"
+        image = OUT / f"{ROLE_NAMES[role]}_{name}.png"
         saved = save_qr(text, image)
         lines.append(f"{team}\t{text}")
-        print(f"{'anchor' if role == ROLE_ANCHOR else 'staff'}: {team} -> {image.relative_to(ROOT) if saved else '(no image: pip install qrcode[pil])'}")
+        print(f"{ROLE_NAMES[role]}: {team} -> {image.relative_to(ROOT) if saved else '(no image: pip install qrcode[pil])'}")
     (OUT / "staff_qr.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"QR contents -> {(OUT / 'staff_qr.txt').relative_to(ROOT)}")
     print("Rebuild the app after changing the public keys.")

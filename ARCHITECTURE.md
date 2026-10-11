@@ -31,8 +31,9 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `crypto/` | Identitatea, criptarea cap-coadă (libsodium), codurile QR de prieten și de staff. |
 | `chat/` | Prietenii, grupurile, mesajele și reîncercările. |
 | `incidents/` | Rapoartele, confirmările staff-ului și semnalarea rapoartelor venite din aceeași zonă în același timp. |
+| `control/` | Jurnalul consolei de control: rapoartele, ACK-urile cu semnături și deciziile operatorului, starea fiecărui incident pe consolă, exportul CSV și JSON. |
 | `data/` | Modelele salvate și `JsonStore` (fișiere JSON scrise atomic). |
-| `venue/` | Harta evenimentului din `venue.json`: zone, punct de întâlnire. |
+| `venue/` | Harta evenimentului din `venue.json`: zone, punct de întâlnire, grila sitului (A1, B2...). |
 | `util/` | Octeți, hex, `sha256`, ceasul. |
 
 Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.
@@ -51,6 +52,7 @@ Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate di
 | `ui/designsystem/` | Tema, culorile, tipografia, componentele de bază. Nu știe nimic despre mesaje sau incidente. |
 | `ui/common/` | Componente folosite de mai multe ecrane: harta, cardul QR, antetul de incident, starea rețelei. |
 | `ui/chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `onboarding/` | Ecranele, câte un pachet pe funcționalitate. |
+| `ui/control/` | Consola camerei de control, în landscape pe o tabletă: coada, harta cu grila, alocarea, fraza pentru stație, rețeaua și exportul jurnalului. |
 
 `src/debug/` conține modul demo (simulare, comenzi adb); `src/release/` are aceeași clasă `Demo`, dar goală.
 

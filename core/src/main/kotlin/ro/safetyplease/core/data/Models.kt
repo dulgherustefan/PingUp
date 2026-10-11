@@ -4,7 +4,18 @@ import kotlinx.serialization.Serializable
 import ro.safetyplease.core.util.toHex
 
 @Serializable
-enum class Role { PARTICIPANT, STAFF, ANCHOR }
+enum class Role {
+    PARTICIPANT,
+    STAFF,
+    ANCHOR,
+
+    /** Staff at the control-room console: the staff keys, plus the queue, the assignments and the shift log. */
+    CONTROL,
+    ;
+
+    /** Opens reports and signs ACKs with the staff keys. */
+    val hasStaffKeys: Boolean get() = this == STAFF || this == CONTROL
+}
 
 @Serializable
 data class Settings(

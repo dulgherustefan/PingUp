@@ -421,4 +421,97 @@
     <string name="date_pattern_recent">MMM d, HH:mm</string>
     <string name="date_pattern_short">MMM d</string>
     <string name="date_pattern_day">EEEE, MMMM d</string>
+
+    <!-- Control-room console: the queue, the map with the site grid, assignments, the shift log and the network -->
+    <string name="role_control">Control · %1$s</string>
+    <string name="scan_control_on">This phone is now the control console. It receives every report and keeps the shift log.</string>
+    <string name="staff_status_mine">Assigned to your team</string>
+    <string name="control_title">Control console</string>
+    <string name="control_filter_assigned">Assigned</string>
+    <string name="control_pane_queue">Queue</string>
+    <string name="control_pane_incident">Incident</string>
+    <string name="control_none_selected">Pick an incident from the queue</string>
+    <string name="control_none_selected_text">Its details, the phrase for the radio and the actions show up here.</string>
+    <string name="control_state_open">Unassigned</string>
+    <string name="control_state_reopened">Reopened</string>
+    <string name="control_state_assigned">Assigned to %1$s</string>
+    <string name="control_state_unfounded">Closed as unfounded</string>
+    <string name="control_word_unfounded">Unfounded</string>
+    <string name="control_local_only">On the console only. Phones in the field see: %1$s.</string>
+    <string name="control_unfounded_note">“Unfounded” stays in the console log; the network got “Resolved”.</string>
+    <string name="control_radio_title">To read over the radio</string>
+    <string name="control_radio_urgent">urgent</string>
+    <string name="control_radio_not_urgent">not urgent</string>
+    <string name="control_radio_no_place">location unknown</string>
+    <string name="control_assign">Assign</string>
+    <string name="control_reassign">Reassign</string>
+    <string name="control_resolve">Resolve</string>
+    <string name="control_unfounded">Unfounded</string>
+    <string name="control_reopen">Reopen</string>
+    <string name="control_actions_note">“Unfounded” and “Reopen” stay on the console until the protocol can send them. Tell the teams over the radio.</string>
+    <string name="control_assign_title">Assign the incident</string>
+    <string name="control_assign_other">Another team or role</string>
+    <string name="control_assign_taken">The network already shows: %1$s. The new assignment stays on the console; announce it over the radio.</string>
+    <string name="control_reason">Reason</string>
+    <string name="control_reason_optional">Reason (optional)</string>
+    <string name="control_resolve_title">Mark as resolved?</string>
+    <string name="control_resolve_text">The teams and the person who reported it see “Resolved”.</string>
+    <string name="control_unfounded_title">Close as unfounded?</string>
+    <string name="control_unfounded_text">The teams and the person who reported it see “Resolved”. The reason stays in the log.</string>
+    <string name="control_reopen_title">Reopen the incident?</string>
+    <string name="control_reopen_text">It reopens on the console only: phones in the field keep their current state.</string>
+    <string name="control_history">History</string>
+    <string name="control_event_report">Report opened on the console</string>
+    <string name="control_event_ack">%1$s · %2$s</string>
+    <string name="control_event_assign">Assigned to %1$s</string>
+    <string name="control_event_take">Taken by the console</string>
+    <string name="control_event_resolve">Resolved by the console</string>
+    <string name="control_ack_received">Received</string>
+    <string name="control_signed_here">signed on the console</string>
+    <string name="control_signature">signature %1$s…</string>
+    <string name="control_export">Export the log</string>
+    <string name="control_export_confirm">Export</string>
+    <string name="control_export_title">Export the shift log?</string>
+    <string name="control_export_text">The whole log goes out, %1$s, as two CSV files and one JSON file. It contains health data: send it only to the organiser’s system.</string>
+    <plurals name="control_entries">
+        <item quantity="one">one entry</item>
+        <item quantity="other">%d entries</item>
+    </plurals>
+    <string name="control_export_empty">The log is still empty.</string>
+    <string name="control_network_sent">packets sent</string>
+    <string name="control_network_received">packets received</string>
+    <string name="control_network_dropped">packets dropped</string>
+    <string name="control_network_served">sent from the cache, on request</string>
+    <string name="control_heard_title">Phones heard</string>
+    <string name="control_heard_empty">No phone heard yet.</string>
+    <string name="control_heard_linked">linked now</string>
+    <string name="control_heard_at">heard %1$s</string>
+    <string name="control_heard_staff">Staff</string>
+    <plurals name="control_heard_silent">
+        <item quantity="one">Anchor silent for a minute</item>
+        <item quantity="other">Anchor silent for %d minutes</item>
+    </plurals>
+    <string-array name="control_roles">
+        <item>Medical</item>
+        <item>Security</item>
+        <item>Stewards</item>
+        <item>Fire</item>
+    </string-array>
+    <!-- In the order of LogEvent: report, ACK, assign, take, resolve, unfounded, reopen, export -->
+    <string-array name="control_log_events">
+        <item>report</item>
+        <item>acknowledgement</item>
+        <item>assignment</item>
+        <item>take</item>
+        <item>resolution</item>
+        <item>unfounded</item>
+        <item>reopening</item>
+        <item>export</item>
+    </string-array>
+    <!-- In the order of CaseState: open, assigned, closed -->
+    <string-array name="control_case_states">
+        <item>Open</item>
+        <item>Assigned</item>
+        <item>Closed</item>
+    </string-array>
 </resources>

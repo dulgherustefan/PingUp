@@ -18,6 +18,7 @@
     <string name="demo_role_participant">Participant</string>
     <string name="demo_role_staff">Staff</string>
     <string name="demo_role_anchor">Anchor</string>
+    <string name="demo_role_control">Control</string>
     <string name="demo_keys_mismatch">The demo keys don’t match the public keys in the app. Use the staff QR code.</string>
     <string name="demo_wipe">Delete all data</string>
     <string name="demo_wipe_text">This deletes the identity, friends, messages and incidents. The app closes.</string>

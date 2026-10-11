@@ -93,7 +93,6 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.distanceMeters
-import ro.safetyplease.core.data.Role as AppRole
 
 /** Places the quick chips lead to, in chip order. */
 private val SpotTypes = listOf("medical", "exit", Venue.MEETING, "water", "wc", "info", "charge", Venue.DEA)
@@ -131,7 +130,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
 
     val pins = remember(incidents.staff, settings.role, colors) {
-        if (settings.role != AppRole.STAFF) emptyList()
+        if (!settings.role.hasStaffKeys) emptyList()
         else incidents.staff.filter { it.status < AckStatus.RESOLVED }.mapNotNull { incident ->
             incidentPoint(vm.venue, incident)?.let { MapPin(it, colors.severity(incident.severity), incident.incidentId, incident.severity) }
         }

@@ -69,6 +69,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
             }
             "staff" -> "staff=${Demo.becomeStaff(context, c, intent.getStringExtra("team") ?: "Echipa demo")}"
             "anchor" -> "anchor=${Demo.becomeAnchor(context, c, intent.getStringExtra("zone") ?: "bar")}"
+            "control" -> "control=${Demo.becomeControl(context, c)}"
             "participant" -> {
                 c.leaveStaff()
                 "participant"

@@ -18,6 +18,7 @@
     <string name="demo_role_participant">Participant</string>
     <string name="demo_role_staff">Staff</string>
     <string name="demo_role_anchor">Ancoră</string>
+    <string name="demo_role_control">Control</string>
     <string name="demo_keys_mismatch">Cheile de demo nu corespund cheilor publice din aplicație. Folosește codul QR de staff.</string>
     <string name="demo_wipe">Șterge toate datele</string>
     <string name="demo_wipe_text">Se șterg identitatea, prietenii, mesajele și incidentele. Aplicația se închide.</string>

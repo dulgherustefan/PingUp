@@ -435,4 +435,99 @@
     <string name="date_pattern_recent">d MMM, HH:mm</string>
     <string name="date_pattern_short">d MMM</string>
     <string name="date_pattern_day">EEEE, d MMMM</string>
+
+    <!-- Control-room console: the queue, the map with the site grid, assignments, the shift log and the network -->
+    <string name="role_control">Control · %1$s</string>
+    <string name="scan_control_on">Telefonul e acum consola de control. Primește toate rapoartele și ține jurnalul turei.</string>
+    <string name="staff_status_mine">Alocat echipei tale</string>
+    <string name="control_title">Consola de control</string>
+    <string name="control_filter_assigned">Alocate</string>
+    <string name="control_pane_queue">Coadă</string>
+    <string name="control_pane_incident">Incident</string>
+    <string name="control_none_selected">Alege un incident din coadă</string>
+    <string name="control_none_selected_text">Aici apar detaliile, fraza pentru stație și acțiunile.</string>
+    <string name="control_state_open">Nealocat</string>
+    <string name="control_state_reopened">Redeschis</string>
+    <string name="control_state_assigned">Alocat la %1$s</string>
+    <string name="control_state_unfounded">Închis ca nefondat</string>
+    <string name="control_word_unfounded">Nefondat</string>
+    <string name="control_local_only">Doar pe consolă. Telefoanele din teren văd: %1$s.</string>
+    <string name="control_unfounded_note">„Nefondat” rămâne în jurnalul consolei; în rețea a plecat „Rezolvat”.</string>
+    <string name="control_radio_title">De citit în stație</string>
+    <string name="control_radio_urgent">urgent</string>
+    <string name="control_radio_not_urgent">neurgent</string>
+    <string name="control_radio_no_place">loc necunoscut</string>
+    <string name="control_assign">Alocă</string>
+    <string name="control_reassign">Realocă</string>
+    <string name="control_resolve">Rezolvă</string>
+    <string name="control_unfounded">Nefondat</string>
+    <string name="control_reopen">Redeschide</string>
+    <string name="control_actions_note">„Nefondat” și „Redeschide” rămân pe consolă până când protocolul le poate trimite. Anunță echipele prin stație.</string>
+    <string name="control_assign_title">Alocă incidentul</string>
+    <string name="control_assign_other">Altă echipă sau rol</string>
+    <string name="control_assign_taken">În rețea apare deja: %1$s. Noua alocare rămâne pe consolă, anunț-o prin stație.</string>
+    <string name="control_reason">Motiv</string>
+    <string name="control_reason_optional">Motiv (opțional)</string>
+    <string name="control_resolve_title">Marchezi rezolvat?</string>
+    <string name="control_resolve_text">Echipele și cel care a raportat văd „Rezolvat”.</string>
+    <string name="control_unfounded_title">Închizi ca nefondat?</string>
+    <string name="control_unfounded_text">Echipele și cel care a raportat văd „Rezolvat”. Motivul rămâne în jurnal.</string>
+    <string name="control_reopen_title">Redeschizi incidentul?</string>
+    <string name="control_reopen_text">Se redeschide doar pe consolă: telefoanele din teren păstrează starea de acum.</string>
+    <string name="control_history">Istoric</string>
+    <string name="control_event_report">Raport deschis pe consolă</string>
+    <string name="control_event_ack">%1$s · %2$s</string>
+    <string name="control_event_assign">Alocat la %1$s</string>
+    <string name="control_event_take">Preluat de consolă</string>
+    <string name="control_event_resolve">Rezolvat de consolă</string>
+    <string name="control_ack_received">Primit</string>
+    <string name="control_signed_here">semnat pe consolă</string>
+    <string name="control_signature">semnătura %1$s…</string>
+    <string name="control_export">Exportă jurnalul</string>
+    <string name="control_export_confirm">Exportă</string>
+    <string name="control_export_title">Exporți jurnalul turei?</string>
+    <string name="control_export_text">Pleacă tot jurnalul, %1$s, ca două fișiere CSV și unul JSON. Conține date despre sănătate: trimite-l doar în sistemul organizatorului.</string>
+    <plurals name="control_entries">
+        <item quantity="one">o intrare</item>
+        <item quantity="few">%d intrări</item>
+        <item quantity="other">%d de intrări</item>
+    </plurals>
+    <string name="control_export_empty">Jurnalul e încă gol.</string>
+    <string name="control_network_sent">pachete trimise</string>
+    <string name="control_network_received">pachete primite</string>
+    <string name="control_network_dropped">pachete aruncate</string>
+    <string name="control_network_served">trimise din cache, la cerere</string>
+    <string name="control_heard_title">Telefoane auzite</string>
+    <string name="control_heard_empty">Niciun telefon auzit încă.</string>
+    <string name="control_heard_linked">conectat acum</string>
+    <string name="control_heard_at">auzit %1$s</string>
+    <string name="control_heard_staff">Staff</string>
+    <plurals name="control_heard_silent">
+        <item quantity="one">Ancoră tăcută de un minut</item>
+        <item quantity="few">Ancoră tăcută de %d minute</item>
+        <item quantity="other">Ancoră tăcută de %d de minute</item>
+    </plurals>
+    <string-array name="control_roles">
+        <item>Medical</item>
+        <item>Securitate</item>
+        <item>Stewarzi</item>
+        <item>Pompieri</item>
+    </string-array>
+    <!-- In the order of LogEvent: report, ACK, assign, take, resolve, unfounded, reopen, export -->
+    <string-array name="control_log_events">
+        <item>raport</item>
+        <item>confirmare</item>
+        <item>alocare</item>
+        <item>preluare</item>
+        <item>rezolvare</item>
+        <item>nefondat</item>
+        <item>redeschidere</item>
+        <item>export</item>
+    </string-array>
+    <!-- In the order of CaseState: open, assigned, closed -->
+    <string-array name="control_case_states">
+        <item>Deschis</item>
+        <item>Alocat</item>
+        <item>Închis</item>
+    </string-array>
 </resources>

@@ -84,6 +84,7 @@ import ro.safetyplease.app.ui.designsystem.caption1
 import ro.safetyplease.app.ui.designsystem.caption2
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 import kotlin.math.abs
@@ -227,6 +228,7 @@ private fun rememberGlyphs(): Map<String, Painter> = GlyphTypes.associateWith { 
  * what's in them (stage and crowd, tents, trees, stalls), their icon and name, the useful points, a compass and a scale bar.
  * You are the pulsing dot labeled "Tu"; [target] is where you're heading, joined to you by a dotted route.
  * With [camera] the map zooms with two fingers, a double tap and the buttons. [compact] is the message bubble variant.
+ * [grid] draws the site plan's squares, lettered along the top and numbered down the left side.
  */
 @Composable
 fun VenueMap(
@@ -243,6 +245,7 @@ fun VenueMap(
     camera: MapCamera? = null,
     target: GeoPoint? = null,
     targetColor: Color = AppTheme.colors.accent,
+    grid: SiteGrid? = null,
     aspect: Float = venueAspect(venue),
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
@@ -403,6 +406,18 @@ fun VenueMap(
                 drawPath(zonePaths[mine], colors.accent, style = Stroke(3.dp.toPx(), join = StrokeJoin.Round))
             }
 
+            grid?.let { g ->
+                val line = colors.label.copy(alpha = if (colors.dark) 0.18f else 0.14f)
+                for (column in 1 until g.columns) {
+                    val x = at(GeoPoint(b.maxLat, g.columnLon(column))).x
+                    drawLine(line, Offset(x, nw.y), Offset(x, se.y), 1.dp.toPx())
+                }
+                for (row in 1 until g.rows) {
+                    val y = at(GeoPoint(g.rowLat(row), b.minLon)).y
+                    drawLine(line, Offset(nw.x, y), Offset(se.x, y), 1.dp.toPx())
+                }
+            }
+
             // the route to the target, as a dotted walking line
             val goal = target?.let(::at)
             if (marker != null && goal != null) {
@@ -499,6 +514,23 @@ fun VenueMap(
             goal?.let { o ->
                 val p = pulse?.value ?: 0.4f
                 drawCircle(targetColor.copy(alpha = 0.7f * (1 - p)), 15.dp.toPx() + 14.dp.toPx() * p, o, style = Stroke(2.5.dp.toPx()))
+            }
+
+            // grid labels stay on the visible edges of the site while the map is zoomed in
+            grid?.let { g ->
+                val style = smallStyle.copy(color = colors.secondaryLabel)
+                val top = max(nw.y, 0f) + 3.dp.toPx()
+                val left = max(nw.x, 0f) + 4.dp.toPx()
+                for (column in 0 until g.columns) {
+                    val text = measurer.measure(g.columnLabel(column), style)
+                    val x = (at(GeoPoint(b.maxLat, g.columnLon(column))).x + at(GeoPoint(b.maxLat, g.columnLon(column + 1))).x) / 2
+                    haloText(text, Offset(x - text.size.width / 2f, top), colors.secondaryLabel, paint.halo)
+                }
+                for (row in 0 until g.rows) {
+                    val text = measurer.measure(g.rowLabel(row), style)
+                    val y = (at(GeoPoint(g.rowLat(row), b.minLon)).y + at(GeoPoint(g.rowLat(row + 1), b.minLon)).y) / 2
+                    haloText(text, Offset(left, y - text.size.height / 2f), colors.secondaryLabel, paint.halo)
+                }
             }
 
             // compass top right, scale bar bottom left

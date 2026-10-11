@@ -1,6 +1,7 @@
 package ro.safetyplease.app.ui.incidents
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.StatusFilter
@@ -9,11 +10,34 @@ import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Severity
 
 class IncidentRowsTest {
-    private fun incident(id: String, atMin: Int, severity: Int = Severity.URGENT, status: Int = AckStatus.RECEIVED, category: Int = IncidentCategory.MEDICAL) =
-        StaffIncident(
-            incidentId = id, category = category, severity = severity, zone = "main-stage",
-            reportedAt = atMin * 60_000L, receivedAt = atMin * 60_000L, hops = 1, status = status,
+    private fun incident(
+        id: String,
+        atMin: Int,
+        severity: Int = Severity.URGENT,
+        status: Int = AckStatus.RECEIVED,
+        category: Int = IncidentCategory.MEDICAL,
+        team: String = "",
+    ) = StaffIncident(
+        incidentId = id, category = category, severity = severity, zone = "main-stage",
+        reportedAt = atMin * 60_000L, receivedAt = atMin * 60_000L, hops = 1, status = status, teamName = team,
+    )
+
+    @Test
+    fun whatTheConsoleGaveThisTeamComesFirst() {
+        val staff = listOf(
+            incident("nepreluat", 3),
+            incident("alocat-altora", 2, status = AckStatus.ACKNOWLEDGED, team = "Securitate 1"),
+            incident("alocat-rolului", 1, severity = Severity.MEDIUM, status = AckStatus.ACKNOWLEDGED, team = "Medical"),
+            incident("alocat-echipei", 0, severity = Severity.MEDIUM, status = AckStatus.ACKNOWLEDGED, team = "Medical 2"),
+            incident("rezolvat-de-echipa", 4, status = AckStatus.RESOLVED, team = "Medical 2"),
         )
+        assertEquals(
+            listOf("alocat-rolului", "alocat-echipei", "nepreluat", "alocat-altora"),
+            incidentRows(staff, StatusFilter.ACTIVE, team = "Medical 2").map { it.incidentId },
+        )
+        assertEquals("without a team, the order stays", "nepreluat", incidentRows(staff, StatusFilter.ACTIVE).first().incidentId)
+        assertFalse("closed work isn't the team's any more", staff.last().isMine("Medical 2"))
+    }
 
     @Test
     fun twoMedicalCasesInTheSameZoneAreTwoRows() {

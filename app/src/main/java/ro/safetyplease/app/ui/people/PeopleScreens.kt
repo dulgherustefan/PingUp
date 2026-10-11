@@ -295,6 +295,7 @@ fun AddFriendScreen(vm: AppViewModel) {
                     when (success) {
                         is ScanOutcome.FriendAdded -> stringResource(R.string.add_friend_done, success.name)
                         ScanOutcome.AnchorOn -> stringResource(R.string.scan_anchor_on)
+                        ScanOutcome.ControlOn -> stringResource(R.string.scan_control_on)
                         else -> stringResource(R.string.scan_staff_on)
                     },
                     style = MaterialTheme.typography.body, color = colors.label, textAlign = TextAlign.Center,
@@ -315,7 +316,7 @@ fun AddFriendScreen(vm: AppViewModel) {
                     AppButton(stringResource(R.string.done), {
                         when (success) {
                             ScanOutcome.StaffOn -> vm.home(Tab.INCIDENTS)
-                            ScanOutcome.AnchorOn -> vm.stack.clear()
+                            ScanOutcome.AnchorOn, ScanOutcome.ControlOn -> vm.stack.clear()
                             else -> vm.back()
                         }
                     }, Modifier.fillMaxWidth(), kind = if (success is ScanOutcome.FriendAdded) ButtonKind.Secondary else ButtonKind.Primary)
@@ -377,7 +378,7 @@ fun AddFriendScreen(vm: AppViewModel) {
 }
 
 private val ScanOutcome.success: Boolean
-    get() = this is ScanOutcome.FriendAdded || this == ScanOutcome.StaffOn || this == ScanOutcome.AnchorOn
+    get() = this is ScanOutcome.FriendAdded || this == ScanOutcome.StaffOn || this == ScanOutcome.AnchorOn || this == ScanOutcome.ControlOn
 
 /** Shown instead of the camera when we lack access: same square, the explanation and a button to ask. */
 @Composable

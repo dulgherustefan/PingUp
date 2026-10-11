@@ -56,6 +56,10 @@ class IncidentManager(
     private val onStaffAlertCleared: (incidentId: String) -> Unit = {},
     private val onReportUpdate: (MyReport) -> Unit = {},
     private val onReportSent: () -> Unit = {},
+    /** Every ACK that becomes an incident's state on the network: [own] if signed here, with the hops it traveled. */
+    private val onAck: (ack: IncidentAck, own: Boolean, hops: Int) -> Unit = { _, _, _ -> },
+    /** How many incidents staff keeps; the control console keeps the whole event. */
+    private val staffCap: () -> Int = { MAX_STAFF },
 ) {
     private class Cancel(val token: ByteArray, val atMs: Long)
 
@@ -166,26 +170,37 @@ class IncidentManager(
 
     fun resolve(incidentId: String) = sendAck(incidentId, AckStatus.RESOLVED)
 
+    /**
+     * Gives the incident to [team]: an ACKNOWLEDGED signed in that team's name, which its phones show as theirs.
+     * Goes out only while nobody has taken the incident; the protocol can't reassign yet.
+     */
+    fun assign(incidentId: String, team: String) = sendAck(incidentId, AckStatus.ACKNOWLEDGED, team)
+
     /** Removes the incident from this phone's list only, without sending anything. */
     fun dismiss(incidentId: String) {
         store.update { data ->
             data.copy(
                 staff = data.staff.filterNot { it.incidentId == incidentId },
-                dismissed = (data.dismissed - incidentId + incidentId).takeLast(MAX_STAFF),
+                dismissed = (data.dismissed - incidentId + incidentId).takeLast(staffCap()),
             )
         }
         onStaffAlertCleared(incidentId)
     }
 
-    private fun sendAck(incidentId: String, status: Int) {
+    private fun sendAck(incidentId: String, status: Int, team: String? = null) {
         scope.launch {
             val secret = staffSecret() ?: return@launch
-            val team = teamName()
+            val name = (team ?: teamName()).truncateUtf8(Limits.TEAM_BYTES)
             val now = clock.wallMs()
-            val ack = staffCrypto.signAck(incidentId.hexToBytes(), status, now / 1000, team, secret)
-            engine.publishAck(ack)
+            val ack = staffCrypto.signAck(incidentId.hexToBytes(), status, now / 1000, name, secret)
+            publishOwn(ack)
             applyAck(ack)
         }
+    }
+
+    /** Nothing goes out if a better ACK is already known. */
+    private fun publishOwn(ack: IncidentAck) {
+        if (engine.publishAck(ack) != null) onAck(ack, true, 0)
     }
 
     /** After staff mode is activated, also opens reports already in the store-and-forward cache. */
@@ -199,7 +214,10 @@ class IncidentManager(
         when (event) {
             is MeshEvent.Received -> when (event.packet.type) {
                 PacketType.INCIDENT_REPORT -> onReport(event.packet, event.packet.hops, alert = true)
-                PacketType.INCIDENT_ACK -> IncidentAck.decode(event.packet.payload)?.let(::applyAck)
+                PacketType.INCIDENT_ACK -> IncidentAck.decode(event.packet.payload)?.let {
+                    onAck(it, false, event.packet.hops)
+                    applyAck(it)
+                }
                 PacketType.INCIDENT_CANCEL -> IncidentCancel.decode(event.packet.payload)?.let(::onCancel)
             }
             is MeshEvent.Sent -> {
@@ -232,13 +250,13 @@ class IncidentManager(
             reportedAt = body.timestamp * 1000, receivedAt = now, hops = hops,
             cancelHash = body.cancelHash?.toHex().orEmpty(),
         )
-        store.update { it.copy(staff = (it.staff + incident).takeLast(MAX_STAFF)) }
+        store.update { it.copy(staff = (it.staff + incident).takeLast(staffCap())) }
         engine.cachedAck(incidentId)?.let(::applyAck)
         earlyCancels.remove(key)?.takeIf { clock.monoMs() - it.atMs <= EARLY_CANCEL_MS }?.let { tryCancel(key, it.token, secret) }
         // if another team already confirmed receipt, a second RECEIVED would just be network noise
         if (engine.ackStatus(incidentId) == AckStatus.NONE) {
             val ack = staffCrypto.signAck(incidentId, AckStatus.RECEIVED, now / 1000, teamName(), secret)
-            engine.publishAck(ack)
+            publishOwn(ack)
             applyAck(ack)
         }
         val cancelled = store.value.staff.any { it.incidentId == key && it.status == AckStatus.CANCELLED }
@@ -266,7 +284,7 @@ class IncidentManager(
         if (incident.cancelHash.isEmpty() || incident.status >= AckStatus.RESOLVED) return
         if (!IncidentCancel.hash(token).contentEquals(incident.cancelHash.hexToBytes())) return
         val ack = staffCrypto.signAck(key.hexToBytes(), AckStatus.CANCELLED, clock.wallMs() / 1000, teamName(), secret)
-        engine.publishAck(ack)
+        publishOwn(ack)
         applyAck(ack)
     }
 
@@ -330,6 +348,9 @@ class IncidentManager(
         const val CANCEL_RETRY_INTERVAL_MS = 60_000L
         const val MAX_MINE = 50
         const val MAX_STAFF = 300
+
+        /** Far more than one event brings, so the console never drops an incident from its queue. */
+        const val MAX_STAFF_CONSOLE = 5_000
         private const val EARLY_CANCEL_MS = 60 * 60_000L
         private const val MAX_EARLY_CANCELS = 64
         private const val LINK_SETTLE_MS = 1_500L

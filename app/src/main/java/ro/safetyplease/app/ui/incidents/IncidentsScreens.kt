@@ -86,6 +86,7 @@ import ro.safetyplease.app.ui.designsystem.headline
 import ro.safetyplease.app.ui.designsystem.largeFont
 import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.core.control.isAssignedTo
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.DuplicateHint
@@ -117,17 +118,28 @@ private fun statusWord(status: Int): Int = when (status) {
     else -> R.string.staff_status_new
 }
 
-/** Status with the team name: "Preluat de Echipa 2". */
+/** Status with the team name: "Preluat de Echipa 2", or "Alocat echipei tale" when it's [mine]. */
 @Composable
-private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier) {
+private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier, mine: Boolean = false) {
+    if (mine) {
+        StatusLabel(stringResource(R.string.staff_status_mine), modifier, icon = Sym.Person, color = AppTheme.colors.label)
+        return
+    }
     val (icon, color) = statusLook(status)
     StatusLabel(Labels.staffStatus(LocalContext.current, status, team), modifier, icon = icon, color = color)
 }
 
-/** One row per report under [filter]: unassigned urgent ones first, closed ones last, then severity and recency. */
-internal fun incidentRows(staff: List<StaffIncident>, filter: StatusFilter): List<StaffIncident> =
+/** Taken in the name of [team] or its role, by the console or by the team itself, and not closed: its work comes first. */
+internal fun StaffIncident.isMine(team: String): Boolean = status == AckStatus.ACKNOWLEDGED && isAssignedTo(teamName, team)
+
+/**
+ * One row per report under [filter]: those assigned to [team] first, then unassigned urgent ones, closed ones last,
+ * then severity and recency.
+ */
+internal fun incidentRows(staff: List<StaffIncident>, filter: StatusFilter, team: String = ""): List<StaffIncident> =
     staff.filter(filter::matches).sortedWith(
-        compareByDescending<StaffIncident> { it.severity == Severity.URGENT && it.status < AckStatus.ACKNOWLEDGED }
+        compareByDescending<StaffIncident> { it.isMine(team) }
+            .thenByDescending { it.severity == Severity.URGENT && it.status < AckStatus.ACKNOWLEDGED }
             .thenBy { it.status >= AckStatus.RESOLVED }
             .thenByDescending { it.severity }
             .thenByDescending { it.reportedAt },
@@ -158,8 +170,8 @@ fun IncidentsScreen(vm: AppViewModel) {
     var confirmClear by remember { mutableStateOf(false) }
     val staff = incidents.staff
     val hints = remember(staff) { Clustering.suggestions(staff) }
-    val shown = remember(staff, filter) { incidentRows(staff, filter) }
-    // two filters: what's still open and what's closed; unassigned urgent ones are always first
+    val shown = remember(staff, filter, settings.teamName) { incidentRows(staff, filter, settings.teamName) }
+    // two filters: what's still open and what's closed; the team's own work, then unassigned urgent ones, come first
     val activeCount = staff.count(StatusFilter.ACTIVE::matches)
     val activeLabel = stringResource(R.string.filter_active)
     val closedCount = staff.count(StatusFilter.RESOLVED::matches)
@@ -190,7 +202,7 @@ fun IncidentsScreen(vm: AppViewModel) {
             } else {
                 items(shown, key = { it.incidentId }) { incident ->
                     IncidentRow(
-                        vm, incident, hints[incident.incidentId], now,
+                        vm, incident, hints[incident.incidentId], now, incident.isMine(settings.teamName),
                         onDismiss = { vm.dismissIncident(incident.incidentId) },
                         onAskDismiss = { confirmDismiss = incident },
                         modifier = Modifier.animateItem(),
@@ -242,6 +254,7 @@ private fun IncidentRow(
     incident: StaffIncident,
     hint: DuplicateHint?,
     now: Long,
+    mine: Boolean,
     onDismiss: () -> Unit,
     onAskDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -252,7 +265,7 @@ private fun IncidentRow(
     val closed = incident.status >= AckStatus.RESOLVED
     val alarm = incident.severity == Severity.URGENT && incident.status < AckStatus.ACKNOWLEDGED
     val place = if (incident.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(incident.zone)
-    val (statusIcon, statusColor) = statusLook(incident.status)
+    val (statusIcon, statusColor) = if (mine) Sym.Person to colors.label else statusLook(incident.status)
     // with large fonts the title and details wrap instead of losing the place
     val lines = if (largeFont()) Int.MAX_VALUE else 1
     SwipeRow(
@@ -283,7 +296,8 @@ private fun IncidentRow(
                         Icon(statusIcon, null, Modifier.size(16.dp), tint = statusColor)
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            stringResource(statusWord(incident.status)), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
+                            stringResource(if (mine) R.string.staff_status_mine else statusWord(incident.status)),
+                            style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
                             color = statusColor, maxLines = 1,
                         )
                     }
@@ -343,6 +357,7 @@ private fun IncidentRow(
 @Composable
 fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
     val now = rememberNow()
     val colors = AppTheme.colors
@@ -401,7 +416,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
             IncidentHeader(
                 incident.category, incident.severity == Severity.URGENT, place + " · " + agoText(incident.reportedAt, now),
                 Modifier.onSizeChanged { headerPx = it.height },
-                status = { StaffStatus(incident.status, incident.teamName) },
+                status = { StaffStatus(incident.status, incident.teamName, mine = incident.isMine(settings.teamName)) },
             )
             // one step at a time so staff can't close a case nobody took: first Take, then Mark resolved;
             // once resolved or cancelled the button goes away and the header shows the state
@@ -431,12 +446,12 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 pins = pins,
                 highlightZone = incident.zone,
             )
-            InsetGroup(Modifier.padding(top = 20.dp)) { StaffReportBlock(incident) }
+            InsetGroup(Modifier.padding(top = 20.dp)) { StaffReportBlock(incident, settings.teamName) }
             if (hint != null && others.isNotEmpty()) {
                 SectionTitle(stringResource(if (hint.sameEvent) R.string.incident_maybe_same else R.string.incident_same_zone_title))
                 InsetGroup {
                     others.forEachIndexed { index, other ->
-                        StaffReportBlock(other) { vm.open(Dest.Incident(other.incidentId)) }
+                        StaffReportBlock(other, settings.teamName) { vm.open(Dest.Incident(other.incidentId)) }
                         if (index < others.lastIndex) GroupDivider(start = Gutter)
                     }
                 }
@@ -455,7 +470,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
  * With [onOpen] it's another incident: it shows its own state, since the header speaks for this one, and opens on tap.
  */
 @Composable
-private fun StaffReportBlock(incident: StaffIncident, onOpen: (() -> Unit)? = null) {
+private fun StaffReportBlock(incident: StaffIncident, team: String, onOpen: (() -> Unit)? = null) {
     val colors = AppTheme.colors
     val empty = incident.description.isEmpty()
     Row(
@@ -479,7 +494,7 @@ private fun StaffReportBlock(incident: StaffIncident, onOpen: (() -> Unit)? = nu
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 2.dp),
             )
-            if (onOpen != null) StaffStatus(incident.status, incident.teamName, Modifier.padding(top = 8.dp))
+            if (onOpen != null) StaffStatus(incident.status, incident.teamName, Modifier.padding(top = 8.dp), mine = incident.isMine(team))
         }
         if (onOpen != null) {
             Spacer(Modifier.width(8.dp))

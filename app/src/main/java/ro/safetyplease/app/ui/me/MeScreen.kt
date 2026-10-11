@@ -91,6 +91,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val code = remember(settings.nickname) { vm.myQrText() }
     val role = when (settings.role) {
         AppRole.STAFF -> stringResource(R.string.role_staff, settings.teamName)
+        AppRole.CONTROL -> stringResource(R.string.role_control, settings.teamName)
         AppRole.ANCHOR -> stringResource(R.string.role_anchor, vm.venue.zoneName(settings.anchorZone).ifEmpty { "-" })
         AppRole.PARTICIPANT -> null
     }

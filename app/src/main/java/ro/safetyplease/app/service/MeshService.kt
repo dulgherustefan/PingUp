@@ -119,7 +119,7 @@ class MeshService : Service() {
         scope.launch {
             val role = container.settings.state.map { it.role }.distinctUntilChanged()
             combine(role, battery, screenOn, boosting, reportPending) { r, b, screen, boost, pending ->
-                PowerPolicy.plan(r == Role.STAFF, r == Role.ANCHOR, b.percent, b.charging, screen, boost, pending)
+                PowerPolicy.plan(r.hasStaffKeys, r == Role.ANCHOR, b.percent, b.charging, screen, boost, pending)
             }.distinctUntilChanged().collect { plan ->
                 container.meshScope.launch { container.radio.setPower(plan) }
             }

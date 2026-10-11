@@ -22,6 +22,7 @@ import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.PacketLog
 import ro.safetyplease.core.mesh.SimNet
 import ro.safetyplease.core.mesh.TestClock
+import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.util.nodePrefix
 import java.io.File
 import kotlin.random.Random
@@ -70,6 +71,10 @@ class TestPhone(
     val clearedAlerts = mutableListOf<String>()
     val reportUpdates = mutableListOf<MyReport>()
 
+    /** ACKs IncidentManager reported: the ACK, whether this phone signed it, and its hops. */
+    val acks = mutableListOf<Triple<IncidentAck, Boolean, Int>>()
+    var staffCap = IncidentManager.MAX_STAFF
+
     val chat = ChatManager(
         bg, engine, testCrypto, identity, friends, groups, chatStore, clock, Random(seed + 1), { name },
     ) { message, _ -> incoming += message }
@@ -79,6 +84,8 @@ class TestPhone(
         staffSecret = { staffSecret }, teamName = { team },
         onStaffAlert = { alerts += it }, onStaffAlertCleared = { clearedAlerts += it },
         onReportUpdate = { reportUpdates += it },
+        onAck = { ack, own, hops -> acks += Triple(ack, own, hops) },
+        staffCap = { staffCap },
     )
 
     init {

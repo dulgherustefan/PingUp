@@ -69,6 +69,7 @@ sealed interface ScanOutcome {
     data object OwnCode : ScanOutcome
     data object StaffOn : ScanOutcome
     data object AnchorOn : ScanOutcome
+    data object ControlOn : ScanOutcome
     data object WrongEvent : ScanOutcome
     data object Unknown : ScanOutcome
 }
@@ -211,7 +212,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         QrCodes.decodeStaff(text)?.let { card ->
             if (!c.activateStaff(card)) return ScanOutcome.WrongEvent
-            return if (c.settings.value.role == Role.ANCHOR) ScanOutcome.AnchorOn else ScanOutcome.StaffOn
+            return when (c.settings.value.role) {
+                Role.ANCHOR -> ScanOutcome.AnchorOn
+                Role.CONTROL -> ScanOutcome.ControlOn
+                else -> ScanOutcome.StaffOn
+            }
         }
         return ScanOutcome.Unknown
     }

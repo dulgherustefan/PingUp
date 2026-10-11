@@ -13,7 +13,8 @@ class FriendCard(val nickname: String, val boxKey: ByteArray, val signKey: ByteA
     val nodeId: Long get() = Identity.nodeIdOf(signKey, boxKey)
 }
 
-enum class StaffRole { STAFF, ANCHOR }
+/** [code] is the role byte in the staff QR. CONTROL keeps the staff keys like STAFF and runs the control-room console. */
+enum class StaffRole(val code: Int) { STAFF(1), ANCHOR(2), CONTROL(3) }
 
 /** Staff QR payload: seeds the keys are derived from, the role, and the team or zone. */
 class StaffCard(
@@ -53,7 +54,7 @@ object QrCodes {
         val team = card.teamName.truncateUtf8(Limits.TEAM_BYTES).utf8()
         val zone = card.zone.truncateUtf8(Limits.ZONE_BYTES).utf8()
         val bytes = WireWriter().bytes(card.boxSeed).bytes(card.signSeed)
-            .u8(if (card.role == StaffRole.ANCHOR) 2 else 1)
+            .u8(card.role.code)
             .u8(team.size).bytes(team).u8(zone.size).bytes(zone).toByteArray()
         return STAFF_PREFIX + encoder.encodeToString(bytes)
     }
@@ -64,11 +65,8 @@ object QrCodes {
             val r = WireReader(bytes)
             val boxSeed = r.bytes(Crypto.SEED)
             val signSeed = r.bytes(Crypto.SEED)
-            val role = when (r.u8()) {
-                1 -> StaffRole.STAFF
-                2 -> StaffRole.ANCHOR
-                else -> throw MalformedException("role")
-            }
+            val code = r.u8()
+            val role = StaffRole.entries.firstOrNull { it.code == code } ?: throw MalformedException("role")
             val team = r.string(r.u8(), Limits.TEAM_BYTES)
             val zone = r.string(r.u8(), Limits.ZONE_BYTES)
             r.expectEnd()

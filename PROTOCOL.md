@@ -373,7 +373,7 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 |---|---|
 | 32 | `boxSeed` |
 | 32 | `signSeed` |
-| 1 | role: 1 staff, 2 anchor |
+| 1 | role: 1 staff, 2 anchor, 3 control (staff keys plus the control-room console; older apps reject it as unknown) |
 | 1 + n | team name, `u8` length, at most 24 |
 | 1 + n | zone, `u8` length, at most 32 |
 

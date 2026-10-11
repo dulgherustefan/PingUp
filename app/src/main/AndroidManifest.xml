@@ -69,6 +69,13 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- Shares the control console's shift log; only the export folder in the cache is reachable. -->
+        <provider
+            android:name=".ui.control.LogFiles"
+            android:authorities="${applicationId}.log"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <receiver
             android:name=".service.BootReceiver"
             android:exported="false">

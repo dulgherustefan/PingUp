@@ -106,6 +106,11 @@ object Demo {
         return c.activateStaff(card)
     }
 
+    fun becomeControl(context: Context, c: AppContainer): Boolean {
+        val card = staffCard(context, StaffRole.CONTROL, "Control", "") ?: return false
+        return c.activateStaff(card)
+    }
+
     fun becomeAnchor(context: Context, c: AppContainer, zone: String): Boolean {
         val card = staffCard(context, StaffRole.ANCHOR, "Ancora $zone".take(20), zone) ?: return false
         return c.activateStaff(card)
@@ -252,6 +257,9 @@ object Demo {
                         }
                         RoleButton(stringResource(R.string.demo_role_anchor), settings.role == Role.ANCHOR) {
                             if (becomeAnchor(context, c, vm.currentZoneId().ifEmpty { "main-stage" })) vm.stack.clear() else notice = failed
+                        }
+                        RoleButton(stringResource(R.string.demo_role_control), settings.role == Role.CONTROL) {
+                            if (becomeControl(context, c)) vm.stack.clear() else notice = failed
                         }
                     }
                     notice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }

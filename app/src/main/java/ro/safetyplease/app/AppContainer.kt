@@ -9,10 +9,13 @@ import com.goterl.lazysodium.SodiumAndroid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -25,6 +28,10 @@ import ro.safetyplease.app.service.Notifier
 import ro.safetyplease.app.text.EscalationReminder
 import ro.safetyplease.app.text.nextEscalation
 import ro.safetyplease.core.chat.ChatManager
+import ro.safetyplease.core.control.ConsoleLog
+import ro.safetyplease.core.control.ConsoleRecorder
+import ro.safetyplease.core.control.HeardPeer
+import ro.safetyplease.core.control.PeerBook
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.Identity
 import ro.safetyplease.core.crypto.SodiumCrypto
@@ -47,6 +54,7 @@ import ro.safetyplease.core.mesh.PacketLog
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
+import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.parse
 import java.io.File
@@ -78,6 +86,17 @@ class AppContainer(private val app: Application) {
     val incidentStore = JsonStore(File(dataDir, "incidents.json"), IncidentData.serializer(), IncidentData(), ioScope)
 
     val venue: Venue = Venue.parse(asset("venue.json"), AppLocale.language(app))
+    val grid = SiteGrid.of(venue.bounds)
+
+    /** The control console's shift log; written only while this phone is the console. */
+    val consoleLog = JsonStore(
+        File(dataDir, "console_log.json"), ConsoleLog.serializer(), ConsoleLog(), ioScope, ConsoleLog.SCHEMA_VERSION,
+    )
+    val console = ConsoleRecorder(consoleLog, grid, clock) { id -> incidentStore.value.staff.firstOrNull { it.incidentId == id } }
+
+    /** When the console last heard each phone; kept while this phone is the console. */
+    val heard = MutableStateFlow<Map<Int, HeardPeer>>(emptyMap())
+
     val staffCrypto = StaffCrypto(crypto, loadStaffPublic())
 
     @Volatile
@@ -119,6 +138,8 @@ class AppContainer(private val app: Application) {
         onStaffAlertCleared = { notifier.cancelStaffAlert(it) },
         onReportUpdate = { if (!foreground.value) notifier.reportUpdate(it, clock.wallMs()) },
         onReportSent = { boostUntil.value = clock.monoMs() + PowerPolicy.BOOST_MS },
+        onAck = { ack, own, hops -> if (settings.value.role == Role.CONTROL) console.sawAck(ack, own, hops) },
+        staffCap = { if (settings.value.role == Role.CONTROL) IncidentManager.MAX_STAFF_CONSOLE else IncidentManager.MAX_STAFF },
     )
 
     init {
@@ -127,12 +148,21 @@ class AppContainer(private val app: Application) {
             chat.start()
             incidents.start()
             settings.state.collect { s ->
-                engine.setRole(staff = s.role == Role.STAFF, anchor = s.role == Role.ANCHOR)
+                engine.setRole(staff = s.role.hasStaffKeys, anchor = s.role == Role.ANCHOR)
                 engine.setNickname(s.nickname)
                 engine.setIgnoredPrefixes(s.ignoredPrefixes.toSet())
             }
         }
         meshScope.launch { remindUnconfirmed() }
+        meshScope.launch {
+            settings.state.map { it.role == Role.CONTROL }.distinctUntilChanged().collectLatest { control -> if (control) watchAsConsole() }
+        }
+    }
+
+    /** While this phone is the console: logs every report it opens and remembers when it last heard each phone. */
+    private suspend fun watchAsConsole() = coroutineScope {
+        launch { incidentStore.state.collect { console.sawIncidents(it.staff) } }
+        launch { engine.state.collect { heard.value = PeerBook.update(heard.value, it, clock.wallMs(), clock.monoMs()) } }
     }
 
     /** When an urgent report of yours has waited too long for a person on staff, tells you so from the background. */
@@ -158,7 +188,8 @@ class AppContainer(private val app: Application) {
         } else {
             vault.save(VAULT_STAFF, card.boxSeed + card.signSeed)
             staffSecret = secret
-            settings.update { it.copy(role = Role.STAFF, teamName = card.teamName, anchorZone = "") }
+            val role = if (card.role == StaffRole.CONTROL) Role.CONTROL else Role.STAFF
+            settings.update { it.copy(role = role, teamName = card.teamName, anchorZone = "") }
             incidents.reprocessCached()
         }
         return true
