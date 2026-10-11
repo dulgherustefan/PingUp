@@ -1,8 +1,5 @@
 package ro.safetyplease.app.ui.me
 
-import android.content.Intent
-import android.os.Build
-import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.BuildConfig
 import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
+import ro.safetyplease.app.platform.power.BatteryExemption
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.BigCodeDialog
@@ -120,11 +118,11 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     } else {
                         GroupRow(stringResource(R.string.me_leave_staff), icon = Sym.Logout, tint = colors.redInk, onClick = { confirmLeave = true })
                     }
-                    if (Build.MANUFACTURER.lowercase() in setOf("samsung", "xiaomi", "redmi", "poco")) {
+                    if (BatteryExemption.vendorKillsBackgroundApps()) {
                         GroupDivider()
                         GroupRow(
                             stringResource(R.string.me_battery), subtitle = stringResource(R.string.battery_text), icon = Sym.Battery, chevron = true,
-                            onClick = { runCatching { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } },
+                            onClick = { BatteryExemption.request(context) },
                         )
                     }
                 }

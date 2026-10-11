@@ -72,7 +72,7 @@
     <string name="problem_leaf_text">Se conectează doar el la telefoanele din jur. Mesajele și rapoartele merg în continuare.</string>
     <string name="problem_battery_title">Telefonul poate opri aplicația în fundal</string>
     <string name="problem_battery_text">Scoate aplicația din economisirea bateriei, ca mesajele să ajungă și cu ecranul stins.</string>
-    <string name="problem_battery_action">Deschide setările</string>
+    <string name="problem_battery_action">Permite rularea în fundal</string>
     <string name="problem_dismiss">Am înțeles</string>
 
     <string name="onboarding_welcome">Mesaje fără semnal</string>
@@ -339,6 +339,8 @@
         <item quantity="few">Conectat la %d telefoane</item>
         <item quantity="other">Conectat la %d de telefoane</item>
     </plurals>
+    <string name="notif_mesh_stopped_title">%1$s s-a oprit</string>
+    <string name="notif_mesh_stopped_text">Atinge ca să repornești</string>
     <string name="notif_incident_title">%1$s · %2$s</string>
     <string name="notif_report_title">Raportul tău</string>
     <string name="action_report">Raportează</string>

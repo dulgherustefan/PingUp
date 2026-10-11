@@ -83,6 +83,19 @@ class Notifier(private val context: Context, private val venue: Venue) {
         if (canPost()) manager.notify(FOREGROUND_ID, foreground(links, anchor))
     }
 
+    /** The mesh couldn't come back on its own. Same id as the running notification, which replaces it on restart. */
+    fun meshStopped() {
+        if (!canPost()) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_MESH)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notif_mesh_stopped_title, context.getString(R.string.app_name)))
+            .setContentText(context.getString(R.string.notif_mesh_stopped_text))
+            .setAutoCancel(true)
+            .setContentIntent(open(MainActivity.OPEN_HOME, 0))
+            .build()
+        manager.notify(FOREGROUND_ID, notification)
+    }
+
     fun staffAlert(incident: StaffIncident) {
         if (!canPost()) return
         val urgent = incident.severity == Severity.URGENT

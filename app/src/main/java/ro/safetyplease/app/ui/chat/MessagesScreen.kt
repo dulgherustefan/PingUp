@@ -50,6 +50,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
+import ro.safetyplease.app.platform.power.BatteryExemption
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.listTime
 import ro.safetyplease.app.text.rememberNow
@@ -75,7 +76,6 @@ import ro.safetyplease.app.ui.designsystem.UnreadBadge
 import ro.safetyplease.app.ui.designsystem.headline
 import ro.safetyplease.app.ui.designsystem.pressScale
 import ro.safetyplease.app.ui.designsystem.subheadline
-import ro.safetyplease.app.ui.needsBatteryHint
 import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.Conversations
@@ -236,10 +236,10 @@ private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate
         radio.bluetoothOn && !radio.canAdvertise -> Banner(
             stringResource(R.string.problem_leaf_title), stringResource(R.string.problem_leaf_text), modifier,
         )
-        !batteryDismissed && needsBatteryHint(context) -> Banner(
+        !batteryDismissed && BatteryExemption.hintNeeded(context) -> Banner(
             stringResource(R.string.problem_battery_title), stringResource(R.string.problem_battery_text), modifier,
             action = stringResource(R.string.problem_battery_action),
-            onAction = { runCatching { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } },
+            onAction = { BatteryExemption.request(context) },
             dismiss = stringResource(R.string.problem_dismiss), onDismiss = { vm.dismissBatteryHint() },
         )
     }

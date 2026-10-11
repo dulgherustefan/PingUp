@@ -12,6 +12,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -57,12 +58,15 @@ class MeshService : Service() {
         try {
             ServiceCompat.startForeground(this, Notifier.FOREGROUND_ID, container.notifier.foreground(0, anchor), type)
         } catch (e: Exception) {
-            // Android 12+ forbids starting it from the background after the process was killed; wait for the app to be opened
+            // Android 12+ forbids starting it from the background after the process was killed, unless battery
+            // optimization is off; the user brings it back by opening the app
             Log.w(AppContainer.TAG, "service could not start in the foreground: ${e.message}")
+            container.notifier.meshStopped()
             stopSelf()
             return
         }
         running = true
+        setWanted(this, true)
         container.meshScope.launch { container.radio.start() }
         ContextCompat.registerReceiver(
             this, batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED,
@@ -108,6 +112,9 @@ class MeshService : Service() {
     }
 
     companion object {
+        private const val PREFS = "mesh_service"
+        private const val KEY_WANTED = "wanted"
+
         @Volatile
         var running = false
             private set
@@ -117,7 +124,15 @@ class MeshService : Service() {
         }
 
         fun stop(context: Context) {
+            setWanted(context, false)
             context.stopService(Intent(context, MeshService::class.java))
         }
+
+        /** The mesh ran and nobody stopped it, so it should come back after a reboot or an update. */
+        fun wanted(context: Context): Boolean = prefs(context).getBoolean(KEY_WANTED, false)
+
+        private fun setWanted(context: Context, wanted: Boolean) = prefs(context).edit { putBoolean(KEY_WANTED, wanted) }
+
+        private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     }
 }

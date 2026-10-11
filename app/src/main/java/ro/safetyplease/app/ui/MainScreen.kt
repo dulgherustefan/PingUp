@@ -9,7 +9,6 @@ import android.content.Intent
 import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
-import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -131,13 +130,6 @@ fun startPermissions(): Array<String> = buildList {
 
 fun bluetoothEnabled(context: Context): Boolean =
     context.getSystemService(BluetoothManager::class.java)?.adapter?.isEnabled == true
-
-/** Vendors that kill background apps unless the app is excluded from battery optimization. */
-fun needsBatteryHint(context: Context): Boolean {
-    if (Build.MANUFACTURER.lowercase() !in setOf("samsung", "xiaomi", "redmi", "poco")) return false
-    val power = context.getSystemService(PowerManager::class.java) ?: return false
-    return !power.isIgnoringBatteryOptimizations(context.packageName)
-}
 
 /**
  * After two refusals Android stops showing the permission dialog. This is only knowable after a request:
