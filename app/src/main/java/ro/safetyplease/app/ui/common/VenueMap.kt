@@ -59,7 +59,12 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -257,6 +262,11 @@ fun VenueMap(
     val animateMoves by rememberUpdatedState(!LocalReduceMotion.current)
     val scope = rememberCoroutineScope()
     val inset = if (compact) CompactInset else MapInset
+    val words = rememberMapWords()
+    val nodes = if (compact) emptyList() else remember(venue, words, position, myZone, pins, onPinTap != null) {
+        mapNodes(venue, words, position, myZone, if (onPinTap != null) pins else emptyList())
+    }
+    val summary = pluralStringResource(R.plurals.map_a11y_summary, venue.zones.size, venue.zones.size)
     val pulse: State<Float>? = if (!compact && animateMoves && (position != null || target != null)) {
         rememberInfiniteTransition(label = "map").animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "pulse")
     } else null
@@ -265,10 +275,17 @@ fun VenueMap(
         modifier.fillMaxWidth().aspectRatio(aspect)
             .then(if (compact) Modifier else Modifier.clip(RoundedCornerShape(26.dp)))
             // in a bubble the background is translucent so the bubble color shows through
-            .background(if (compact) colors.fill else paint.grass),
+            .background(if (compact) colors.fill else paint.grass)
+            .then(if (compact) Modifier else Modifier.semantics { isTraversalGroup = true }),
     ) {
         Canvas(
             Modifier.fillMaxSize()
+                .then(
+                    if (compact) Modifier else Modifier.semantics {
+                        contentDescription = summary
+                        traversalIndex = -1f
+                    },
+                )
                 .onSizeChanged { size -> camera?.attach(Projection(venue, size.toSize(), with(density) { inset.toPx() }), size.toSize()) }
                 .then(
                     if (camera == null) Modifier else Modifier.pointerInput(camera) {
@@ -511,7 +528,17 @@ fun VenueMap(
             val scaleText = measurer.measure(resources.getString(R.string.map_meters, meters), smallStyle.copy(color = colors.label))
             haloText(scaleText, Offset(x0 + 2.dp.toPx(), y0 - 7.dp.toPx() - scaleText.size.height), colors.label, paint.halo)
         }
-        overlay()
+        if (!compact) {
+            MapSemanticsLayer(venue, nodes, inset, camera, highlightZone, currentTap, currentPinTap, Modifier.matchParentSize())
+        }
+        // the map's own buttons come after everything on it
+        Box(
+            Modifier.matchParentSize().semantics {
+                isTraversalGroup = true
+                traversalIndex = 1f
+            },
+            content = overlay,
+        )
     }
 }
 

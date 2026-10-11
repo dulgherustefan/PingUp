@@ -395,4 +395,26 @@
     </plurals>
     <string name="incident_same_zone_title">Din aceeași zonă</string>
     <string name="incident_each_separately">Fiecare raport se preia și se rezolvă separat.</string>
+
+    <!-- Accessibility: the map as TalkBack reads it -->
+    <plurals name="map_a11y_summary">
+        <item quantity="one">Harta evenimentului, o zonă</item>
+        <item quantity="few">Harta evenimentului, %d zone</item>
+        <item quantity="other">Harta evenimentului, %d de zone</item>
+    </plurals>
+    <string name="map_a11y_here">aici ești</string>
+    <string name="map_a11y_incident">Incident</string>
+    <string name="map_type_zone">zonă</string>
+    <string name="map_type_stage">scenă</string>
+    <string name="map_type_food">mâncare</string>
+    <string name="map_type_bar">bar</string>
+    <string name="map_type_medical">punct medical</string>
+    <string name="map_type_entrance">intrare</string>
+    <string name="map_type_exit">ieșire</string>
+    <string name="map_type_camping">camping</string>
+    <string name="map_type_chill">zonă de relaxare</string>
+    <string name="map_type_water">apă potabilă</string>
+    <string name="map_type_wc">toalete</string>
+    <string name="map_type_info">punct de informare</string>
+    <string name="map_type_charge">încărcare telefon</string>
 </resources>
