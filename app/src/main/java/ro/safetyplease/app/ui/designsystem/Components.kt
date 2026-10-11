@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
@@ -212,6 +214,12 @@ fun NavText(content: @Composable () -> Unit) {
     val density = LocalDensity.current
     CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale.coerceAtMost(1.15f)), content = content)
 }
+
+/** From this system font size on, rows stack and text wraps instead of being cut. */
+private const val LARGE_FONT_SCALE = 1.3f
+
+@Composable
+fun largeFont(): Boolean = LocalDensity.current.fontScale >= LARGE_FONT_SCALE
 
 /** Under the top bar once content scrolls beneath it: solid background up to the bar edge, then a fade. */
 @Composable
@@ -521,28 +529,31 @@ fun SwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Uni
     )
 }
 
-/** Segmented control: a gray track with a white pill under the selected option. */
+/** Segmented control: a gray track with a white pill under the selected option. Grows taller with large fonts. */
 @Composable
 fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
     val c = AppTheme.colors
     val index = options.indexOfFirst { it.first == selected }.coerceAtLeast(0)
-    BoxWithConstraints(modifier.fillMaxWidth().height(36.dp).clip(CircleShape).background(c.fill).padding(2.dp).selectableGroup()) {
+    val lines = if (largeFont()) 2 else 1
+    BoxWithConstraints(modifier.fillMaxWidth().clip(CircleShape).background(c.fill).padding(2.dp).selectableGroup()) {
         val w = maxWidth / options.size
         val x by animateDpAsState(w * index, spring(dampingRatio = 0.85f, stiffness = 500f), label = "segment")
         Box(
-            Modifier.offset { IntOffset(x.roundToPx(), 0) }.width(w).fillMaxHeight().shadow(2.dp, CircleShape, ambientColor = Color(0x14000000), spotColor = Color(0x1F000000))
+            Modifier.matchParentSize().wrapContentWidth(Alignment.Start).offset { IntOffset(x.roundToPx(), 0) }.width(w)
+                .shadow(2.dp, CircleShape, ambientColor = Color(0x14000000), spotColor = Color(0x1F000000))
                 .clip(CircleShape).background(c.segmentPill),
         )
-        Row(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
             options.forEach { (value, label) ->
                 Box(
-                    Modifier.weight(1f).fillMaxHeight().clip(CircleShape)
-                        .selectable(selected = value == selected, role = Role.Tab, onClick = { onSelect(value) }),
+                    Modifier.weight(1f).fillMaxHeight().heightIn(min = 32.dp).clip(CircleShape)
+                        .selectable(selected = value == selected, role = Role.Tab, onClick = { onSelect(value) })
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         label, style = MaterialTheme.typography.footnote, fontWeight = if (value == selected) FontWeight.SemiBold else FontWeight.Medium,
-                        color = c.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = c.label, maxLines = lines, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                     )
                 }
             }

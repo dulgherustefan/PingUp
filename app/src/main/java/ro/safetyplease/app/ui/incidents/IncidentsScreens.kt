@@ -83,6 +83,7 @@ import ro.safetyplease.app.ui.designsystem.TextLink
 import ro.safetyplease.app.ui.designsystem.body
 import ro.safetyplease.app.ui.designsystem.footnote
 import ro.safetyplease.app.ui.designsystem.headline
+import ro.safetyplease.app.ui.designsystem.largeFont
 import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.core.data.StaffIncident
@@ -252,6 +253,8 @@ private fun IncidentRow(
     val alarm = incident.severity == Severity.URGENT && incident.status < AckStatus.ACKNOWLEDGED
     val place = if (incident.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(incident.zone)
     val (statusIcon, statusColor) = statusLook(incident.status)
+    // with large fonts the title and details wrap instead of losing the place
+    val lines = if (largeFont()) Int.MAX_VALUE else 1
     SwipeRow(
         Sym.Delete, stringResource(R.string.delete), keep = !closed,
         onAction = if (closed) onDismiss else onAskDismiss, modifier = modifier,
@@ -273,7 +276,7 @@ private fun IncidentRow(
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            stringResource(Labels.category(incident.category)), style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            stringResource(Labels.category(incident.category)), style = MaterialTheme.typography.headline, maxLines = lines, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
                         Spacer(Modifier.width(8.dp))
@@ -296,7 +299,7 @@ private fun IncidentRow(
                             append(details)
                         },
                         style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp),
+                        maxLines = lines, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp),
                     )
                     if (incident.description.isNotEmpty()) {
                         Text(

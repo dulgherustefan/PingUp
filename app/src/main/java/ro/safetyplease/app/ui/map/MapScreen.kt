@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -81,6 +82,7 @@ import ro.safetyplease.app.ui.designsystem.Sym
 import ro.safetyplease.app.ui.designsystem.TextLink
 import ro.safetyplease.app.ui.designsystem.footnote
 import ro.safetyplease.app.ui.designsystem.initials
+import ro.safetyplease.app.ui.designsystem.largeFont
 import ro.safetyplease.app.ui.designsystem.pressScale
 import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
@@ -209,7 +211,8 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                         manualZone.isNotEmpty() -> stringResource(R.string.map_here_at, vm.venue.zoneName(manualZone))
                         else -> stringResource(R.string.map_where_tap)
                     }
-                    WherePill(whereText, known = origin != null, Modifier.align(Alignment.TopStart).padding(10.dp)) { showMine() }
+                    // clear of the compass in the top right corner
+                    WherePill(whereText, known = origin != null, Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 10.dp, end = 48.dp)) { showMine() }
                     MapControls(
                         Modifier.align(Alignment.BottomEnd).padding(10.dp),
                         onZoomIn = { scope.launch { camera.zoomBy(2f, animateMoves) } },
@@ -254,6 +257,9 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             val index = vm.venue.zones.indexOfFirst { it.id == tapped }
                             val zone = vm.venue.zones.getOrNull(index)
                             val directions = stringArrayResource(R.array.map_directions)
+                            val canSet = here == null && tapped != myZoneId
+                            // with large fonts the button goes under the name, so the name keeps the row's width
+                            val stacked = largeFont()
                             GroupRow(
                                 zone?.name ?: stringResource(R.string.zone_unknown),
                                 subtitle = when {
@@ -265,10 +271,16 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                                     else -> stringResource(R.string.map_zone_tag)
                                 },
                                 leading = { if (zone != null) ZoneBadge(vm.venue, index) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },
-                                trailing = if (here == null && tapped != myZoneId) {
+                                trailing = if (canSet && !stacked) {
                                     { AppButton(stringResource(R.string.map_set_zone), { setMine(tapped) }, compact = true) }
                                 } else null,
                             )
+                            if (canSet && stacked) {
+                                AppButton(
+                                    stringResource(R.string.map_set_zone), { setMine(tapped) },
+                                    Modifier.padding(start = 64.dp, end = Gutter, bottom = 12.dp), compact = true,
+                                )
+                            }
                         }
                         MapFocus.MINE -> {
                             val yourZone = stringResource(R.string.map_your_zone)
@@ -306,12 +318,15 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
             item(key = "zones-title") { SectionTitle(stringResource(R.string.map_zones)) }
             item(key = "zones") {
                 val hereLabel = stringResource(R.string.map_you_are_here)
+                // with large fonts "Ești aici" goes under the name instead of squeezing it
+                val stacked = largeFont()
                 InsetGroup {
                     vm.venue.zones.forEachIndexed { index, zone ->
                         val mine = zone.id == myZoneId
                         GroupRow(
                             zone.name,
-                            value = if (mine) hereLabel else null,
+                            subtitle = if (mine && stacked) hereLabel else null,
+                            value = if (mine && !stacked) hereLabel else null,
                             onClick = {
                                 // opened from a chat: one tap picks the zone and sends it
                                 if (dest.sendTo != null) setMine(zone.id)
@@ -362,7 +377,7 @@ private fun WherePill(text: String, known: Boolean, modifier: Modifier, onClick:
         Spacer(Modifier.width(7.dp))
         Text(
             text, style = MaterialTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold), color = colors.label,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            maxLines = if (largeFont()) 2 else 1, overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -403,9 +418,9 @@ private fun QuickChip(icon: ImageVector, label: String, meters: Int?, tone: Colo
     val press = remember { MutableInteractionSource() }
     val fill by animateColorAsState(if (selected) tone else colors.cell, label = "chip")
     Row(
-        Modifier.pressScale(press, 0.95f).height(40.dp).clip(CircleShape).background(fill)
+        Modifier.pressScale(press, 0.95f).heightIn(min = 40.dp).clip(CircleShape).background(fill)
             .clickable(press, indication = null, role = Role.Button, onClick = onClick)
-            .padding(start = 6.dp, end = 14.dp),
+            .padding(start = 6.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
