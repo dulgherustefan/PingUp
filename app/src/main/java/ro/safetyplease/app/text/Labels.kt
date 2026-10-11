@@ -8,7 +8,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalResources
 import kotlinx.coroutines.delay
-import ro.safetyplease.app.AppLocale
 import ro.safetyplease.app.R
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
@@ -17,6 +16,7 @@ import ro.safetyplease.core.protocol.Severity
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
+import java.util.Locale
 
 /** Maps protocol constants to strings.xml. */
 object Labels {
@@ -72,13 +72,13 @@ object Labels {
         else -> context.getString(R.string.staff_status_new)
     }
 
-    fun clock(timeMs: Long): String = SimpleDateFormat("HH:mm", AppLocale.ROMANIAN).format(Date(timeMs))
+    fun clock(timeMs: Long): String = SimpleDateFormat("HH:mm", Locale.ROOT).format(Date(timeMs))
 
-    fun date(timeMs: Long): String = SimpleDateFormat("d MMMM, HH:mm", AppLocale.ROMANIAN).format(Date(timeMs))
+    fun date(resources: Resources, timeMs: Long): String = format(resources, R.string.date_pattern_full, timeMs)
 
     /**
-     * "acum 5 min". The system formatter would answer in the phone's language, mid-sentence in Romanian.
-     * [resources] must come from an app context, which is pinned to Romanian.
+     * "5 min ago". The system formatter would answer in the phone's language, which may not be the app's.
+     * [resources] must come from a context wrapped by AppLocale.
      */
     fun ago(resources: Resources, timeMs: Long, nowMs: Long = System.currentTimeMillis()): String {
         val minutes = ((nowMs - timeMs) / 60_000L).toInt()
@@ -86,7 +86,7 @@ object Labels {
             minutes < 1 -> resources.getString(R.string.time_now)
             minutes < 60 -> resources.getQuantityString(R.plurals.time_minutes_ago, minutes, minutes)
             minutes < 24 * 60 -> resources.getQuantityString(R.plurals.time_hours_ago, minutes / 60, minutes / 60)
-            else -> SimpleDateFormat("d MMM, HH:mm", AppLocale.ROMANIAN).format(Date(timeMs))
+            else -> format(resources, R.string.date_pattern_recent, timeMs)
         }
     }
 
@@ -97,8 +97,8 @@ object Labels {
             minutes < 1 -> resources.getString(R.string.time_now_short)
             minutes < 60 -> resources.getString(R.string.time_minutes_short, minutes)
             daysBetween(timeMs, nowMs) == 0 -> clock(timeMs)
-            daysBetween(timeMs, nowMs) < 6 -> SimpleDateFormat("EEE", AppLocale.ROMANIAN).format(Date(timeMs))
-            else -> SimpleDateFormat("d MMM", AppLocale.ROMANIAN).format(Date(timeMs))
+            daysBetween(timeMs, nowMs) < 6 -> SimpleDateFormat("EEE", locale(resources)).format(Date(timeMs))
+            else -> format(resources, R.string.date_pattern_short, timeMs)
         }
     }
 
@@ -106,8 +106,14 @@ object Labels {
     fun dayLabel(resources: Resources, timeMs: Long, nowMs: Long = System.currentTimeMillis()): String = when (daysBetween(timeMs, nowMs)) {
         0 -> resources.getString(R.string.date_today)
         1 -> resources.getString(R.string.date_yesterday)
-        else -> SimpleDateFormat("EEEE, d MMMM", AppLocale.ROMANIAN).format(Date(timeMs))
+        else -> format(resources, R.string.date_pattern_day, timeMs)
     }
+
+    /** Month and weekday names come from the app's language; the word order from the pattern in strings.xml. */
+    private fun format(resources: Resources, @StringRes pattern: Int, timeMs: Long): String =
+        SimpleDateFormat(resources.getString(pattern), locale(resources)).format(Date(timeMs))
+
+    private fun locale(resources: Resources): Locale = resources.configuration.locales[0]
 
     /** Midnights between two moments, on the phone's clock. */
     fun daysBetween(earlierMs: Long, laterMs: Long): Int {

@@ -1,0 +1,424 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- English, used when the phone's language is English. Keys, placeholders and plurals mirror values/strings.xml. -->
+<resources>
+    <string name="back">Back</string>
+    <string name="more_options">More options</string>
+    <string name="open_settings">Open settings</string>
+    <string name="next">Continue</string>
+    <string name="done">Done</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="save">Save</string>
+    <string name="remove">Remove</string>
+    <string name="clear">Clear</string>
+    <string name="send">Send</string>
+    <string name="close">Close</string>
+    <string name="zone_unknown">Unknown zone</string>
+
+    <string name="tab_messages">Messages</string>
+    <string name="tab_report">Report</string>
+    <string name="map_title">Map</string>
+    <string name="tab_incidents">Incidents</string>
+
+    <string name="status_bt_off">Bluetooth is off</string>
+    <string name="status_bt_enable">Turn on</string>
+    <string name="status_no_access">The app has no access to Bluetooth</string>
+    <string name="net_none">No phones nearby</string>
+    <plurals name="phones_around">
+        <item quantity="one">One phone nearby</item>
+        <item quantity="other">%d phones nearby</item>
+    </plurals>
+    <string name="hop_direct">from nearby</string>
+    <plurals name="via_phones">
+        <item quantity="one">via one phone</item>
+        <item quantity="other">via %d phones</item>
+    </plurals>
+    <string name="time_now">just now</string>
+    <string name="time_now_short">Now</string>
+    <string name="time_minutes_short">%1$d min</string>
+    <string name="date_today">Today</string>
+    <string name="date_yesterday">Yesterday</string>
+    <plurals name="time_minutes_ago">
+        <item quantity="one">a minute ago</item>
+        <item quantity="other">%d min ago</item>
+    </plurals>
+    <plurals name="time_hours_ago">
+        <item quantity="one">an hour ago</item>
+        <item quantity="other">%d hours ago</item>
+    </plurals>
+    <plurals name="reports">
+        <item quantity="one">%d report</item>
+        <item quantity="other">%d reports</item>
+    </plurals>
+    <plurals name="group_members">
+        <item quantity="one">%d member</item>
+        <item quantity="other">%d members</item>
+    </plurals>
+
+    <string name="problem_access_title">Bluetooth access is missing</string>
+    <string name="problem_access_text">Without it, your phone can’t send or receive anything.</string>
+    <string name="problem_access_action">Allow access</string>
+    <string name="problem_bt_text">Turn it on so your phone can find the phones around you.</string>
+    <string name="problem_location_title">Turn on your phone’s location</string>
+    <string name="problem_location_text">On this Android version, Bluetooth scanning only works with location turned on.</string>
+    <string name="problem_location_action">Open settings</string>
+    <string name="problem_leaf_title">Other phones can’t find yours</string>
+    <string name="problem_leaf_text">Only your phone can connect to the ones around it. Messages and reports still go through.</string>
+    <string name="problem_battery_title">Your phone may stop the app in the background</string>
+    <string name="problem_battery_text">Take the app out of battery saving so messages arrive with the screen off too.</string>
+    <string name="problem_battery_action">Allow background use</string>
+    <string name="problem_dismiss">Got it</string>
+
+    <string name="onboarding_welcome">Messages without signal</string>
+    <string name="onboarding_intro">Text your friends and call for help even when the network goes down. Messages hop from phone to phone over Bluetooth.</string>
+    <string name="onboarding_not_112">This app doesn’t replace 112: reports go to the festival staff. In an emergency, call 112 if you can.</string>
+    <string name="name_label">How your friends see you</string>
+    <string name="name_placeholder">Your name</string>
+    <string name="name_hint">You can change it anytime.</string>
+    <string name="onboarding_permissions">What we ask for and why</string>
+    <string name="perm_bluetooth_title">Bluetooth</string>
+    <string name="perm_bluetooth_text">So your phone can find the phones around you and pass messages along. The network is made only of people’s phones.</string>
+    <string name="perm_notifications_title">Notifications</string>
+    <string name="perm_notifications_text">For new messages and the status of your report. One notification always stays, so the network keeps working with the screen off.</string>
+    <string name="perm_location_title">Location</string>
+    <string name="perm_location_text">On this Android version, Bluetooth can’t search for phones without the location permission.</string>
+    <string name="onboarding_permissions_text">The network is made of the phones of the people around you. For it to work, the app asks for:</string>
+    <string name="onboarding_later">We ask for the camera and location only when you need them.</string>
+    <string name="onboarding_not_now">Not now</string>
+    <string name="onboarding_start">Start</string>
+
+    <string name="messages_empty_title">No friends yet</string>
+    <string name="messages_empty_text">Scan each other’s codes so you can text. Works without internet.</string>
+    <string name="messages_empty_action">Add a friend</string>
+    <string name="messages_no_messages">No messages yet</string>
+    <string name="menu_add_friend">Add friend</string>
+    <string name="menu_new_group">New group</string>
+    <plurals name="tab_unread">
+        <item quantity="one">one unread conversation</item>
+        <item quantity="other">%d unread conversations</item>
+    </plurals>
+    <plurals name="unread_messages">
+        <item quantity="one">%d unread message</item>
+        <item quantity="other">%d unread messages</item>
+    </plurals>
+
+    <string name="presence_near">Nearby</string>
+    <string name="presence_seen">Seen %1$s</string>
+    <string name="presence_never">Not seen yet</string>
+    <string name="open_profile">Open profile</string>
+
+    <string name="chat_hint">Message</string>
+    <string name="chat_send_zone">Send my zone</string>
+    <string name="chat_quick">Quick messages</string>
+    <string name="chat_empty_text">Messages travel from phone to phone, even without signal.</string>
+    <string name="quick_where">Where are you?</string>
+    <string name="quick_coming">On my way</string>
+    <string name="quick_battery">My battery is low</string>
+    <string name="quick_meet">Let’s go to the meeting point</string>
+    <string name="msg_zone">I’m at: %1$s</string>
+    <string name="msg_group_invite">%1$s added you to the group</string>
+    <string name="msg_queued">Waiting for a phone nearby</string>
+    <string name="msg_sent">On its way</string>
+    <string name="msg_delivered">Delivered</string>
+    <string name="msg_failed">Not sure it arrived</string>
+    <string name="msg_group_delivered">Delivered to %1$d of %2$d</string>
+    <string name="msg_resend">Send again</string>
+    <string name="msg_copy">Copy</string>
+    <string name="msg_delete">Delete</string>
+    <string name="msg_you">You</string>
+
+    <string name="add_friend_title">Add friend</string>
+    <string name="add_friend_tab_code">My code</string>
+    <string name="add_friend_tab_scan">Scan</string>
+    <string name="add_friend_mine">Your code</string>
+    <string name="add_friend_mine_hint">Show it to your friend. Tap it to make it bigger.</string>
+    <string name="add_friend_enlarge">Enlarge code</string>
+    <string name="add_friend_scan">Your friend’s code</string>
+    <string name="add_friend_scan_hint">Point the camera at their code. Works for staff codes too.</string>
+    <string name="add_friend_no_camera">Without camera access, you can use the code as text.</string>
+    <string name="add_friend_allow_camera">Allow camera access</string>
+    <string name="add_friend_done">%1$s is on your list. Now show them your code so they can scan you too.</string>
+    <string name="add_friend_show_mine">Show them your code</string>
+    <string name="add_friend_text_link">Use the code as text</string>
+    <string name="code_sheet_mine">Your code</string>
+    <string name="code_sheet_copy">Copy code</string>
+    <string name="code_sheet_copied">Copied</string>
+    <string name="code_sheet_theirs">Your friend’s code</string>
+    <string name="code_sheet_placeholder">Paste the code here</string>
+    <string name="code_sheet_use">Use code</string>
+    <string name="scan_own_code">That’s your own code.</string>
+    <string name="scan_staff_on">You’re on the staff team. You’ll receive reports.</string>
+    <string name="scan_anchor_on">This phone is now an anchor. It only relays.</string>
+    <string name="scan_wrong_event">This staff code is for another event.</string>
+    <string name="scan_unknown">Unknown code.</string>
+
+    <string name="group_new">New group</string>
+    <string name="group_name">Group name</string>
+    <string name="group_pick">Choose friends, up to %1$d</string>
+    <string name="group_create">Create group</string>
+    <string name="group_no_friends">Add a friend first.</string>
+    <string name="profile_message">Message</string>
+    <string name="profile_added">Added on</string>
+    <string name="profile_created">Created on</string>
+    <string name="profile_last_seen">Last seen</string>
+    <string name="profile_remove_friend">Remove friend</string>
+    <string name="profile_leave_group">Leave group</string>
+    <string name="friend_remove_title">Remove %1$s?</string>
+    <string name="friend_remove_text">The conversation is deleted from this phone too.</string>
+    <string name="group_leave_title">Leave %1$s?</string>
+    <string name="group_leave_text">The group and its messages disappear only from this phone.</string>
+
+    <string name="report_title">What’s happening?</string>
+    <string name="report_mine">My reports</string>
+    <string name="report_details">Details (optional)</string>
+    <string name="report_add_details">Add details</string>
+    <string name="report_named">With your name</string>
+    <string name="report_urgent">Urgent</string>
+    <string name="report_urgent_label">Staff see it first</string>
+    <string name="report_zone">Zone</string>
+    <string name="report_zone_pick">Choose the zone</string>
+    <string name="report_zone_none">No zone</string>
+    <string name="report_zone_manual">We don’t have your location. Choose the zone if you know it.</string>
+    <string name="report_zone_outside">You’re outside the zones on the map. We’ll send your location with the report.</string>
+    <string name="report_use_location">Use my location</string>
+    <string name="report_description">Short description</string>
+    <string name="report_anonymous">Anonymous</string>
+    <string name="report_anonymous_on">No one sees who reported it.</string>
+    <string name="report_anonymous_off">Staff see your name.</string>
+    <string name="report_send">Send report</string>
+    <string name="report_rate_limited">You can send at most 3 reports in 10 minutes. Try again in %1$d min.</string>
+    <string name="report_mine_empty_title">No reports</string>
+    <string name="report_mine_empty_text">Your reports show up here, with their status.</string>
+    <string name="report_next_title">What happens next</string>
+    <string name="report_next_text">Your report travels to staff from phone to phone.</string>
+    <string name="report_waiting_text">No phone is nearby yet. Your report goes out on its own when one shows up.</string>
+    <string name="report_not_112">This doesn’t replace 112: your report goes to staff.</string>
+    <string name="emergency_call">Call 112</string>
+    <string name="report_escalate_title">No one has confirmed it yet</string>
+    <string name="report_escalate_text">Go to the nearest steward or first aid point. If you can, call 112.</string>
+    <string name="report_help_title">What you can do now</string>
+    <string name="report_help_medical">Head to the first aid point</string>
+    <string name="report_help_steward">Go to the nearest steward</string>
+    <string name="report_help_stay">Or stay where you are, if it’s safe</string>
+    <string name="report_help_stay_text">Ask the people around you for help.</string>
+    <string name="report_help_call_text">If you can. You make the call yourself.</string>
+
+    <string name="cat_medical">Medical</string>
+    <string name="cat_violence">Violence</string>
+    <string name="cat_lost">Missing person</string>
+    <string name="cat_harassment">Harassment</string>
+    <string name="cat_crowd">Dangerous crowding</string>
+    <string name="cat_fire">Fire or smoke</string>
+    <string name="cat_other">Something else</string>
+    <string name="cat_medical_example">someone fainted, got hurt, or is sick from the heat</string>
+    <string name="cat_violence_example">a fight, a threat with a weapon</string>
+    <string name="cat_lost_example">a child on their own, a friend who stopped answering</string>
+    <string name="cat_harassment_example">unwanted touching, someone following you</string>
+    <string name="cat_crowd_example">a crush, people pressed against the fence</string>
+    <string name="cat_fire_example">flames, a smell of smoke</string>
+    <string name="cat_other_example">anything else dangerous</string>
+    <string name="sev_urgent">Urgent</string>
+    <string name="sev_normal">Not urgent</string>
+
+    <string name="status_waiting_link">Waiting for a phone</string>
+    <string name="status_sending">On its way to staff</string>
+    <string name="status_received">Reached a staff phone</string>
+    <string name="status_received_note">Not yet confirmed by a person</string>
+    <string name="status_received_full">Reached a staff phone, not yet confirmed by a person</string>
+    <string name="status_acknowledged">Seen and taken on by %1$s</string>
+    <string name="status_acknowledged_pending">Seen by staff</string>
+    <string name="status_resolved">Resolved</string>
+
+    <string name="map_meeting_point">Meeting point</string>
+    <string name="map_distance">%1$d m from you</string>
+    <string name="map_your_zone">Your zone</string>
+    <string name="map_you_are_here">You are here</string>
+    <string name="map_outside">You’re outside the zones</string>
+    <string name="map_outside_text">Your position isn’t in any zone on the map.</string>
+    <string name="map_pick_zone">Where are you?</string>
+    <string name="map_pick_zone_text">We don’t have your position yet. Tap the zone you’re in on the map.</string>
+    <string name="map_set_zone">I’m here</string>
+    <string name="map_source_gps">from GPS</string>
+    <string name="map_source_manual">chosen by you</string>
+    <string name="map_source_simulated">simulated location</string>
+    <string name="map_zones">Zones</string>
+    <string name="map_no_position">The message has no position.</string>
+    <string name="map_pin_outside">This position is outside the event map.</string>
+    <string name="map_zone_tag">Zone</string>
+    <string name="map_you">You</string>
+    <string name="map_north">N</string>
+    <string name="map_here_at">You’re at %1$s</string>
+    <string name="map_where_tap">Where are you? Tap the map</string>
+    <string name="map_zoom_in">Zoom in</string>
+    <string name="map_zoom_out">Zoom out</string>
+    <string name="map_center_me">Show me on the map</string>
+    <string name="map_quick_me">Me</string>
+    <string name="map_quick_medical">Medical</string>
+    <string name="map_quick_exit">Exit</string>
+    <string name="map_quick_meeting">Meet</string>
+    <string name="map_quick_water">Water</string>
+    <string name="map_quick_wc">Toilets</string>
+    <string name="map_quick_info">Info</string>
+    <string name="map_quick_charge">Charging</string>
+    <string name="map_meters">%1$d m</string>
+    <string name="map_route">%1$d m to the %2$s</string>
+    <string name="map_route_unknown">Show where you are to see the way.</string>
+    <string-array name="map_directions">
+        <item>north</item>
+        <item>northeast</item>
+        <item>east</item>
+        <item>southeast</item>
+        <item>south</item>
+        <item>southwest</item>
+        <item>west</item>
+        <item>northwest</item>
+    </string-array>
+
+    <string name="filter_active">Open</string>
+    <string name="filter_resolved">Closed</string>
+    <string name="incidents_empty_title">Nothing here</string>
+    <string name="incidents_empty_text">Reports show up as they arrive through the network.</string>
+    <string name="incident_take">I’m on it</string>
+    <string name="incident_mark_resolved">Mark resolved</string>
+    <string name="incident_no_description">No description</string>
+    <string name="incident_reported_at">Reported at %1$s</string>
+    <string name="incident_reporter">by %1$s</string>
+    <string name="incident_anonymous">anonymous</string>
+    <string name="staff_status_new">Not taken</string>
+    <string name="incident_state_taken">Taken</string>
+    <string name="staff_status_taken">Taken by %1$s</string>
+    <string name="staff_status_resolved">Resolved by %1$s</string>
+
+    <string name="me_title">Me</string>
+    <string name="me_open">Your profile</string>
+    <string name="me_edit_name">Change name</string>
+    <string name="me_note">This is how your friends see you</string>
+    <string name="me_my_code_label">Show it to friends so they can add you</string>
+    <string name="role_staff">Staff · %1$s</string>
+    <string name="role_anchor">Anchor · %1$s</string>
+    <string name="me_staff_code">I have a staff code</string>
+    <string name="me_leave_staff">Switch back to participant</string>
+    <string name="me_leave_staff_text">This phone will stop receiving reports and forget the staff keys. To come back, you’ll need the QR code again.</string>
+    <string name="me_network">Network</string>
+    <string name="relayed_none">No one else’s packets have passed through your phone yet.</string>
+    <plurals name="relayed_packets">
+        <item quantity="one">One packet from others has passed through your phone.</item>
+        <item quantity="other">%d packets from others have passed through your phone.</item>
+    </plurals>
+    <string name="me_battery">Battery</string>
+    <string name="battery_text">Samsung and Xiaomi stop apps in the background. Samsung: Settings › Battery › Background usage limits, then remove the app from “Sleeping apps”. Xiaomi: Settings › Apps › Battery saver › No restrictions, plus Autostart.</string>
+    <string name="me_version">Version</string>
+    <string name="me_node_id">Technical ID</string>
+
+    <string name="anchor_title">Anchor</string>
+    <string name="anchor_peers">phones connected</string>
+    <string name="anchor_relayed">packets relayed</string>
+    <string name="anchor_cached">reports kept</string>
+    <string name="anchor_visible">phones nearby</string>
+    <string name="anchor_text">This phone only relays. Keep it plugged in; the screen can turn off.</string>
+
+    <string name="channel_mesh">Network active</string>
+    <string name="channel_urgent">Urgent incidents</string>
+    <string name="channel_incident">Incidents</string>
+    <string name="channel_status">My report’s status</string>
+    <string name="channel_chat">Messages</string>
+    <string name="notif_mesh_title">The network is on</string>
+    <string name="notif_mesh_title_anchor">Anchor active</string>
+    <string name="notif_mesh_searching">No one nearby yet</string>
+    <plurals name="notif_mesh_links">
+        <item quantity="one">Connected to one phone</item>
+        <item quantity="other">Connected to %d phones</item>
+    </plurals>
+    <string name="notif_mesh_stopped_title">%1$s has stopped</string>
+    <string name="notif_mesh_stopped_text">Tap to restart</string>
+    <string name="notif_incident_title">%1$s · %2$s</string>
+    <string name="notif_report_title">Your report</string>
+    <string name="action_report">Report</string>
+    <string name="action_report_long">Report an incident</string>
+
+    <string name="demo_title">Demo mode</string>
+    <string name="demo_unlocked">Demo mode unlocked</string>
+    <string name="demo_simulate_location">Simulated location: tap the map</string>
+    <string name="open_zone">View on map</string>
+    <string name="location_open_settings">Allow location in settings</string>
+    <string name="location_precise_needed">You only allowed approximate location. Your zone needs precise location.</string>
+    <string name="incidents_filter_empty">No incidents here</string>
+    <string name="report_active">Your report</string>
+    <string name="delete">Delete</string>
+    <string name="report_cancel">Call off the alert</string>
+    <string name="report_cancel_title">Call off the alert?</string>
+    <string name="report_cancel_text">Staff will know that help is no longer needed.</string>
+    <string name="report_cancel_confirm">Call off</string>
+    <string name="report_cancelling">Calling off</string>
+    <string name="report_cancelling_text">The call-off travels to staff from phone to phone.</string>
+    <string name="report_cancelled">Alert called off</string>
+    <string name="report_cancelled_text">Staff know that help is no longer needed.</string>
+    <string name="report_delete">Delete from history</string>
+    <string name="report_delete_title">Delete the report?</string>
+    <string name="report_delete_text">It disappears only from your phone.</string>
+    <string name="report_delete_closed">Delete closed reports</string>
+    <plurals name="report_delete_closed_title">
+        <item quantity="one">Delete the closed report?</item>
+        <item quantity="other">Delete %d closed reports?</item>
+    </plurals>
+    <string name="report_delete_closed_text">They disappear only from your phone. The ones still waiting for help stay.</string>
+    <string name="status_cancelled">Called off</string>
+    <string name="staff_status_cancelled">Called off by the person who reported it</string>
+    <string name="incident_dismiss">Remove from list</string>
+    <string name="incident_dismiss_title">Remove the incident from the list?</string>
+    <string name="incident_dismiss_text">It disappears only from this phone. The other teams still see it.</string>
+    <string name="incidents_dismiss_closed">Remove all closed</string>
+    <plurals name="incidents_dismiss_closed_title">
+        <item quantity="one">Remove the closed incident from the list?</item>
+        <item quantity="other">Remove %d closed incidents from the list?</item>
+    </plurals>
+    <string name="incidents_dismiss_closed_text">They disappear only from this phone. The other teams still see them.</string>
+
+    <!-- Reports from the same zone at the same time: a hint, never a shared action -->
+    <string name="incident_maybe_same">Possibly the same incident</string>
+    <plurals name="incident_same_zone">
+        <item quantity="one">One more report from the same zone</item>
+        <item quantity="other">%d more reports from the same zone</item>
+    </plurals>
+    <string name="incident_same_zone_title">From the same zone</string>
+    <string name="incident_each_separately">Each report is taken on and resolved separately.</string>
+
+    <!-- Accessibility: the map as TalkBack reads it -->
+    <plurals name="map_a11y_summary">
+        <item quantity="one">Event map, one zone</item>
+        <item quantity="other">Event map, %d zones</item>
+    </plurals>
+    <string name="map_a11y_here">you are here</string>
+    <string name="map_a11y_incident">Incident</string>
+    <string name="map_type_zone">zone</string>
+    <string name="map_type_stage">stage</string>
+    <string name="map_type_food">food</string>
+    <string name="map_type_bar">bar</string>
+    <string name="map_type_medical">first aid point</string>
+    <string name="map_type_entrance">entrance</string>
+    <string name="map_type_exit">exit</string>
+    <string name="map_type_camping">camping</string>
+    <string name="map_type_chill">chill-out area</string>
+    <string name="map_type_water">drinking water</string>
+    <string name="map_type_wc">toilets</string>
+    <string name="map_type_info">info point</string>
+    <string name="map_type_charge">phone charging</string>
+
+    <!-- First aid and defibrillators (AED) -->
+    <string name="map_quick_dea">AED</string>
+    <string name="map_type_dea">defibrillator</string>
+    <string name="nearest_dea">Nearest AED</string>
+    <string name="first_aid_title">First aid</string>
+    <string name="first_aid_intro">What to do until the medical team arrives. Works without signal too.</string>
+    <string name="first_aid_draft_title">Draft, to be approved by the event’s chief medical officer</string>
+    <string name="first_aid_draft_text">This text has not been checked by a doctor yet.</string>
+    <string name="first_aid_warning">Warning</string>
+    <string name="first_aid_approved">Approved: %1$s</string>
+    <string name="report_help_first_aid_text">What to do until the team arrives, step by step.</string>
+
+    <!-- Date patterns (SimpleDateFormat): each language has its own word order -->
+    <string name="date_pattern_full">MMMM d, HH:mm</string>
+    <string name="date_pattern_recent">MMM d, HH:mm</string>
+    <string name="date_pattern_short">MMM d</string>
+    <string name="date_pattern_day">EEEE, MMMM d</string>
+</resources>

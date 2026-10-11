@@ -72,7 +72,7 @@ android {
         }
     }
 
-    // The app pins its own language (Romanian), so per-language bundle splits have nothing to split.
+    // Both languages stay in every install: changing the phone's language must not need the store.
     bundle {
         language {
             enableSplit = false

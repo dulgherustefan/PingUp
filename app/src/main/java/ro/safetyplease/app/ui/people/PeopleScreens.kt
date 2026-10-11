@@ -82,6 +82,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -660,7 +661,7 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
             )
             InsetGroup(Modifier.padding(top = 24.dp)) {
                 if (friend != null) {
-                    GroupRow(stringResource(R.string.profile_added), value = Labels.date(friend.addedAt), icon = Sym.PersonAdd)
+                    GroupRow(stringResource(R.string.profile_added), value = Labels.date(LocalResources.current, friend.addedAt), icon = Sym.PersonAdd)
                     GroupDivider()
                     // the route goes under the title so the value on the right stays short on narrow screens
                     GroupRow(
@@ -670,7 +671,7 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                         icon = Sym.History,
                     )
                 } else if (group != null) {
-                    GroupRow(stringResource(R.string.profile_created), value = Labels.date(group.createdAt), icon = Sym.Clock)
+                    GroupRow(stringResource(R.string.profile_created), value = Labels.date(LocalResources.current, group.createdAt), icon = Sym.Clock)
                 }
             }
             if (group != null) {

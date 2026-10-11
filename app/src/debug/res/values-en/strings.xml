@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Demo mode strings in English. Not shipped in release builds. -->
+<resources>
+    <string name="demo_yes">yes</string>
+    <string name="demo_no">no</string>
+    <string name="demo_radio">Radio</string>
+    <string name="demo_radio_state">Bluetooth: %1$s · scanning: %2$s · advertising: %3$s · peripheral mode: %4$s</string>
+    <string name="demo_node">Node %1$s · sent %2$d · received %3$d · relayed %4$d · dropped %5$d</string>
+    <string name="demo_peers">Peers (%1$d)</string>
+    <string name="demo_no_peers">No phones with the app in range.</string>
+    <string name="demo_link_out">linked (we started it)</string>
+    <string name="demo_link_in">linked (they started it)</string>
+    <string name="demo_visible">visible, not linked</string>
+    <string name="demo_ignore">Ignore</string>
+    <string name="demo_actions">Quick actions</string>
+    <string name="demo_send_test">Send TEST</string>
+    <string name="demo_test_incident">Test incident</string>
+    <string name="demo_role_participant">Participant</string>
+    <string name="demo_role_staff">Staff</string>
+    <string name="demo_role_anchor">Anchor</string>
+    <string name="demo_keys_mismatch">The demo keys don’t match the public keys in the app. Use the staff QR code.</string>
+    <string name="demo_wipe">Delete all data</string>
+    <string name="demo_wipe_text">This deletes the identity, friends, messages and incidents. The app closes.</string>
+    <string name="demo_tests">TEST packets</string>
+    <string name="demo_tests_empty">Tap “Send TEST”. Every phone that receives it answers with an echo.</string>
+    <string name="demo_log">Packet log (%1$d)</string>
+    <string name="demo_log_export">Export</string>
+    <string name="demo_measure">Field measurements</string>
+    <string name="demo_measure_idle">Nothing is being recorded. CSV files stay on the phone until you export them.</string>
+    <string name="demo_measure_field">Recording to %1$s · rows: %2$d</string>
+    <string name="demo_measure_census">Census to %1$s · seconds: %2$d. The screen stays on.</string>
+    <string name="demo_measure_start">Measure</string>
+    <string name="demo_measure_census_start">BLE census</string>
+    <string name="demo_measure_stop">Stop</string>
+    <string name="demo_measure_failed">Recording didn’t start. Check Bluetooth and permissions.</string>
+    <string name="demo_measure_none">No recordings yet.</string>
+    <string name="demo_radio_caps">Coded PHY: %1$s · extended advertising: %2$s (max %3$d B) · multi-advertising: %4$s · long range active: %5$s</string>
+</resources>

@@ -429,4 +429,10 @@
     <string name="first_aid_warning">Atenție</string>
     <string name="first_aid_approved">Aprobat: %1$s</string>
     <string name="report_help_first_aid_text">Ce faci până ajunge echipa, pas cu pas.</string>
+
+    <!-- Date patterns (SimpleDateFormat): each language has its own word order -->
+    <string name="date_pattern_full">d MMMM, HH:mm</string>
+    <string name="date_pattern_recent">d MMM, HH:mm</string>
+    <string name="date_pattern_short">d MMM</string>
+    <string name="date_pattern_day">EEEE, d MMMM</string>
 </resources>

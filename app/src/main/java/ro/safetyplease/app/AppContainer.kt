@@ -48,6 +48,7 @@ import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.core.venue.parse
 import java.io.File
 import java.security.SecureRandom
 import kotlin.random.asKotlinRandom
@@ -76,7 +77,7 @@ class AppContainer(private val app: Application) {
     val chatStore = JsonStore(File(dataDir, "chat.json"), ChatData.serializer(), ChatData(), ioScope)
     val incidentStore = JsonStore(File(dataDir, "incidents.json"), IncidentData.serializer(), IncidentData(), ioScope)
 
-    val venue: Venue = Venue.parse(asset("venue.json"))
+    val venue: Venue = Venue.parse(asset("venue.json"), AppLocale.language(app))
     val staffCrypto = StaffCrypto(crypto, loadStaffPublic())
 
     @Volatile

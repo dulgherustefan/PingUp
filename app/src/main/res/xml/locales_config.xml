@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Languages offered in the phone's per-app language setting (Android 13+): useful when the phone speaks neither. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="ro" />
+    <locale android:name="en" />
+</locale-config>
