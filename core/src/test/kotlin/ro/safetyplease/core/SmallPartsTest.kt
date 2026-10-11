@@ -26,6 +26,7 @@ import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.core.venue.compassSector
 import ro.safetyplease.core.venue.pointInPolygon
 import java.io.File
 
@@ -86,6 +87,29 @@ class SmallPartsTest {
         assertNull("outside every zone", venue.zoneAt(43.9000, 28.6000))
         assertEquals("Scena principală", venue.zoneName("main-stage"))
         assertEquals("unknown id stays as is", "zona-x", venue.zoneName("zona-x"))
+    }
+
+    @Test
+    fun bundledVenuePlacesAreInsideAndTheNearestWins() {
+        val venue = bundledVenue()
+        assertTrue(venue.zones.all { it.type.isNotEmpty() })
+        for (poi in venue.pois) assertTrue(poi.name, venue.bounds.contains(poi.lat, poi.lon))
+        for (path in venue.paths) for (p in path) assertTrue(venue.bounds.contains(p.lat, p.lon))
+        assertEquals("Poarta principală", venue.nearest("exit", GeoPoint(43.9482, 28.6343))?.name)
+        assertEquals("Ieșire est", venue.nearest("exit", GeoPoint(43.9493, 28.6378))?.name)
+        assertEquals("the medical zone counts as a medical place", "Punct medical", venue.nearest("medical", GeoPoint(43.9484, 28.6360))?.name)
+        assertEquals(venue.meetingPoint, venue.nearest(Venue.MEETING, null)?.point)
+        assertNull(venue.nearest("teleport", GeoPoint(43.949, 28.635)))
+    }
+
+    @Test
+    fun compassSectors() {
+        val o = GeoPoint(43.949, 28.635)
+        assertEquals(0, compassSector(o, GeoPoint(43.950, 28.635)))
+        assertEquals(1, compassSector(o, GeoPoint(43.950, 28.6364)))
+        assertEquals(2, compassSector(o, GeoPoint(43.949, 28.637)))
+        assertEquals(4, compassSector(o, GeoPoint(43.948, 28.635)))
+        assertEquals(6, compassSector(o, GeoPoint(43.949, 28.633)))
     }
 
     // --- clustering ---

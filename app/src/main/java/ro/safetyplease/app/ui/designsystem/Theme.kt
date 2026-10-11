@@ -105,6 +105,9 @@ class AppColors(
         return if (dark) light else ink
     }
 
+    /** Solid tone of a zone, the same in light and dark: the circles behind the map icons. */
+    fun zoneSolid(index: Int, id: String = ""): Color = zonePair(index, id).second
+
     private fun zonePair(index: Int, id: String): Pair<Color, Color> = if (id == MEDICAL_ZONE) MedicalZone else ZonePairs[index % ZonePairs.size]
 
     /**

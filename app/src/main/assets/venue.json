@@ -1,95 +1,93 @@
 {
   "name": "Festival (layout generic)",
-  "bounds": { "minLat": 43.9480, "minLon": 28.6320, "maxLat": 43.9512, "maxLon": 28.6382 },
+  "bounds": {
+    "minLat": 43.948,
+    "minLon": 28.632,
+    "maxLat": 43.9512,
+    "maxLon": 28.6382
+  },
   "meetingPoint": { "lat": 43.94893, "lon": 28.63510 },
   "zones": [
     {
       "id": "main-stage",
       "name": "Scena principală",
+      "type": "stage",
       "color": "#E5484D",
-      "polygon": [
-        { "lat": 43.9510, "lon": 28.6344 },
-        { "lat": 43.9510, "lon": 28.6358 },
-        { "lat": 43.9500, "lon": 28.6364 },
-        { "lat": 43.9500, "lon": 28.6338 }
-      ]
+      "polygon": [ { "lat": 43.95100, "lon": 28.63440 }, { "lat": 43.95100, "lon": 28.63580 }, { "lat": 43.95000, "lon": 28.63640 }, { "lat": 43.95000, "lon": 28.63380 } ]
     },
     {
       "id": "second-stage",
       "name": "Scena 2",
+      "type": "stage",
       "color": "#8E4EC6",
-      "polygon": [
-        { "lat": 43.9499, "lon": 28.6366 },
-        { "lat": 43.9499, "lon": 28.6380 },
-        { "lat": 43.9489, "lon": 28.6380 },
-        { "lat": 43.9489, "lon": 28.6366 }
-      ]
+      "polygon": [ { "lat": 43.94990, "lon": 28.63660 }, { "lat": 43.94990, "lon": 28.63800 }, { "lat": 43.94890, "lon": 28.63800 }, { "lat": 43.94890, "lon": 28.63660 } ]
     },
     {
       "id": "food",
       "name": "Food court",
+      "type": "food",
       "color": "#F5A524",
-      "polygon": [
-        { "lat": 43.9499, "lon": 28.6322 },
-        { "lat": 43.9499, "lon": 28.6336 },
-        { "lat": 43.9490, "lon": 28.6336 },
-        { "lat": 43.9490, "lon": 28.6322 }
-      ]
+      "polygon": [ { "lat": 43.94990, "lon": 28.63220 }, { "lat": 43.94990, "lon": 28.63360 }, { "lat": 43.94900, "lon": 28.63360 }, { "lat": 43.94900, "lon": 28.63220 } ]
     },
     {
       "id": "bar",
       "name": "Baruri",
+      "type": "bar",
       "color": "#3E63DD",
-      "polygon": [
-        { "lat": 43.9499, "lon": 28.6340 },
-        { "lat": 43.9499, "lon": 28.6362 },
-        { "lat": 43.9491, "lon": 28.6362 },
-        { "lat": 43.9491, "lon": 28.6340 }
-      ]
+      "polygon": [ { "lat": 43.94990, "lon": 28.63400 }, { "lat": 43.94990, "lon": 28.63620 }, { "lat": 43.94910, "lon": 28.63620 }, { "lat": 43.94910, "lon": 28.63400 } ]
     },
     {
       "id": "medical",
       "name": "Punct medical",
+      "type": "medical",
       "color": "#30A46C",
-      "polygon": [
-        { "lat": 43.9488, "lon": 28.6354 },
-        { "lat": 43.9488, "lon": 28.6363 },
-        { "lat": 43.9482, "lon": 28.6363 },
-        { "lat": 43.9482, "lon": 28.6354 }
-      ]
+      "polygon": [ { "lat": 43.94880, "lon": 28.63540 }, { "lat": 43.94880, "lon": 28.63630 }, { "lat": 43.94820, "lon": 28.63630 }, { "lat": 43.94820, "lon": 28.63540 } ]
     },
     {
       "id": "entrance",
       "name": "Intrare",
+      "type": "entrance",
       "color": "#889096",
-      "polygon": [
-        { "lat": 43.9488, "lon": 28.6337 },
-        { "lat": 43.9488, "lon": 28.6350 },
-        { "lat": 43.9481, "lon": 28.6350 },
-        { "lat": 43.9481, "lon": 28.6337 }
-      ]
+      "polygon": [ { "lat": 43.94880, "lon": 28.63370 }, { "lat": 43.94880, "lon": 28.63500 }, { "lat": 43.94810, "lon": 28.63500 }, { "lat": 43.94810, "lon": 28.63370 } ]
     },
     {
       "id": "camping",
       "name": "Camping",
+      "type": "camping",
       "color": "#46A758",
-      "polygon": [
-        { "lat": 43.9488, "lon": 28.6321 },
-        { "lat": 43.9488, "lon": 28.6334 },
-        { "lat": 43.9481, "lon": 28.6334 },
-        { "lat": 43.9481, "lon": 28.6321 }
-      ]
+      "polygon": [ { "lat": 43.94880, "lon": 28.63210 }, { "lat": 43.94880, "lon": 28.63340 }, { "lat": 43.94810, "lon": 28.63340 }, { "lat": 43.94810, "lon": 28.63210 } ]
     },
     {
       "id": "chill",
       "name": "Zonă de relaxare",
+      "type": "chill",
       "color": "#12A594",
-      "polygon": [
-        { "lat": 43.9487, "lon": 28.6367 },
-        { "lat": 43.9487, "lon": 28.6381 },
-        { "lat": 43.9481, "lon": 28.6381 },
-        { "lat": 43.9481, "lon": 28.6367 }
-      ]
+      "polygon": [ { "lat": 43.94870, "lon": 28.63670 }, { "lat": 43.94870, "lon": 28.63810 }, { "lat": 43.94810, "lon": 28.63810 }, { "lat": 43.94810, "lon": 28.63670 } ]
     }
+  ],
+  "pois": [
+    { "type": "exit", "name": "Poarta principală", "lat": 43.94805, "lon": 28.63435 },
+    { "type": "exit", "name": "Ieșire vest", "lat": 43.94950, "lon": 28.63208 },
+    { "type": "exit", "name": "Ieșire est", "lat": 43.94930, "lon": 28.63812 },
+    { "type": "exit", "name": "Ieșire nord", "lat": 43.95108, "lon": 28.63320 },
+    { "type": "wc", "name": "Toalete food court", "lat": 43.94965, "lon": 28.63380 },
+    { "type": "wc", "name": "Toalete camping", "lat": 43.94845, "lon": 28.63650 },
+    { "type": "wc", "name": "Toalete scenă", "lat": 43.95045, "lon": 28.63690 },
+    { "type": "water", "name": "Apă potabilă vest", "lat": 43.94893, "lon": 28.63290 },
+    { "type": "water", "name": "Apă potabilă est", "lat": 43.94893, "lon": 28.63740 },
+    { "type": "water", "name": "Apă lângă scenă", "lat": 43.95030, "lon": 28.63320 },
+    { "type": "info", "name": "Punct de informare", "lat": 43.94850, "lon": 28.63520 },
+    { "type": "charge", "name": "Încărcare telefon", "lat": 43.94893, "lon": 28.63640 }
+  ],
+  "paths": [
+    [ { "lat": 43.94805, "lon": 28.63212 }, { "lat": 43.95106, "lon": 28.63212 }, { "lat": 43.95106, "lon": 28.63808 }, { "lat": 43.94805, "lon": 28.63808 }, { "lat": 43.94805, "lon": 28.63212 } ],
+    [ { "lat": 43.94893, "lon": 28.63212 }, { "lat": 43.94893, "lon": 28.63808 } ],
+    [ { "lat": 43.94995, "lon": 28.63212 }, { "lat": 43.94995, "lon": 28.63808 } ],
+    [ { "lat": 43.94893, "lon": 28.63380 }, { "lat": 43.94995, "lon": 28.63380 } ],
+    [ { "lat": 43.94893, "lon": 28.63640 }, { "lat": 43.94995, "lon": 28.63640 } ],
+    [ { "lat": 43.94805, "lon": 28.63435 }, { "lat": 43.94893, "lon": 28.63435 } ],
+    [ { "lat": 43.94805, "lon": 28.63355 }, { "lat": 43.94893, "lon": 28.63355 } ],
+    [ { "lat": 43.94805, "lon": 28.63520 }, { "lat": 43.94893, "lon": 28.63520 } ],
+    [ { "lat": 43.94805, "lon": 28.63650 }, { "lat": 43.94893, "lon": 28.63650 } ]
   ]
 }

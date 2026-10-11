@@ -223,9 +223,7 @@
     <string name="status_acknowledged_pending">Preluat de staff</string>
     <string name="status_resolved">Rezolvat</string>
 
-    <string name="map_my_zone">Zona mea</string>
     <string name="map_meeting_point">Punct de întâlnire</string>
-    <string name="map_meeting_text">Locul stabilit pentru regăsire.</string>
     <string name="map_distance">la %1$d m de tine</string>
     <string name="map_your_zone">Zona ta</string>
     <string name="map_you_are_here">Ești aici</string>
@@ -241,6 +239,34 @@
     <string name="map_no_position">Mesajul nu conține o poziție.</string>
     <string name="map_pin_outside">Poziția e în afara hărții evenimentului.</string>
     <string name="map_zone_tag">Zonă</string>
+    <string name="map_you">Tu</string>
+    <string name="map_north">N</string>
+    <string name="map_here_at">Ești la %1$s</string>
+    <string name="map_where_tap">Unde ești? Atinge harta</string>
+    <string name="map_zoom_in">Mărește harta</string>
+    <string name="map_zoom_out">Micșorează harta</string>
+    <string name="map_center_me">Arată-mă pe hartă</string>
+    <string name="map_quick_me">Eu</string>
+    <string name="map_quick_medical">Medical</string>
+    <string name="map_quick_exit">Ieșire</string>
+    <string name="map_quick_meeting">Întâlnire</string>
+    <string name="map_quick_water">Apă</string>
+    <string name="map_quick_wc">Toalete</string>
+    <string name="map_quick_info">Info</string>
+    <string name="map_quick_charge">Încărcare</string>
+    <string name="map_meters">%1$d m</string>
+    <string name="map_route">%1$d m spre %2$s</string>
+    <string name="map_route_unknown">Arată unde ești ca să vezi drumul.</string>
+    <string-array name="map_directions">
+        <item>nord</item>
+        <item>nord-est</item>
+        <item>est</item>
+        <item>sud-est</item>
+        <item>sud</item>
+        <item>sud-vest</item>
+        <item>vest</item>
+        <item>nord-vest</item>
+    </string-array>
 
     <string name="filter_active">Deschise</string>
     <string name="filter_resolved">Închise</string>
