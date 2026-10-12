@@ -122,11 +122,14 @@ class AppContainer(private val app: Application) {
     private val bundledKeys = Json.parseToJsonElement(asset("staff_public.json")).jsonObject
     private val root: ByteArray? = bundledKeys["root"]?.jsonPrimitive?.content?.hexToBytes()
 
+    /** Kept for every event: a pack whose organiser or event key was revoked no longer loads. */
+    private val revokedStore = Revocations.store(File(dataDir, "revocations.json"), ioScope)
+
     /**
      * The event in use, checked again at every start; null for the venue and keys the app ships, also once the
      * active pack's event is over. Switching events restarts the app, so everything below is built for one event.
      */
-    val event: EventPack? = events.value.activePack(crypto, root, clock.wallMs() / 1000)
+    val event: EventPack? = events.value.activePack(crypto, root, clock.wallMs() / 1000, revokedStore.value.ids)
 
     /** An exercise: banner on every screen, no alarm sound, and its own incidents, cache, console log and staff keys. */
     val exercise: Boolean = event?.exercise == true
@@ -228,7 +231,7 @@ class AppContainer(private val app: Application) {
 
     private val revocations = Revocations(
         meshScope, engine, keyChain,
-        Revocations.store(File(dataDir, "revocations.json"), ioScope),
+        revokedStore,
         resends = { settings.value.role == Role.CONTROL },
     ) {
         // a revoked shift signs nothing any more; the phone goes back to being a participant's
@@ -409,7 +412,7 @@ class AppContainer(private val app: Application) {
     /** Checks a pack and keeps it; it is used only once selected. */
     fun loadEventPack(text: String): Loaded {
         var loaded: Loaded? = null
-        events.update { shelf -> shelf.load(text, crypto, root, clock.wallMs() / 1000).also { loaded = it.second }.first }
+        events.update { shelf -> shelf.load(text, crypto, root, clock.wallMs() / 1000, revokedStore.value.ids).also { loaded = it.second }.first }
         return loaded!!
     }
 
@@ -435,9 +438,11 @@ class AppContainer(private val app: Application) {
      */
     fun switchEvent(hash: String) {
         events.update { it.select(hash) }
-        events.flush()
         settings.update { it.copy(role = Role.PARTICIPANT, teamName = "", anchorZone = "", staffZone = "", roleLead = false) }
-        settings.flush()
+        // writes wait 150 ms; what was reported or sent just before the switch must not go with the process
+        listOf(events, settings, friends, groups, incidentStore, consoleLog, metricsLog, networkLog, reporterMetrics, meshCache, revokedStore)
+            .forEach { it.flush() }
+        chatStore.flush()
         app.startActivity(Intent.makeRestartActivityTask(ComponentName(app, MainActivity::class.java)))
         Runtime.getRuntime().exit(0)
     }
@@ -445,7 +450,7 @@ class AppContainer(private val app: Application) {
     fun removeEventPack(hash: String) = events.update { it.without(hash) }
 
     /** The pack still holds now, so switching to it loads it. */
-    fun usable(pack: StoredPack): Boolean = EventPacks.check(pack.text, crypto, root, clock.wallMs() / 1000).status == PackStatus.VALID
+    fun usable(pack: StoredPack): Boolean = EventPacks.check(pack.text, crypto, root, clock.wallMs() / 1000, revokedStore.value.ids).status == PackStatus.VALID
 
     /** An SPR1 code: the certificate ids it newly revokes, or null if this event's keys didn't sign it. */
     fun applyRevocation(payload: ByteArray): List<Long>? = revocations.add(payload)

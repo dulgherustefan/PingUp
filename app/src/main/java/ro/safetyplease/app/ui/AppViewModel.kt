@@ -276,7 +276,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         QrCodes.decodeEventGate(text)?.let { hash ->
             // the gate code only picks a pack loaded before; using it restarts the app
-            c.events.value.byHash(hash)?.takeIf(c::usable)?.let { c.switchEvent(it.hash) }
+            c.events.value.gateTarget(hash)?.takeIf(c::usable)?.let { c.switchEvent(it.hash) }
             return ScanOutcome.Unknown
         }
         QrCodes.decodeRevocation(text)?.let { payload ->

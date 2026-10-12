@@ -71,6 +71,7 @@ fun loadMessage(loaded: Loaded): Int = when (loaded.status) {
     PackStatus.MALFORMED -> R.string.event_malformed
     PackStatus.TAMPERED -> R.string.event_tampered
     PackStatus.WRONG_CHAIN -> R.string.event_wrong_chain
+    PackStatus.REVOKED -> R.string.event_revoked
     PackStatus.NOT_YET -> R.string.event_not_yet
     PackStatus.EXPIRED -> R.string.event_expired
 }

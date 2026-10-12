@@ -113,6 +113,9 @@ import kotlin.math.roundToInt
 /** Bottom space to leave: the floating tab bar on main screens, the gesture bar elsewhere. */
 val LocalBottomClearance = compositionLocalOf { 0.dp }
 
+/** Top space the status bar still needs here: none under the exercise banner, which already covers it. */
+val LocalStatusBarTop = compositionLocalOf<Dp?> { null }
+
 /** Horizontal screen margin. */
 val Gutter = 16.dp
 
@@ -256,7 +259,7 @@ fun NavScreen(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val backdrop = rememberBackdrop()
-    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val top = LocalStatusBarTop.current ?: WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val padding = PaddingValues(top = top + NavHeight + 4.dp, bottom = LocalBottomClearance.current + 16.dp)
     Box(modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().backdropSource(backdrop).screenBackground(background)) { content(padding) }

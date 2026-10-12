@@ -676,6 +676,7 @@
     <string name="event_tampered">The pack was changed after the organiser signed it. It wasn’t loaded.</string>
     <string name="event_wrong_chain">The pack isn’t signed by an organiser %1$s verified. It wasn’t loaded.</string>
     <string name="event_not_yet">The pack isn’t valid yet. Check the phone’s clock.</string>
+    <string name="event_revoked">This pack’s organiser or event was revoked. It wasn’t loaded.</string>
     <string name="event_expired">This pack’s event is over.</string>
     <string name="event_download_failed">The pack couldn’t be downloaded. The link must start with https://.</string>
 </resources>

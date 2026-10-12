@@ -161,6 +161,21 @@ class EventPackTest {
     }
 
     @Test
+    fun aPackWhoseOrganiserOrEventWasRevokedNoLongerHolds() {
+        val event = Event()
+        fun check(vararg ids: Long) = EventPacks.check(event.text(), testCrypto, root.publicKey, t0, ids.toSet())
+        assertEquals(PackStatus.REVOKED, check(organiserCert.id).status)
+        assertEquals(PackStatus.REVOKED, check(event.cert.id).status)
+        // a revoked day's key is only left out; the chain refuses it where it is used
+        assertEquals(PackStatus.VALID, check(event.dayCert.id).status)
+        val (shelf, loaded) = EventShelf().load(event.text(), testCrypto, root.publicKey, t0)
+        assertEquals(PackStatus.VALID, loaded.status)
+        val active = shelf.select(shelf.packs.single().hash)
+        assertNull(active.activePack(testCrypto, root.publicKey, t0, setOf(event.cert.id)))
+        assertEquals(PackStatus.REVOKED, EventShelf().load(event.text(), testCrypto, root.publicKey, t0, setOf(organiserCert.id)).second.status)
+    }
+
+    @Test
     fun eventsCoexistAndOneIsActive() {
         val fest = Event("fest")
         val other = Event("other")
@@ -267,5 +282,19 @@ class EventPackTest {
         assertArrayEquals(pack.hash, QrCodes.decodeEventGate(code))
         assertNull(QrCodes.decodeEventGate("SPE1.AAAA"))
         assertNull(QrCodes.decodeEventGate(QrCodes.encodeRevocation(ByteArray(32))))
+    }
+
+    @Test
+    fun theGateCodeOfThePackInUseChangesNothing() {
+        val fest = Event("fest")
+        val other = Event("other")
+        val shelf = EventShelf().load(fest.text(), testCrypto, root.publicKey, t0).first
+            .load(other.text(), testCrypto, root.publicKey, t0).first
+        val festHash = fest.pack().hash
+        assertEquals(festHash.toHex(), shelf.gateTarget(festHash)?.hash)
+        val inUse = shelf.select(festHash.toHex())
+        assertNull(inUse.gateTarget(festHash))
+        assertEquals(other.pack().hashHex, inUse.gateTarget(other.pack().hash)?.hash)
+        assertNull(inUse.gateTarget(ByteArray(32)))
     }
 }

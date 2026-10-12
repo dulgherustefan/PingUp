@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,6 +45,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -56,6 +58,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -92,6 +95,7 @@ import ro.safetyplease.app.ui.designsystem.Backdrop
 import ro.safetyplease.app.ui.designsystem.FullScreen
 import ro.safetyplease.app.ui.designsystem.LocalBottomClearance
 import ro.safetyplease.app.ui.designsystem.LocalReduceMotion
+import ro.safetyplease.app.ui.designsystem.LocalStatusBarTop
 import ro.safetyplease.app.ui.designsystem.Motion
 import ro.safetyplease.app.ui.designsystem.Sym
 import ro.safetyplease.app.ui.designsystem.TextFont
@@ -237,8 +241,27 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
 
     if (settings.role == AppRole.CONTROL) ControlWindow()
     FullScreen {
+        if (vm.c.exercise) {
+            // the banner sits above every screen and takes the status bar, so it covers no header
+            Column(Modifier.fillMaxSize()) {
+                ExerciseBanner()
+                Box(Modifier.weight(1f).consumeWindowInsets(WindowInsets.statusBars)) {
+                    CompositionLocalProvider(LocalStatusBarTop provides 0.dp) {
+                        Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce)
+                    }
+                }
+            }
+        } else {
+            Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce)
+        }
+    }
+}
+
+@Composable
+private fun Screens(vm: AppViewModel, onboarded: Boolean, role: AppRole, onStartMesh: () -> Unit, holder: SaveableStateHolder, reduce: Boolean) {
+    Box(Modifier.fillMaxSize()) {
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        if (!settings.onboarded) OnboardingScreen(vm, onStartMesh)
+        if (!onboarded) OnboardingScreen(vm, onStartMesh)
         else AnimatedContent(
             targetState = vm.stack.size to vm.stack.lastOrNull(),
             transitionSpec = {
@@ -249,11 +272,10 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
         ) { (size, dest) ->
             holder.SaveableStateProvider(entryKey(size, dest)) {
                 CompositionLocalProvider(LocalBottomClearance provides navBottom) {
-                    Screen(vm, dest, settings.role, onStartMesh)
+                    Screen(vm, dest, role, onStartMesh)
                 }
             }
         }
-        if (vm.c.exercise) ExerciseBanner()
     }
 }
 

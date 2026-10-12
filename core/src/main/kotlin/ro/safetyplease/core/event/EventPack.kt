@@ -28,7 +28,7 @@ import java.io.InputStream
 /** A real event, or an exercise: everything opened under an exercise pack is marked and never sounds a live alarm. */
 enum class EventKind(val code: String) { REAL("real"), EXERCISE("exercise") }
 
-enum class PackStatus { VALID, MALFORMED, TAMPERED, WRONG_CHAIN, NOT_YET, EXPIRED }
+enum class PackStatus { VALID, MALFORMED, TAMPERED, WRONG_CHAIN, REVOKED, NOT_YET, EXPIRED }
 
 /**
  * A signed event pack (PROTOCOL.md, section 16): the venue, the first-aid sheets and the event's keys, signed by the
@@ -92,16 +92,18 @@ object EventPacks {
      * Whether [text] is a pack this phone may use at [now] (seconds): the root signed the organiser, the organiser
      * signed the pack and the event, the event signed every report key, and now is inside the pack's window and the
      * event's, give or take [KeyChain.SKEW_S]. A pack is loaded before the event, so the event's certificate need
-     * not hold yet.
+     * not hold yet. A pack whose organiser or event key is in [revoked] is REVOKED; a revoked report key is only left out.
      */
-    fun check(text: String, crypto: Crypto, root: ByteArray?, now: Long): PackCheck {
+    fun check(text: String, crypto: Crypto, root: ByteArray?, now: Long, revoked: Collection<Long> = emptySet()): PackCheck {
         if (text.length > MAX_BYTES) return PackCheck(PackStatus.MALFORMED)
         val (body, signature) = outer(text) ?: return PackCheck(PackStatus.MALFORMED)
         val pack = parse(body) ?: return PackCheck(PackStatus.MALFORMED)
         if (root == null) return PackCheck(PackStatus.WRONG_CHAIN)
         val chain = KeyChain(crypto, Fixed(now), pack.sign ?: ByteArray(Certificate.KEY_SIZE), root, pack.issuers, pack.reportKeys)
+        chain.revokeIds(revoked)
         when (chain.status(pack.organiser, now)) {
             CertStatus.VALID -> Unit
+            CertStatus.REVOKED -> return PackCheck(PackStatus.REVOKED)
             CertStatus.OUTSIDE_WINDOW -> return PackCheck(if (now < pack.organiser.validFrom) PackStatus.NOT_YET else PackStatus.EXPIRED)
             else -> return PackCheck(PackStatus.WRONG_CHAIN)
         }
@@ -109,8 +111,9 @@ object EventPacks {
         // each key is checked at the moment of its window nearest to now; days already over don't matter any more
         fun holds(cert: Certificate) = chain.status(cert, now.coerceIn(cert.validFrom, cert.validUntil)) == CertStatus.VALID
         val event = pack.event
+        if (event.id in revoked) return PackCheck(PackStatus.REVOKED)
         if (event.role != CertRole.EVENT || !holds(event)) return PackCheck(PackStatus.WRONG_CHAIN)
-        val current = pack.reportKeys.filter { it.validUntil + KeyChain.SKEW_S >= now }
+        val current = pack.reportKeys.filter { it.validUntil + KeyChain.SKEW_S >= now && it.id !in revoked }
         if (current.any { it.role != CertRole.REPORT_KEY || !holds(it) }) return PackCheck(PackStatus.WRONG_CHAIN)
         if (now < pack.validFrom - KeyChain.SKEW_S) return PackCheck(PackStatus.NOT_YET)
         if (now > minOf(pack.validUntil, event.validUntil) + KeyChain.SKEW_S) return PackCheck(PackStatus.EXPIRED)

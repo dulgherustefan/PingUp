@@ -697,6 +697,7 @@
     <string name="event_tampered">Pachetul a fost schimbat după ce l-a semnat organizatorul. Nu e încărcat.</string>
     <string name="event_wrong_chain">Pachetul nu e semnat de un organizator verificat de %1$s. Nu e încărcat.</string>
     <string name="event_not_yet">Pachetul nu e valabil încă. Verifică ceasul telefonului.</string>
+    <string name="event_revoked">Organizatorul acestui pachet sau evenimentul lui a fost revocat. Nu e încărcat.</string>
     <string name="event_expired">Evenimentul acestui pachet s-a încheiat.</string>
     <string name="event_download_failed">Pachetul nu s-a putut descărca. Linkul trebuie să înceapă cu https://.</string>
 </resources>

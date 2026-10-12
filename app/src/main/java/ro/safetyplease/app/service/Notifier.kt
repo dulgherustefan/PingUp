@@ -166,7 +166,8 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             .setPriority(if (level == AlertLevel.NOTIFY) NotificationCompat.PRIORITY_DEFAULT else NotificationCompat.PRIORITY_HIGH)
             .setSilent(post.silent)
         if (level == AlertLevel.INSISTENT && !exercise) builder.setCategory(NotificationCompat.CATEGORY_ALARM)
-        if (post.fullScreen) builder.setFullScreenIntent(open, true)
+        // an exercise never takes over the screen as a live alarm does
+        if (post.fullScreen && !exercise) builder.setFullScreenIntent(open, true)
         manager.notify(id, builder.build())
     }
 

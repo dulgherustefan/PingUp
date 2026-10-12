@@ -33,6 +33,9 @@ data class EventShelf(val packs: List<StoredPack> = emptyList(), val active: Str
 
     fun byHash(hash: ByteArray): StoredPack? = hash.toHex().let { hex -> packs.firstOrNull { it.hash == hex } }
 
+    /** The pack a gate code names, to switch to; null when this phone lacks it or already uses it, so its role stays. */
+    fun gateTarget(hash: ByteArray): StoredPack? = byHash(hash)?.takeIf { it.hash != active }
+
     fun with(pack: EventPack, text: String): Pair<EventShelf, Added> {
         val hash = pack.hashHex
         if (packs.any { it.hash == hash }) return this to Added.KNOWN
@@ -47,8 +50,8 @@ data class EventShelf(val packs: List<StoredPack> = emptyList(), val active: Str
     }
 
     /** Checks [text] and keeps it if it is a valid pack. */
-    fun load(text: String, crypto: Crypto, root: ByteArray?, now: Long): Pair<EventShelf, Loaded> {
-        val check = EventPacks.check(text, crypto, root, now)
+    fun load(text: String, crypto: Crypto, root: ByteArray?, now: Long, revoked: Collection<Long> = emptySet()): Pair<EventShelf, Loaded> {
+        val check = EventPacks.check(text, crypto, root, now, revoked)
         val pack = check.pack ?: return this to Loaded(check.status, null)
         val (shelf, added) = with(pack, text)
         return shelf to Loaded(PackStatus.VALID, added)
@@ -59,9 +62,9 @@ data class EventShelf(val packs: List<StoredPack> = emptyList(), val active: Str
 
     fun without(hash: String): EventShelf = EventShelf(packs.filter { it.hash != hash }, if (active == hash) "" else active)
 
-    /** The active pack checked again at [now]; null if there is none or it no longer holds, as after its event. */
-    fun activePack(crypto: Crypto, root: ByteArray?, now: Long): EventPack? =
-        active()?.let { EventPacks.check(it.text, crypto, root, now).pack }
+    /** The active pack checked again at [now]; null if there is none or it no longer holds, as after its event or a revocation. */
+    fun activePack(crypto: Crypto, root: ByteArray?, now: Long, revoked: Collection<Long> = emptySet()): EventPack? =
+        active()?.let { EventPacks.check(it.text, crypto, root, now, revoked).pack }
 }
 
 /** An exercise keeps its incidents, store-and-forward cache, console log and staff keys under names of their own. */
