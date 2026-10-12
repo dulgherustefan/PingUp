@@ -55,10 +55,10 @@ import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -85,6 +85,7 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -100,7 +101,6 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
@@ -211,13 +211,6 @@ val GlassSize = 38.dp
 /** Minimum touch target on Android, even when the visible circle is smaller. */
 val TouchTarget = 48.dp
 
-/** Top bar text scales with the system font size only up to 115%; beyond that it doesn't fit the bar. */
-@Composable
-fun NavText(content: @Composable () -> Unit) {
-    val density = LocalDensity.current
-    CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale.coerceAtMost(1.15f)), content = content)
-}
-
 /** From this system font size on, rows stack and text wraps instead of being cut. */
 private const val LARGE_FONT_SCALE = 1.3f
 
@@ -226,9 +219,9 @@ fun largeFont(): Boolean = LocalDensity.current.fontScale >= LARGE_FONT_SCALE
 
 /** Under the top bar once content scrolls beneath it: solid background up to the bar edge, then a fade. */
 @Composable
-fun TopEdge(top: Dp, color: Color, visible: Boolean) {
+fun TopEdge(top: Dp, color: Color, visible: Boolean, bar: Dp = NavHeight) {
     val edge by animateFloatAsState(if (visible) 1f else 0f, tween(Motion.QUICK), label = "edge")
-    val solid = top + NavHeight
+    val solid = top + bar
     val height = solid + 22.dp
     val glow = AppTheme.colors.glow
     // same light as the background below, solid up to the bar edge, then faded with a mask
@@ -260,30 +253,32 @@ fun NavScreen(
 ) {
     val backdrop = rememberBackdrop()
     val top = LocalStatusBarTop.current ?: WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val padding = PaddingValues(top = top + NavHeight + 4.dp, bottom = LocalBottomClearance.current + 16.dp)
+    // the bar grows with the system font size instead of capping the title
+    var barPx by remember { mutableIntStateOf(0) }
+    val bar = maxOf(NavHeight, with(LocalDensity.current) { barPx.toDp() })
+    val padding = PaddingValues(top = top + bar + 4.dp, bottom = LocalBottomClearance.current + 16.dp)
     Box(modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().backdropSource(backdrop).screenBackground(background)) { content(padding) }
-        TopEdge(top, background, scrolled)
+        TopEdge(top, background, scrolled, bar)
         // title stays centered while it fits between the buttons, otherwise it shifts to the free side;
         // title and subtitle center independently so a longer status doesn't move the title
         Layout(
             content = {
                 Box { leading(backdrop) }
-                NavText { Text(title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                Text(title, style = MaterialTheme.typography.headline, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Box { trailing(backdrop) }
                 if (subtitle != null) {
-                    NavText {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            subtitleLeading?.invoke()
-                            Text(
-                                subtitle, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        subtitleLeading?.invoke()
+                        Text(
+                            subtitle, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
+                            textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             },
-            modifier = Modifier.statusBarsPadding().fillMaxWidth().height(NavHeight).padding(horizontal = Gutter),
+            modifier = Modifier.statusBarsPadding().fillMaxWidth().heightIn(min = NavHeight).onSizeChanged { barPx = it.height }
+                .padding(horizontal = Gutter),
         ) { measurables, constraints ->
             val loose = constraints.copy(minWidth = 0, minHeight = 0)
             val lead = measurables[0].measure(loose)
@@ -294,9 +289,10 @@ fun NavScreen(
             val head = measurables[1].measure(loose.copy(maxWidth = room))
             val sub = measurables.getOrNull(3)?.measure(loose.copy(maxWidth = room))
             fun xFor(w: Int) = ((width - w) / 2).coerceIn(lead.width + gap, (width - trail.width - gap - w).coerceAtLeast(lead.width + gap))
-            layout(width, constraints.maxHeight) {
-                val height = constraints.maxHeight
-                val top = (height - head.height - (sub?.height ?: 0)) / 2
+            val text = head.height + (sub?.height ?: 0)
+            val height = maxOf(constraints.minHeight, text + 8.dp.roundToPx(), lead.height, trail.height)
+            layout(width, height) {
+                val top = (height - text) / 2
                 lead.place(0, (height - lead.height) / 2)
                 head.place(xFor(head.width), top)
                 sub?.place(xFor(sub.width), top + head.height)

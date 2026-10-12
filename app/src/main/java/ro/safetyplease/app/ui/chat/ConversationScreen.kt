@@ -120,7 +120,6 @@ import ro.safetyplease.app.ui.designsystem.LocalStatusBarTop
 import ro.safetyplease.app.ui.designsystem.MenuRow
 import ro.safetyplease.app.ui.designsystem.Motion
 import ro.safetyplease.app.ui.designsystem.NavHeight
-import ro.safetyplease.app.ui.designsystem.NavText
 import ro.safetyplease.app.ui.designsystem.Sym
 import ro.safetyplease.app.ui.designsystem.TextLink
 import ro.safetyplease.app.ui.designsystem.TopEdge
@@ -198,6 +197,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     var draft by rememberSaveable { mutableStateOf("") }
     var quick by rememberSaveable { mutableStateOf(false) }
     var composerPx by remember { mutableIntStateOf(0) }
+    var barPx by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = items.lastIndex.coerceAtLeast(0))
     val backdrop = rememberBackdrop()
     val scrolled by remember { derivedStateOf { listState.canScrollBackward } }
@@ -246,6 +246,8 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     }
     val top = LocalStatusBarTop.current ?: WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val composerHeight = with(density) { composerPx.toDp() }
+    // the header grows with the system font size instead of capping the name
+    val bar = maxOf(NavHeight, with(density) { barPx.toDp() })
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().backdropSource(backdrop).screenBackground(colors.background)) {
@@ -262,7 +264,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                 LazyColumn(
                     Modifier.fillMaxSize().nestedScroll(userScroll),
                     state = listState,
-                    contentPadding = PaddingValues(top = top + NavHeight + 16.dp, bottom = composerHeight + 8.dp),
+                    contentPadding = PaddingValues(top = top + bar + 16.dp, bottom = composerHeight + 8.dp),
                     // a short conversation sits next to the composer, not at the top
                     verticalArrangement = Arrangement.Bottom,
                 ) {
@@ -283,9 +285,10 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
             }
         }
 
-        TopEdge(top, colors.background, scrolled)
+        TopEdge(top, colors.background, scrolled, bar)
         Row(
-            Modifier.statusBarsPadding().fillMaxWidth().height(NavHeight).padding(horizontal = Gutter),
+            Modifier.statusBarsPadding().fillMaxWidth().heightIn(min = NavHeight).onSizeChanged { barPx = it.height }
+                .padding(horizontal = Gutter),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop)
@@ -298,14 +301,12 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
             ) {
                 Avatar(title, 40.dp, near = friend != null && nearby.isInRange(friend.nodeId), group = group != null)
                 Spacer(Modifier.width(12.dp))
-                NavText {
-                    Column {
-                        Text(title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            subtitle, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium, color = colors.secondaryLabel,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                Column(Modifier.padding(vertical = 4.dp)) {
+                    Text(title, style = MaterialTheme.typography.headline, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        subtitle, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium, color = colors.secondaryLabel,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
