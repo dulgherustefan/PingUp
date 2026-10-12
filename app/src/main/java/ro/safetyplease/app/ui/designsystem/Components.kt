@@ -327,6 +327,9 @@ fun ScreenScaffold(
     }
 }
 
+/** Which avatar color a name gets; the same person keeps the same color everywhere. */
+fun avatarIndex(name: String, count: Int): Int = (name.trim().hashCode() and 0x7fffffff) % count
+
 fun initials(name: String): String {
     val parts = name.trim().split(' ').filter { it.isNotEmpty() }
     return when {
@@ -343,7 +346,7 @@ fun initials(name: String): String {
 @Composable
 fun Avatar(name: String, size: Dp = 56.dp, near: Boolean = false, group: Boolean = false) {
     val colors = AppTheme.colors
-    val (fill, ink) = colors.avatars[(name.hashCode() and 0x7fffffff) % colors.avatars.size]
+    val (fill, ink) = colors.avatars[avatarIndex(name, colors.avatars.size)]
     // letters scale with the avatar, not with the system font size
     val fontSize = with(LocalDensity.current) { (size * 0.42f).toSp() }
     Box {
