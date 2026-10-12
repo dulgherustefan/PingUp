@@ -161,6 +161,9 @@
     <string name="scan_staff_on">Ești în echipa de staff. Vei primi rapoartele.</string>
     <string name="scan_anchor_on">Telefonul e acum ancoră. Doar retransmite.</string>
     <string name="scan_wrong_event">Codul de staff e de la alt eveniment.</string>
+    <string name="scan_revoked">Codul acesta a fost revocat de organizator.</string>
+    <string name="scan_not_now">Codul nu e valabil acum: tura lui e la altă oră. Verifică ceasul telefonului.</string>
+    <string name="scan_revocations">Lista de coduri revocate e la zi și pleacă mai departe prin rețea.</string>
     <string name="scan_unknown">Cod necunoscut.</string>
 
     <string name="group_new">Grup nou</string>
@@ -378,6 +381,8 @@
     <string name="me_open">Profilul tău</string>
     <string name="me_edit_name">Schimbă numele</string>
     <string name="me_note">Așa te văd prietenii</string>
+    <string name="name_reserved">Numele acesta e rezervat staff-ului verificat.</string>
+    <string name="staff_verified">Staff verificat</string>
     <string name="me_my_code_label">Arată-l prietenilor ca să te adauge</string>
     <string name="role_staff">Staff · %1$s</string>
     <string name="role_anchor">Ancoră · %1$s</string>
@@ -618,6 +623,7 @@
     <string name="control_heard_linked">conectat acum</string>
     <string name="control_heard_at">auzit %1$s</string>
     <string name="control_heard_staff">Staff</string>
+    <string name="anchor_verified">Ancoră verificată</string>
     <plurals name="control_heard_silent">
         <item quantity="one">Ancoră tăcută de un minut</item>
         <item quantity="few">Ancoră tăcută de %d minute</item>

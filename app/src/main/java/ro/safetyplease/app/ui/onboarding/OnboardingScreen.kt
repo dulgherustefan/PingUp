@@ -119,7 +119,7 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         if (current == 0) {
             StepPage(
                 onBack = null,
-                bottom = { AppButton(stringResource(R.string.next), next, Modifier.fillMaxWidth(), enabled = name.isNotBlank()) },
+                bottom = { AppButton(stringResource(R.string.next), next, Modifier.fillMaxWidth(), enabled = name.isNotBlank() && vm.nameAllowed(name)) },
             ) {
                 AppLogo(96.dp, Modifier.padding(bottom = 20.dp))
                 Text(stringResource(R.string.onboarding_welcome), style = MaterialTheme.typography.largeTitle, color = colors.label)
@@ -140,8 +140,12 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 InputField(
                     name, { name = it.take(MAX_NAME) }, stringResource(R.string.name_placeholder), Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) next() }),
-                    supporting = stringResource(R.string.name_label) + ". " + stringResource(R.string.name_hint),
+                    keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank() && vm.nameAllowed(name)) next() }),
+                    supporting = if (vm.nameAllowed(name)) {
+                        stringResource(R.string.name_label) + ". " + stringResource(R.string.name_hint)
+                    } else {
+                        stringResource(R.string.name_reserved)
+                    },
                     background = colors.fill,
                 )
             }

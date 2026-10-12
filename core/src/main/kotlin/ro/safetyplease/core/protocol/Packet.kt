@@ -14,7 +14,10 @@ object PacketType {
     const val INCIDENT_CANCEL = 0x12
     const val PRIVATE = 0x20
 
-    /** Reserved for signed organiser announcements. Nothing sends it yet; 1.1 relays it like an unknown type. */
+    /**
+     * Signed organiser announcements: revocations (PROTOCOL.md, section 6.8). Earlier 1.1 relays pass it on like an
+     * unknown type; one this version can't verify is relayed the same way.
+     */
     const val ANNOUNCEMENT = 0x30
     const val TEST = 0x7F
 
@@ -29,7 +32,7 @@ object PacketType {
      */
     const val CHAT_TTL = 6
 
-    /** Types this version doesn't read, the reserved one included, start at this TTL and are never relayed above it. */
+    /** Types this version doesn't read start at this TTL and are never relayed above it. */
     const val OPAQUE_MAX_TTL = 3
     const val OPAQUE_MAX_PAYLOAD = 256
 
@@ -57,9 +60,8 @@ object PacketType {
     /** The TTL a packet starts with (PROTOCOL.md, section 5). Incidents keep the 7 every flooded type had in 1.0. */
     fun originTtl(type: Int): Int = when (type) {
         HELLO, SUMMARY, REQUEST, SUMMARY2, REQUEST2 -> 1
-        INCIDENT_REPORT, INCIDENT_ACK, INCIDENT_CANCEL -> PacketCodec.MAX_TTL
+        INCIDENT_REPORT, INCIDENT_ACK, INCIDENT_CANCEL, ANNOUNCEMENT -> PacketCodec.MAX_TTL
         PRIVATE -> CHAT_TTL
-        ANNOUNCEMENT -> OPAQUE_MAX_TTL
         TEST -> PacketCodec.MAX_TTL
         else -> if (isLinkLocal(type)) 1 else OPAQUE_MAX_TTL
     }

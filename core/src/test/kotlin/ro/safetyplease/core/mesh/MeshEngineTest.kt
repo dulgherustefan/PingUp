@@ -50,7 +50,7 @@ class MeshEngineTest {
     ) {
         val radio = net.radio(name, id.nodePrefix(), maxFrame, canAdvertise)
         val engine = MeshEngine(scope, radio, clock, Random(id), id, config, PacketLog(false), cache) { payload ->
-            payload.last() != BAD_SIGNATURE
+            if (payload.last() != BAD_SIGNATURE) Verdict.VALID else Verdict.INVALID
         }
         val received = mutableListOf<Packet>()
         val sent = mutableListOf<Long>()
@@ -530,7 +530,7 @@ class MeshEngineTest {
         val b = world.node("B", B)
         world.net.start()
         runCurrent()
-        val always = NodeFlags.PROTOCOL_1_1 or NodeFlags.PREFIX_IN_HELLO
+        val always = NodeFlags.PROTOCOL_1_1 or NodeFlags.PREFIX_IN_HELLO or NodeFlags.HELLO_AUTH
         assertEquals(always or NodeFlags.ACCEPTS_CONNECTIONS, a.radio.flags)
         a.engine.setRole(staff = true, anchor = false)
         assertEquals(always or NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, a.radio.flags)

@@ -153,3 +153,32 @@ hello.prefix 0179388b6b02a70d4939001a2b3c4d
 # incident.body.triage with flag 20 as well: after the triage byte, accuracy 12 m (0c) and landmark 4 (04).
 # 1.0 rejects it; a report without accuracy or landmark leaves the flag out and stays 1.0 (incident.body).
 incident.body.location 010368e778002f0a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef70e0c04
+
+# Key chain (PROTOCOL.md, section 9). Certificates: version 1, role, 32-byte key, validFrom u32, validUntil u32, issuer key id
+# (first 8 bytes of SHA-256 of the issuer's Ed25519 public key), u8 name length, name, then the issuer's Ed25519 signature
+# over "SP-CERT-v1" || everything before it. Ed25519 seeds: root seed(0x20), organiser seed(0x40), event seed(0x60),
+# shift seed(0x80); the day's report key is the X25519 pair from seed(0xc0).
+key.root.sign 29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7
+# Organiser (0x10) "Fest SRL", TIME - 86400 to TIME + 365 days, signed by the root.
+cert.organiser 01102543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d68e626806ac8ab8024f6ed6acbfe100908466573742053524cc9d3f3ad1c89167d153b2b4e7b57fc635731be05200091df23be1828e2d9adc21aeffdf83f44f05dd8e286fe7e5addd26cc99d757af3001a51cc831bb6476007
+# Event (0x11) "Fest 2025", TIME - 3600 to TIME + 3 days, signed by the organiser.
+cert.event 0111174553b456dddfc6908ecab1c101fe6ab21e2baa0617795b7d43a63482993fd568e769f068eb6c8003396219237f75a6094665737420323032350a906a04f55390c5fa316b69e2bdb9bae75bc590817c713fcf6e8dc92945cef8606fa4a6631237491bbea13e12335f7e153a58c79810d88442cc0947485dce0c
+# Shift of the team "Medical 1" (role 1, staff), TIME to TIME + 12 h, signed by the event; then its id (first 8 bytes of SHA-256).
+cert.staff 0101cd14b37f956e953194ff7fb73b3d81dcc561d61a7538094b7c3e1a643ee5f3aa68e7780068e820c068894d58f18f2c34094d65646963616c203192006002b5efc88c45e4144f39c157bf49985526cbf52bc1b4f1c95b725b1446b2efa3de99383c76011eeab5b9525f3f54550616a62e096788df366271f4850e
+cert.staff.id 80cfd267bfc5954f
+# The day's report key (0x12), TIME - 3600 to TIME + 23 h, signed by the event.
+cert.report_key 0112124e4ca0a5aed0c807ecbd88be5e3aa4c0f514998238759fb90a6cffc881855d68e769f068e8bb7068894d58f18f2c3400abcc62237517171aad68116721d0a733934a2f52bc124f5d9d0d500f402112010f86b073f2332e75b4c741befab7d3eb6e18458175b851ae63aa26308757660d
+# HELLO with HELLO_AUTH (flags 0x79 = STAFF|ACCEPTS_CONNECTIONS|PROTOCOL_1_1|PREFIX_IN_HELLO|HELLO_AUTH), prefix 1a2b3c4d,
+# alice's nonce 404142...4f, auth flags 0: what a phone sends before it knows the peer's nonce.
+hello.auth.nonce 0179388b6b02a70d4979001a2b3c4d404142434445464748494a4b4c4d4e4f00
+# The same with auth flags 01, cert.staff and the shift key's signature over "SP-HELLO-v1" || bob's nonce 606162...6f || node.alice.
+hello.auth 0179388b6b02a70d4979001a2b3c4d404142434445464748494a4b4c4d4e4f010101cd14b37f956e953194ff7fb73b3d81dcc561d61a7538094b7c3e1a643ee5f3aa68e7780068e820c068894d58f18f2c34094d65646963616c203192006002b5efc88c45e4144f39c157bf49985526cbf52bc1b4f1c95b725b1446b2efa3de99383c76011eeab5b9525f3f54550616a62e096788df366271f4850eb080c1af66d6c32cc962a4d59be66ddb74e8bb10ac5e3dc040269f84ed6fe92424ccb00a383b139556e6efdc511afb41f74735592de72daf5fdbe8bf8f27ef0d
+# ACKNOWLEDGED by "Medical 1" at TIME + 60 under cert.staff: ACK flags 0x04 (CERT), the certificate, then the shift key's signature.
+incident.ack.cert 00112233445566778899aabbccddeeff0268e7783c094d65646963616c2031040101cd14b37f956e953194ff7fb73b3d81dcc561d61a7538094b7c3e1a643ee5f3aa68e7780068e820c068894d58f18f2c34094d65646963616c203192006002b5efc88c45e4144f39c157bf49985526cbf52bc1b4f1c95b725b1446b2efa3de99383c76011eeab5b9525f3f54550616a62e096788df366271f4850e3f03fbf51592ef0ffd99c0074a4398ad25b30dc74589eb16001d0a11fd9871d3065132705e74741f657e40ad7d0f1c2af3d2f49ad90644158e85c38396bd7c0b
+# ANNOUNCEMENT kind 1 (revocation) by the event key, issued TIME + 600: cert.staff.id and 0102030405060708, then the signature over
+# "SP-ANN-v1" || everything before it.
+announcement.revocation 0168894d58f18f2c3468e77a580280cfd267bfc5954f01020304050607085db8ac796ff7ca30d1c30cb3ba1ea525df5cbee951593aed3bef33544373fe6ce2312fc7230b5891636c3e4c3971198b4bd51ee76e9b29859f4dc270b6d7730e
+# SPS2 for a lead of "Medical 1": cert.staff, shift seed(0x80), flags 03, cert.report_key, report seed(0xc0), empty zone.
+qr.shift SPS2.AQHNFLN_lW6VMZT_f7c7PYHcxWHWGnU4CUt8PhpkPuXzqmjneABo6CDAaIlNWPGPLDQJTWVkaWNhbCAxkgBgArXvyIxF5BRPOcFXv0mYVSbL9SvBtPHJW3JbFEay76PemTg8dgEe6rW5Ul8_VFUGFqYuCWeI3zZicfSFDoCBgoOEhYaHiImKi4yNjo-QkZKTlJWWl5iZmpucnZ6fAwESEk5MoKWu0MgH7L2Ivl46pMD1FJmCOHWfuQps_8iBhV1o52nwaOi7cGiJTVjxjyw0AKvMYiN1FxcarWgRZyHQpzOTSi9SvBJPXZ0NUA9AIRIBD4awc_IzLnW0x0G--rfT624YRYF1uFGuY6omMIdXZg3AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3wA
+# SPR1 carrying announcement.revocation.
+qr.revocation SPR1.AWiJTVjxjyw0aOd6WAKAz9Jnv8WVTwECAwQFBgcIXbiseW_3yjDRwwyzuh6lJd9cvulRWTrtO-8zVENz_mziMS_HIwtYkWNsPkw5cRmLS9Ue526bKYWfTcJwttdzDg

@@ -113,7 +113,10 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         ) {
             QrBadge(code, settings.nickname, { bigCode = true }, Modifier.padding(horizontal = Gutter))
             Text(
-                listOfNotNull(role, stringResource(R.string.me_my_code_label)).joinToString("\n"),
+                listOfNotNull(
+                    role, stringResource(R.string.staff_verified).takeIf { role != null && vm.verified },
+                    stringResource(R.string.me_my_code_label),
+                ).joinToString("\n"),
                 style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel, textAlign = TextAlign.Center,
                 modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 12.dp),
             )
@@ -202,18 +205,20 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     if (editName) {
         var name by remember { mutableStateOf(settings.nickname) }
         val save = {
-            if (name.isNotBlank()) vm.setNickname(name)
-            editName = false
+            if (name.isNotBlank() && vm.nameAllowed(name)) {
+                vm.setNickname(name)
+                editName = false
+            }
         }
         AppDialog(
             onDismiss = { editName = false }, title = stringResource(R.string.me_edit_name),
-            confirmLabel = stringResource(R.string.save), onConfirm = save, confirmEnabled = name.isNotBlank(),
+            confirmLabel = stringResource(R.string.save), onConfirm = save, confirmEnabled = name.isNotBlank() && vm.nameAllowed(name),
         ) {
             InputField(
                 name, { name = it.take(MAX_NAME) }, stringResource(R.string.name_placeholder), Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { save() }),
-                supporting = stringResource(R.string.me_note),
+                supporting = stringResource(if (vm.nameAllowed(name)) R.string.me_note else R.string.name_reserved),
             )
         }
     }

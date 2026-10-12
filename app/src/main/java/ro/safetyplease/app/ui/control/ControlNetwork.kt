@@ -123,8 +123,8 @@ private fun HeardRow(peer: HeardPeer, now: Long) {
     val quietMin = ((now - peer.lastHeardMs) / 60_000).toInt()
     val silent = anchor && !peer.linked && quietMin >= SILENT_ANCHOR_MIN
     val role = when {
-        anchor -> stringResource(R.string.anchor_title)
-        peer.flags and NodeFlags.STAFF != 0 -> stringResource(R.string.control_heard_staff)
+        anchor -> stringResource(if (peer.verified) R.string.anchor_verified else R.string.anchor_title)
+        peer.flags and NodeFlags.STAFF != 0 -> stringResource(if (peer.verified) R.string.staff_verified else R.string.control_heard_staff)
         else -> ""
     }
     Row(Modifier.fillMaxWidth().heightIn(min = 36.dp).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {

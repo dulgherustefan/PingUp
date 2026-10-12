@@ -10,14 +10,23 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import ro.safetyplease.core.crypto.CertRole
+import ro.safetyplease.core.crypto.CertStatus
+import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.Identity
+import ro.safetyplease.core.crypto.KeyChain
 import ro.safetyplease.core.crypto.QrCodes
+import ro.safetyplease.core.crypto.Revocation
+import ro.safetyplease.core.crypto.ShiftCard
 import ro.safetyplease.core.crypto.SodiumCrypto
 import ro.safetyplease.core.crypto.StaffCard
 import ro.safetyplease.core.crypto.StaffCrypto
 import ro.safetyplease.core.crypto.StaffPublicKeys
 import ro.safetyplease.core.crypto.StaffRole
+import ro.safetyplease.core.crypto.StaffSecretKeys
+import ro.safetyplease.core.mesh.Verdict
+import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.toLong
@@ -96,6 +105,18 @@ class GoldenVectorsTest {
         "summary2.epochs" to { Summary2Codec.encode(Golden.summary2Epochs).toHex() },
         "hello.prefix" to { Golden.helloPrefix.encode().toHex() },
         "incident.body.location" to { Golden.locationBody.encode().toHex() },
+        "key.root.sign" to { Golden.root.publicKey.toHex() },
+        "cert.organiser" to { Golden.organiserCert.encode().toHex() },
+        "cert.event" to { Golden.eventCert.encode().toHex() },
+        "cert.staff" to { Golden.staffCert.encode().toHex() },
+        "cert.staff.id" to { Golden.staffCert.id.toHex() },
+        "cert.report_key" to { Golden.reportCert.encode().toHex() },
+        "hello.auth.nonce" to { Golden.helloNonce.encode().toHex() },
+        "hello.auth" to { Golden.helloAuth().encode().toHex() },
+        "incident.ack.cert" to { Golden.certAck().encode().toHex() },
+        "announcement.revocation" to { Golden.revocation().encode().toHex() },
+        "qr.shift" to { QrCodes.encodeShift(Golden.shiftCard) },
+        "qr.revocation" to { QrCodes.encodeRevocation(Golden.revocation().encode()) },
     )
 
     @Test
@@ -286,6 +307,9 @@ class GoldenVectorsTest {
 
         assertNull(Frozen10.hello(bytes("hello.extended")))
         assertNull(Frozen10.hello(bytes("hello.prefix")))
+        assertNull(Frozen10.hello(bytes("hello.auth.nonce")))
+        assertNull(Frozen10.hello(bytes("hello.auth")))
+        assertNull(Frozen10.ack(bytes("incident.ack.cert")))
         assertNull(Frozen10.frame(bytes("frame.opaque")))
         assertNull(Frozen10.ack(bytes("incident.ack.future")))
         assertNull(Frozen10.ack(bytes("incident.ack.assigned")))
@@ -317,6 +341,47 @@ class GoldenVectorsTest {
     }
 
     @Test
+    fun keyChainVectorsDecodeAndVerify() {
+        val chain = Golden.chain()
+        val organiser = Certificate.decode(bytes("cert.organiser"))!!
+        val event = Certificate.decode(bytes("cert.event"))!!
+        val staff = Certificate.decode(bytes("cert.staff"))!!
+        val report = Certificate.decode(bytes("cert.report_key"))!!
+        assertEquals(Golden.organiserCert.fields(), organiser.fields())
+        assertEquals(Golden.eventCert.fields(), event.fields())
+        assertEquals(Golden.staffCert.fields(), staff.fields())
+        assertEquals(Golden.reportCert.fields(), report.fields())
+        assertEquals(vectors["cert.staff.id"], staff.id.toHex())
+        assertEquals(Certificate.keyId(bytes("key.root.sign")), organiser.issuer)
+        for (cert in listOf(organiser, event, staff, report)) assertEquals(CertStatus.VALID, chain.status(cert, Golden.TIME))
+
+        val nonce = Hello.decode(bytes("hello.auth.nonce"))!!
+        assertArrayEquals(Golden.ALICE_NONCE, nonce.nonce)
+        assertNull(nonce.proof)
+        val auth = Hello.decode(bytes("hello.auth"))!!
+        assertEquals(Golden.helloAuth().fields(), auth.fields())
+        assertArrayEquals(Golden.ALICE_NONCE, auth.nonce)
+        assertEquals(NodeFlags.STAFF, chain.provenRoles(auth.proof!!, Golden.BOB_NONCE, Golden.alice.nodeId))
+
+        val ack = IncidentAck.decode(bytes("incident.ack.cert"))!!
+        assertEquals(Golden.certAck().fields(), ack.fields())
+        assertEquals(staff.fields(), ack.certificate!!.fields())
+        assertEquals(Verdict.VALID, chain.checkAck(bytes("incident.ack.cert")))
+
+        val revocation = Revocation.decode(bytes("announcement.revocation"))!!
+        assertEquals(listOf(staff.id, Golden.long("0102030405060708")), revocation.ids)
+        assertEquals(Verdict.VALID, chain.checkAnnouncement(bytes("announcement.revocation")))
+        assertArrayEquals(bytes("announcement.revocation"), QrCodes.decodeRevocation(vectors.getValue("qr.revocation")))
+
+        val card = QrCodes.decodeShift(vectors.getValue("qr.shift"))!!
+        assertEquals(staff.fields(), card.certificate.fields())
+        assertEquals(report.fields(), card.reportKey!!.fields())
+        assertEquals(Golden.seed(0x80).toHex(), card.keySeed.toHex())
+        assertEquals(Golden.seed(0xc0).toHex(), card.reportSeed!!.toHex())
+        assertNotNull(Golden.staff.credentialFrom(card)!!.second!!.box)
+    }
+
+    @Test
     fun qrCodesDecode() {
         val friend = QrCodes.decodeFriend(vectors.getValue("qr.friend"))!!
         assertEquals(Golden.friendCard.fields(), friend.fields())
@@ -337,7 +402,7 @@ private object Golden {
 
     fun seed(first: Int) = ByteArray(32) { (first + it).toByte() }
 
-    private fun long(hex: String) = hex.hexToBytes().toLong()
+    fun long(hex: String) = hex.hexToBytes().toLong()
 
     val lines: List<String> = Golden::class.java.getResource("/golden/protocol-v1.txt")!!.readText()
         .lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
@@ -506,17 +571,63 @@ private object Golden {
     fun fragments(): List<ByteArray> = PacketCodec.toFrames(fragmented, PacketCodec.MIN_FRAME, FRAG_ID)
 
     val friendCard = FriendCard("Ana", alice.box.publicKey, alice.sign.publicKey)
+
+    // The key chain: root seed(0x20), organiser seed(0x40), event seed(0x60), a shift of "Medical 1" seed(0x80), the
+    // day's report key seed(0xc0) (X25519).
+    val root = crypto.signKeyPairFromSeed(seed(0x20))
+    private val organiser = crypto.signKeyPairFromSeed(seed(0x40))
+    private val event = crypto.signKeyPairFromSeed(seed(0x60))
+    private val shift = crypto.signKeyPairFromSeed(seed(0x80))
+    val organiserCert = Certificate.issue(crypto, CertRole.ORGANISER, organiser.publicKey, TIME - 86_400, TIME + 365 * 86_400, "Fest SRL", root)
+    val eventCert = Certificate.issue(crypto, CertRole.EVENT, event.publicKey, TIME - 3600, TIME + 3 * 86_400, "Fest 2025", organiser)
+    val staffCert = Certificate.issue(crypto, CertRole.STAFF, shift.publicKey, TIME, TIME + 12 * 3600, "Medical 1", event)
+    val reportCert = Certificate.issue(
+        crypto, CertRole.REPORT_KEY, crypto.boxKeyPairFromSeed(seed(0xc0)).publicKey, TIME - 3600, TIME + 86_400 - 3600, "", event,
+    )
+
+    /** The chain as an app that ships the root, the organiser and the event sees it, at TIME + 60. */
+    fun chain() = KeyChain(
+        crypto,
+        object : Clock {
+            override fun wallMs() = (TIME + 60) * 1000
+            override fun monoMs() = 0L
+        },
+        staffPublic.sign, root.publicKey, listOf(organiserCert, eventCert), listOf(reportCert),
+    )
+
+    val ALICE_NONCE = ByteArray(Hello.NONCE_SIZE) { (0x40 + it).toByte() }
+    val BOB_NONCE = ByteArray(Hello.NONCE_SIZE) { (0x60 + it).toByte() }
+    private const val AUTH_FLAGS = NodeFlags.STAFF or NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.PROTOCOL_1_1 or
+        NodeFlags.PREFIX_IN_HELLO or NodeFlags.HELLO_AUTH
+
+    val helloNonce = Hello(PacketCodec.VERSION, alice.nodeId, AUTH_FLAGS, null, 0x1a2b3c4d, ALICE_NONCE)
+
+    /** Alice's answer to bob's nonce with the "Medical 1" shift. */
+    fun helloAuth(): Hello {
+        val signature = crypto.sign(Hello.proofMessage(BOB_NONCE, alice.nodeId), shift.secretKey)
+        return Hello(PacketCodec.VERSION, alice.nodeId, AUTH_FLAGS, null, 0x1a2b3c4d, ALICE_NONCE, HelloProof(staffCert, signature))
+    }
+
+    fun certAck(): IncidentAck =
+        staff.signAck(INCIDENT_ID, AckStatus.ACKNOWLEDGED, TIME + 60, "Medical 1", StaffSecretKeys(null, shift, staffCert))
+
+    fun revocation(): Revocation = Revocation.sign(crypto, event, TIME + 600, listOf(staffCert.id, long("0102030405060708")))
+
+    val shiftCard = ShiftCard(staffCert, seed(0x80), reportCert, seed(0xc0), null, "")
     val staffCard = StaffCard(seed(0x10), seed(0x30), StaffRole.STAFF, "Medical 1", "")
 }
 
 private fun Packet.fields() = listOf(type, ttl, id, sender, timestamp, recipient, encrypted, payload.toHex())
 
-private fun Hello.fields() = listOf(version, nodeId, flags, nickname, prefix)
+private fun Hello.fields() =
+    listOf(version, nodeId, flags, nickname, prefix, nonce?.toHex(), proof?.certificate?.encode()?.toHex(), proof?.signature?.toHex())
+
+private fun Certificate.fields() = listOf(role, key.toHex(), validFrom, validUntil, issuer, name, signature.toHex())
 
 private fun IncidentBody.fields() =
     listOf(category, severity, timestamp, zone, lat, lon, description, nickname, cancelHash?.toHex(), triage, staff, location)
 
-private fun IncidentAck.fields() = listOf(incidentId.toHex(), status, timestamp, teamName, signature.toHex())
+private fun IncidentAck.fields() = listOf(incidentId.toHex(), status, timestamp, teamName, signature.toHex(), extensions.toHex())
 
 private fun Inner.fields(): List<Any?> = when (this) {
     is Inner.Text -> listOf("text", msgId, groupId, text)

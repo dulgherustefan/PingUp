@@ -196,7 +196,7 @@ class IncidentManager(
 
     fun resolve(incidentId: String) = sendAck(incidentId, AckStatus.RESOLVED)
 
-    // --- control console; until ACKs are signed one by one (2.18), only the screens keep these to the operator ---
+    // --- control console; a team's certificate can't sign these (the build's shared key still can) ---
 
     fun close(incidentId: String) = sendAck(incidentId, AckStatus.CLOSED_BY_CONTROL)
 
@@ -235,7 +235,8 @@ class IncidentManager(
             val epoch = if (status == AckStatus.REOPENED) known + 1 else known
             if (epoch > IncidentAck.MAX_EPOCH) return@launch
             val ack = staffCrypto.signAck(id, status, time, name, secret, flags, epoch)
-            if (epoch == 0) publishForOneZero(id, status, time, name, secret)?.let { lead ->
+            // an ACK under a certificate never reaches a 1.0 phone, so there is nothing to lead with
+            if (epoch == 0 && secret.certificate == null) publishForOneZero(id, status, time, name, secret)?.let { lead ->
                 // the phone shows what the network has, also if the scope ends before the new status goes out
                 applyAck(lead)
                 delay(ONE_ZERO_LEAD_MS)

@@ -2,12 +2,12 @@
 
 This document describes protocol 1.1 as implemented on `main`, and 1.0, which 1.1 phones still meet in the field. It is written for an external review and for anyone building a second implementation (an iOS reporting leaf, a hardware relay). It describes what the code does today, including the parts that are known to be weak; those are collected in section 14.
 
-1.1 keeps the 1.0 header and every 1.0 byte: a 1.0 phone and a 1.1 phone talk without either counting the other's packets as malformed. What 1.1 adds is tolerance for what newer versions will send, SUMMARY2 and REQUEST2, a reserved type for organiser announcements, a TTL table per type, a per-link limit on new reports, a rotating advertised prefix told in HELLO, bans on the link instead of the claimed nodeId, and an optional chat fan-out, off by default, that passes chat on a few links at each hop instead of all; and, through the extension points this tolerance opens, field states and closing by the control room, reopening (the epoch), triage answers, staff reports, a separate category for a lost friend, and the accuracy of the reporter's fix with the nearest landmark. Where the two versions differ, the sections below say so; section 15 sums up the differences and the rules a newer version has to follow.
+1.1 keeps the 1.0 header and every 1.0 byte: a 1.0 phone and a 1.1 phone talk without either counting the other's packets as malformed. What 1.1 adds is tolerance for what newer versions will send, SUMMARY2 and REQUEST2, a reserved type for organiser announcements, a TTL table per type, a per-link limit on new reports, a rotating advertised prefix told in HELLO, bans on the link instead of the claimed nodeId, and an optional chat fan-out, off by default, that passes chat on a few links at each hop instead of all; and, through the extension points this tolerance opens, field states and closing by the control room, reopening (the epoch), triage answers, staff reports, a separate category for a lost friend, and the accuracy of the reporter's fix with the nearest landmark; and, announced by a capability bit of its own (`HELLO_AUTH`), a key chain: shift certificates proven in HELLO, ACKs signed one by one under them, revocations in the reserved announcement type and a report key per day. Where the two versions differ, the sections below say so; section 15 sums up the differences and the rules a newer version has to follow.
 
 The code is the source of truth. Paths below are relative to `core/src/main/kotlin/ro/safetyplease/core/` unless they start with `app/`:
 
 - `protocol/` (`Packet.kt`, `Wire.kt`, `Payloads.kt`, `Reassembler.kt`, `Compat.kt`): the byte formats, and what may go to a 1.0 peer;
-- `crypto/` (`Crypto.kt`, `Identity.kt`, `StaffCrypto.kt`, `QrCodes.kt`): keys, sealing, signatures, QR codes;
+- `crypto/` (`Crypto.kt`, `Identity.kt`, `StaffCrypto.kt`, `QrCodes.kt`, `Certificate.kt`, `KeyChain.kt`, `Revocation.kt`, `Revocations.kt`): keys, sealing, signatures, certificates and revocations, QR codes;
 - `mesh/MeshEngine.kt`, `mesh/IncidentCache.kt`, `mesh/SendQueue.kt`: what a node accepts, stores and relays;
 - `incidents/IncidentManager.kt`, `chat/ChatManager.kt`: what the endpoints do with the payloads;
 - `app/src/main/java/ro/safetyplease/app/platform/ble/`: the Bluetooth transport.
@@ -47,7 +47,7 @@ Source: `app/.../platform/ble/BleConstants.kt`, `BleRadio.kt`. This lives outsid
 
 - **Rotating prefix** (`mesh/AdvertisedPrefix.kt`, `PREFIX_IN_HELLO`, 1.1). The static nodeId prefix let a scanner follow a phone across the MAC address rotations all day. A current node advertises a random prefix instead, draws a new one every 12 to 18 minutes (15 ± a fifth, so that neighbours don't change at once) and whenever the radio comes back on, and restarts the advertising set with each new prefix, so the address changes with it (`BleRadio`). It tells the new prefix in HELLO (section 6.1) to the peers that set `PREFIX_IN_HELLO`, before it advertises it, so they don't take it for a new peer. An anchor keeps the nodeId prefix: it is a fixed device, and the control console notices a quiet anchor by it. When the radio has to start a new set for a reason of its own (a change of flags or interval it couldn't make in place, a set the stack dropped), it first asks the engine for a new prefix (`RadioEvent.PrefixWanted`, `NewSetPrefix`) and keeps the old set on the air until it has it, so no two addresses show the same prefix; only an anchor's fixed prefix starts again as it is. Anyone who links to a phone still reads its nodeId in HELLO.
 - **Which end connects** (`mesh/ConnectionPolicy.kt`, informative). Each node connects as a central to the advertisers it chooses, one connection at a time. To keep two nodes from connecting to each other at once, the one with the lower advertised prefix connects (unsigned comparison of the two prefixes, both random and rotating in 1.1), and the other only after it has seen the first for 20 s without a link. A node that can't advertise connects to anyone. A peer that doesn't set `PREFIX_IN_HELLO` (1.0, or 1.1 before the extension) knows a link with us only by the address it connected to, so it would connect again to each new prefix of ours, and, if the duplicate rule (section 6.1) then closed its link, over and over. A current node therefore connects to such a peer only when its own nodeId's first 4 bytes are higher than the prefix the peer advertises, which is the peer's nodeId prefix: if the peer connects too, the duplicate rule keeps the peer's link. Otherwise the peer connects. Since such a peer knows our link only by the address it connected to, it opens a second link to each new prefix of ours, and the duplicate rule closes the older one: one extra connection about every 15 minutes, no more (`Protocol11Test`). A peer without service data is left to connect.
-- **Roles** (interim, until roles are signed). Advertised STAFF and ANCHOR are self-declared. A node seeks one link with a role first; once it has one, the others count like any peer, by signal strength. When outgoing slots are full and an unconnected peer is in sight, a node closes its oldest outgoing link idle for 30 s, every 60 s. Of its links with a role it keeps from this only one: the one whose peer most recently sent it a packet that isn't link-local, and only if that was within 5 minutes (`ConnectionPolicy.ROLE_HEARD_MS`). What the node writes itself doesn't count, so a phone that only claims a role and drops everything rotates like any other link and can't hold a neighbour's slot.
+- **Roles** (`mesh/ProvenRoles.kt`). Advertised STAFF and ANCHOR are self-declared; on a link they count only once the peer proved them with a certificate in HELLO (section 6.1). A link whose peer claims a role it doesn't prove counts as a participant's for ranking and rotation, and when it closes, the role its prefix advertises is ignored for 30 minutes (`ProvenRoles.UNPROVEN_MS`), so a fake anchor is preferred at most once. A node seeks one link with a role first; once it has one, the others count like any peer, by signal strength. When outgoing slots are full and an unconnected peer is in sight, a node closes its oldest outgoing link idle for 30 s, every 60 s. Of its links with a role it keeps from this only one: the one whose peer most recently sent it a packet that isn't link-local, and only if that was within 5 minutes (`ConnectionPolicy.ROLE_HEARD_MS`). What the node writes itself doesn't count, so a phone that only claims a role and drops everything rotates like any other link and can't hold a neighbour's slot.
 
 ## 3. Frame
 
@@ -123,7 +123,7 @@ So no object larger than 480 bytes can travel. Fragmentation has only run on emu
 | `0x11` | INCIDENT_ACK | 1.0 | flood | `sender` = the staff phone's nodeId | 7 | 6.4 | 2 | yes |
 | `0x12` | INCIDENT_CANCEL | 1.0 | flood | `sender 0` | 7 | 6.5 | 2 | no; the author resends it |
 | `0x20` | PRIVATE | 1.0 | flood (unicast is a flood); in 1.1 optionally some links at each hop, off by default (section 7) | `sender` = own nodeId, R, E | 6 (1.0: 7) | 6.6 | 4 | no |
-| `0x30` | ANNOUNCEMENT | 1.1, reserved | flood, to 1.1 peers, at most 3 hops | not sent yet | 3 | not defined yet | 1 | no |
+| `0x30` | ANNOUNCEMENT | 1.1 | flood, to 1.1 peers; at most 3 hops past a relay that can't verify it | `sender` = own nodeId | 7 (before `HELLO_AUTH`: 3) | 6.8 | 1 | no; the console sends it again every 10 minutes |
 | `0x7F` | TEST | 1.0 | flood | anything | 7 | opaque | 5 | no; debug builds only |
 | other | unknown | | flood, to 1.1 peers, at most 3 hops | | 3 | opaque | 5 | no |
 
@@ -147,7 +147,7 @@ With the fan-out and TTL 4, friends more than about two radio ranges apart rarel
 
 Types `0x00` to `0x0F` never leave their link, known or not (`PacketType.isLinkLocal`, 1.1). "Send priority" is the level in the per-link send queue (`mesh/SendQueue.kt`, 128 packets). A lower level is sent first. When the queue is full, a new packet pushes out the newest packet of the least important level below its own, or is refused if there is none. Store-and-forward (SUMMARY and REQUEST) sits above chat, so chat load can't push it out; types this version only relays sit at the bottom, except the one reserved for organiser announcements, which goes with reports.
 
-ANNOUNCEMENT is reserved so that signed organiser announcements can be added later and still cross 1.1 relays at report priority. Until a version defines it, 1.1 treats it like an unknown type (section 7.1), except that it may carry the whole 480 bytes and has a smaller budget of its own on each link, 4 a minute: until announcements are signed, any phone can send one, and at report priority they would crowd out reports.
+ANNOUNCEMENT was reserved so that signed organiser announcements could be added later and still cross 1.1 relays at report priority. A node that sets `HELLO_AUTH` reads it (section 6.8): one its key chain verifies is delivered and relayed like a report, with TTL 7; any other, and every announcement at a 1.1 relay from before `HELLO_AUTH`, is treated like an unknown type (section 7.1), except that it may carry the whole 480 bytes. Either way each link has a budget of 4 a minute for them: any phone can send an announcement, and a verified one can be sent again under new packet ids, so at report priority they would otherwise crowd out reports.
 
 ## 6. Payloads
 
@@ -161,14 +161,20 @@ ANNOUNCEMENT is reserved so that signed organiser announcements can be added lat
 | 1 | `nickLen` | at most 24 |
 | `nickLen` | nickname | sent only by debug builds; release sends `nickLen 0` |
 | 4 | `prefix` (1.1, optional) | `i32`, the prefix the sender advertises now (section 2); only to a peer whose HELLO set `PREFIX_IN_HELLO`, and read only from a HELLO that sets it |
+| 16 | `nonce` (`HELLO_AUTH`, optional) | random, one per link: the sender's challenge to the peer; only after the prefix, to a peer whose HELLO set `HELLO_AUTH` |
+| 1 | `authFlags` | with the nonce. `0x01`: a proof follows; other bits are ignored |
+| 115..139 | `certificate` | if `0x01`: the sender's shift certificate (section 9) |
+| 64 | `proof` | if `0x01`: Ed25519 by the certificate's key over `SP-HELLO-v1` (11 bytes) ‖ the receiver's nonce ‖ the sender's nodeId (`i64`) |
 
-11 to 35 bytes, 39 with the prefix. In 1.0 nothing may follow the nickname. 1.1 reads 4 bytes after the nickname as the prefix and skips whatever follows them, or fewer than 4 bytes, so a newer version can append fields after the prefix.
+11 to 35 bytes, 39 with the prefix, 56 with the nonce, up to 259 with a proof. In 1.0 nothing may follow the nickname. 1.1 reads 4 bytes after the nickname as the prefix and skips whatever follows them, or fewer than 4 bytes, so a newer version can append fields after the prefix. A node with `HELLO_AUTH` reads the nonce if more than 16 bytes follow the prefix, then the auth flags, and the proof if their bit says so; a proof that doesn't parse, and whatever follows the fields it reads, is skipped.
 
-`NodeFlags` (`protocol/Payloads.kt`): `0x01` STAFF, `0x02` ANCHOR, `0x04` PENDING_INCIDENT (older builds set it while one of their reports had no ACK; current builds neither send nor read it, and the bit stays taken), `0x08` ACCEPTS_CONNECTIONS (inbound slots free), `0x10` PROTOCOL_1_1 (the node speaks 1.1), `0x20` PREFIX_IN_HELLO (1.1: the node advertises a rotating prefix, sends it in HELLO and reads the peer's; section 2). Bits `0x40` and `0x80` are unassigned. Unassigned bits are ignored, not rejected, both in HELLO and in advertising, by 1.0 and 1.1 alike, so `0x20` costs a 1.0 peer nothing. The roles are self-declared; nothing authenticates them.
+`NodeFlags` (`protocol/Payloads.kt`): `0x01` STAFF, `0x02` ANCHOR, `0x04` PENDING_INCIDENT (older builds set it while one of their reports had no ACK; current builds neither send nor read it, and the bit stays taken), `0x08` ACCEPTS_CONNECTIONS (inbound slots free), `0x10` PROTOCOL_1_1 (the node speaks 1.1), `0x20` PREFIX_IN_HELLO (1.1: the node advertises a rotating prefix, sends it in HELLO and reads the peer's; section 2), `0x40` HELLO_AUTH (the node reads the nonce and the proof in HELLO, ACKs under a certificate and revocations; this section, 6.4 and 6.8). Bit `0x80` is unassigned. Unassigned bits are ignored, not rejected, both in HELLO and in advertising, by 1.0 and 1.1 alike, so `0x20` and `0x40` cost an older peer nothing. The roles are self-declared; only the proof below authenticates them.
 
 A 1.1 node sets PROTOCOL_1_1 in every HELLO. A peer whose HELLO doesn't have it is treated as 1.0: it gets SUMMARY and REQUEST instead of SUMMARY2 and REQUEST2, and nothing 1.0 would count as malformed (section 7).
 
 Rules (`MeshEngine.onHello`): each end sends HELLO first on a new link, without the prefix, since it doesn't know yet what the peer reads. Until the peer's HELLO arrives, its other packets are dropped; without a HELLO within 10 s the link is closed. If the peer's HELLO sets `PREFIX_IN_HELLO`, the node sends a second HELLO with its prefix, and another before each new prefix it advertises; the peer then takes the advertising under that prefix for this link and forgets the sightings of the old one. A later HELLO on the same link may change the flags, the nickname and the prefix, but a different nodeId counts as malformed. A HELLO carrying the receiver's own nodeId closes the link. A banned nodeId is no longer refused (section 10). Two links to the same peer: both ends keep the one initiated by the lower nodeId (unsigned comparison); of two initiated by the same end, the newer.
+
+**Authenticated HELLO** (`MeshEngine.authenticate`, `KeyChain.helloProof`, `provenRoles`). Between two peers that set `HELLO_AUTH`, every HELLO that carries the prefix also carries the sender's nonce for this link. A node that holds a shift certificate answers the peer's nonce, once it has it, with a HELLO that carries the certificate and the proof; the exchange takes the second and third HELLO of each end. The receiver checks the certificate against its key chain (section 9) and the proof against the certificate's key, its own nonce and the sender's nodeId. A staff or control certificate proves STAFF, an anchor's proves ANCHOR; nothing else proves a role, and a proof that fails proves nothing and counts as nothing else either: no malformed mark, since the cause may be a revocation or a clock the relay doesn't share. The proof binds the certificate to a nodeId and a link; a node that relays another's whole HELLO exchange has to claim its nodeId too, and then the duplicate rule applies. A HELLO nickname that passes for staff (`ReservedNames`: "staff", "medic", "securitate", "poliție" and the like, also written with digits for letters) is shown only for a peer that proved its role.
 
 ### 6.2 SUMMARY and REQUEST (`SummaryCodec`, `RequestCodec`)
 
@@ -269,11 +275,14 @@ The first extension byte holds the ACK flags (`AckFlags`, 1.1); the fields the f
 |---|---|---|
 | `0x01` | ASSIGNED | the control console signed this ACKNOWLEDGED in the name of the team it gives the incident to (`IncidentManager.assign`); that team's phones show the incident as assigned to them. A team's own take is not an assignment |
 | `0x02` | EPOCH | an `epoch u8` follows the flags byte: how many times the control console reopened the incident (section 8). Without the flag, or with the flag and no byte, the epoch is 0 |
-| `0x04`..`0x80` | | reserved; ignored |
+| `0x04` | CERT | the signer's certificate follows the epoch (section 9), and its key, not the build's staff key, made the signature |
+| `0x08`..`0x80` | | reserved; ignored |
 
 A signer writes the flags byte only when a flag is set or the epoch is above 0, so an ordinary ACK keeps the 1.0 layout and still reaches 1.0 phones; an ACK without extensions has no flags and epoch 0. Bytes after the fields of the flags this version knows belong to newer versions and are kept unread. The flags and the epoch are under the signature, so a relay can't add, strip or change them. Since an ACK with extensions never goes to a 1.0 peer, 1.0 phones see neither an assignment nor anything after a reopen: they keep the status they had until a take or a later status reaches them (section 8 says what they show). SUMMARY carries only the status, so a take that replaces an assignment (section 8) spreads with the flood, not through store-and-forward; SUMMARY2 carries the epoch (section 6.2).
 
 A phone of the assigned team accepts the assignment with that take: its own ACKNOWLEDGED, without the flag, in its team's name ("Accept alocarea" on its screen). The supersede order puts it over the assignment, so every phone, the console included, sees that the team has accepted; a later ON_SCENE says so too. Nothing new goes on the wire for it, and a 1.0 phone sees an ordinary take. Who is alerted, and how, is not on the wire either: each staff phone decides it from the state it holds (`incidents/Routing.kt`, roadmap 2.7): the insistent alert on the console and on role leads, vibration on the assigned team and on urgencies in a phone's zone, widening to the incident's role and then to all staff while nobody has it.
+
+**ACKs under a certificate** (`KeyChain.checkAck`). A phone activated with an SPS2 code signs every ACK with its shift key and puts its certificate in the ACK: at most 250 bytes, 251 with an epoch. Every node that reads it checks, before it stores or relays it: the certificate against the chain at the node's clock; the signature against the certificate's key; the role (a team signs only in the team name its certificate holds, never CLOSED_BY_CONTROL, UNFOUNDED, REOPENED nor the ASSIGNED flag; a console signs anything; an anchor and a report key sign nothing); and the time (not after the node's clock plus the skew, not before the certificate). A bad signature counts as malformed; any other refusal drops the ACK silently (`UNTRUSTED`), since a relay with an older revocation list or another clock passes such ACKs on in good faith. An ACK without CERT is checked against the build's staff key as before. An ACK with CERT goes only to peers that set `HELLO_AUTH` (`CompatAuth`): a 1.1 peer from before it checks it against the staff key and would count it as malformed, and a 1.0 peer gets no ACK with extensions at all. The signer of an ACK under a certificate sends no 1.0 status ahead of it (section 8): it couldn't reach a 1.0 phone anyway.
 
 ### 6.5 INCIDENT_CANCEL (`IncidentCancel`)
 
@@ -312,6 +321,21 @@ What the recipient does (`ChatManager`): it opens the box with the key of the he
 ### 6.7 TEST
 
 An opaque payload of at most 480 bytes, used by the debug demo. Release builds drop it on receipt, after decoding and rate limiting, without counting it as malformed.
+
+### 6.8 ANNOUNCEMENT (`Revocation`, `HELLO_AUTH`)
+
+| Size | Field | Rule |
+|---|---|---|
+| 1 | `kind` | 1 = revocation; other kinds are for newer versions |
+| 8 | `signer` | key id (section 9) of the key that signed: the root, the organiser or the event |
+| 4 | `issued` | `u32` seconds, the signer's clock |
+| 1 | `count` | 1..32 |
+| 8 × `count` | certificate ids | the first 8 bytes of SHA-256 over each revoked certificate |
+| 64 | `signature` | Ed25519 by the signer over `SP-ANN-v1` (9 bytes) ‖ every byte before it |
+
+At most 334 bytes. A node verifies it before it relays it as a known type (section 5): the signer must be the root or a key of the chain that holds now. It keeps the union of every id it verified, and up to 16 announcements across restarts (`Revocations`); a revoked certificate, and everything a revoked key signed, is refused everywhere: in HELLO proofs, in ACKs, in an SPS2 code, and as this phone's own, which then leaves staff mode. The organiser tool prints one as an SPR1 code (section 11); the control console scans it, sends it at once and again every 10 minutes, so phones that were out of range or joined later get it too. An announcement this node can't verify, of another kind or from another event, goes on as an unknown type: 3 hops, the same budget.
+
+What an older phone sees: a 1.1 phone from before `HELLO_AUTH` relays it as the reserved type, 3 hops from where it got it, 4 a minute per link, and keeps no list; a 1.0 phone never gets it. So a revocation protects only phones that set `HELLO_AUTH`.
 
 ## 7. Receiving and relaying
 
@@ -373,7 +397,7 @@ It covers everything except `ttl`, so a node can't block a packet by sending gar
 ## 8. Incidents and the ACK chain
 
 - The reporter draws a random 16-byte `incidentId` and a random 16-byte cancel token, puts `cancelHash = SHA-256("SP-CANCEL-v1" ‖ token)`, first 16 bytes, into the body, seals the body and floods the report with `sender 0`.
-- The first staff phone that opens a report sends RECEIVED by itself, unless an ACK for it is already known. Staff then send the others by hand: a team ACKNOWLEDGED (it takes the incident), ON_SCENE, HANDED_OVER and RESOLVED; the control console CLOSED_BY_CONTROL, UNFOUNDED, CANCELLED after checking a cancel, and REOPENED. Until ACKs are signed one by one (roadmap 2.18) every holder of the staff key can sign any of them; only the screens keep the console's statuses to the console.
+- The first staff phone that opens a report sends RECEIVED by itself, unless an ACK for it is already known. Staff then send the others by hand: a team ACKNOWLEDGED (it takes the incident), ON_SCENE, HANDED_OVER and RESOLVED; the control console CLOSED_BY_CONTROL, UNFOUNDED, CANCELLED after checking a cancel, and REOPENED. Under a certificate, a team signs only its own takes and field states, and only the console signs CLOSED_BY_CONTROL, UNFOUNDED, REOPENED and assignments (section 6.4); with the build's shared staff key (SPS1) every holder can still sign any of them, and only the screens keep the console's statuses to the console.
 - ACK status values (`AckStatus`): 0 NONE (only in summaries), 1 RECEIVED, 2 ACKNOWLEDGED, 3 RESOLVED, 4 CANCELLED; in 1.1 also 5 ON_SCENE, 6 HANDED_OVER, 7 CLOSED_BY_CONTROL, 8 UNFOUNDED, 9 REOPENED. Values above 9 are for newer versions (sections 6.4 and 15). RESOLVED, CLOSED_BY_CONTROL, UNFOUNDED and CANCELLED close an incident; ACKNOWLEDGED, ON_SCENE and HANDED_OVER mean a team has it.
 - Relays track an incident by `id8` (section 7): `IncidentCache` stores one report and one ACK per `id8`, and SUMMARY and REQUEST name incidents by it. The reporter and staff phones match reports, ACKs and cancels on all 16 bytes of the `incidentId`.
 - Epoch (1.1): the number of times the console reopened the incident, carried in the ACK (section 6.4). REOPENED is signed with the known epoch plus one and every later ACK with that epoch, so a reopen is the first status of its epoch. At 255 the incident can't be reopened again.
@@ -419,7 +443,22 @@ All cryptography is libsodium (lazysodium on Android, lazysodium-java in the JVM
 | PRIVATE | `crypto_box_easy`: static X25519 on both sides, XSalsa20-Poly1305, random 24-byte nonce | sender's box secret key, recipient's box public key |
 
 - **Node identity** (`crypto/Identity.kt`): an X25519 pair and an Ed25519 pair, random at first start. `nodeId` = the first 8 bytes of SHA-256(Ed25519 public key ‖ X25519 public key), read as `i64`. 0 is reserved for anonymous packets; an identity that hashes to 0 is generated again. The advertised prefix is the first 4 bytes of the nodeId. The Ed25519 identity key is not used by the protocol today; it only feeds the nodeId and the friend QR.
-- **Event keys** (`crypto/StaffCrypto.kt`): one X25519 pair (opens reports) and one Ed25519 pair (signs ACKs) per build. The public keys ship in `app/src/main/assets/staff_public.json` as `{"box": hex, "sign": hex}`. The secret keys come from the two 32-byte seeds in the staff QR (section 11): `crypto_box_seed_keypair(boxSeed)`, whose secret key is the first 32 bytes of SHA-512(seed), and `crypto_sign_seed_keypair(signSeed)`. A phone accepts a staff QR only if the derived public keys match the bundled ones. The same seeds go to every team and every anchor.
+- **Key chain** (`crypto/Certificate.kt`, `KeyChain.kt`). Ping Up's root Ed25519 key is kept offline; its public key ships in the app (`staff_public.json`, `root`). The root signs an organiser's key, the organiser one key per event (revocable), and the event key signs, per day, the shift certificates of teams, consoles and anchors, and the day's report key. The app ships the organiser's and the event's certificates (`chain`) and the days' report keys (`reportKeys`); a certificate there that doesn't lead to the root is ignored. Certificate, version 1:
+
+  | Size | Field | Rule |
+  |---|---|---|
+  | 1 | `version` | 1; another is malformed where a certificate is read |
+  | 1 | `role` | 1 staff, 2 anchor, 3 control (the codes of the QR roles), `0x10` organiser, `0x11` event, `0x12` report key |
+  | 32 | `key` | Ed25519 public key; X25519 for a report key |
+  | 4 + 4 | `validFrom`, `validUntil` | `u32` seconds |
+  | 8 | `issuer` | key id: the first 8 bytes of SHA-256 over the issuer's Ed25519 public key |
+  | 1 + n | `name` | `u8` length, at most 24: the team for staff and control, "Ancora zone" for an anchor, the organiser's or event's name |
+  | 64 | `signature` | Ed25519 by the issuer over `SP-CERT-v1` (10 bytes) ‖ every byte before it |
+
+  115 to 139 bytes. Its id is the first 8 bytes of SHA-256 over all of it. A certificate holds (`KeyChain.status`) if every key up to the root signed the one below in the order root → organiser → event → shift or report key, none of them is revoked, and the node's clock is inside every window on the way, give or take **10 minutes of clock skew** (`KeyChain.SKEW_S`) at each end. A phone more than 10 minutes off refuses good certificates and has its own refused; scanning its code then says so.
+- **Report key per day.** Reports are sealed to the X25519 key of the day's report key certificate whose window holds now; outside every planned day, to the build's key below. The day's private key reaches only the consoles and the role leads, in their SPS2 code; a team's code carries the day's certificate without it. A staff phone without the key relays reports and ACKs and opens nothing: what it carries tells it only incident ids and statuses, and its incident list stays empty. An SPS2 code can also carry the build's report seed (`--legacy`) for leads and consoles while phones that seal to the build's key are around.
+- **What the chain does and doesn't do.** A stolen staff phone signs and proves its role only until its shift ends (plus the skew), or until the console sends a revocation of its certificate; its key opens reports only if it held that day's report key, and then only that day's. It doesn't make theft harmless: within the shift the thief signs as that team, sees what that phone sees, and a lead's phone opens the day's reports, the past hours' included, since a sealed box has no forward secrecy. Phones from before `HELLO_AUTH` and 1.0 phones check nothing of this: they trust the build's shared key, which SPS1 codes still carry.
+- **Build keys** (`crypto/StaffCrypto.kt`, legacy): one X25519 pair (opens reports outside the event's days) and one Ed25519 pair (signs ACKs from SPS1 phones) per build. The public keys ship in `app/src/main/assets/staff_public.json` as `{"box": hex, "sign": hex}`. The secret keys come from the two 32-byte seeds in the staff QR (section 11): `crypto_box_seed_keypair(boxSeed)`, whose secret key is the first 32 bytes of SHA-512(seed), and `crypto_sign_seed_keypair(signSeed)`. A phone accepts a staff QR only if the derived public keys match the bundled ones. The same seeds go to every team and every anchor.
 - **Sealed box** layout: `ephemeral public key (32) ‖ MAC (16) ‖ ciphertext`, with nonce = BLAKE2b-192(ephemeral public key ‖ staff public key). Overhead 48 bytes. It hides the reporter: there is no sender key to check.
   - Encrypted: the whole `IncidentBody` (category, severity, time, zone, coordinates, description, nickname, cancel hash).
   - In clear: the header (`sender 0`, `id`, `timestamp`, `ttl`) and the `incidentId`.
@@ -428,7 +467,7 @@ All cryptography is libsodium (lazysodium on Android, lazysodium-java in the JVM
 
 ## 10. Malformed input and bans
 
-A link collects a "malformed" mark for: a frame that doesn't decode (in 1.1, unless it comes from a newer version, section 3); an `Invalid` fragment set; a bad HELLO (payload doesn't decode, version 0, or in 1.0 any version but 1, nodeId ≠ header `sender`, or a different nodeId on the same link); a SUMMARY, REQUEST, SUMMARY2 or REQUEST2 that doesn't decode; a report of 64 bytes or less; an ACK that doesn't decode or doesn't verify; a cancel shorter than 32 bytes (in 1.0, any size but 32); a PRIVATE without R, `sender` or E.
+A link collects a "malformed" mark for: a frame that doesn't decode (in 1.1, unless it comes from a newer version, section 3); an `Invalid` fragment set; a bad HELLO (payload doesn't decode, version 0, or in 1.0 any version but 1, nodeId ≠ header `sender`, or a different nodeId on the same link); a SUMMARY, REQUEST, SUMMARY2 or REQUEST2 that doesn't decode; a report of 64 bytes or less; an ACK that doesn't decode or whose signature doesn't verify (one the key chain refuses for any other reason is dropped silently, section 6.4); a cancel shorter than 32 bytes (in 1.0, any size but 32); a PRIVATE without R, `sender` or E.
 
 Five marks within 60 s close the link and ban the Bluetooth address it came from for 10 minutes: links from that address are refused and the node doesn't connect to it (`MeshEngine.malformed`). The ban falls on the link, not on the peer's identity. 1.0 also banned the nodeId the peer claimed in HELLO, and refused it in any later HELLO; since HELLO isn't authenticated, anyone could claim another phone's nodeId, send five bad frames and get that phone refused by its neighbours for 10 minutes ("ban framing"). 1.1 bans no nodeId, and no prefix either, since a phone can advertise or claim anyone's. A peer that comes back from another address, as after its prefix and address change, is accepted, and is banned again if it misbehaves again.
 
@@ -451,7 +490,7 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 | 1 | `nickLen`, at most 24 (the encoder cuts longer names on a character boundary) |
 | `nickLen` | nickname |
 
-`SPS1.` staff card, at most 169 characters. It contains secret seeds. `tools/gen_staff_keys.py` writes the same format:
+`SPS1.` staff card (legacy, read while phones move to SPS2), at most 169 characters. It contains the build's secret seeds, the same on every card. `tools/gen_staff_keys.py legacy` writes it:
 
 | Size | Field |
 |---|---|
@@ -461,6 +500,22 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 | 1 + n | team name, `u8` length, at most 24 |
 | 1 + n | zone, `u8` length, at most 32 |
 
+`SPS2.` shift card, at most 517 characters (the decoder takes up to 640). It holds secrets for its holder only. `tools/gen_staff_keys.py issue` writes it:
+
+| Size | Field |
+|---|---|
+| 115..139 | the shift certificate (section 9); its role is the card's: staff, anchor or control |
+| 32 | Ed25519 seed of the certificate's key |
+| 1 | flags: `0x01` the day's report key certificate follows, `0x02` its X25519 seed follows too (only with `0x01`), `0x04` the build's report seed follows |
+| 115 | the day's report key certificate, if `0x01` |
+| 32 | its seed, if `0x02`: consoles and role leads |
+| 32 | the build's report seed, if `0x04` |
+| 1 + n | zone, `u8` length, at most 32 |
+
+A phone accepts it only if the certificate holds now and every seed derives the key it stands for. An anchor's card has no report key; the anchor keeps only its shift key, which proves its role and signs nothing else.
+
+`SPR1.` revocation: an ANNOUNCEMENT payload of kind 1 (section 6.8), at most 451 characters, printed by `tools/gen_staff_keys.py revoke`.
+
 ## 12. Limits
 
 | Limit | Value | Where |
@@ -468,7 +523,7 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 | Payload after reassembly | 480 B | `PacketCodec.MAX_PAYLOAD` |
 | Smallest usable frame | 64 B | `PacketCodec.MIN_FRAME` |
 | Maximum TTL | 7 | `PacketCodec.MAX_TTL` |
-| TTL at the origin | 7 for reports, ACKs, cancels and TEST, 6 for PRIVATE, 1 on one link, 3 for ANNOUNCEMENT and unknown types (section 5) | `PacketType.originTtl`, `CHAT_TTL` |
+| TTL at the origin | 7 for reports, ACKs, cancels, ANNOUNCEMENT and TEST, 6 for PRIVATE, 1 on one link, 3 for unknown types (section 5) | `PacketType.originTtl`, `CHAT_TTL` |
 | Fragments per packet | 2..255 (`count u8`); 19 at most in practice | `PacketCodec` |
 | Fragment sets per link, timeout | 8, 30 s | `Reassembler` |
 | SUMMARY / REQUEST entries, also SUMMARY2 / REQUEST2 | 50; 47 in a SUMMARY2 with epochs | `Limits.SUMMARY_ENTRIES`, `SUMMARY2_EPOCH_ENTRIES` |
@@ -488,7 +543,9 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 | Bans | 5 malformed in 60 s, 10 min, on the address of the link | `MeshConfig` |
 | New reports from one link (1.1) | 6 a minute | `MeshConfig.reportsPerMinute` |
 | Types relayed opaquely (1.1) | 12 a minute per link; 256 B, 480 B for ANNOUNCEMENT; relayed TTL at most 3 | `MeshConfig.opaquePerMinute`, `PacketType.OPAQUE_MAX_PAYLOAD`, `OPAQUE_MAX_TTL` |
-| ANNOUNCEMENT relayed (1.1) | 4 a minute per link, apart from the 12 above | `MeshConfig.announcementsPerMinute` |
+| ANNOUNCEMENT relayed (1.1) | 4 a minute per link, apart from the 12 above, verified or not | `MeshConfig.announcementsPerMinute` |
+| Certificate | 115..139 B; clock skew ±10 min | `Certificate`, `KeyChain.SKEW_S` |
+| Revocation | 32 ids per announcement; 16 announcements kept; sent again every 10 min by the console | `Revocation.MAX_IDS`, `Revocations` |
 | Unsupported frames, types and kinds (1.1) | more than 10 a minute from one link close it, without a ban | `MeshConfig.unsupportedPerMinute` |
 | Chat fan-out of a relay (1.1) | off by default; when on, ⌈log₂ n⌉ of n links, at least 1, the recipient's first | `MeshEngine.CHAT_FAN_OUT`, `FanOut` |
 | Chat a phone writes (1.1) | 30 PRIVATE packets a minute; 16 outbox entries tried at once | `ChatManager.PACKETS_PER_MINUTE`, `MAX_IN_FLIGHT` |
@@ -500,6 +557,8 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 **Golden vectors.** `core/src/test/resources/golden/protocol-v1.txt` holds one line per vector, `name value`. Values are lowercase hex, except the `qr.*` vectors, which are the QR text. The comment above each vector lists its inputs, so the file can be used without reading Kotlin. It covers the derived keys and nodeIds, whole frames (with and without recipient, and three fragments), HELLO, SUMMARY, REQUEST, two report bodies, the cancel hash, a sealed report, the signed ACK bytes and the ACK, the cancel, all seven inner types, a boxed PRIVATE payload, and both QR formats.
 
 1.1 added vectors and changed none. Its encoders write `hello.v11`, `summary2`, `request2`, `frame.opaque`, `frame.opaque.relayed`, `incident.ack.assigned`, an ACKNOWLEDGED with the ASSIGNED flag (section 6.4), and `hello.prefix`, a HELLO with `PREFIX_IN_HELLO` and the advertised prefix after the nickname (section 6.1); then, for the field states and the epoch, `incident.ack.on_scene`, `.handed_over`, `.closed`, `.unfounded`, `.reopened` (epoch 1) and `.assigned.epoch` (ASSIGNED and epoch 1), `summary2.epochs`, and the bodies `incident.body.triage`, `incident.body.staff`, `incident.body.lost_friend` and `incident.body.location` (triage plus accuracy 12 m and landmark 4). The others carry what a newer version may send and are built by hand: `hello.extended`, `summary2.unknown`, `incident.body.extended`, `incident.ack.unknown`, a signed ACK with status 0x7e and two bytes of extensions, and `incident.ack.future`, written the same way with status 7 before 1.1 gave 7 and the epoch a meaning: 1.1 now reads it as CLOSED_BY_CONTROL with the flags ASSIGNED and EPOCH and epoch 205, and still skips the flag bits it doesn't know. 1.1 must read them all; 1.0 rejects every one of them.
+
+`HELLO_AUTH` added, and changed none: `key.root.sign` and the certificates `cert.organiser`, `cert.event`, `cert.staff` (with `cert.staff.id`) and `cert.report_key`; `hello.auth.nonce`, a HELLO with the nonce, and `hello.auth`, with the certificate and the proof over bob's nonce; `incident.ack.cert`, an ACK under `cert.staff`; `announcement.revocation`; and the codes `qr.shift` and `qr.revocation`. The certificates, the proof, the ACK, the revocation and `qr.shift` were also checked against PyNaCl 1.6.2 through `tools/gen_staff_keys.py`. 1.0 rejects the two HELLOs and the ACK.
 
 Inputs are deterministic. Seeds are 32 consecutive byte values (`seed(0x10)` = `10 11 … 2f`): the staff keys come from `seed(0x10)` and `seed(0x30)`, alice from `seed(0x50)` and `seed(0x70)`, bob from `seed(0x90)` and `seed(0xb0)`. Ed25519 signatures are deterministic. A real sealed box uses a random ephemeral key, so the vector builds `crypto_box_seal` step by step with the ephemeral pair from `seed(0xd0)`. Implementations should check that they open it, not that they produce it. The `crypto_box` nonce is fixed to `e0 e1 … f7` by overriding lazysodium's `randomBytesBuf`, which is the only randomness `SodiumCrypto.box` takes from Java. When the file was created, the key, nodeId, hash, dedup, sealing, signature, box and QR vectors were also checked against PyNaCl 1.6.2 and Python's `hashlib`.
 
@@ -531,10 +590,10 @@ Inputs are deterministic. Seeds are 32 consecutive byte values (`seed(0x10)` = `
 4. **Strings are not validated as UTF-8.** A malformed sequence decodes to U+FFFD, so a decoded string can re-encode to more bytes than its limit and make the encoder throw. No receiver re-encodes a received string today, so this is latent. Should decoders reject invalid UTF-8?
 5. **Coordinates are not range-checked** on decode; a body can carry a latitude of ±2147°.
 6. **The `incidentId` is not bound to the sealed body.** Anyone can wrap a captured sealed body under a new `incidentId`, and staff would see it as a new report with the same content and the same cancel hash.
-7. **One shared staff key per build, no revocation.** Every holder of the staff QR can read every report, past ones included (a sealed box has no forward secrecy), and can sign any ACK for any team, the console's statuses included: it can close, reopen or confirm a cancel as if it were the console; the team name is free text from the QR. An anchor's QR holds the same seeds.
+7. **The shared staff key is still there.** SPS2 codes, the key chain and revocations (section 9) limit a stolen phone to its shift and its role, but only for phones that set `HELLO_AUTH`, and only once nobody uses SPS1 codes: every holder of an SPS1 code can still read every report sealed to the build's key, past ones included, and sign any ACK for any team, the console's statuses included, and phones from before `HELLO_AUTH` trust only that key. The build drops it once the fleet runs SPS2. Reports themselves are not signed: the staff fields and the team in a staff report say what the author claims.
 8. **Reports and cancels can't be checked by relays**, and relays don't enforce `sender = 0` on them. Any node can fill a neighbour's report cache (50) with sealed garbage and push real reports out.
 9. **Anonymity is partial.** The first neighbour receives `ttl 7` and knows the sender is the origin. Since 1.1 the advertised prefix is random and changes about every 15 minutes with the address (section 2), so a passive scanner can follow a phone only between two changes; an anchor keeps a static one; a phone still on 1.0 advertises its nodeId prefix all day; and anyone who links to a phone reads its nodeId in HELLO, so an observer that connects again after each change can still follow it; older builds also broadcast PENDING_INCIDENT while a report waited for an ACK, which showed who had just reported.
-10. **HELLO is not authenticated.** A node can claim another's nodeId. In 1.0 it could get that phone banned by sending five bad frames ("ban framing"); 1.1 bans only the address of the link (section 10). It can still make a neighbour close the real phone's link, since two links with one nodeId count as duplicates, and it can claim another phone's advertised prefix, so that a neighbour linked to it doesn't connect to the real one. The STAFF and ANCHOR roles are self-declared; until they are signed, a node seeks one link with a role and keeps from rotation at most one, and only while its peer sends it something (section 2).
+10. **HELLO authenticates roles, not identities.** The proof (section 6.1) shows that a peer holds a shift certificate; it doesn't bind a nodeId to anything else. A node can claim another's nodeId. In 1.0 it could get that phone banned by sending five bad frames ("ban framing"); 1.1 bans only the address of the link (section 10). It can still make a neighbour close the real phone's link, since two links with one nodeId count as duplicates, and it can claim another phone's advertised prefix, so that a neighbour linked to it doesn't connect to the real one. A role counts only once proven; a peer from before `HELLO_AUTH` can't prove one, so its staff and anchors count as participants on links with current phones (section 2).
 11. **Fragment sets are easy to disturb** for a peer on the same link: it can evict the 8 sets or reuse a `fragId` with a different header and invalidate one. It only affects that link.
 12. **480 bytes is the ceiling.** Photos and event packs need a new transfer mechanism. The report has 22 bytes to spare and TEXT 22, so a 64-byte signature on a chat message doesn't fit without shortening the text.
 13. **The codec allows R on every type.** Only PRIVATE uses it. A report with R set would be stored and served by SUMMARY/REQUEST but delivered only to the named node. 1.1 still allows it; should a later version reject it?
@@ -552,7 +611,7 @@ What changed from 1.0:
 | Header | version 1 | version 1, unchanged; the node announces 1.1 with `PROTOCOL_1_1` (`0x10`) in HELLO and advertising |
 | Another header version or flag | malformed | dropped as unsupported |
 | Unknown type | malformed | relayed as it is, at most 3 hops, 256 B, 12 a minute per link, never to a 1.0 peer (section 7.1) |
-| HELLO | nothing after the nickname | the advertised prefix after the nickname, to peers that set `PREFIX_IN_HELLO`; what follows skipped |
+| HELLO | nothing after the nickname | the advertised prefix after the nickname, to peers that set `PREFIX_IN_HELLO`; with `HELLO_AUTH`, a nonce and a certificate proof after it; what follows skipped |
 | Advertising | the nodeId prefix | a random prefix, new every 12 to 18 minutes with a new address; anchors keep the nodeId prefix (section 2) |
 | Who connects | the lower nodeId prefix | the lower advertised prefix; to a peer without `PREFIX_IN_HELLO`, only from the higher nodeId |
 | Bans | the claimed nodeId and the address | the address of the link only |
@@ -565,7 +624,8 @@ What changed from 1.0:
 | Origin TTL | 7 for every flooded type | per type: 7 for incidents and TEST, 6 for PRIVATE (section 5) |
 | Chat relay | flood | flood; a relay can pass chat on ⌈log₂ n⌉ of n links instead, off by default (section 7) |
 | New reports from one link | no limit | 6 a minute, and no more requested than that |
-| Reserved | | ANNOUNCEMENT `0x30`, at report priority, 4 a minute per link |
+| ANNOUNCEMENT | | `0x30`, at report priority, 4 a minute per link; with `HELLO_AUTH`, signed revocations relayed like reports |
+| Keys | the build's shared pair | with `HELLO_AUTH`: a chain from Ping Up's root, shift certificates, ACKs signed under them (only to `HELLO_AUTH` peers), a report key per day, revocations; the shared pair stays for SPS1 |
 | What can't be used | malformed, five in a minute ban | dropped; more than 10 a minute close the link, without a ban |
 
 What a newer version can do without 1.1 phones dropping or banning it:
@@ -574,7 +634,7 @@ What a newer version can do without 1.1 phones dropping or banning it:
 - A new flooded type takes a code from `0x10` up and must make sense within 3 hops of a 1.1 relay, in 256 bytes and at 12 a minute per link; a new type that stays on one link takes `0x06`..`0x0F`. Organiser announcements take `0x30`.
 - New fields go after the prefix in HELLO; in an ACK, after the fields of the flags 1.1 knows, behind a new flag bit (`0x04` and up); in the report body after the location fields, behind a new flag bit (`0x40` and up); after the token in a CANCEL; in a SUMMARY2 of kind INCIDENTS after the epochs, behind a new bit of its flags byte (`0x02` and up); and after the entries in a REQUEST2 of kind INCIDENTS. Other things to store and forward go in a new SUMMARY2 kind.
 - ACK statuses above 9 cross 1.1 phones but aren't stored or shown there: a status that has to stick needs relays that know it. A new status needs a place in the rank table that keeps the order of the old ones.
-- A peer that doesn't announce 1.1 gets only what 1.0 accepts. The next version announces itself with a bit of its own, `0x40` or above, and sends its own additions only to peers that set it, as `PREFIX_IN_HELLO` (`0x20`) does for the prefix in HELLO.
+- A peer that doesn't announce 1.1 gets only what 1.0 accepts. A newer version announces itself with a bit of its own and sends its own additions only to peers that set it, as `PREFIX_IN_HELLO` (`0x20`) does for the prefix in HELLO and `HELLO_AUTH` (`0x40`) for the nonce, the proof and ACKs under a certificate. `0x80` is the last free bit; the version after that needs a field of its own, after the auth fields in HELLO.
 
 ### Pilot metrics
 

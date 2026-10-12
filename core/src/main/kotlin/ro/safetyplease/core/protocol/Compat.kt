@@ -12,3 +12,12 @@ object Compat10 {
         else -> packet.type in PacketType.V1_0
     }
 }
+
+/**
+ * An ACK signed under a certificate goes only to a peer that set [NodeFlags.HELLO_AUTH]: a 1.1 peer from before it
+ * checks every ACK against the build's staff key, so it would count this one as malformed.
+ */
+object CompatAuth {
+    fun needsAuth(packet: Packet): Boolean =
+        packet.type == PacketType.INCIDENT_ACK && IncidentAck.decode(packet.payload)?.certified == true
+}

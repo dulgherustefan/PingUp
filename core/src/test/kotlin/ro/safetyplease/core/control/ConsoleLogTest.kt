@@ -399,6 +399,20 @@ class ConsoleLogTest {
     }
 
     @Test
+    fun aRoleShowsAsVerifiedOnlyOnceALinkProvedIt() {
+        val anchor = 0x11223344
+        fun heard(flags: Int, at: Long) = MeshState(seen = listOf(SeenPeer("aa", anchor, flags, -60, at)))
+        val claimed = PeerBook.update(emptyMap(), heard(NodeFlags.ANCHOR, 9_000), t0, 10_000)
+        assertFalse(claimed.getValue(anchor).verified)
+        val link = LinkInfo(1, "aa", 0x1122334455667788L, null, NodeFlags.ANCHOR, true, 0, anchor, verified = true)
+        val linked = PeerBook.update(claimed, MeshState(links = listOf(link)), t0 + 1_000, 11_000)
+        assertTrue(linked.getValue(anchor).verified)
+        // its advertising keeps the proof while it claims the same role
+        assertTrue(PeerBook.update(linked, heard(NodeFlags.ANCHOR, 20_000), t0 + 10_000, 20_000).getValue(anchor).verified)
+        assertFalse(PeerBook.update(linked, heard(NodeFlags.STAFF, 20_000), t0 + 10_000, 20_000).getValue(anchor).verified)
+    }
+
+    @Test
     fun peerBookKeepsTheMostRecentPhonesOnly() {
         val many = (0 until PeerBook.MAX_PEERS + 20).map { SeenPeer("a$it", it, 0, -80, it.toLong()) }
         val book = PeerBook.update(emptyMap(), MeshState(seen = many), t0, 10_000)

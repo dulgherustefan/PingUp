@@ -21,7 +21,9 @@ import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.ui.common.Nearby
+import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.QrCodes
+import ro.safetyplease.core.crypto.ReservedNames
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.MyReport
@@ -75,6 +77,13 @@ sealed interface ScanOutcome {
     data object AnchorOn : ScanOutcome
     data object ControlOn : ScanOutcome
     data object WrongEvent : ScanOutcome
+
+    /** A shift code the event revoked, or whose shift isn't now. */
+    data object Revoked : ScanOutcome
+    data object NotNow : ScanOutcome
+
+    /** An SPR1 code this event's keys signed. */
+    data object RevocationsApplied : ScanOutcome
     data object Unknown : ScanOutcome
 }
 
@@ -223,6 +232,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setRoleLead(lead: Boolean) = c.settings.update { it.copy(roleLead = lead) }
 
+    /** A name that passes for staff is only for a phone with a shift certificate the event accepts now. */
+    fun nameAllowed(nickname: String): Boolean = c.verified || !ReservedNames.imitatesStaff(nickname)
+
+    val verified: Boolean get() = c.verified
+
     fun leaveStaff() {
         c.leaveStaff()
         if (tab == Tab.INCIDENTS) tab = Tab.MESSAGES
@@ -247,14 +261,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return if (c.chat.addFriend(card)) ScanOutcome.FriendAdded(card.nickname) else ScanOutcome.OwnCode
         }
         QrCodes.decodeStaff(text)?.let { card ->
-            if (!c.activateStaff(card)) return ScanOutcome.WrongEvent
-            return when (c.settings.value.role) {
-                Role.ANCHOR -> ScanOutcome.AnchorOn
-                Role.CONTROL -> ScanOutcome.ControlOn
-                else -> ScanOutcome.StaffOn
+            return if (c.activateStaff(card)) roleOutcome() else ScanOutcome.WrongEvent
+        }
+        QrCodes.decodeShift(text)?.let { card ->
+            return when (c.activateShift(card, text)) {
+                CertStatus.VALID -> roleOutcome()
+                CertStatus.REVOKED -> ScanOutcome.Revoked
+                CertStatus.OUTSIDE_WINDOW -> ScanOutcome.NotNow
+                CertStatus.UNKNOWN, CertStatus.FORGED -> ScanOutcome.WrongEvent
             }
         }
+        QrCodes.decodeRevocation(text)?.let { payload ->
+            return if (c.applyRevocation(payload) != null) ScanOutcome.RevocationsApplied else ScanOutcome.WrongEvent
+        }
         return ScanOutcome.Unknown
+    }
+
+    private fun roleOutcome(): ScanOutcome = when (c.settings.value.role) {
+        Role.ANCHOR -> ScanOutcome.AnchorOn
+        Role.CONTROL -> ScanOutcome.ControlOn
+        else -> ScanOutcome.StaffOn
     }
 
     // --- messages ---

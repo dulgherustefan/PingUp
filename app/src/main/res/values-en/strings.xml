@@ -153,6 +153,9 @@
     <string name="scan_staff_on">You’re on the staff team. You’ll receive reports.</string>
     <string name="scan_anchor_on">This phone is now an anchor. It only relays.</string>
     <string name="scan_wrong_event">This staff code is for another event.</string>
+    <string name="scan_revoked">The organiser revoked this code.</string>
+    <string name="scan_not_now">This code isn’t valid now: its shift is at another time. Check the phone’s clock.</string>
+    <string name="scan_revocations">The list of revoked codes is up to date and goes on through the network.</string>
     <string name="scan_unknown">Unknown code.</string>
 
     <string name="group_new">New group</string>
@@ -368,6 +371,8 @@
     <string name="me_open">Your profile</string>
     <string name="me_edit_name">Change name</string>
     <string name="me_note">This is how your friends see you</string>
+    <string name="name_reserved">This name is reserved for verified staff.</string>
+    <string name="staff_verified">Verified staff</string>
     <string name="me_my_code_label">Show it to friends so they can add you</string>
     <string name="role_staff">Staff · %1$s</string>
     <string name="role_anchor">Anchor · %1$s</string>
@@ -599,6 +604,7 @@
     <string name="control_heard_linked">linked now</string>
     <string name="control_heard_at">heard %1$s</string>
     <string name="control_heard_staff">Staff</string>
+    <string name="anchor_verified">Verified anchor</string>
     <plurals name="control_heard_silent">
         <item quantity="one">Anchor silent for a minute</item>
         <item quantity="other">Anchor silent for %d minutes</item>

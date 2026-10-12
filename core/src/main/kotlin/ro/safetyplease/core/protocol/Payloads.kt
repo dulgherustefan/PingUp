@@ -1,5 +1,6 @@
 package ro.safetyplease.core.protocol
 
+import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.util.sha256
 import ro.safetyplease.core.util.utf8
 import kotlin.math.ceil
@@ -21,6 +22,12 @@ object NodeFlags {
      * too, so they can tell its advertising from a new peer's.
      */
     const val PREFIX_IN_HELLO = 0x20
+
+    /**
+     * Reads the authentication fields after the prefix in HELLO and ACKs signed under a certificate: the nonce, and a
+     * certificate with a signature over the peer's nonce (PROTOCOL.md, section 6.1).
+     */
+    const val HELLO_AUTH = 0x40
 }
 
 object Limits {
@@ -42,20 +49,52 @@ object Limits {
 private fun WireWriter.coord(deg: Double) = i32((deg * 1e6).roundToInt())
 private fun WireReader.coord(): Double = i32() / 1e6
 
-/** [prefix] is the one the sender advertises; only peers that set [NodeFlags.PREFIX_IN_HELLO] get it. */
-class Hello(val version: Int, val nodeId: Long, val flags: Int, val nickname: String?, val prefix: Int? = null) {
+/** A certificate and its key's signature over the receiver's nonce on this link ([Hello.proofMessage]). */
+class HelloProof(val certificate: Certificate, val signature: ByteArray)
+
+/**
+ * [prefix] is the one the sender advertises; only peers that set [NodeFlags.PREFIX_IN_HELLO] get it. [nonce] and
+ * [proof] follow it, only to peers that set [NodeFlags.HELLO_AUTH]: the sender's challenge on this link, and its
+ * answer to the peer's.
+ */
+class Hello(
+    val version: Int,
+    val nodeId: Long,
+    val flags: Int,
+    val nickname: String?,
+    val prefix: Int? = null,
+    val nonce: ByteArray? = null,
+    val proof: HelloProof? = null,
+) {
     fun encode(): ByteArray {
         val nick = nickname?.utf8() ?: ByteArray(0)
         require(nick.size <= Limits.NICK_BYTES)
+        require(nonce == null || (prefix != null && nonce.size == NONCE_SIZE))
+        require(proof == null || nonce != null)
         val w = WireWriter().u8(version).i64(nodeId).u8(flags).u8(nick.size).bytes(nick)
         if (prefix != null) w.i32(prefix)
+        if (nonce != null) {
+            w.bytes(nonce).u8(if (proof != null) AUTH_PROOF else 0)
+            if (proof != null) w.bytes(proof.certificate.encode()).bytes(proof.signature)
+        }
         return w.toByteArray()
     }
 
     companion object {
         private const val PREFIX_SIZE = 4
+        const val NONCE_SIZE = 16
+        private const val AUTH_PROOF = 0x01
+        private val PROOF_DOMAIN = "SP-HELLO-v1".utf8()
 
-        /** The prefix may follow the nickname. Anything after it, or fewer than 4 bytes, comes from a newer version and is skipped. */
+        /** What the proof signs: the receiver's nonce, so it can't be replayed on another link, and the signer's nodeId. */
+        fun proofMessage(receiverNonce: ByteArray, nodeId: Long): ByteArray =
+            PROOF_DOMAIN + receiverNonce + WireWriter(8).i64(nodeId).toByteArray()
+
+        /**
+         * The prefix may follow the nickname, the nonce and the auth flags the prefix. Fewer bytes than a field takes,
+         * a proof that doesn't parse, auth flags this version doesn't know and anything after the fields it reads come
+         * from a newer version and are skipped.
+         */
         fun decode(payload: ByteArray): Hello? = parseOrNull {
             val r = WireReader(payload)
             val version = r.u8()
@@ -64,7 +103,11 @@ class Hello(val version: Int, val nodeId: Long, val flags: Int, val nickname: St
             val nick = r.string(r.u8(), Limits.NICK_BYTES)
             if (nodeId == 0L) throw MalformedException("anonymous hello")
             val prefix = if (r.remaining >= PREFIX_SIZE) r.i32() else null
-            Hello(version, nodeId, flags, nick.ifEmpty { null }, prefix)
+            val nonce = if (prefix != null && r.remaining > NONCE_SIZE) r.bytes(NONCE_SIZE) else null
+            val proof = if (nonce != null && r.u8() and AUTH_PROOF != 0) {
+                parseOrNull { HelloProof(Certificate.read(r), r.bytes(Certificate.SIGNATURE_SIZE)) }
+            } else null
+            Hello(version, nodeId, flags, nick.ifEmpty { null }, prefix, nonce, proof)
         }
     }
 }
@@ -437,6 +480,12 @@ object AckFlags {
 
     /** The epoch follows the flags byte, as one byte. */
     const val EPOCH = 0x02
+
+    /**
+     * The signer's certificate follows the epoch, and the certificate's key signed the ACK, not the build's staff
+     * key. Only to peers that set [NodeFlags.HELLO_AUTH]: an older 1.1 peer would check it against the staff key.
+     */
+    const val CERT = 0x04
 }
 
 /**
@@ -462,6 +511,16 @@ class IncidentAck(
     /** How many times control reopened the incident before this ACK; 0 without the field. */
     val epoch: Int get() = if (flags and AckFlags.EPOCH != 0 && extensions.size > 1) extensions[1].toInt() and 0xFF else 0
 
+    val certified: Boolean get() = flags and AckFlags.CERT != 0
+
+    /** The signer's certificate; null without [AckFlags.CERT] or if it doesn't parse. */
+    val certificate: Certificate?
+        get() {
+            if (!certified) return null
+            val at = if (flags and AckFlags.EPOCH != 0) 2 else 1
+            return parseOrNull { Certificate.read(WireReader(extensions, at)) }
+        }
+
     companion object {
         const val SIGNATURE_SIZE = 64
         const val STATUS_OFFSET = INCIDENT_ID_SIZE
@@ -470,15 +529,16 @@ class IncidentAck(
 
         /**
          * No byte at all without a flag or an epoch, so a plain ACK keeps its 1.0 bytes and can still go to a 1.0
-         * phone. [flags] are the other AckFlags; the epoch sets [AckFlags.EPOCH] itself.
+         * phone. [flags] are the other AckFlags; the epoch and the certificate set [AckFlags.EPOCH] and [AckFlags.CERT].
          */
-        fun extensions(flags: Int, epoch: Int = 0): ByteArray {
-            require(flags in 0..0xFF && flags and AckFlags.EPOCH == 0 && epoch in 0..MAX_EPOCH)
-            return when {
-                epoch > 0 -> byteArrayOf((flags or AckFlags.EPOCH).toByte(), epoch.toByte())
-                flags != 0 -> byteArrayOf(flags.toByte())
-                else -> ByteArray(0)
-            }
+        fun extensions(flags: Int, epoch: Int = 0, certificate: Certificate? = null): ByteArray {
+            require(flags in 0..0xFF && flags and (AckFlags.EPOCH or AckFlags.CERT) == 0 && epoch in 0..MAX_EPOCH)
+            val all = flags or (if (epoch > 0) AckFlags.EPOCH else 0) or (if (certificate != null) AckFlags.CERT else 0)
+            if (all == 0) return ByteArray(0)
+            val w = WireWriter().u8(all)
+            if (epoch > 0) w.u8(epoch)
+            certificate?.let { w.bytes(it.encode()) }
+            return w.toByteArray()
         }
 
         fun unsigned(incidentId: ByteArray, status: Int, timestamp: Long, teamName: String): ByteArray {

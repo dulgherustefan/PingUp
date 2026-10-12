@@ -54,7 +54,9 @@ class Protocol11Test {
 
     private class Node(name: String, val id: Long, world: World) {
         val radio = world.net.radio(name, id.nodePrefix())
-        val engine = MeshEngine(world.bg, radio, world.clock, Random(id), id, MeshConfig(), PacketLog(false), verifyAck = ::verify)
+        val engine = MeshEngine(world.bg, radio, world.clock, Random(id), id, MeshConfig(), PacketLog(false)) {
+            if (verify(it)) Verdict.VALID else Verdict.INVALID
+        }
         val received = mutableListOf<Packet>()
 
         /** Type and TTL of every frame this node put on the air. */
@@ -288,7 +290,7 @@ class Protocol11Test {
         advanceTimeBy(5_000)
         assertEquals(listOf(PacketType.CHAT_TTL), a.sentTtls(PacketType.PRIVATE))
         assertEquals(listOf(7), a.sentTtls(PacketType.INCIDENT_REPORT))
-        assertEquals(listOf(3), a.sentTtls(PacketType.ANNOUNCEMENT))
+        assertEquals("signed revocations go as far as reports", listOf(7), a.sentTtls(PacketType.ANNOUNCEMENT))
         assertTrue(a.sentTtls(PacketType.HELLO).all { it == 1 })
         assertEquals(1, b.ofType(PacketType.PRIVATE).single().hops)
     }

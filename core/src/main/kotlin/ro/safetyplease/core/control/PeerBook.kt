@@ -4,8 +4,17 @@ import ro.safetyplease.core.mesh.MeshState
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.util.nodePrefix
 
-/** A phone the console heard, by the prefix it advertises; [lastHeardMs] is on the console's wall clock. */
-data class HeardPeer(val prefix: Int, val flags: Int, val linked: Boolean, val lastHeardMs: Long) {
+/**
+ * A phone the console heard, by the prefix it advertises; [lastHeardMs] is on the console's wall clock. [verified]: a
+ * link with it proved its role with a certificate; its advertising alone proves nothing.
+ */
+data class HeardPeer(
+    val prefix: Int,
+    val flags: Int,
+    val linked: Boolean,
+    val lastHeardMs: Long,
+    val verified: Boolean = false,
+) {
     val anchor: Boolean get() = flags and NodeFlags.ANCHOR != 0
 }
 
@@ -21,13 +30,16 @@ object PeerBook {
         for (seen in state.seen) {
             val prefix = seen.prefix ?: continue
             val at = wallMs - (monoMs - seen.lastSeenMs)
-            if (at >= (next[prefix]?.lastHeardMs ?: Long.MIN_VALUE)) next[prefix] = HeardPeer(prefix, seen.flags, false, at)
+            val known = next[prefix]
+            if (at >= (known?.lastHeardMs ?: Long.MIN_VALUE)) {
+                next[prefix] = HeardPeer(prefix, seen.flags, false, at, known?.verified == true && known.flags == seen.flags)
+            }
         }
         for (link in state.links) {
             if (link.peerId == 0L) continue
             // keyed like its advertising, so a linked phone doesn't show twice
             val prefix = link.prefix ?: link.peerId.nodePrefix()
-            next[prefix] = HeardPeer(prefix, link.flags, true, wallMs)
+            next[prefix] = HeardPeer(prefix, link.flags, true, wallMs, link.verified)
         }
         if (next.size <= MAX_PEERS) return next
         return next.values.sortedWith(compareByDescending<HeardPeer> { it.anchor }.thenByDescending { it.lastHeardMs })

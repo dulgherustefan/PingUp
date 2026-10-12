@@ -8,15 +8,22 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import ro.safetyplease.core.crypto.CertRole
+import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.Identity
+import ro.safetyplease.core.crypto.KeyChain
 import ro.safetyplease.core.crypto.QrCodes
+import ro.safetyplease.core.crypto.Revocation
+import ro.safetyplease.core.crypto.ShiftCard
 import ro.safetyplease.core.crypto.StaffCard
 import ro.safetyplease.core.crypto.StaffCrypto
 import ro.safetyplease.core.crypto.StaffPublicKeys
 import ro.safetyplease.core.crypto.StaffRole
 import ro.safetyplease.core.crypto.StaffSecretKeys
 import ro.safetyplease.core.crypto.testCrypto
+import ro.safetyplease.core.mesh.Verdict
+import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.truncateUtf8
 import ro.safetyplease.core.util.utf8
 import java.lang.management.ManagementFactory
@@ -57,6 +64,11 @@ class DecoderFuzzTest {
             tolerant = true,
         ),
         Codec("inner", { inner() }, InnerCodec::encode, InnerCodec::decode, ::stringsOf),
+        Codec("certificate", { certificate() }, Certificate::encode, { Certificate.decode(it) }, { listOf(it.name) }),
+        Codec(
+            "revocation", { Revocation(nextLong(), nextLong(0, 1L shl 32), List(nextInt(1, Revocation.MAX_IDS + 1)) { nextLong() }, nextBytes(64)) },
+            Revocation::encode, { Revocation.decode(it) },
+        ),
     )
 
     @Test(timeout = 10_000)
@@ -162,11 +174,23 @@ class DecoderFuzzTest {
     fun qrDecodersReturnACardOrNull() {
         val identity = Identity.generate(testCrypto)
         repeat(ROUNDS) { round ->
-            val valid = if (random.nextBoolean()) {
-                QrCodes.encodeFriend(FriendCard(random.text(30), identity.box.publicKey, identity.sign.publicKey))
-            } else {
-                val role = if (random.nextBoolean()) StaffRole.STAFF else StaffRole.ANCHOR
-                QrCodes.encodeStaff(StaffCard(random.nextBytes(32), random.nextBytes(32), role, random.text(30), random.text(40)))
+            val valid = when (random.nextInt(4)) {
+                0 -> QrCodes.encodeFriend(FriendCard(random.text(30), identity.box.publicKey, identity.sign.publicKey))
+                1 -> {
+                    val role = if (random.nextBoolean()) StaffRole.STAFF else StaffRole.ANCHOR
+                    QrCodes.encodeStaff(StaffCard(random.nextBytes(32), random.nextBytes(32), role, random.text(30), random.text(40)))
+                }
+                2 -> {
+                    val report = random.certificate().takeIf { random.nextBoolean() }
+                    val shift = random.certificate(role = random.nextInt(CertRole.STAFF, CertRole.CONTROL + 1))
+                    QrCodes.encodeShift(
+                        ShiftCard(
+                            shift, random.nextBytes(32), report, random.nextBytes(32).takeIf { report != null && random.nextBoolean() },
+                            random.nextBytes(32).takeIf { random.nextBoolean() }, random.text(40),
+                        ),
+                    )
+                }
+                else -> QrCodes.encodeRevocation(random.nextBytes(random.nextInt(1, 300)))
             }
             val input = if (round % 10 == 0) valid else random.mutateText(valid)
             val bytes = input.utf8()
@@ -176,6 +200,10 @@ class DecoderFuzzTest {
             bounded("staff QR", bytes) { QrCodes.decodeStaff(input) }?.let {
                 assertTrue(it.boxSeed.size == 32 && it.signSeed.size == 32)
             }
+            bounded("shift QR", bytes) { QrCodes.decodeShift(input) }?.let {
+                assertTrue(it.keySeed.size == 32 && (it.reportSeed == null || it.reportKey != null))
+            }
+            bounded("revocation QR", bytes) { QrCodes.decodeRevocation(input) }
         }
     }
 
@@ -191,11 +219,28 @@ class DecoderFuzzTest {
         val sealed = staff.sealReport(random.body().encode())
         val ack = staff.signAck(random.nextBytes(16), AckStatus.RESOLVED, 1L, "Medical 1", secret).encode()
         val boxed = crypto.box(InnerCodec.encode(random.inner()), bob.box.publicKey, alice.box.secretKey)
+        val root = crypto.signKeyPair()
+        val organiser = crypto.signKeyPair()
+        val event = crypto.signKeyPair()
+        val shiftKey = crypto.signKeyPair()
+        val organiserCert = Certificate.issue(crypto, CertRole.ORGANISER, organiser.publicKey, 0, 0xFFFFFFFFL, "", root)
+        val eventCert = Certificate.issue(crypto, CertRole.EVENT, event.publicKey, 0, 0xFFFFFFFFL, "", organiser)
+        val chain = KeyChain(crypto, object : Clock {
+            override fun wallMs() = 1_000L
+            override fun monoMs() = 0L
+        }, staffSign.publicKey, root.publicKey, listOf(organiserCert, eventCert))
+        val shift = Certificate.issue(crypto, CertRole.CONTROL, shiftKey.publicKey, 0, 0xFFFFFFFFL, "Control", event)
+        val certAck = staff.signAck(random.nextBytes(16), AckStatus.RESOLVED, 1L, "Control", StaffSecretKeys(null, shiftKey, shift)).encode()
+        val revocation = Revocation.sign(crypto, event, 1L, listOf(shift.id)).encode()
         repeat(CRYPTO_ROUNDS) {
             val s = random.mutate(sealed)
             if (!s.contentEquals(sealed)) assertNull(bounded("sealed", s) { staff.openReport(s, secret) })
             val a = random.mutate(ack)
             if (!a.contentEquals(ack)) assertFalse(bounded("ack", a) { staff.verifyAck(a) })
+            val c = random.mutate(certAck)
+            if (!c.contentEquals(certAck)) assertFalse(bounded("certified ack", c) { chain.checkAck(c) == Verdict.VALID })
+            val r = random.mutate(revocation)
+            if (!r.contentEquals(revocation)) assertFalse(bounded("revocation", r) { chain.checkAnnouncement(r) == Verdict.VALID })
             val b = random.mutate(boxed)
             if (!b.contentEquals(boxed)) assertNull(bounded("box", b) { crypto.boxOpen(b, alice.box.publicKey, bob.box.secretKey) })
         }
@@ -262,8 +307,15 @@ private fun Random.packet() = Packet(
     payload = nextBytes(nextInt(0, PacketCodec.MAX_PAYLOAD + 1)),
 )
 
-private fun Random.hello() =
-    Hello(nextInt(256), nonZeroLong(), nextInt(256), text(Limits.NICK_BYTES).ifEmpty { null }, if (nextBoolean()) nextInt() else null)
+private fun Random.hello(): Hello {
+    val prefix = if (nextBoolean()) nextInt() else null
+    val nonce = if (prefix != null && nextBoolean()) nextBytes(Hello.NONCE_SIZE) else null
+    val proof = if (nonce != null && nextBoolean()) HelloProof(certificate(), nextBytes(64)) else null
+    return Hello(nextInt(256), nonZeroLong(), nextInt(256), text(Limits.NICK_BYTES).ifEmpty { null }, prefix, nonce, proof)
+}
+
+private fun Random.certificate(role: Int = nextInt(256)) =
+    Certificate(role, nextBytes(32), nextLong(0, 1L shl 32), nextLong(0, 1L shl 32), nextLong(), text(Limits.TEAM_BYTES), nextBytes(64))
 
 private fun Random.summary() =
     List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { SummaryEntry(nextLong(), nextBoolean(), nextInt(0, AckStatus.CANCELLED + 1)) }

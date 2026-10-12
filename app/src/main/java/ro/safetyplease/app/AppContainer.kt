@@ -6,6 +6,9 @@ import android.os.SystemClock
 import android.util.Log
 import com.goterl.lazysodium.LazySodiumAndroid
 import com.goterl.lazysodium.SodiumAndroid
+import java.io.File
+import java.security.SecureRandom
+import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,7 +21,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import ro.safetyplease.app.platform.ble.BleRadio
@@ -34,8 +39,14 @@ import ro.safetyplease.core.control.ConsoleRecorder
 import ro.safetyplease.core.control.HeardPeer
 import ro.safetyplease.core.control.PeerBook
 import ro.safetyplease.core.control.ReporterRecords
+import ro.safetyplease.core.crypto.CertStatus
+import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.Identity
+import ro.safetyplease.core.crypto.KeyChain
+import ro.safetyplease.core.crypto.QrCodes
+import ro.safetyplease.core.crypto.Revocations
+import ro.safetyplease.core.crypto.ShiftCard
 import ro.safetyplease.core.crypto.SodiumCrypto
 import ro.safetyplease.core.crypto.StaffCard
 import ro.safetyplease.core.crypto.StaffCrypto
@@ -65,9 +76,6 @@ import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.parse
-import java.io.File
-import java.security.SecureRandom
-import kotlin.random.asKotlinRandom
 
 object AndroidClock : Clock {
     override fun wallMs(): Long = System.currentTimeMillis()
@@ -119,7 +127,19 @@ class AppContainer(private val app: Application) {
     private val meshMetrics = MeshMetrics(metricsLog, clock)
     private val mobileNetwork = MobileNetwork(app)
 
-    val staffCrypto = StaffCrypto(crypto, loadStaffPublic())
+    val keyChain: KeyChain
+    val staffCrypto: StaffCrypto
+
+    init {
+        val json = Json.parseToJsonElement(asset("staff_public.json")).jsonObject
+        fun hex(name: String) = json.getValue(name).jsonPrimitive.content.hexToBytes()
+        fun certificates(name: String) =
+            json[name]?.jsonArray.orEmpty().mapNotNull { Certificate.decode(it.jsonPrimitive.content.hexToBytes()) }
+        val public = StaffPublicKeys(hex("box"), hex("sign"))
+        val root = json["root"]?.jsonPrimitive?.content?.hexToBytes()
+        keyChain = KeyChain(crypto, clock, public.sign, root, certificates("chain"), certificates("reportKeys"))
+        staffCrypto = StaffCrypto(crypto, public, keyChain)
+    }
 
     @Volatile
     var staffSecret: StaffSecretKeys? = loadStaffSecret()
@@ -135,7 +155,8 @@ class AppContainer(private val app: Application) {
         meshScope, radio, clock, SecureRandom().asKotlinRandom(), identity.nodeId,
         MeshConfig(nicknameInHello = BuildConfig.DEBUG, allowTestPackets = BuildConfig.DEBUG),
         log, meshCache,
-    ) { staffCrypto.verifyAck(it) }
+        keyChain,
+    )
 
     val notifier = Notifier(app, venue)
     val location = LocationSource(app)
@@ -170,11 +191,24 @@ class AppContainer(private val app: Application) {
         staffCap = { if (settings.value.role == Role.CONTROL) IncidentManager.MAX_STAFF_CONSOLE else IncidentManager.MAX_STAFF },
     )
 
+    private val revocations = Revocations(
+        meshScope, engine, keyChain,
+        JsonStore(File(dataDir, "revocations.json"), ListSerializer(String.serializer()), emptyList(), ioScope),
+        resends = { settings.value.role == Role.CONTROL },
+    ) {
+        // a revoked shift signs nothing any more; the phone goes back to being a participant's
+        if (keyChain.credential?.let { keyChain.status(it.certificate) == CertStatus.REVOKED } == true) leaveStaff()
+    }
+
+    /** This phone holds a shift certificate the chain accepts now. */
+    val verified: Boolean get() = keyChain.credential?.let { keyChain.status(it.certificate) == CertStatus.VALID } == true
+
     init {
         meshScope.launch {
             engine.start()
             chat.start()
             incidents.start()
+            revocations.start()
             settings.state.collect { s ->
                 engine.setRole(staff = s.role.hasStaffKeys, anchor = s.role == Role.ANCHOR)
                 engine.setNickname(s.nickname)
@@ -262,6 +296,8 @@ class AppContainer(private val app: Application) {
     /** False if the QR belongs to another event. Anchors don't keep the secret keys, since they sit unattended. */
     fun activateStaff(card: StaffCard): Boolean {
         val secret = staffCrypto.secretFromSeeds(card.boxSeed, card.signSeed) ?: return false
+        vault.delete(VAULT_SHIFT)
+        keyChain.credential = null
         if (card.role == StaffRole.ANCHOR) {
             vault.delete(VAULT_STAFF)
             staffSecret = null
@@ -276,8 +312,42 @@ class AppContainer(private val app: Application) {
         return true
     }
 
+    /**
+     * An SPS2 code: VALID once active, otherwise why the chain refuses its certificate. An anchor keeps only its shift
+     * key, which proves its role and opens nothing; a team without the day's report key relays reports it can't open.
+     */
+    fun activateShift(card: ShiftCard, text: String): CertStatus {
+        val status = keyChain.status(card.certificate)
+        if (status != CertStatus.VALID) return status
+        val (credential, secret) = staffCrypto.credentialFrom(card) ?: return CertStatus.UNKNOWN
+        vault.delete(VAULT_STAFF)
+        vault.save(VAULT_SHIFT, text.trim().toByteArray())
+        keyChain.credential = credential
+        card.reportKey?.let(keyChain::addReportKey)
+        staffSecret = secret
+        val role = when (card.role) {
+            StaffRole.ANCHOR -> Role.ANCHOR
+            StaffRole.CONTROL -> Role.CONTROL
+            StaffRole.STAFF -> Role.STAFF
+        }
+        settings.update {
+            val anchor = role == Role.ANCHOR
+            it.copy(
+                role = role, teamName = card.teamName, anchorZone = if (anchor) card.zone else "", staffZone = if (anchor) "" else card.zone,
+                roleLead = it.roleLead && !anchor,
+            )
+        }
+        if (secret != null) incidents.reprocessCached()
+        return CertStatus.VALID
+    }
+
+    /** An SPR1 code: the certificate ids it newly revokes, or null if this event's keys didn't sign it. */
+    fun applyRevocation(payload: ByteArray): List<Long>? = revocations.add(payload)
+
     fun leaveStaff() {
         vault.delete(VAULT_STAFF)
+        vault.delete(VAULT_SHIFT)
+        keyChain.credential = null
         staffSecret = null
         mutedUntil.value = 0
         settings.update { it.copy(role = Role.PARTICIPANT, teamName = "", anchorZone = "", staffZone = "", roleLead = false) }
@@ -294,15 +364,14 @@ class AppContainer(private val app: Application) {
         return Identity.generate(crypto).also { vault.save(VAULT_IDENTITY, it.export()) }
     }
 
-    private fun loadStaffPublic(): StaffPublicKeys {
-        val json = Json.parseToJsonElement(asset("staff_public.json")).jsonObject
-        return StaffPublicKeys(
-            json.getValue("box").jsonPrimitive.content.hexToBytes(),
-            json.getValue("sign").jsonPrimitive.content.hexToBytes(),
-        )
-    }
-
     private fun loadStaffSecret(): StaffSecretKeys? {
+        vault.load(VAULT_SHIFT)?.let { text ->
+            val card = QrCodes.decodeShift(String(text)) ?: return null
+            val (credential, secret) = staffCrypto.credentialFrom(card) ?: return null
+            keyChain.credential = credential
+            card.reportKey?.let(keyChain::addReportKey)
+            return secret
+        }
         val seeds = vault.load(VAULT_STAFF) ?: return null
         if (seeds.size != 2 * Crypto.SEED) return null
         return staffCrypto.secretFromSeeds(seeds.copyOfRange(0, Crypto.SEED), seeds.copyOfRange(Crypto.SEED, seeds.size))
@@ -312,5 +381,6 @@ class AppContainer(private val app: Application) {
         const val TAG = "Mesh"
         private const val VAULT_IDENTITY = "identity"
         private const val VAULT_STAFF = "staff"
+        private const val VAULT_SHIFT = "shift"
     }
 }
