@@ -16,10 +16,11 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.io.File
+import java.io.FileOutputStream
 
 /**
  * Small state kept in memory and saved to a JSON file. Writes are briefly debounced and atomic
- * (temp file + rename), so a process killed mid-write can't corrupt the data.
+ * (synced temp file + rename), so a process killed mid-write can't corrupt the data.
  *
  * The file holds `{"schemaVersion": n, "data": ...}`; a file from before versioning holds the bare data and counts
  * as version 1. Every write first copies the previous file to `.bak`. A file that can't be read is never written
@@ -102,7 +103,11 @@ class JsonStore<T>(
                 put(VERSION_KEY, schemaVersion)
                 put(DATA_KEY, json.encodeToJsonElement(serializer, value))
             }
-            tmp.writeText(stored.toString())
+            // on disk before the rename, like Android's AtomicFile; otherwise a power cut can leave an empty file
+            FileOutputStream(tmp).use { out ->
+                out.write(stored.toString().toByteArray())
+                out.fd.sync()
+            }
             if (file.exists()) file.copyTo(backup, overwrite = true)
             if (!tmp.renameTo(file)) {
                 file.delete()
