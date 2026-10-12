@@ -414,7 +414,12 @@
         <item quantity="other">%d de pachete ale altora au trecut prin telefonul tău.</item>
     </plurals>
     <string name="me_battery">Baterie</string>
-    <string name="battery_text">Samsung și Xiaomi opresc aplicațiile din fundal. Samsung: Setări › Baterie › Limite de utilizare în fundal, apoi scoate aplicația din „Aplicații în repaus”. Xiaomi: Setări › Aplicații › Economisire baterie › Fără restricții, plus Pornire automată.</string>
+    <string name="battery_samsung">Samsung oprește aplicațiile din fundal. Setări › Baterie › Limite de utilizare în fundal, apoi scoate Ping Up din „Aplicații în repaus”.</string>
+    <string name="battery_xiaomi">Xiaomi oprește aplicațiile din fundal. Setări › Aplicații › Ping Up › Economisire baterie › Fără restricții, apoi pornește și Pornire automată.</string>
+    <string name="battery_huawei">Huawei și Honor opresc aplicațiile din fundal. Setări › Baterie › Lansare aplicații › Ping Up: oprește „Gestionează automat” și pornește toate cele trei comutatoare.</string>
+    <string name="battery_oneplus">OnePlus oprește aplicațiile din fundal. Setări › Baterie › Optimizare baterie › Ping Up › Nu optimiza, apoi blochează aplicația în Aplicații recente cu lacătul.</string>
+    <string name="battery_oppo">Oppo și realme opresc aplicațiile din fundal. Setări › Baterie › Gestionare baterie aplicații › Ping Up: permite activitatea în fundal și lansarea automată.</string>
+    <string name="battery_vivo">Vivo oprește aplicațiile din fundal. Setări › Baterie › Gestionare consum în fundal › Ping Up › Fără restricții, apoi pornește Pornire automată din setările aplicațiilor.</string>
     <string name="me_version">Versiune</string>
     <string name="me_node_id">ID tehnic</string>
     <string name="me_network_log">Jurnalul rețelei mobile</string>

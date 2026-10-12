@@ -403,7 +403,12 @@
         <item quantity="other">%d packets from others have passed through your phone.</item>
     </plurals>
     <string name="me_battery">Battery</string>
-    <string name="battery_text">Samsung and Xiaomi stop apps in the background. Samsung: Settings › Battery › Background usage limits, then remove the app from “Sleeping apps”. Xiaomi: Settings › Apps › Battery saver › No restrictions, plus Autostart.</string>
+    <string name="battery_samsung">Samsung stops apps in the background. Settings › Battery › Background usage limits, then remove Ping Up from “Sleeping apps”.</string>
+    <string name="battery_xiaomi">Xiaomi stops apps in the background. Settings › Apps › Ping Up › Battery saver › No restrictions, then turn on Autostart too.</string>
+    <string name="battery_huawei">Huawei and Honor stop apps in the background. Settings › Battery › App launch › Ping Up: turn off “Manage automatically” and turn on all three switches.</string>
+    <string name="battery_oneplus">OnePlus stops apps in the background. Settings › Battery › Battery optimization › Ping Up › Don’t optimize, then lock the app in Recent apps with the padlock.</string>
+    <string name="battery_oppo">Oppo and realme stop apps in the background. Settings › Battery › App battery management › Ping Up: allow background activity and auto launch.</string>
+    <string name="battery_vivo">Vivo stops apps in the background. Settings › Battery › Background power consumption management › Ping Up › No restrictions, then turn on Autostart in the app settings.</string>
     <string name="me_version">Version</string>
     <string name="me_node_id">Technical ID</string>
     <string name="me_network_log">Mobile network log</string>

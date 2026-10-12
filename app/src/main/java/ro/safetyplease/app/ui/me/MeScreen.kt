@@ -141,10 +141,11 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     } else {
                         GroupRow(stringResource(R.string.me_leave_staff), icon = Sym.Logout, tint = colors.redInk, onClick = { confirmLeave = true })
                     }
-                    if (BatteryExemption.vendorKillsBackgroundApps()) {
+                    val vendor = BatteryExemption.vendor()
+                    if (vendor != null) {
                         GroupDivider()
                         GroupRow(
-                            stringResource(R.string.me_battery), subtitle = stringResource(R.string.battery_text), icon = Sym.Battery, chevron = true,
+                            stringResource(R.string.me_battery), subtitle = stringResource(vendor.steps), icon = Sym.Battery, chevron = true,
                             onClick = { BatteryExemption.request(context) },
                         )
                     }

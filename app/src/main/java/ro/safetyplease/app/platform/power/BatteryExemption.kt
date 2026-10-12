@@ -7,11 +7,34 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.annotation.StringRes
+import ro.safetyplease.app.R
 
-private val KILLING_VENDORS = setOf("samsung", "xiaomi", "redmi", "poco")
+/**
+ * Vendors that kill background apps unless the user exempts them, with the steps for each; sub-brands go under their
+ * parent. The worst offenders ranked on dontkillmyapp.com; near-stock Android doesn't need the hint.
+ */
+enum class BatteryVendor(@StringRes val steps: Int) {
+    HUAWEI(R.string.battery_huawei),
+    XIAOMI(R.string.battery_xiaomi),
+    ONEPLUS(R.string.battery_oneplus),
+    SAMSUNG(R.string.battery_samsung),
+    OPPO(R.string.battery_oppo),
+    VIVO(R.string.battery_vivo),
+}
+
+fun batteryVendor(manufacturer: String): BatteryVendor? = when (manufacturer.lowercase()) {
+    "huawei", "honor" -> BatteryVendor.HUAWEI
+    "xiaomi", "redmi", "poco" -> BatteryVendor.XIAOMI
+    "oneplus" -> BatteryVendor.ONEPLUS
+    "samsung" -> BatteryVendor.SAMSUNG
+    "oppo", "realme" -> BatteryVendor.OPPO
+    "vivo", "iqoo" -> BatteryVendor.VIVO
+    else -> null
+}
 
 /** Vendors that kill background apps unless the app is excluded from battery optimization. */
-fun killsBackgroundApps(manufacturer: String): Boolean = manufacturer.lowercase() in KILLING_VENDORS
+fun killsBackgroundApps(manufacturer: String): Boolean = batteryVendor(manufacturer) != null
 
 /**
  * The exemption from battery optimization, asked for from one place. Besides keeping vendors from killing the mesh,
@@ -19,6 +42,9 @@ fun killsBackgroundApps(manufacturer: String): Boolean = manufacturer.lowercase(
  */
 object BatteryExemption {
     fun vendorKillsBackgroundApps(): Boolean = killsBackgroundApps(Build.MANUFACTURER)
+
+    /** This phone's vendor, if it is one that needs the steps. */
+    fun vendor(): BatteryVendor? = batteryVendor(Build.MANUFACTURER)
 
     fun granted(context: Context): Boolean =
         context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true
