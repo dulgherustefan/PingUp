@@ -72,10 +72,17 @@ android {
         }
     }
 
+    // The Play bundle (./gradlew bundleRelease) is signed with the same release key as the APK, taken as the upload key.
     // Both languages stay in every install: changing the phone's language must not need the store.
     bundle {
         language {
             enableSplit = false
+        }
+        density {
+            enableSplit = true
+        }
+        abi {
+            enableSplit = true
         }
     }
 }
