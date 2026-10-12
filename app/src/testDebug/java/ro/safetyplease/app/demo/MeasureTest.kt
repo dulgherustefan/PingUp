@@ -77,12 +77,15 @@ class MeasureTest {
             sent = 10, received = 20, relayed = 5, dropped = 2, queueFull = 4, cachedReports = 3,
             counters = MeshCounters(
                 drops = mapOf(DropReason.RATE_LIMIT to 1L, DropReason.DUPLICATE to 1L), storeAndForward = 6, refusedBanned = 7,
+                reportHops = mapOf(3 to 2L, 1 to 1L), ackHops = mapOf(2 to 4L), linksOpened = 8, linksClosed = 5,
             ),
         )
         assertEquals(
             listOf("mesh_sent" to "10", "mesh_received" to "20", "mesh_relayed" to "5", "mesh_dropped" to "2",
                 "mesh_queue_full" to "4", "mesh_refused_banned" to "7", "mesh_store_and_forward" to "6",
-                "cached_reports" to "3", "links" to "1", "visible_peers" to "2", "drop_duplicate" to "1", "drop_rate_limit" to "1"),
+                "mesh_links_opened" to "8", "mesh_links_closed" to "5",
+                "cached_reports" to "3", "links" to "1", "visible_peers" to "2", "drop_duplicate" to "1", "drop_rate_limit" to "1",
+                "report_hops_1" to "1", "report_hops_3" to "2", "ack_hops_2" to "4"),
             meshStats(state).map { it.name to it.value },
         )
     }

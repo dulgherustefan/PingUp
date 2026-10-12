@@ -24,6 +24,8 @@ import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
+import ro.safetyplease.app.ui.common.freshExportDir
+import ro.safetyplease.app.ui.common.shareFiles
 import ro.safetyplease.app.ui.designsystem.AppDialog
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.footnote
@@ -37,7 +39,7 @@ import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
 
-/** Hands the exported log to the share sheet; only the export folder in the app's cache is reachable through it. */
+/** Hands the exported log and metrics to the share sheet; only the export folder in the app's cache is reachable through it. */
 class LogFiles : FileProvider(R.xml.log_paths)
 
 /** The share sheet calls it once the operator picked an app; backing out calls nothing, so nothing is logged. */
@@ -100,10 +102,7 @@ private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNam
         val zone = ZoneId.systemDefault()
         val entries = c.consoleLog.value.entries
         val cases = ConsoleView.cases(entries, c.incidentStore.value.staff, c.grid).values
-        val dir = c.exportDir.apply {
-            deleteRecursively()
-            mkdirs()
-        }
+        val dir = freshExportDir(c.exportDir)
         val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.ROOT).format(Date(now))
         val json = LogExport.json(entries, cases, c.settings.value.teamName, c.venue.name, c.grid, now, zone)
         listOf(
@@ -112,12 +111,8 @@ private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNam
             File(dir, "jurnal-$stamp.json").apply { writeText(json) },
         )
     }
-    val uris = files.map { FileProvider.getUriForFile(context, "${context.packageName}.log", it) }
-    val send = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*")
-        .putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     val shared = PendingIntent.getBroadcast(
         context, 0, Intent(context, ExportShared::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
-    context.startActivity(Intent.createChooser(send, null, shared.intentSender))
+    shareFiles(context, files, shared.intentSender)
 }

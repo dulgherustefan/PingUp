@@ -2,6 +2,7 @@ package ro.safetyplease.core.control
 
 import kotlinx.serialization.Serializable
 import ro.safetyplease.core.data.StaffIncident
+import ro.safetyplease.core.metrics.isHandled
 import ro.safetyplease.core.protocol.AckOrder
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.SiteGrid
@@ -88,8 +89,7 @@ object ConsoleView {
             when (e.event) {
                 LogEvent.ACK -> {
                     if (receivedAt == null) receivedAt = e.signedAt
-                    val someoneHasIt = AckStatus.isTaken(e.status) || e.status == AckStatus.RESOLVED
-                    if (acknowledgedAt == null && someoneHasIt) acknowledgedAt = e.signedAt
+                    if (acknowledgedAt == null && isHandled(e.status)) acknowledgedAt = e.signedAt
                     onNetwork(e.status, e.epoch, e.team, e.signedAt)
                 }
                 LogEvent.ASSIGN, LogEvent.TAKE -> {

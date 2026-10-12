@@ -1,6 +1,8 @@
 package ro.safetyplease.app.ui.me
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -37,6 +40,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import ro.safetyplease.app.BuildConfig
 import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
@@ -85,6 +90,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var editName by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var bigCode by remember { mutableStateOf(false) }
+    var confirmMetrics by remember { mutableStateOf(false) }
     var versionTaps by remember { mutableIntStateOf(0) }
     val haptics = rememberHaptics()
     val scroll = rememberScrollState()
@@ -139,6 +145,8 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     }
                 }
 
+                if (settings.role != AppRole.PARTICIPANT || vm.demoUnlocked) PilotGroup(vm, settings.role, settings.networkLog) { confirmMetrics = true }
+
                 InsetGroup {
                     GroupRow(stringResource(R.string.first_aid_title), icon = Sym.Medical, chevron = true, onClick = { vm.open(Dest.FirstAid) })
                 }
@@ -175,6 +183,22 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     }
 
     if (bigCode) BigCodeDialog(code, settings.nickname) { bigCode = false }
+    if (confirmMetrics) {
+        AppDialog(
+            { confirmMetrics = false }, stringResource(R.string.metrics_export_title), stringResource(R.string.metrics_export_confirm),
+            onConfirm = {
+                vm.viewModelScope.launch { shareMetrics(context, vm.c) }
+                confirmMetrics = false
+            },
+        ) {
+            val join = if (settings.role == AppRole.CONTROL) "\n\n" + stringResource(R.string.metrics_export_join) else ""
+            Text(
+                stringResource(R.string.metrics_export_text) + join,
+                style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
     if (editName) {
         var name by remember { mutableStateOf(settings.nickname) }
         val save = {
@@ -198,6 +222,52 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             stringResource(R.string.me_leave_staff), stringResource(R.string.me_leave_staff_text), { confirmLeave = false },
             confirmLabel = stringResource(R.string.me_leave_staff), destructive = true,
         ) { vm.leaveStaff() }
+    }
+}
+
+/**
+ * The pilot's tools: on organiser phones the opt-in mobile network log, everywhere the metrics export, and on the
+ * console the reporters' metrics to join with its log.
+ */
+@Composable
+private fun PilotGroup(vm: AppViewModel, role: AppRole, networkLog: Boolean, onExport: () -> Unit) {
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val records by vm.c.reporterMetrics.state.collectAsStateWithLifecycle()
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        vm.viewModelScope.launch {
+            val added = importMetrics(context, vm.c, uris)
+            val text = if (added == 0) {
+                resources.getString(R.string.metrics_import_none)
+            } else {
+                resources.getQuantityString(R.plurals.metrics_imported, added, added)
+            }
+            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+        }
+    }
+    InsetGroup {
+        if (role != AppRole.PARTICIPANT) {
+            SwitchRow(
+                stringResource(R.string.me_network_log), networkLog, vm::setNetworkLog,
+                subtitle = stringResource(R.string.me_network_log_text), icon = Sym.Phone,
+            )
+            GroupDivider()
+        }
+        GroupRow(
+            stringResource(R.string.me_metrics_export), subtitle = stringResource(R.string.me_metrics_export_text), icon = Sym.Notes,
+            chevron = true, onClick = onExport,
+        )
+        if (role == AppRole.CONTROL) {
+            val count = records.reports.size
+            GroupDivider()
+            GroupRow(
+                stringResource(R.string.me_metrics_import),
+                subtitle = if (count == 0) stringResource(R.string.me_metrics_import_text) else pluralStringResource(R.plurals.metrics_reporters, count, count),
+                icon = Sym.Add, chevron = true,
+                onClick = { pick.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) },
+            )
+        }
     }
 }
 

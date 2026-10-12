@@ -386,6 +386,25 @@
     <string name="battery_text">Samsung and Xiaomi stop apps in the background. Samsung: Settings › Battery › Background usage limits, then remove the app from “Sleeping apps”. Xiaomi: Settings › Apps › Battery saver › No restrictions, plus Autostart.</string>
     <string name="me_version">Version</string>
     <string name="me_node_id">Technical ID</string>
+    <string name="me_network_log">Mobile network log</string>
+    <string name="me_network_log_text">Every 2 minutes it notes the signal and whether mobile data works, on the grid square. It stays on this phone until you export the metrics.</string>
+    <string name="me_metrics_export">Export the metrics</string>
+    <string name="me_metrics_export_text">For the pilot: your reports’ times and the network, without the phone’s ID or any name</string>
+    <string name="me_metrics_import">Add the reporters’ metrics</string>
+    <string name="me_metrics_import_text">Their metrics exports, to see which reports reached the console</string>
+    <plurals name="metrics_reporters">
+        <item quantity="one">One report from reporters</item>
+        <item quantity="other">%d reports from reporters</item>
+    </plurals>
+    <string name="metrics_export_title">Export the metrics?</string>
+    <string name="metrics_export_text">Your reports’ times go out, with the mesh counters every 5 minutes and the mobile network log, if you turned it on. The phone’s ID, names, descriptions and coordinates stay here; only the grid square goes.</string>
+    <string name="metrics_export_join">The console adds which of the reporters’ reports reached its log.</string>
+    <string name="metrics_export_confirm">Export</string>
+    <string name="metrics_import_none">The files you picked aren’t metrics exports.</string>
+    <plurals name="metrics_imported">
+        <item quantity="one">Added one report</item>
+        <item quantity="other">Added %d reports</item>
+    </plurals>
 
     <string name="anchor_title">Anchor</string>
     <string name="anchor_peers">phones connected</string>

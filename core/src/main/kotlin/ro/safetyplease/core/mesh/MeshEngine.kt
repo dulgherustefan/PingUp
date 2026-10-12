@@ -135,6 +135,12 @@ data class MeshCounters(
     val storeAndForward: Long = 0,
     /** Links refused because the address they came from is banned. Not packets, so not in [MeshState.dropped]. */
     val refusedBanned: Long = 0,
+    /** New reports and ACKs this node accepted, by the hops they traveled. */
+    val reportHops: Map<Int, Long> = emptyMap(),
+    val ackHops: Map<Int, Long> = emptyMap(),
+    /** Links the radio brought up that this node kept, and links that went down. */
+    val linksOpened: Long = 0,
+    val linksClosed: Long = 0,
 )
 
 data class MeshState(
@@ -270,6 +276,10 @@ class MeshEngine(
     private val drops = HashMap<DropReason, Long>()
     private var queueFullCount = 0L
     private var refusedBannedCount = 0L
+    private val reportHops = HashMap<Int, Long>()
+    private val ackHops = HashMap<Int, Long>()
+    private var linksOpened = 0L
+    private var linksClosed = 0L
 
     private val _events = MutableSharedFlow<MeshEvent>(extraBufferCapacity = 1024)
     val events: SharedFlow<MeshEvent> = _events
@@ -552,6 +562,7 @@ class MeshEngine(
         }
         val link = Link(e.link, e.address, e.outgoing, e.maxFrame, now, seen[e.address]?.prefix, config) { queueFullCount++ }
         links[e.link] = link
+        linksOpened++
         log.link(clock.wallMs(), link.label, if (e.outgoing) "link up (out) mtu=${e.maxFrame}" else "link up (in) mtu=${e.maxFrame}")
         startPump(link)
         sendHello(link)
@@ -562,6 +573,7 @@ class MeshEngine(
     private fun onLinkDown(id: Int) {
         val link = links.remove(id) ?: return
         link.pump?.cancel()
+        linksClosed++
         val now = clock.monoMs()
         log.link(clock.wallMs(), link.label, "link down")
         // a link that drops before HELLO (refused by the peer, say) isn't retried right away
@@ -742,6 +754,7 @@ class MeshEngine(
                 val incidentId = IncidentReportCodec.incidentId(packet.payload)
                 if (!cache.offerReport(incidentId, forwardable, now, packet.hops)) return drop(packet, link, DropReason.KNOWN_INCIDENT)
                 link.newReports.tryAdd(now)
+                reportHops.bump(packet.hops)
                 saveCache()
             }
             PacketType.INCIDENT_ACK -> {
@@ -750,6 +763,7 @@ class MeshEngine(
                 // a status from a newer version has no place in the supersede order: relayed, neither kept nor delivered
                 if (!AckStatus.isKnown(ack.status)) return relayOnward(link, packet)
                 if (!cache.offerAck(ack, forwardable, now)) return drop(packet, link, DropReason.STALE_ACK)
+                ackHops.bump(packet.hops)
                 saveCache()
             }
             PacketType.INCIDENT_CANCEL -> {
@@ -974,6 +988,7 @@ class MeshEngine(
             cachedReports = cache.reportCount,
             counters = MeshCounters(
                 sentByType.toMap(), receivedByType.toMap(), drops.toMap(), storeAndForwardCount, refusedBannedCount,
+                reportHops.toMap(), ackHops.toMap(), linksOpened, linksClosed,
             ),
         )
     }

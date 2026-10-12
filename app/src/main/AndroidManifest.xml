@@ -27,6 +27,12 @@
     <!-- Keeping the mesh alive in the pocket: restart after a reboot, and a direct ask to skip battery optimization. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!--
+        Only the pilot's mobile network log, which staff turn on in settings: which network carries data, and one
+        small request every 2 minutes to see whether mobile data works. The mesh itself never uses the internet.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name=".App"
@@ -71,7 +77,7 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
-        <!-- Shares the control console's shift log; only the export folder in the cache is reachable. -->
+        <!-- Shares the control console's shift log and the pilot metrics; only the export folder in the cache is reachable. -->
         <provider
             android:name=".ui.control.LogFiles"
             android:authorities="${applicationId}.log"

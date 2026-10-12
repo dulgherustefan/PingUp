@@ -575,3 +575,7 @@ What a newer version can do without 1.1 phones dropping or banning it:
 - New fields go after the prefix in HELLO; in an ACK, after the fields of the flags 1.1 knows, behind a new flag bit (`0x04` and up); in the report body after the location fields, behind a new flag bit (`0x40` and up); after the token in a CANCEL; in a SUMMARY2 of kind INCIDENTS after the epochs, behind a new bit of its flags byte (`0x02` and up); and after the entries in a REQUEST2 of kind INCIDENTS. Other things to store and forward go in a new SUMMARY2 kind.
 - ACK statuses above 9 cross 1.1 phones but aren't stored or shown there: a status that has to stick needs relays that know it. A new status needs a place in the rank table that keeps the order of the old ones.
 - A peer that doesn't announce 1.1 gets only what 1.0 accepts. The next version announces itself with a bit of its own, `0x40` or above, and sends its own additions only to peers that set it, as `PREFIX_IN_HELLO` (`0x20`) does for the prefix in HELLO.
+
+### Pilot metrics
+
+The pilot metrics (ARCHITECTURE.md, "Metrici de pilot") add nothing to the wire: reporter timings, mesh snapshots and the mobile network log are measured and kept on the phone, and the console joins them with its log by incidentId only when a person exports. The golden vectors are unchanged.

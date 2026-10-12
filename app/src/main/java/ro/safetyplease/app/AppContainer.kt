@@ -24,6 +24,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import ro.safetyplease.app.platform.ble.BleRadio
 import ro.safetyplease.app.platform.keystore.KeyVault
 import ro.safetyplease.app.platform.location.LocationSource
+import ro.safetyplease.app.platform.network.MobileNetwork
 import ro.safetyplease.app.service.Notifier
 import ro.safetyplease.app.text.EscalationReminder
 import ro.safetyplease.app.text.nextEscalation
@@ -32,6 +33,7 @@ import ro.safetyplease.core.control.ConsoleLog
 import ro.safetyplease.core.control.ConsoleRecorder
 import ro.safetyplease.core.control.HeardPeer
 import ro.safetyplease.core.control.PeerBook
+import ro.safetyplease.core.control.ReporterRecords
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.Identity
 import ro.safetyplease.core.crypto.SodiumCrypto
@@ -55,6 +57,9 @@ import ro.safetyplease.core.mesh.MeshConfig
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.PacketLog
 import ro.safetyplease.core.mesh.PowerPolicy
+import ro.safetyplease.core.metrics.MeshMetrics
+import ro.safetyplease.core.metrics.MetricsLog
+import ro.safetyplease.core.metrics.NetworkLog
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.SiteGrid
@@ -102,6 +107,17 @@ class AppContainer(private val app: Application) {
 
     /** The console's last shared log, in the cache; the share sheet reads the files from here. */
     val exportDir = File(app.cacheDir, "export")
+
+    /** The pilot's measurements, kept on this phone until someone exports them; none names the phone. */
+    val metricsLog = JsonStore(File(dataDir, "metrics.json"), MetricsLog.serializer(), MetricsLog(), ioScope, MetricsLog.SCHEMA_VERSION)
+    val networkLog = JsonStore(File(dataDir, "network_log.json"), NetworkLog.serializer(), NetworkLog(), ioScope, NetworkLog.SCHEMA_VERSION)
+
+    /** The reporters' metrics given to the console, to join with its log. */
+    val reporterMetrics = JsonStore(
+        File(dataDir, "reporter_metrics.json"), ReporterRecords.serializer(), ReporterRecords(), ioScope, ReporterRecords.SCHEMA_VERSION,
+    )
+    private val meshMetrics = MeshMetrics(metricsLog, clock)
+    private val mobileNetwork = MobileNetwork(app)
 
     val staffCrypto = StaffCrypto(crypto, loadStaffPublic())
 
@@ -168,6 +184,13 @@ class AppContainer(private val app: Application) {
         meshScope.launch { remindUnconfirmed() }
         meshScope.launch { routeAlerts() }
         meshScope.launch {
+            while (true) {
+                delay(MeshMetrics.INTERVAL_MS)
+                meshMetrics.snapshot(engine.state.value, settings.value.role)
+            }
+        }
+        ioScope.launch { logMobileNetwork() }
+        meshScope.launch {
             settings.state.map { it.role == Role.CONTROL }.distinctUntilChanged().collectLatest { control ->
                 if (control) {
                     watchAsConsole()
@@ -205,6 +228,20 @@ class AppContainer(private val app: Application) {
                 plan.post.forEach(notifier::staffAlert)
                 val next = plan.nextAt ?: break
                 delay(next - now)
+            }
+        }
+    }
+
+    /** While staff keep the log on: the mobile network every 2 minutes, on the grid square of a fresh position. */
+    private suspend fun logMobileNetwork() {
+        settings.state.map { it.networkLog && it.role != Role.PARTICIPANT }.distinctUntilChanged().collectLatest { on ->
+            if (!on) return@collectLatest
+            while (true) {
+                val now = clock.wallMs()
+                val cell = location.fix.value?.takeIf { it.isFresh(now) }?.let { grid.cellAt(it.lat, it.lon) }.orEmpty()
+                val sample = mobileNetwork.sample(now, cell)
+                networkLog.update { it.with(sample) }
+                delay(NetworkLog.INTERVAL_MS)
             }
         }
     }

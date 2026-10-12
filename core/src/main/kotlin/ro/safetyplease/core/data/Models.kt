@@ -34,6 +34,8 @@ data class Settings(
     val staffZone: String = "",
     /** "Șef de rol": the insistent alert rings here for the urgencies of the team's role, as on the console. */
     val roleLead: Boolean = false,
+    /** Staff opted in to logging the mobile network's state for the pilot; it stays on this phone. */
+    val networkLog: Boolean = false,
 )
 
 @Serializable
@@ -120,6 +122,15 @@ data class MyReport(
     val cancelled: Boolean = false,
     /** The report as sealed for staff, hex; published again after a restart while it's pending, then cleared. */
     val sealed: String = "",
+    /**
+     * On this phone's clock, when the first ACK from another phone arrived, and the first saying a person has it
+     * (taken or resolved); 0 until then. With [firstAckHops], the pilot's round trip, free of the other phones' clocks.
+     */
+    val receivedAt: Long = 0,
+    val acknowledgedAt: Long = 0,
+    val firstAckHops: Int = 0,
+    /** How many times the report was published again after a restart while it waited for staff. */
+    val republished: Int = 0,
 )
 
 @Serializable

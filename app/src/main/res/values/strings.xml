@@ -397,6 +397,27 @@
     <string name="battery_text">Samsung și Xiaomi opresc aplicațiile din fundal. Samsung: Setări › Baterie › Limite de utilizare în fundal, apoi scoate aplicația din „Aplicații în repaus”. Xiaomi: Setări › Aplicații › Economisire baterie › Fără restricții, plus Pornire automată.</string>
     <string name="me_version">Versiune</string>
     <string name="me_node_id">ID tehnic</string>
+    <string name="me_network_log">Jurnalul rețelei mobile</string>
+    <string name="me_network_log_text">La 2 minute notează semnalul și dacă merg datele mobile, pe pătratul din grilă. Rămâne pe telefon până exporți metricile.</string>
+    <string name="me_metrics_export">Exportă metricile</string>
+    <string name="me_metrics_export_text">Pentru pilot: timpii rapoartelor tale și rețeaua, fără ID-ul telefonului și fără nume</string>
+    <string name="me_metrics_import">Adaugă metricile raportorilor</string>
+    <string name="me_metrics_import_text">Exporturile lor de metrici, ca să vezi ce rapoarte au ajuns la consolă</string>
+    <plurals name="metrics_reporters">
+        <item quantity="one">Un raport primit de la raportori</item>
+        <item quantity="few">%d rapoarte primite de la raportori</item>
+        <item quantity="other">%d de rapoarte primite de la raportori</item>
+    </plurals>
+    <string name="metrics_export_title">Exporți metricile?</string>
+    <string name="metrics_export_text">Pleacă timpii rapoartelor tale, contoarele rețelei mesh la fiecare 5 minute și jurnalul rețelei mobile, dacă l-ai pornit. ID-ul telefonului, numele, descrierile și coordonatele rămân aici; pleacă doar pătratul din grilă.</string>
+    <string name="metrics_export_join">Consola adaugă și care dintre rapoartele raportorilor au ajuns în jurnal.</string>
+    <string name="metrics_export_confirm">Exportă</string>
+    <string name="metrics_import_none">Fișierele alese nu sunt exporturi de metrici.</string>
+    <plurals name="metrics_imported">
+        <item quantity="one">Am adăugat un raport</item>
+        <item quantity="few">Am adăugat %d rapoarte</item>
+        <item quantity="other">Am adăugat %d de rapoarte</item>
+    </plurals>
 
     <string name="anchor_title">Ancoră</string>
     <string name="anchor_peers">telefoane conectate</string>

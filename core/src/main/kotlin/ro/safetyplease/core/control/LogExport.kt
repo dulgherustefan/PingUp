@@ -158,7 +158,7 @@ object LogExport {
     fun text(value: String): String = if (value.isNotEmpty() && value[0] in "=+-@\t\r") "'$value" else value
 
     /** RFC 4180, with a byte order mark so spreadsheets read the diacritics. */
-    private class Csv(header: List<String>) {
+    internal class Csv(header: List<String>) {
         private val out = StringBuilder("﻿")
 
         init {

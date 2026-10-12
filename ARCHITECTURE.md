@@ -31,7 +31,8 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `crypto/` | Identitatea, criptarea cap-coadă (libsodium), codurile QR de prieten și de staff. |
 | `chat/` | Prietenii, grupurile, mesajele și reîncercările. |
 | `incidents/` | Rapoartele, confirmările și stările din teren ale staff-ului, urgența dedusă din triaj, anulările de verificat și semnalarea rapoartelor venite din aceeași zonă în același timp. Rutarea pe roluri (`Routing`): cine primește alerta insistentă, cine doar vibrația și când se extinde; `AlertPlanner` o transformă în notificări, fără repetări inutile. |
-| `control/` | Jurnalul consolei de control: rapoartele, ACK-urile cu semnături și deciziile operatorului, starea fiecărui incident pe consolă, exportul CSV și JSON. |
+| `control/` | Jurnalul consolei de control: rapoartele, ACK-urile cu semnături și deciziile operatorului, starea fiecărui incident pe consolă, exportul CSV și JSON. Tot aici, exportul metricilor de pilot și legătura lor cu jurnalul. |
+| `metrics/` | Metricile de pilot: timpii raportorului, instantaneele rețelei mesh și jurnalul rețelei mobile (secțiunea de mai jos). |
 | `data/` | Modelele salvate, `JsonStore` (fișiere JSON scrise atomic) și `ChatStore` (chat-ul, câte un fișier pe conversație). |
 | `venue/` | Harta evenimentului din `venue.json`: zone, punct de întâlnire, grila sitului (A1, B2...). |
 | `util/` | Octeți, hex, `sha256`, ceasul. |
@@ -45,7 +46,7 @@ Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate di
 | Pachet | Ce face |
 |---|---|
 | `App`, `MainActivity`, `AppContainer` | Pornirea și legarea dependențelor (DI manual, un singur container). |
-| `platform/` | Adaptoarele Android: `ble/` (radio BLE GATT), `location/`, `keystore/`. |
+| `platform/` | Adaptoarele Android: `ble/` (radio BLE GATT), `location/`, `keystore/`, `network/` (rețeaua mobilă, pentru jurnalul de pilot). |
 | `service/` | Serviciul din prim-plan care ține rețeaua pornită și notificările. |
 | `text/` | Textele pentru codurile de protocol (categorii, stări), folosite de notificări și de ecrane. |
 | `ui/` | `AppViewModel` și `MainScreen` (tab-urile și navigarea), apoi câte un pachet pe funcționalitate. |
@@ -55,6 +56,17 @@ Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate di
 | `ui/control/` | Consola camerei de control, în landscape pe o tabletă: coada, harta cu grila, alocarea, fraza pentru stație, rețeaua și exportul jurnalului. |
 
 `src/debug/` conține modul demo (simulare, comenzi adb); `src/release/` are aceeași clasă `Demo`, dar goală.
+
+## Metrici de pilot
+
+Pilotul măsoară ce n-a publicat nimeni: dacă raportul ajunge la consolă, în cât timp se întoarce ACK-ul și unde cade rețeaua mobilă. Totul rămâne pe telefon până la un export făcut de om, din Eu › Exportă metricile (și cu comanda de debug `metrics`). Pe fir nu se schimbă nimic. Exportul nu conține nodeId, porecle, nume de echipă, descrieri sau coordonate; locul e doar pătratul din grila sitului (`SiteGrid`, ~50 m).
+
+- **Raportorul** (`MyReport`, `metrics/ReportTiming.kt`). Pe ceasul raportorului: `receivedAt`, primul ACK venit de la alt telefon, oricare ar fi starea; `acknowledgedAt`, primul care spune că un om îl are (ACKNOWLEDGED, ON_SCENE, HANDED_OVER sau RESOLVED, aceeași regulă ca pe consolă); `firstAckHops`, hop-urile primului ACK; `republished`, de câte ori a fost republicat după o repornire. ACK-urile semnate chiar pe telefon nu se cronometrează, așa că un raport scris de staff are timpi doar de la ceilalți. În export: `ms_to_received` și `ms_to_acknowledged`, adică diferențe pe același ceas.
+- **Rețeaua mesh** (`MeshCounters`, `metrics/MeshMetrics.kt`). La 5 minute, un instantaneu cu ce s-a întâmplat de la cel precedent: pachete trimise, primite, releuate și aruncate pe motiv, pe tip de pachet, histograma hop-urilor rapoartelor și ACK-urilor noi, legături deschise și închise (și pe oră), plus legăturile, vecinii văzuți și rapoartele ținute în acel moment. Rolul telefonului e notat. Se păstrează ultimele 864 (trei zile), în `metrics.json`.
+- **Rețeaua mobilă** (`metrics/NetworkLog.kt`, `platform/network/MobileNetwork.kt`). Doar pe telefoanele organizatorului (staff, consolă, ancoră) și doar cu comutatorul din Eu pornit; implicit e oprit. La 2 minute: nivelul semnalului (0–4) și dBm, tehnologia celulei (lte, nr, gsm...), ce poartă datele (mobil, Wi-Fi, nimic), dacă Android a validat internetul și, numai pe rețea mobilă, o cerere HEAD la `connectivitycheck.gstatic.com/generate_204` (aceeași adresă pe care o întreabă Android), reușită dacă răspunde 204, cu durata. Pătratul vine dintr-o poziție GPS mai nouă de 2 minute; fără ea rămâne gol. Nu cere permisiuni la rulare: semnalul vine fără READ_PHONE_STATE de la Android 9 (pe 8 nu se notează), iar starea rețelei și cererea cer doar `ACCESS_NETWORK_STATE` și `INTERNET`, acordate la instalare. Mesh-ul nu folosește internetul. Ultimele 2.160 de eșantioane (trei zile), în `network_log.json`.
+- **Legătura cu consola** (`control/MetricsJoin.kt`). Operatorul adaugă pe consolă exporturile JSON ale raportorilor (Eu › Adaugă metricile raportorilor). La exportul consolei, `livrare.csv` pune pe un rând, după `incidentId`, ce spune raportorul (creat, timpii lui) și ce spune jurnalul consolei (când l-a deschis, cu câte hop-uri). Cele două ceasuri nu se scad niciodată unul din altul: livrarea e da sau nu, iar latența e doar dus-întors pe ceasul raportorului.
+
+Fișierele exportului (`metrici-<dată>`): `-rapoarte.csv`, `-retea.csv`, `-mobil.csv` (dacă jurnalul are eșantioane), `-livrare.csv` (pe consolă) și `.json` (formatul `pingup-metrics`, versiunea 1, cu tot ce e mai sus). Coloanele sunt în `MetricsExport`; celulele sunt coduri, ca în `PROTOCOL.md`, iar orele sunt locale, ISO 8601.
 
 ## Reguli
 

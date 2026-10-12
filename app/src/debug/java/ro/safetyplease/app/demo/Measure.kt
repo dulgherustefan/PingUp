@@ -54,10 +54,14 @@ fun meshStats(state: MeshState): List<FieldRow> = listOf(
     FieldRow.stat("mesh_queue_full", state.queueFull),
     FieldRow.stat("mesh_refused_banned", state.counters.refusedBanned),
     FieldRow.stat("mesh_store_and_forward", state.counters.storeAndForward),
+    FieldRow.stat("mesh_links_opened", state.counters.linksOpened),
+    FieldRow.stat("mesh_links_closed", state.counters.linksClosed),
     FieldRow.stat("cached_reports", state.cachedReports),
     FieldRow.stat("links", state.readyLinks),
     FieldRow.stat("visible_peers", state.visiblePeers),
-) + state.counters.drops.entries.sortedBy { it.key }.map { (reason, n) -> FieldRow.stat("drop_" + reason.name.lowercase(), n) }
+) + state.counters.drops.entries.sortedBy { it.key }.map { (reason, n) -> FieldRow.stat("drop_" + reason.name.lowercase(), n) } +
+    state.counters.reportHops.entries.sortedBy { it.key }.map { (hops, n) -> FieldRow.stat("report_hops_$hops", n) } +
+    state.counters.ackHops.entries.sortedBy { it.key }.map { (hops, n) -> FieldRow.stat("ack_hops_$hops", n) }
 
 /** The field recording's side of the scan, fed from the callback thread: raw results and the scan response rate. */
 class FieldScan {

@@ -14,6 +14,7 @@ import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.MeshEvent
+import ro.safetyplease.core.metrics.timedAck
 import ro.safetyplease.core.protocol.AckFlags
 import ro.safetyplease.core.protocol.AckOrder
 import ro.safetyplease.core.protocol.AckStatus
@@ -280,7 +281,7 @@ class IncidentManager(
                 PacketType.INCIDENT_REPORT -> onReport(event.packet, event.packet.hops, alert = true)
                 PacketType.INCIDENT_ACK -> IncidentAck.decode(event.packet.payload)?.let {
                     onAck(it, false, event.packet.hops)
-                    applyAck(it)
+                    applyAck(it, hops = event.packet.hops)
                 }
                 PacketType.INCIDENT_CANCEL -> IncidentCancel.decode(event.packet.payload)?.let(::onCancel)
             }
@@ -365,7 +366,8 @@ class IncidentManager(
         applyAck(ack)
     }
 
-    private fun applyAck(ack: IncidentAck, alertOnReopen: Boolean = true) {
+    /** [hops] is how far an ACK from the network traveled; null for one signed here, which times nothing. */
+    private fun applyAck(ack: IncidentAck, alertOnReopen: Boolean = true, hops: Int? = null) {
         val key = ack.incidentId.toHex()
         val now = clock.wallMs()
         val before = store.value.staff.firstOrNull { it.incidentId == key }?.takeIf { supersedes(ack, it.status, it.epoch, it.assigned) }
@@ -373,12 +375,14 @@ class IncidentManager(
         store.update { data ->
             data.copy(
                 mine = data.mine.map {
-                    if (it.incidentId == key && supersedes(ack, it.status, it.epoch, it.assigned)) {
-                        it.copy(
+                    if (it.incidentId != key) return@map it
+                    val timed = if (hops != null) it.timedAck(ack.status, hops, now) else it
+                    if (supersedes(ack, it.status, it.epoch, it.assigned)) {
+                        timed.copy(
                             status = ack.status, epoch = ack.epoch, teamName = ack.teamName, assigned = ack.assigned,
                             updatedAt = now, sent = true,
                         ).also { r -> updated = r }
-                    } else it
+                    } else timed
                 }.withoutStaleSeals(now),
                 staff = data.staff.map {
                     if (it.incidentId == key && supersedes(ack, it.status, it.epoch, it.assigned)) {
@@ -422,8 +426,10 @@ class IncidentManager(
         if (store.value.mine.any { it.sealed.isNotEmpty() && !isPending(it, now) }) {
             store.update { it.copy(mine = it.mine.withoutStaleSeals(now)) }
         }
-        for (r in store.value.mine) {
-            if (!isPending(r, now) || r.sealed.isEmpty()) continue
+        val again = store.value.mine.filter { isPending(it, now) && it.sealed.isNotEmpty() }.map { it.incidentId }.toSet()
+        if (again.isEmpty()) return
+        store.update { data -> data.copy(mine = data.mine.map { if (it.incidentId in again) it.copy(republished = it.republished + 1) else it }) }
+        for (r in store.value.mine.filter { it.incidentId in again }) {
             val packet = engine.publishReport(r.incidentId.hexToBytes(), r.sealed.hexToBytes())
             packetToIncident[packet.id] = r.incidentId
         }

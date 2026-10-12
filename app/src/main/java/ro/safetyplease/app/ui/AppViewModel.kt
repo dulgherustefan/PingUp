@@ -230,6 +230,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun dismissBatteryHint() = c.settings.update { it.copy(batteryHintDismissed = true) }
 
+    fun setNetworkLog(on: Boolean) = c.settings.update { it.copy(networkLog = on) }
+
     fun setSimulatedLocation(point: GeoPoint?) = c.settings.update { it.copy(simLat = point?.lat, simLon = point?.lon) }
 
     fun toggleIgnore(prefix: Int) = c.settings.update { s ->
