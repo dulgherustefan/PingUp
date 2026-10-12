@@ -29,7 +29,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # all the app ever shows; landscape only for the control console, as the app delegate says
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         # Compose draws at the screen's own rate (120 Hz on ProMotion) only with this
         CADisableMinimumFrameDurationOnPhone: true
         # why each permission is asked, in Romanian here and in each language in <language>.lproj/InfoPlist.strings

@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.control
+package ro.safetyplease.ui.control
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,8 +13,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -24,13 +22,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.text.text
 import ro.safetyplease.core.report.AnchorSeen
 import ro.safetyplease.core.report.EditionReport
 import ro.safetyplease.core.report.EditionReports
 import ro.safetyplease.core.report.ModeLog
 import ro.safetyplease.core.session.PingUpSession
+import ro.safetyplease.ui.PhoneUi
 import ro.safetyplease.ui.control.actions
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.ButtonKind
@@ -48,13 +47,13 @@ import ro.safetyplease.ui.resources.edition_kind_shift
 import ro.safetyplease.ui.resources.edition_share
 import ro.safetyplease.ui.resources.edition_title
 
-internal enum class ReportKind(val label: StringResource) { SHIFT(Res.string.edition_kind_shift), EDITION(Res.string.edition_kind_edition) }
+enum class ReportKind(val label: StringResource) { SHIFT(Res.string.edition_kind_shift), EDITION(Res.string.edition_kind_edition) }
 
 /**
  * The shift or the whole edition, from this console's logs of both modes, its metrics and the anchors it heard. The
  * shift ends now and starts where the previous one was exported.
  */
-internal fun buildReport(c: PingUpSession, kind: ReportKind, now: Long): EditionReport {
+fun buildReport(c: PingUpSession, kind: ReportKind, now: Long): EditionReport {
     val current = ModeLog(c.consoleLog.value.entries, c.incidentStore.value.staff)
     val other = ModeLog(c.otherConsoleLog.entries)
     val (real, exercise) = if (c.exercise) other to current else current to other
@@ -72,16 +71,14 @@ internal fun buildReport(c: PingUpSession, kind: ReportKind, now: Long): Edition
 
 /** The report as it will leave the console, before the operator shares it as a PDF and two CSV files. */
 @Composable
-internal fun ReportDialog(c: PingUpSession, scope: CoroutineScope, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    val res = LocalResources.current
+fun ReportDialog(c: PingUpSession, phone: PhoneUi, scope: CoroutineScope, onDismiss: () -> Unit) {
     var kind by rememberSaveable { mutableStateOf(ReportKind.SHIFT) }
-    val shown by produceState<Pair<EditionReport, ReportDoc>?>(null, kind, res) {
+    val shown by produceState<Pair<EditionReport, ReportDoc>?>(null, kind) {
         value = null
         value = withContext(Dispatchers.Default) {
             val now = c.clock.wallMs()
             val report = buildReport(c, kind, now)
-            report to reportDoc(report, res.text(kind.label), res, c.venue, now)
+            report to reportDoc(report, getString(kind.label), c.venue, now)
         }
     }
     Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false)) {
@@ -90,7 +87,7 @@ internal fun ReportDialog(c: PingUpSession, scope: CoroutineScope, onDismiss: ()
             actions = {
                 AppButton(
                     stringResource(Res.string.edition_share),
-                    { shown?.let { (report, doc) -> scope.launch { shareReport(context, c, report, doc) } } },
+                    { shown?.let { (report, doc) -> scope.launch { shareReport(phone, c, report, doc) } } },
                     kind = ButtonKind.Secondary, enabled = shown != null, compact = true,
                 )
             },

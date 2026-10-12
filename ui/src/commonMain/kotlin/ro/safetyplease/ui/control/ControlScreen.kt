@@ -1,7 +1,5 @@
-package ro.safetyplease.app.ui.control
+package ro.safetyplease.ui.control
 
-import android.content.pm.ActivityInfo
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -26,7 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -38,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -55,12 +51,6 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.ui.common.MapCamera
-import ro.safetyplease.ui.common.MapPin
-import ro.safetyplease.ui.common.VenueMap
-import ro.safetyplease.ui.common.networkText
-import ro.safetyplease.ui.common.venueAspect
-import ro.safetyplease.ui.rememberRadioGate
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.ConsoleView
@@ -75,7 +65,12 @@ import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.CategoryCircle
+import ro.safetyplease.ui.common.MapCamera
+import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.VenueMap
+import ro.safetyplease.ui.common.networkText
+import ro.safetyplease.ui.common.venueAspect
 import ro.safetyplease.ui.control.actions
 import ro.safetyplease.ui.control.casePoint
 import ro.safetyplease.ui.control.crowdSignals
@@ -95,6 +90,7 @@ import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.rememberRadioGate
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.control_coverage_cellular_legend
 import ro.safetyplease.ui.resources.control_coverage_mesh_legend
@@ -146,7 +142,7 @@ private val MediumWidth = 600.dp
 private val QueueWidth = 340.dp
 private val DetailWidth = 380.dp
 private val PaneGap = 12.dp
-internal val PaneShape = RoundedCornerShape(22.dp)
+val PaneShape = RoundedCornerShape(22.dp)
 
 /**
  * The control-room console, for a tablet in landscape next to an anchor: the incident queue, the venue map with the
@@ -258,32 +254,14 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         }
     }
 
-    if (confirmExport) ExportDialog(c, log.entries.size, vm.viewModelScope) { confirmExport = false }
-    if (showReport) ReportDialog(c, vm.viewModelScope) { showReport = false }
+    if (confirmExport) ExportDialog(c, vm.phone, log.entries.size, vm.viewModelScope) { confirmExport = false }
+    if (showReport) ReportDialog(c, vm.phone, vm.viewModelScope) { showReport = false }
     if (composeNotice) NoticeComposer(vm) { composeNotice = false }
-}
-
-/**
- * A console is used in landscape and stays on. Lasts as long as the phone is the console, Me sheet included;
- * a recreation for the rotation keeps it, and large screens may ignore the orientation.
- */
-@Composable
-fun ControlWindow() {
-    val activity = LocalActivity.current
-    val view = LocalView.current
-    DisposableEffect(activity, view) {
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        view.keepScreenOn = true
-        onDispose {
-            view.keepScreenOn = false
-            if (activity != null && !activity.isChangingConfigurations) activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        }
-    }
 }
 
 /** Status in a word or two, with its icon and color, as the queue shows it. */
 @Composable
-internal fun caseLook(case: Case): Triple<String, ImageVector, Color> {
+fun caseLook(case: Case): Triple<String, ImageVector, Color> {
     val colors = AppTheme.colors
     return when (case.state) {
         CaseState.OPEN -> Triple(

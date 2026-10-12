@@ -1,11 +1,12 @@
-package ro.safetyplease.app.ui.control
+package ro.safetyplease.ui.control
 
-import android.content.res.Resources
 import org.jetbrains.compose.resources.StringResource
-import ro.safetyplease.app.text.quantityText
-import ro.safetyplease.app.text.text
-import ro.safetyplease.app.text.textArray
+import org.jetbrains.compose.resources.getPluralString
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.getStringArray
 import ro.safetyplease.core.incidents.Routing
+import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.report.Durations
 import ro.safetyplease.core.report.EditionReport
 import ro.safetyplease.core.report.EditionReports
@@ -75,40 +76,44 @@ import ro.safetyplease.ui.resources.edition_widened_role
 import ro.safetyplease.ui.resources.edition_window
 import ro.safetyplease.ui.resources.edition_window_value
 import ro.safetyplease.ui.text.Labels
-import java.text.SimpleDateFormat
-import java.util.Date
+import ro.safetyplease.ui.text.dateNames
+import ro.safetyplease.ui.text.formatDate
+import ro.safetyplease.ui.text.textsOf
 
 /** A line of the report: a figure with its [value], or a sentence alone when [value] is empty. */
-internal class DocLine(val label: String, val value: String = "")
+class DocLine(val label: String, val value: String = "")
 
-internal class DocSection(val title: String, val lines: List<DocLine>)
+class DocSection(val title: String, val lines: List<DocLine>)
 
 /** The report in the app's language, as both the preview and the PDF show it. */
-internal class ReportDoc(val title: String, val subtitle: String, val sections: List<DocSection>)
+class ReportDoc(val title: String, val subtitle: String, val sections: List<DocSection>)
 
-internal fun reportNames(res: Resources): ReportNames {
-    val outcomes = res.textArray(Res.array.edition_outcomes)
+/** The names in the CSV files, read now: the export names them without waiting. */
+suspend fun reportNames(): ReportNames {
+    val outcomes = getStringArray(Res.array.edition_outcomes)
     return ReportNames(
-        category = { res.text(Labels.category(it)) },
-        severity = { res.text(Labels.urgency(it)) },
+        category = textsOf(IncidentCategory.all, Labels::category),
+        severity = textsOf(listOf(Severity.LOW, Severity.MEDIUM, Severity.URGENT), Labels::urgency),
         outcome = { outcomes[it.ordinal] },
-        real = res.text(Res.string.edition_mode_real),
-        exercise = res.text(Res.string.edition_mode_exercise),
+        real = getString(Res.string.edition_mode_real),
+        exercise = getString(Res.string.edition_mode_exercise),
     )
 }
 
 /** "What it covers and what it doesn't" comes first and always: the reader meets the limits before the figures. */
-internal fun reportDoc(report: EditionReport, kind: String, res: Resources, venue: Venue, generatedAt: Long): ReportDoc {
-    fun s(id: StringResource, vararg args: Any): String = res.text(id, *args)
-    val full = SimpleDateFormat(s(Res.string.date_pattern_full), res.configuration.locales[0])
-    val recent = SimpleDateFormat(s(Res.string.date_pattern_recent), res.configuration.locales[0])
-    fun at(ms: Long) = full.format(Date(ms))
-    val names = reportNames(res)
+suspend fun reportDoc(report: EditionReport, kind: String, venue: Venue, generatedAt: Long): ReportDoc {
+    suspend fun s(id: StringResource, vararg args: Any): String = getString(id, *args)
+    val dates = dateNames()
+    val full = s(Res.string.date_pattern_full)
+    val recentPattern = s(Res.string.date_pattern_recent)
+    fun at(ms: Long) = formatDate(full, ms, dates)
+    fun recent(ms: Long) = formatDate(recentPattern, ms, dates)
+    val names = reportNames()
     val n = report.network
     val limits = DocSection(
         s(Res.string.edition_section_limits),
         listOf(DocLine(s(Res.string.edition_window), s(Res.string.edition_window_value, at(report.from), at(report.until)))) +
-            report.limits.map { DocLine(limitText(it, res)) },
+            report.limits.map { DocLine(limitText(it)) },
     )
     val network = DocSection(
         s(Res.string.edition_section_network),
@@ -118,7 +123,7 @@ internal fun reportDoc(report: EditionReport, kind: String, res: Resources, venu
             add(DocLine(s(Res.string.edition_anchors), n.anchors.size.toString()))
             add(DocLine(s(Res.string.edition_anchors_silent, minutes(EditionReports.SILENT_ANCHOR_MS)), n.silentAnchors.size.toString()))
             for (anchor in n.silentAnchors) {
-                add(DocLine(s(Res.string.edition_anchor_row, venue.zoneName(anchor.zone).ifEmpty { s(Res.string.edition_anchor_no_zone) }), recent.format(Date(anchor.lastHeardMs))))
+                add(DocLine(s(Res.string.edition_anchor_row, venue.zoneName(anchor.zone).ifEmpty { s(Res.string.edition_anchor_no_zone) }), recent(anchor.lastHeardMs)))
             }
             if (n.mobileTested > 0) {
                 add(DocLine(s(Res.string.edition_mobile_worked), s(Res.string.edition_count_of, n.mobileWorked, n.mobileTested)))
@@ -133,24 +138,24 @@ internal fun reportDoc(report: EditionReport, kind: String, res: Resources, venu
         DocSection(s(Res.string.edition_section_exercise), listOf(DocLine(s(Res.string.edition_exercise_none))))
     } else {
         val part = report.exercise
-        DocSection(s(Res.string.edition_section_exercise), overview(part, res) + outcomes(part, names) + times(part, res))
+        DocSection(s(Res.string.edition_section_exercise), overview(part) + outcomes(part, names) + times(part))
     }
     val real = report.real
     val sections = buildList {
         add(limits)
-        add(DocSection(s(Res.string.edition_section_incidents), overview(real, res)))
+        add(DocSection(s(Res.string.edition_section_incidents), overview(real)))
         if (real.total > 0) {
             add(DocSection(s(Res.string.edition_section_category), counts(ReportExport.byWord(real.byCategory, names.category))))
             add(DocSection(s(Res.string.edition_section_severity), counts(ReportExport.byWord(real.bySeverity, names.severity))))
             add(DocSection(s(Res.string.edition_section_outcome), outcomes(real, names)))
-            add(DocSection(s(Res.string.edition_section_hour), counts(real.byHour.mapKeys { recent.format(Date(it.key)) })))
+            add(DocSection(s(Res.string.edition_section_hour), counts(real.byHour.mapKeys { recent(it.key) })))
             add(
                 DocSection(
                     s(Res.string.edition_section_grid),
                     counts(real.byGrid.mapKeys { it.key.ifEmpty { s(Res.string.edition_no_square) } }),
                 ),
             )
-            add(DocSection(s(Res.string.edition_section_times), times(real, res)))
+            add(DocSection(s(Res.string.edition_section_times), times(real)))
             add(
                 DocSection(
                     s(Res.string.edition_section_escalation),
@@ -172,51 +177,51 @@ internal fun reportDoc(report: EditionReport, kind: String, res: Resources, venu
     )
 }
 
-private fun overview(part: Part, res: Resources): List<DocLine> {
-    if (part.total == 0) return listOf(DocLine(res.text(Res.string.edition_empty)))
+private suspend fun overview(part: Part): List<DocLine> {
+    if (part.total == 0) return listOf(DocLine(getString(Res.string.edition_empty)))
     return listOf(
-        DocLine(res.text(Res.string.edition_total), part.total.toString()),
-        DocLine(res.text(Res.string.edition_staff_reports), part.staffReports.toString()),
+        DocLine(getString(Res.string.edition_total), part.total.toString()),
+        DocLine(getString(Res.string.edition_staff_reports), part.staffReports.toString()),
     )
 }
 
-private fun times(part: Part, res: Resources): List<DocLine> = listOf(
-    DocLine(res.text(Res.string.edition_time_received), durations(part.received, res)),
-    DocLine(res.text(Res.string.edition_time_acknowledged), durations(part.acknowledged, res)),
-    DocLine(res.text(Res.string.edition_time_closed), durations(part.closed, res)),
+private suspend fun times(part: Part): List<DocLine> = listOf(
+    DocLine(getString(Res.string.edition_time_received), durations(part.received)),
+    DocLine(getString(Res.string.edition_time_acknowledged), durations(part.acknowledged)),
+    DocLine(getString(Res.string.edition_time_closed), durations(part.closed)),
 )
 
 private fun outcomes(part: Part, names: ReportNames): List<DocLine> = counts(part.byOutcome.mapKeys { names.outcome(it.key) })
 
 private fun counts(map: Map<String, Int>): List<DocLine> = map.map { (k, v) -> DocLine(k, v.toString()) }
 
-private fun durations(d: Durations, res: Resources): String {
-    val median = d.medianS ?: return res.text(Res.string.edition_time_none)
-    val cases = res.quantityText(Res.plurals.edition_cases, d.count, d.count)
-    return res.text(Res.string.edition_time_value, seconds(median, res), seconds(d.p90S ?: median, res), cases)
+private suspend fun durations(d: Durations): String {
+    val median = d.medianS ?: return getString(Res.string.edition_time_none)
+    val cases = getPluralString(Res.plurals.edition_cases, d.count, d.count)
+    return getString(Res.string.edition_time_value, seconds(median), seconds(d.p90S ?: median), cases)
 }
 
-private fun seconds(s: Long, res: Resources): String =
+private suspend fun seconds(s: Long): String =
     if (s < 60) {
-        res.text(Res.string.edition_duration_s, s.toInt())
+        getString(Res.string.edition_duration_s, s.toInt())
     } else {
-        res.text(Res.string.edition_duration_min, (s / 60).toInt(), (s % 60).toInt())
+        getString(Res.string.edition_duration_min, (s / 60).toInt(), (s % 60).toInt())
     }
 
 private fun minutes(ms: Long): Int = (ms / 60_000).toInt()
 
-private fun limitText(limit: Limit, res: Resources): String {
+private suspend fun limitText(limit: Limit): String {
     val v = limit.value.toInt()
     return when (limit.kind) {
-        LimitKind.ONLY_APP -> res.text(Res.string.edition_limit_only_app)
-        LimitKind.INSTALL_RATE -> res.text(Res.string.edition_limit_install_rate)
-        LimitKind.RADIO -> res.text(Res.string.edition_limit_radio)
-        LimitKind.CLOCKS -> res.text(Res.string.edition_limit_clocks, v)
-        LimitKind.ANCHORS_FROM_MEMORY -> res.text(Res.string.edition_limit_anchors)
-        LimitKind.NO_POSITION -> res.text(Res.string.edition_limit_no_position, v)
-        LimitKind.METRICS_GAPS -> res.text(Res.string.edition_limit_metrics_gaps, "$v%")
-        LimitKind.NO_REPORTER_RECORDS -> res.text(Res.string.edition_limit_no_records)
-        LimitKind.NO_MOBILE_LOG -> res.text(Res.string.edition_limit_no_mobile)
-        LimitKind.EXERCISE_APART -> res.text(Res.string.edition_limit_exercise, v)
+        LimitKind.ONLY_APP -> getString(Res.string.edition_limit_only_app)
+        LimitKind.INSTALL_RATE -> getString(Res.string.edition_limit_install_rate)
+        LimitKind.RADIO -> getString(Res.string.edition_limit_radio)
+        LimitKind.CLOCKS -> getString(Res.string.edition_limit_clocks, v)
+        LimitKind.ANCHORS_FROM_MEMORY -> getString(Res.string.edition_limit_anchors)
+        LimitKind.NO_POSITION -> getString(Res.string.edition_limit_no_position, v)
+        LimitKind.METRICS_GAPS -> getString(Res.string.edition_limit_metrics_gaps, "$v%")
+        LimitKind.NO_REPORTER_RECORDS -> getString(Res.string.edition_limit_no_records)
+        LimitKind.NO_MOBILE_LOG -> getString(Res.string.edition_limit_no_mobile)
+        LimitKind.EXERCISE_APART -> getString(Res.string.edition_limit_exercise, v)
     }
 }

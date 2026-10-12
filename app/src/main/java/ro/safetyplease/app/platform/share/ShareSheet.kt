@@ -5,12 +5,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
-import ro.safetyplease.app.R
 import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
 /** Hands exported files to the share sheet; only the export folder in the app's cache is reachable through it. */
-class LogFiles : FileProvider(R.xml.log_paths)
+class LogFiles : FileProvider()
 
 /** The share sheet calls it once the person picked an app; backing out calls nothing. */
 class ExportShared : BroadcastReceiver() {

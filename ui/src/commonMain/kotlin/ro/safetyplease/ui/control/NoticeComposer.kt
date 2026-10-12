@@ -1,39 +1,5 @@
-package ro.safetyplease.app.ui.control
+package ro.safetyplease.ui.control
 
-import ro.safetyplease.ui.text.noticeBody
-import ro.safetyplease.ui.text.noticeTitle
-import org.jetbrains.compose.resources.StringResource
-import ro.safetyplease.ui.resources.notice_not_sent
-import ro.safetyplease.ui.resources.notice_sent
-import ro.safetyplease.ui.resources.notice_topic_alert
-import ro.safetyplease.ui.resources.notice_topic_heat
-import ro.safetyplease.ui.resources.notice_topic_schedule
-import ro.safetyplease.ui.resources.notice_topic_transport
-import ro.safetyplease.ui.resources.notice_withdrawn
-import ro.safetyplease.app.text.text
-import ro.safetyplease.app.text.quantityText
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.cancel
-import ro.safetyplease.ui.resources.notice_composer_title
-import ro.safetyplease.ui.resources.notice_confirm_title
-import ro.safetyplease.ui.resources.notice_duration
-import ro.safetyplease.ui.resources.notice_hours
-import ro.safetyplease.ui.resources.notice_in_force
-import ro.safetyplease.ui.resources.notice_minutes
-import ro.safetyplease.ui.resources.notice_new
-import ro.safetyplease.ui.resources.notice_no_shift
-import ro.safetyplease.ui.resources.notice_preview
-import ro.safetyplease.ui.resources.notice_reach
-import ro.safetyplease.ui.resources.notice_second_text
-import ro.safetyplease.ui.resources.notice_second_title
-import ro.safetyplease.ui.resources.notice_second_word
-import ro.safetyplease.ui.resources.notice_send
-import ro.safetyplease.ui.resources.notice_withdraw
-import ro.safetyplease.ui.resources.notice_withdraw_text
-import ro.safetyplease.ui.resources.notice_withdraw_title
-import ro.safetyplease.ui.resources.notice_zone
-import ro.safetyplease.ui.resources.notice_zone_all
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,17 +25,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.AppLocale
-import ro.safetyplease.ui.text.NoticeText
-import ro.safetyplease.ui.text.rememberNow
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.announce.NoticeTemplate
 import ro.safetyplease.core.announce.NoticeTemplates
@@ -92,6 +54,38 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.cancel
+import ro.safetyplease.ui.resources.notice_composer_title
+import ro.safetyplease.ui.resources.notice_confirm_title
+import ro.safetyplease.ui.resources.notice_duration
+import ro.safetyplease.ui.resources.notice_hours
+import ro.safetyplease.ui.resources.notice_in_force
+import ro.safetyplease.ui.resources.notice_minutes
+import ro.safetyplease.ui.resources.notice_new
+import ro.safetyplease.ui.resources.notice_no_shift
+import ro.safetyplease.ui.resources.notice_not_sent
+import ro.safetyplease.ui.resources.notice_preview
+import ro.safetyplease.ui.resources.notice_reach
+import ro.safetyplease.ui.resources.notice_second_text
+import ro.safetyplease.ui.resources.notice_second_title
+import ro.safetyplease.ui.resources.notice_second_word
+import ro.safetyplease.ui.resources.notice_send
+import ro.safetyplease.ui.resources.notice_sent
+import ro.safetyplease.ui.resources.notice_topic_alert
+import ro.safetyplease.ui.resources.notice_topic_heat
+import ro.safetyplease.ui.resources.notice_topic_schedule
+import ro.safetyplease.ui.resources.notice_topic_transport
+import ro.safetyplease.ui.resources.notice_withdraw
+import ro.safetyplease.ui.resources.notice_withdraw_text
+import ro.safetyplease.ui.resources.notice_withdraw_title
+import ro.safetyplease.ui.resources.notice_withdrawn
+import ro.safetyplease.ui.resources.notice_zone
+import ro.safetyplease.ui.resources.notice_zone_all
+import ro.safetyplease.ui.text.NoticeText
+import ro.safetyplease.ui.text.noticeBody
+import ro.safetyplease.ui.text.noticeTitle
+import ro.safetyplease.ui.text.rememberNow
 
 /** How long a notice holds, in minutes; the operator picks one. */
 private val Durations = listOf(30, 60, 120, 240, 720)
@@ -102,12 +96,13 @@ private val Durations = listOf(30, 60, 120, 240, 720)
  * the word. The text never claims that everyone was told: it reaches only phones with Ping Up.
  */
 @Composable
-internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
+fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     val c = vm.c
     val colors = AppTheme.colors
-    val context = LocalContext.current
-    val res = LocalResources.current
-    val language = AppLocale.language(context)
+    val language = c.language()
+    val sentText = stringResource(Res.string.notice_sent)
+    val notSentText = stringResource(Res.string.notice_not_sent)
+    val withdrawnText = stringResource(Res.string.notice_withdrawn)
     val board by c.notices.board.collectAsStateWithLifecycle()
     val now = rememberNow()
     var topic by rememberSaveable { mutableIntStateOf(NoticeTopic.ALERT) }
@@ -132,7 +127,7 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     fun send() {
         val t = template ?: return
         val sent = c.notices.publish(t, params.map { it.trim() }, zone, minutes * 60L)
-        Toast.makeText(context, context.text(if (sent != null) Res.string.notice_sent else Res.string.notice_not_sent), Toast.LENGTH_LONG).show()
+        vm.phone.toast(if (sent != null) sentText else notSentText, long = true)
         if (sent != null) onDismiss()
     }
 
@@ -163,7 +158,7 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
             }
 
             Text(stringResource(Res.string.notice_new), style = MaterialTheme.typography.headline)
-            SegmentedControl(NoticeTopic.KNOWN.map { it to res.text(topicLabel(it)) }, topic, { topic = it })
+            SegmentedControl(NoticeTopic.KNOWN.map { it to stringResource(topicLabel(it)) }, topic, { topic = it })
             InsetGroup {
                 c.noticeTemplates.forTopic(topic).forEachIndexed { i, t ->
                     if (i > 0) GroupDivider(start = 16.dp)
@@ -235,7 +230,7 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
             stringResource(Res.string.notice_withdraw_title, noticeTitle(t, board.notices.firstOrNull { it.topic == t }?.notice()?.level ?: 0)),
             stringResource(Res.string.notice_withdraw_text), { withdraw = null }, stringResource(Res.string.notice_withdraw), destructive = true,
         ) {
-            Toast.makeText(context, context.text(if (c.notices.cancel(t) != null) Res.string.notice_withdrawn else Res.string.notice_not_sent), Toast.LENGTH_LONG).show()
+            vm.phone.toast(if (c.notices.cancel(t) != null) withdrawnText else notSentText, long = true)
         }
     }
 }

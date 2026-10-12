@@ -1,7 +1,5 @@
-package ro.safetyplease.app.ui.control
+package ro.safetyplease.ui.control
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -37,8 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -47,12 +43,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.text.quantityText
-import ro.safetyplease.app.text.text
-import ro.safetyplease.ui.common.UpdateTimeline
-import ro.safetyplease.ui.common.placeText
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry
@@ -61,12 +54,16 @@ import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.incidents.Recognition
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Answer
+import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.ResponseCode
 import ro.safetyplease.core.util.truncateUtf8
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.common.CategoryCircle
+import ro.safetyplease.ui.common.UpdateTimeline
+import ro.safetyplease.ui.common.placeText
 import ro.safetyplease.ui.common.reportFacts
 import ro.safetyplease.ui.control.Action
 import ro.safetyplease.ui.control.ConsoleActions
@@ -119,7 +116,6 @@ import ro.safetyplease.ui.resources.control_landmark_title
 import ro.safetyplease.ui.resources.control_local_only
 import ro.safetyplease.ui.resources.control_none_selected
 import ro.safetyplease.ui.resources.control_none_selected_text
-import ro.safetyplease.ui.resources.control_radio_clip
 import ro.safetyplease.ui.resources.control_radio_no_place
 import ro.safetyplease.ui.resources.control_radio_not_urgent
 import ro.safetyplease.ui.resources.control_radio_recognition
@@ -169,6 +165,7 @@ import ro.safetyplease.ui.resources.staff_status_resolved
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.Replies
 import ro.safetyplease.ui.text.agoText
+import ro.safetyplease.ui.text.fill
 import ro.safetyplease.ui.text.hopsText
 import ro.safetyplease.ui.text.staffStatusText
 
@@ -179,7 +176,7 @@ private const val MAX_REASON = 200
 private val PinActionsBelow: Dp = 420.dp
 
 @Composable
-internal fun DetailPane(vm: AppViewModel, case: Case?, entries: List<LogEntry>, now: Long, modifier: Modifier) {
+fun DetailPane(vm: AppViewModel, case: Case?, entries: List<LogEntry>, now: Long, modifier: Modifier) {
     BoxWithConstraints(modifier.clip(PaneShape).background(AppTheme.colors.cell)) {
         if (case == null) {
             EmptyState(stringResource(Res.string.control_none_selected), stringResource(Res.string.control_none_selected_text), icon = Sym.Notes)
@@ -197,7 +194,6 @@ internal fun DetailPane(vm: AppViewModel, case: Case?, entries: List<LogEntry>, 
 @Composable
 private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, now: Long, pinActions: Boolean) {
     val c = vm.c
-    val context = LocalContext.current
     val colors = AppTheme.colors
     val haptics = rememberHaptics()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -206,10 +202,9 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
     var dialog by remember { mutableStateOf<Action?>(null) }
     val r = case.report
     val zoneName = if (r.zone.isEmpty()) "" else vm.venue.zoneName(r.zone)
-    val phrase = radioPhrase(r, zoneName, vm.venue.landmark(r.landmark)?.name.orEmpty(), rememberRadioWords())
+    val phrase = radioPhrase(r, zoneName, vm.venue.landmark(r.landmark)?.name.orEmpty(), radioWords(r.people))
     val (hint, said) = Recognition.split(r.description)
     var copied by remember(phrase) { mutableStateOf(false) }
-    val clipLabel = stringResource(Res.string.control_radio_clip)
     val history = remember(entries, case.incidentId) { entries.filter { it.incidentId == case.incidentId } }
     val incident = incidents.staff.firstOrNull { it.incidentId == case.incidentId }
     val nickname = incident?.nickname
@@ -243,7 +238,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
                 StatusLabel(statusText(case), icon = statusIcon, color = statusColor)
             }
             if (case.localOnly) {
-                Note(stringResource(Res.string.control_local_only, context.text(Labels.staffStatus(case.network), case.networkTeam)), colors.orangeInk)
+                Note(stringResource(Res.string.control_local_only, staffStatusText(case.network, case.networkTeam)), colors.orangeInk)
             }
             if (case.cancelRequested) Note(stringResource(Res.string.incident_cancel_requested), colors.orangeInk)
             if (Priority.isInformational(r.category)) Note(stringResource(Res.string.incident_informational), colors.secondaryLabel)
@@ -257,7 +252,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
                 AppButton(
                     stringResource(if (copied) Res.string.code_sheet_copied else Res.string.msg_copy),
                     {
-                        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(clipLabel, phrase))
+                        vm.phone.copyText(phrase)
                         copied = true
                         haptics.confirm()
                     },
@@ -331,7 +326,6 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
 private fun ReplyPanel(vm: AppViewModel, incident: StaffIncident?, near: Int) {
     val colors = AppTheme.colors
     val haptics = rememberHaptics()
-    val res = LocalResources.current
     var picking by remember { mutableStateOf(false) }
     Text(stringResource(Res.string.control_respond_title), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
     if (incident == null || incident.replyKey.isEmpty()) {
@@ -350,7 +344,7 @@ private fun ReplyPanel(vm: AppViewModel, incident: StaffIncident?, near: Int) {
     }
     incident.responses.asReversed().forEach { r ->
         Text(
-            stringResource(Res.string.control_respond_sent, Labels.clock(r.at), res.text(Replies.response(r.code), Replies.landmarkName(vm.venue, r.landmark))),
+            stringResource(Res.string.control_respond_sent, Labels.clock(r.at), stringResource(Replies.response(r.code), Replies.landmarkName(vm.venue, r.landmark))),
             style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 6.dp),
         )
     }
@@ -439,24 +433,28 @@ private fun Note(text: String, color: Color) {
     }
 }
 
+/** The words of the radio phrase for a report about [people] people, in the app's language. */
 @Composable
-private fun rememberRadioWords(): RadioWords {
-    val res = LocalResources.current
-    return remember(res) {
-        RadioWords(
-            category = { res.text(Labels.category(it)) },
-            urgent = res.text(Res.string.control_radio_urgent),
-            notUrgent = res.text(Res.string.control_radio_not_urgent),
-            unknownPlace = res.text(Res.string.control_radio_no_place),
-            triage = { responds, breathes ->
-                res.text(Res.string.control_radio_triage, res.text(Labels.answer(responds)), res.text(Labels.answer(breathes)))
-            },
-            people = { res.quantityText(Res.plurals.incident_people, it, it) },
-            dangerContinues = res.text(Res.string.incident_danger_continues),
-            near = { res.text(Res.string.place_near, it) },
-            recognition = { res.text(Res.string.control_radio_recognition, it) },
-        )
-    }
+private fun radioWords(people: Int): RadioWords {
+    val categories = IncidentCategory.all.associateWith { stringResource(Labels.category(it)) }
+    val other = stringResource(Labels.category(IncidentCategory.OTHER))
+    val answers = (Answer.UNASKED..Answer.UNKNOWN).associateWith { stringResource(Labels.answer(it)) }
+    val triage = stringResource(Res.string.control_radio_triage)
+    val near = stringResource(Res.string.place_near)
+    val recognition = stringResource(Res.string.control_radio_recognition)
+    // the phrase is for one report, so its count is the only one asked for
+    val peopleText = pluralStringResource(Res.plurals.incident_people, people, people)
+    return RadioWords(
+        category = { categories[it] ?: other },
+        urgent = stringResource(Res.string.control_radio_urgent),
+        notUrgent = stringResource(Res.string.control_radio_not_urgent),
+        unknownPlace = stringResource(Res.string.control_radio_no_place),
+        triage = { responds, breathes -> triage.fill(answers[responds] ?: answers.getValue(Answer.UNASKED), answers[breathes] ?: answers.getValue(Answer.UNASKED)) },
+        people = { peopleText },
+        dangerContinues = stringResource(Res.string.incident_danger_continues),
+        near = { near.fill(it) },
+        recognition = { recognition.fill(it) },
+    )
 }
 
 /** One log entry of the incident: the console's time, what happened and, below, the route, the signature or the reason. */
@@ -495,7 +493,6 @@ private fun HistoryRow(e: LogEntry) {
 /** Pick a team heard on the network or a role, or type another; when the network can't carry it, says so first. */
 @Composable
 private fun AssignDialog(case: Case, choices: List<String>, onDismiss: () -> Unit, onAssign: (team: String, reason: String) -> Unit) {
-    val context = LocalContext.current
     val colors = AppTheme.colors
     var picked by remember { mutableStateOf("") }
     var other by remember { mutableStateOf("") }
@@ -511,7 +508,7 @@ private fun AssignDialog(case: Case, choices: List<String>, onDismiss: () -> Uni
     ) {
         if (ackFor(Action.ASSIGN, case.network) == null) {
             Text(
-                stringResource(Res.string.control_assign_taken, context.text(Labels.staffStatus(case.network), case.networkTeam)),
+                stringResource(Res.string.control_assign_taken, staffStatusText(case.network, case.networkTeam)),
                 style = MaterialTheme.typography.footnote, color = colors.orangeInk, modifier = Modifier.padding(bottom = 10.dp),
             )
         }

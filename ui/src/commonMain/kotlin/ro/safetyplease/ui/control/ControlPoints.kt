@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.control
+package ro.safetyplease.ui.control
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -53,7 +53,7 @@ import ro.safetyplease.ui.resources.control_points_stale
 import ro.safetyplease.ui.resources.control_points_title
 
 /** What the console's map shows over the site grid besides the points. */
-internal enum class MapLayer(val label: StringResource) {
+enum class MapLayer(val label: StringResource) {
     INCIDENTS(Res.string.control_layer_incidents),
     CELLULAR(Res.string.control_layer_cellular),
     MESH(Res.string.control_layer_mesh),
@@ -61,11 +61,11 @@ internal enum class MapLayer(val label: StringResource) {
 
 /** Each point's color on the map: its last status, grey once nobody confirmed it for half an hour. */
 @Composable
-internal fun pointRings(points: Map<Int, PointReport>, now: Long): Map<Int, Color> =
+fun pointRings(points: Map<Int, PointReport>, now: Long): Map<Int, Color> =
     points.mapValues { (_, report) -> pointLevelColor(report.level, PointBoard.isStale(report, now)) }
 
 /** The squares the anchors cover, colored by [layer]; a square without one stays clear, since nothing is known there. */
-internal fun coverageShades(colors: AppColors, squares: List<SquareCoverage>, layer: MapLayer): Map<Pair<Int, Int>, Color> =
+fun coverageShades(colors: AppColors, squares: List<SquareCoverage>, layer: MapLayer): Map<Pair<Int, Int>, Color> =
     if (layer == MapLayer.INCIDENTS) {
         emptyMap()
     } else {
@@ -81,14 +81,14 @@ internal fun coverageShades(colors: AppColors, squares: List<SquareCoverage>, la
 
 private const val SHADE_ALPHA = 0.32f
 
-internal fun cellColor(colors: AppColors, data: CellData): Color = when (data) {
+fun cellColor(colors: AppColors, data: CellData): Color = when (data) {
     CellData.WORKS -> colors.green
     CellData.FAILS -> colors.orange
     CellData.NO_NETWORK -> colors.red
     CellData.UNKNOWN -> colors.secondaryLabel
 }
 
-internal fun cellText(data: CellData): StringResource = when (data) {
+fun cellText(data: CellData): StringResource = when (data) {
     CellData.WORKS -> Res.string.control_cell_works
     CellData.FAILS -> Res.string.control_cell_fails
     CellData.NO_NETWORK -> Res.string.control_cell_no_network
@@ -100,7 +100,7 @@ internal fun cellText(data: CellData): StringResource = when (data) {
  * nobody confirmed for half an hour turns grey and says so; a point nobody reported shows no level at all.
  */
 @Composable
-internal fun PointsPane(venue: Venue, points: Map<Int, PointReport>, now: Long, modifier: Modifier) {
+fun PointsPane(venue: Venue, points: Map<Int, PointReport>, now: Long, modifier: Modifier) {
     val colors = AppTheme.colors
     val all = remember(venue) { PointBoard.points(venue) }
     Column(modifier.clip(PaneShape).background(colors.cell).verticalScroll(rememberScrollState()).padding(16.dp)) {

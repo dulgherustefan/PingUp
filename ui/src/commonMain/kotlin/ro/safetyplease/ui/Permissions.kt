@@ -22,6 +22,9 @@ expect fun rememberStartPermissions(onDone: () -> Unit): () -> Unit
 /** Bluetooth needs the location permission too: Android below 12. */
 expect val RadioNeedsLocation: Boolean
 
-/** The control console keeps the screen in landscape while it's shown. */
+/**
+ * A console is used in landscape and stays on, as long as the phone is the console, Me sheet included. A rotation keeps
+ * it, and large screens may ignore the orientation.
+ */
 @Composable
-expect fun KeepLandscape()
+expect fun ConsoleWindow()

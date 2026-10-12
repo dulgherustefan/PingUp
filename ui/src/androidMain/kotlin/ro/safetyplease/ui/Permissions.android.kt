@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.core.app.ActivityCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -139,11 +140,15 @@ actual fun rememberStartPermissions(onDone: () -> Unit): () -> Unit {
 }
 
 @Composable
-actual fun KeepLandscape() {
+actual fun ConsoleWindow() {
     val activity = LocalActivity.current
-    DisposableEffect(activity) {
-        val before = activity?.requestedOrientation
+    val view = LocalView.current
+    DisposableEffect(activity, view) {
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        onDispose { if (before != null) activity.requestedOrientation = before }
+        view.keepScreenOn = true
+        onDispose {
+            view.keepScreenOn = false
+            if (activity != null && !activity.isChangingConfigurations) activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
     }
 }

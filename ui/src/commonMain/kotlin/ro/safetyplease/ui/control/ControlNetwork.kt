@@ -1,41 +1,5 @@
-package ro.safetyplease.app.ui.control
+package ro.safetyplease.ui.control
 
-import ro.safetyplease.ui.resources.anchor_cached
-import ro.safetyplease.ui.resources.anchor_peers
-import ro.safetyplease.ui.resources.anchor_relayed
-import ro.safetyplease.ui.resources.anchor_title
-import ro.safetyplease.ui.resources.anchor_verified
-import ro.safetyplease.ui.resources.anchor_visible
-import ro.safetyplease.ui.resources.control_heard_staff
-import ro.safetyplease.ui.resources.control_network_dropped
-import ro.safetyplease.ui.resources.control_network_received
-import ro.safetyplease.ui.resources.control_network_sent
-import ro.safetyplease.ui.resources.control_network_served
-import ro.safetyplease.ui.resources.open_settings
-import ro.safetyplease.ui.resources.problem_access_action
-import ro.safetyplease.ui.resources.staff_verified
-import org.jetbrains.compose.resources.StringResource
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.control_beat_battery
-import ro.safetyplease.ui.resources.control_beat_crowd
-import ro.safetyplease.ui.resources.control_beat_indicative
-import ro.safetyplease.ui.resources.control_beat_links
-import ro.safetyplease.ui.resources.control_beat_mobile
-import ro.safetyplease.ui.resources.control_beat_plugged
-import ro.safetyplease.ui.resources.control_beat_quiet
-import ro.safetyplease.ui.resources.control_beat_signal
-import ro.safetyplease.ui.resources.control_beat_square
-import ro.safetyplease.ui.resources.control_beat_temperature
-import ro.safetyplease.ui.resources.control_heard_at
-import ro.safetyplease.ui.resources.control_heard_empty
-import ro.safetyplease.ui.resources.control_heard_linked
-import ro.safetyplease.ui.resources.control_heard_silent
-import ro.safetyplease.ui.resources.control_heard_title
-import ro.safetyplease.ui.resources.problem_access_text
-import ro.safetyplease.ui.resources.problem_access_title
-import ro.safetyplease.ui.resources.problem_bt_text
-import ro.safetyplease.ui.resources.status_bt_enable
-import ro.safetyplease.ui.resources.status_bt_off
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -59,19 +23,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import org.jetbrains.compose.resources.pluralStringResource
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.ui.text.agoText
-import ro.safetyplease.ui.common.RadioGate
-import ro.safetyplease.ui.designsystem.AppTheme
-import ro.safetyplease.ui.designsystem.Banner
-import ro.safetyplease.ui.designsystem.footnote
-import ro.safetyplease.ui.designsystem.headline
-import ro.safetyplease.ui.designsystem.subheadline
-import ro.safetyplease.ui.designsystem.title3
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.control.Coverage
 import ro.safetyplease.core.control.HeardPeer
 import ro.safetyplease.core.control.PeerBook
@@ -83,6 +40,49 @@ import ro.safetyplease.core.protocol.MobileReading
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.venue.SiteGrid
+import ro.safetyplease.ui.common.RadioGate
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.Banner
+import ro.safetyplease.ui.designsystem.footnote
+import ro.safetyplease.ui.designsystem.headline
+import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.designsystem.title3
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.anchor_cached
+import ro.safetyplease.ui.resources.anchor_peers
+import ro.safetyplease.ui.resources.anchor_relayed
+import ro.safetyplease.ui.resources.anchor_title
+import ro.safetyplease.ui.resources.anchor_verified
+import ro.safetyplease.ui.resources.anchor_visible
+import ro.safetyplease.ui.resources.control_beat_battery
+import ro.safetyplease.ui.resources.control_beat_crowd
+import ro.safetyplease.ui.resources.control_beat_indicative
+import ro.safetyplease.ui.resources.control_beat_links
+import ro.safetyplease.ui.resources.control_beat_mobile
+import ro.safetyplease.ui.resources.control_beat_plugged
+import ro.safetyplease.ui.resources.control_beat_quiet
+import ro.safetyplease.ui.resources.control_beat_signal
+import ro.safetyplease.ui.resources.control_beat_square
+import ro.safetyplease.ui.resources.control_beat_temperature
+import ro.safetyplease.ui.resources.control_heard_at
+import ro.safetyplease.ui.resources.control_heard_empty
+import ro.safetyplease.ui.resources.control_heard_linked
+import ro.safetyplease.ui.resources.control_heard_silent
+import ro.safetyplease.ui.resources.control_heard_staff
+import ro.safetyplease.ui.resources.control_heard_title
+import ro.safetyplease.ui.resources.control_network_dropped
+import ro.safetyplease.ui.resources.control_network_received
+import ro.safetyplease.ui.resources.control_network_sent
+import ro.safetyplease.ui.resources.control_network_served
+import ro.safetyplease.ui.resources.open_settings
+import ro.safetyplease.ui.resources.problem_access_action
+import ro.safetyplease.ui.resources.problem_access_text
+import ro.safetyplease.ui.resources.problem_access_title
+import ro.safetyplease.ui.resources.problem_bt_text
+import ro.safetyplease.ui.resources.staff_verified
+import ro.safetyplease.ui.resources.status_bt_enable
+import ro.safetyplease.ui.resources.status_bt_off
+import ro.safetyplease.ui.text.agoText
 
 /** An anchor not heard for this long is called out: control would read its silence as calm. */
 private const val SILENT_ANCHOR_MIN = 10
@@ -97,7 +97,7 @@ private const val QUIET_S = 5 * 60
  * stop goes silent wherever it is.
  */
 @Composable
-internal fun NetworkPane(mesh: MeshState, heard: Map<Int, HeardPeer>, gate: RadioGate, now: Long, grid: SiteGrid, modifier: Modifier) {
+fun NetworkPane(mesh: MeshState, heard: Map<Int, HeardPeer>, gate: RadioGate, now: Long, grid: SiteGrid, modifier: Modifier) {
     val colors = AppTheme.colors
     val peers = remember(heard) { PeerBook.rows(heard, MAX_HEARD_ROWS) }
     val counters = listOf(
