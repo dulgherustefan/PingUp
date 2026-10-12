@@ -368,7 +368,8 @@ private fun IncidentRow(
                     }
                     // urgency is spelled out, not only colored: a red circle alone fails people who can't tell colors apart
                     val urgent = stringResource(R.string.sev_urgent)
-                    val details = listOf(place, agoText(incident.reportedAt, now), hopsText(incident.hops)).joinToString(" · ")
+                    // how many phones it passed through is in the detail; for triage the row needs urgency, place and time
+                    val details = listOf(place, agoText(incident.reportedAt, now)).joinToString(" · ")
                     Text(
                         buildAnnotatedString {
                             if (incident.severity == Severity.URGENT) {
