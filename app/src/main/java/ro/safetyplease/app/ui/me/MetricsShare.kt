@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.TimeZone
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.ui.common.freshExportDir
 import ro.safetyplease.app.ui.common.shareFiles
@@ -19,7 +20,6 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.text.SimpleDateFormat
-import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
 
@@ -37,7 +37,7 @@ internal class PhoneMetrics(
      * The CSV files and the JSON one, named by [nowMs]: the reports and the mesh always, the mobile network log once it
      * has samples, the delivery join on the console.
      */
-    fun writeTo(dir: File, nowMs: Long, zone: ZoneId): List<File> {
+    fun writeTo(dir: File, nowMs: Long, zone: TimeZone): List<File> {
         val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.ROOT).format(Date(nowMs))
         fun file(suffix: String, text: String) = File(dir, "metrici-$stamp$suffix").apply { writeText(text) }
         return buildList {
@@ -65,7 +65,7 @@ internal fun AppContainer.phoneMetrics(): PhoneMetrics {
 /** Writes the metrics to the export folder, replacing the last export's files, and opens the share sheet. */
 internal suspend fun shareMetrics(context: Context, c: AppContainer) {
     val files = withContext(Dispatchers.IO) {
-        c.phoneMetrics().writeTo(freshExportDir(c.exportDir), c.clock.wallMs(), ZoneId.systemDefault())
+        c.phoneMetrics().writeTo(freshExportDir(c.exportDir), c.clock.wallMs(), TimeZone.currentSystemDefault())
     }
     shareFiles(context, files)
 }

@@ -35,6 +35,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okio.source
 import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.designsystem.AppDialog
@@ -195,5 +196,5 @@ private fun packLine(pack: StoredPack): String {
 }
 
 private suspend fun readPack(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
-    runCatching { context.contentResolver.openInputStream(uri)?.use(EventPacks::read) }.getOrNull()
+    runCatching { context.contentResolver.openInputStream(uri)?.use { EventPacks.read(it.source()) } }.getOrNull()
 }

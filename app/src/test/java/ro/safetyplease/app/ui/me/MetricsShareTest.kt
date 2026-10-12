@@ -1,5 +1,6 @@
 package ro.safetyplease.app.ui.me
 
+import kotlinx.datetime.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -13,7 +14,6 @@ import ro.safetyplease.core.metrics.ReportTiming
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.SiteGrid
 import java.io.ByteArrayInputStream
-import java.time.ZoneId
 
 class MetricsShareTest {
     @get:Rule
@@ -21,7 +21,7 @@ class MetricsShareTest {
 
     private val grid = SiteGrid.of(Bounds(43.948, 28.632, 43.9512, 28.6382))
     private val t0 = 1_791_832_500_000L
-    private val zone = ZoneId.of("Europe/Bucharest")
+    private val zone = TimeZone.of("Europe/Bucharest")
     private val report = ReportTiming("0a".repeat(16), t0, 1, 3)
 
     private fun metrics(role: Role, network: List<NetworkSample> = emptyList(), delivery: List<DeliveryRow> = emptyList()) =

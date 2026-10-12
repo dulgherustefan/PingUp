@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.TimeZone
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
@@ -37,7 +38,6 @@ import ro.safetyplease.core.report.ReportExport
 import ro.safetyplease.core.venue.Venue
 import java.io.File
 import java.text.SimpleDateFormat
-import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
 
@@ -101,7 +101,7 @@ private fun rememberExportNames(venue: Venue): ExportNames {
 private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNames) {
     val now = c.clock.wallMs()
     val files = withContext(Dispatchers.IO) {
-        val zone = ZoneId.systemDefault()
+        val zone = TimeZone.currentSystemDefault()
         val entries = c.consoleLog.value.entries
         val cases = ConsoleView.cases(entries, c.incidentStore.value.staff, c.grid).values
         val dir = freshExportDir(c.exportDir)
@@ -127,7 +127,7 @@ private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNam
 internal suspend fun shareReport(context: Context, c: AppContainer, report: EditionReport, doc: ReportDoc) {
     val files = withContext(Dispatchers.IO) {
         val res = context.resources
-        val zone = ZoneId.systemDefault()
+        val zone = TimeZone.currentSystemDefault()
         val names = reportNames(res)
         val dir = freshExportDir(c.exportDir)
         val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.ROOT).format(Date(report.until))

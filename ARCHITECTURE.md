@@ -1,6 +1,6 @@
 # Arhitectura
 
-Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să meargă stă în `:core`, care nu are voie să importe nimic din Android; `:app` aduce doar ce ține de telefon (Bluetooth, locație, keystore, notificări) și interfața.
+Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să meargă stă în `:core`, care nu are voie să importe nimic din Android; `:app` aduce doar ce ține de telefon (Bluetooth, locație, keystore, notificări) și interfața. `:core` e Kotlin Multiplatform: același cod se compilează pentru JVM (Android și teste) și pentru iPhone.
 
 ```
           :app  (Android)
@@ -13,7 +13,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
    └──────────────┬───────────────┘
                   │ depinde de
    ┌──────────────▼───────────────┐
-   │ :core  (Kotlin pur, JVM)      │
+   │ :core  (Kotlin Multiplatform) │
    │ protocol → mesh → chat,       │
    │                   incidents   │
    │ crypto, data, venue, util     │
@@ -22,7 +22,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 
 ## `:core`: logica, fără Android
 
-`core/src/main/kotlin/ro/safetyplease/core/`
+`core/src/commonMain/kotlin/ro/safetyplease/core/`. Ce diferă de la o platformă la alta e puțin și stă în `jvmMain/` și `iosMain/`, prin `expect`/`actual`: SHA-256 (`MessageDigest` / CommonCrypto), libsodium (lazysodium / biblioteca statică legată prin cinterop), scrierea durabilă a fișierelor (`fd.sync()` / `F_FULLFSYNC`), formatarea zecimalelor și descompunerea NFD a textului. Fișierele trec prin Okio, timpul local prin kotlinx-datetime, lacătele prin atomicfu. Pe iOS, libsodium se compilează din sursa semnată cu `tools/build_libsodium_ios.sh`, pe care Gradle îl rulează singur, doar pe macOS.
 
 | Pachet | Ce face |
 |---|---|
@@ -40,7 +40,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `venue/` | Harta evenimentului din `venue.json` sau din pachetul de eveniment: zone, punct de întâlnire, grila sitului (A1, B2...). |
 | `util/` | Octeți, hex, `sha256`, ceasul. |
 
-Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.
+Testele de aici rulează pe JVM simplu, fără emulator (`./gradlew :core:test`). Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.
 
 ## `:app`: Android și interfața
 

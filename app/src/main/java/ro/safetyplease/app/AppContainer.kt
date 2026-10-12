@@ -8,11 +8,6 @@ import android.os.SystemClock
 import android.util.Log
 import com.goterl.lazysodium.LazySodiumAndroid
 import com.goterl.lazysodium.SodiumAndroid
-import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
-import java.security.SecureRandom
-import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,6 +26,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okio.Path.Companion.toOkioPath
+import okio.source
 import ro.safetyplease.app.platform.ble.BleRadio
 import ro.safetyplease.app.platform.keystore.KeyVault
 import ro.safetyplease.app.platform.location.LocationSource
@@ -52,8 +49,8 @@ import ro.safetyplease.core.control.HeardPeer
 import ro.safetyplease.core.control.PeerBook
 import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.control.PointReport
-import ro.safetyplease.core.control.SentPoint
 import ro.safetyplease.core.control.ReporterRecords
+import ro.safetyplease.core.control.SentPoint
 import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.Crypto
@@ -106,6 +103,11 @@ import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.parse
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.SecureRandom
+import kotlin.random.asKotlinRandom
 
 object AndroidClock : Clock {
     override fun wallMs(): Long = System.currentTimeMillis()
@@ -138,7 +140,7 @@ class AppContainer(private val app: Application) {
     private val root: ByteArray? = bundledKeys["root"]?.jsonPrimitive?.content?.hexToBytes()
 
     /** Kept for every event: a pack whose organiser or event key was revoked no longer loads. */
-    private val revokedStore = Revocations.store(File(dataDir, "revocations.json"), ioScope)
+    private val revokedStore = Revocations.store(File(dataDir, "revocations.json").toOkioPath(), ioScope)
 
     /**
      * The event in use, checked again at every start; null for the venue and keys the app ships, also once the
@@ -515,7 +517,7 @@ class AppContainer(private val app: Application) {
             connection.readTimeout = DOWNLOAD_TIMEOUT_MS
             try {
                 if (connection.responseCode != HttpURLConnection.HTTP_OK) return@runCatching null
-                connection.inputStream.use(EventPacks::read)
+                connection.inputStream.use { EventPacks.read(it.source()) }
             } finally {
                 connection.disconnect()
             }

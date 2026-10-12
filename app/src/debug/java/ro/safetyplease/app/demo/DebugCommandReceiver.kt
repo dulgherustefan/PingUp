@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import kotlinx.datetime.TimeZone
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.ui.me.phoneMetrics
@@ -17,7 +18,6 @@ import ro.safetyplease.core.util.shortHex
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.toLong
 import ro.safetyplease.core.venue.GeoPoint
-import java.time.ZoneId
 
 /**
  * Test commands over adb, debug builds only. Replies go to logcat, tag MeshDebug.
@@ -110,7 +110,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
             "measure" -> measure(Demo.recorder(context, c), arg("action"), intent)
             "metrics" -> {
                 val dir = Demo.recorder(context, c).directory ?: error("external storage unavailable")
-                val files = c.phoneMetrics().writeTo(dir.apply { mkdirs() }, c.clock.wallMs(), ZoneId.systemDefault())
+                val files = c.phoneMetrics().writeTo(dir.apply { mkdirs() }, c.clock.wallMs(), TimeZone.currentSystemDefault())
                 "${files.size} files: adb pull $dir/"
             }
             else -> "unknown command"

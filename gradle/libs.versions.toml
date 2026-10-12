@@ -12,6 +12,9 @@ lazysodium = "5.2.0"
 jna = "5.17.0"
 zxing = "3.5.4"
 junit = "4.13.2"
+okio = "3.18.2"
+atomicfu = "0.33.0"
+datetime = "0.8.0"
 
 [libraries]
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -34,6 +37,9 @@ kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-c
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
+okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 lazysodium-android = { module = "com.goterl:lazysodium-android", version.ref = "lazysodium" }
 lazysodium-java = { module = "com.goterl:lazysodium-java", version.ref = "lazysodium" }
 jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }

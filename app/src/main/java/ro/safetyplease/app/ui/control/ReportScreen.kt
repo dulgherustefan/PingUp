@@ -23,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.TimeZone
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.designsystem.AppButton
@@ -39,7 +40,6 @@ import ro.safetyplease.core.report.AnchorSeen
 import ro.safetyplease.core.report.EditionReport
 import ro.safetyplease.core.report.EditionReports
 import ro.safetyplease.core.report.ModeLog
-import java.time.ZoneId
 
 internal enum class ReportKind(val label: Int) { SHIFT(R.string.edition_kind_shift), EDITION(R.string.edition_kind_edition) }
 
@@ -59,7 +59,7 @@ internal fun buildReport(c: AppContainer, kind: ReportKind, now: Long): EditionR
         .map { AnchorSeen(it.beat?.zone.orEmpty(), it.lastHeardMs, it.beat?.batteryPercent) }
     return EditionReports.build(
         from, now, real, exercise, c.grid, c.metricsLog.value.snapshots, c.networkLog.value.samples,
-        c.reporterMetrics.value.reports, anchors, ZoneId.systemDefault(),
+        c.reporterMetrics.value.reports, anchors, TimeZone.currentSystemDefault(),
     )
 }
 
