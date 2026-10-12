@@ -924,6 +924,9 @@
     <string name="notice_hide">Ascunde anunțul</string>
     <string name="notice_read">Am înțeles</string>
     <string name="map_quick_shade">Umbră</string>
+    <string name="map_about">Despre hartă</string>
+    <string name="map_about_subtitle">© OpenStreetMap și licențe</string>
+    <string name="map_about_text">Harta de bază: © OpenStreetMap contributors, date sub Open Database License (ODbL 1.0), prin Protomaps. Fonturile Noto Sans: SIL Open Font License 1.1. Afișarea hărții: MapLibre Native, licență BSD-2-Clause. Zonele, punctele și grila sunt ale organizatorului.</string>
     <string name="me_notices">Anunțurile organizatorilor</string>
     <string name="me_notices_text">Alerte de vreme, căldură și schimbări de program sau transport, chiar fără semnal.</string>
     <string name="notice_composer_title">Anunț</string>

@@ -43,6 +43,9 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## Harta offline
+Harta reală (MapLibre Native, date OpenStreetMap din Protomaps) apare doar când există `app/src/main/assets/maps/<data>/`; fără ea, aplicația desenează harta evenimentului. Pachetul se face cu `python tools/map_extract.py <AAAALLZZ>` (cere `pip install pmtiles`), iar fonturile și sprite-urile se adaugă după [tools/map_assets.md](tools/map_assets.md).
+
 ## Instalare
 
 Se poate instala si de pe [ping-up.org](https://ping-up.org)

@@ -901,6 +901,9 @@
     <string name="notice_hide">Hide the notice</string>
     <string name="notice_read">Got it</string>
     <string name="map_quick_shade">Shade</string>
+    <string name="map_about">About the map</string>
+    <string name="map_about_subtitle">© OpenStreetMap and licences</string>
+    <string name="map_about_text">Base map: © OpenStreetMap contributors, data under the Open Database License (ODbL 1.0), via Protomaps. Noto Sans fonts: SIL Open Font License 1.1. Map rendering: MapLibre Native, BSD-2-Clause licence. Zones, points and the grid come from the organiser.</string>
     <string name="me_notices">Notices from the organisers</string>
     <string name="me_notices_text">Weather and heat alerts, schedule and transport changes, even without signal.</string>
     <string name="notice_composer_title">Notice</string>

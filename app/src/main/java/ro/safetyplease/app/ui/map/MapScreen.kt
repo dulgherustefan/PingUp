@@ -7,9 +7,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -43,7 +46,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -57,6 +62,16 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
+import ro.safetyplease.app.platform.map.FollowMode
+import ro.safetyplease.app.platform.map.MapChoice
+import ro.safetyplease.app.platform.map.MapData
+import ro.safetyplease.app.platform.map.MapKind
+import ro.safetyplease.app.platform.map.MapMarker
+import ro.safetyplease.app.platform.map.MapMe
+import ro.safetyplease.app.platform.map.MapPalette
+import ro.safetyplease.app.platform.map.MapState
+import ro.safetyplease.app.platform.map.PingMap
+import ro.safetyplease.app.platform.map.PingMapEngine
 import ro.safetyplease.app.text.NoticeText
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.AppViewModel
@@ -76,6 +91,7 @@ import ro.safetyplease.app.ui.common.typeGlyph
 import ro.safetyplease.app.ui.common.venueAspect
 import ro.safetyplease.app.ui.common.zoneTone
 import ro.safetyplease.app.ui.designsystem.AppButton
+import ro.safetyplease.app.ui.designsystem.AppDialog
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.GlassIconButton
 import ro.safetyplease.app.ui.designsystem.GroupDivider
@@ -84,6 +100,7 @@ import ro.safetyplease.app.ui.designsystem.Gutter
 import ro.safetyplease.app.ui.designsystem.IconCircle
 import ro.safetyplease.app.ui.designsystem.InsetGroup
 import ro.safetyplease.app.ui.designsystem.LocalReduceMotion
+import ro.safetyplease.app.ui.designsystem.LocalTextOnly
 import ro.safetyplease.app.ui.designsystem.NavScreen
 import ro.safetyplease.app.ui.designsystem.SectionTitle
 import ro.safetyplease.app.ui.designsystem.SwitchRow
@@ -104,6 +121,7 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.distanceMeters
+import kotlin.math.ln
 
 /** Places the quick chips lead to, in chip order. */
 private val SpotTypes = listOf("medical", "exit", Venue.MEETING, "water", "wc", "info", "charge", Venue.DEA)
@@ -145,6 +163,13 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val camera = remember { MapCamera() }
     val animateMoves = !LocalReduceMotion.current
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { MapData.start(context) }
+    val mapState by MapData.state.collectAsStateWithLifecycle()
+    val mapKind = MapChoice.of(mapState, LocalTextOnly.current)
+    var engine by remember { mutableStateOf<PingMapEngine?>(null) }
+    val fix by vm.c.location.fix.collectAsStateWithLifecycle()
+    var aboutMap by rememberSaveable { mutableStateOf(false) }
 
     val pins = remember(incidents.staff, settings.role, colors) {
         if (!settings.role.hasStaffKeys) emptyList()
@@ -154,14 +179,25 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     }
 
     fun move(points: List<GeoPoint>, most: Float) {
-        scope.launch { camera.show(points, most, animateMoves) }
+        val real = engine
+        if (mapKind == MapKind.REAL && real != null) real.show(points, realZoom(most), animateMoves)
+        else scope.launch { camera.show(points, most, animateMoves) }
     }
 
     fun showMine() {
         focus = MapFocus.MINE
         if (position == null) requestLocation()
-        move(listOfNotNull(origin), 2.2f)
+        val real = engine
+        if (mapKind == MapKind.REAL && real != null && here != null) {
+            real.setFollow(FollowMode.NORTH_UP)
+        } else move(listOfNotNull(origin), 2.2f)
         scope.launch { listState.animateScrollToItem(0) }
+    }
+
+    fun zoom(closer: Boolean) {
+        val real = engine
+        if (mapKind == MapKind.REAL && real != null) real.zoomBy(if (closer) 1.0 else -1.0, animateMoves)
+        else scope.launch { camera.zoomBy(if (closer) 2f else 0.5f, animateMoves) }
     }
 
     fun showSpot(type: String) {
@@ -182,6 +218,26 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
         if (points.isNotEmpty()) camera.show(points, if (focus == MapFocus.SPOT) 2.6f else 1.5f, animated = false)
     }
 
+    // the real map: the organiser's layer, you with your accuracy, the selection and the incident pins
+    LaunchedEffect(engine, mapState) {
+        val real = engine ?: return@LaunchedEffect
+        real.setVenue(vm.venue) { hex(spotColor(colors, it)) }
+        val points = if (focus == MapFocus.SPOT) listOfNotNull(origin, vm.venue.nearest(spotType, origin)?.point) else listOfNotNull(origin)
+        if (points.isEmpty()) real.fit(vm.venue.bounds, animated = false)
+        else real.show(points, realZoom(if (focus == MapFocus.SPOT) 2.6f else 1.5f), animated = false)
+    }
+    LaunchedEffect(engine, here, fix) {
+        // a simulated or expired position has no accuracy of its own
+        val accuracy = fix?.takeIf { here != null && it.lat == here.lat && it.lon == here.lon }?.accuracyM ?: 0f
+        engine?.setMe(here?.let { MapMe(it.lat, it.lon, accuracy) })
+    }
+    LaunchedEffect(engine, focus, tapped, myZoneId, spot) {
+        engine?.setSelection(if (focus == MapFocus.ZONE) tapped else myZoneId, spot?.point)
+    }
+    LaunchedEffect(engine, pins) {
+        engine?.setMarkers(pins.map { MapMarker(it.key, it.point, hex(it.color)) })
+    }
+
     val haptics = rememberHaptics()
     fun setMine(id: String) {
         vm.setManualZone(id)
@@ -189,6 +245,15 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
         if (to != null && vm.sendMyZone(to)) {
             haptics.confirm()
             vm.back()
+        }
+    }
+
+    if (aboutMap) {
+        AppDialog(
+            onDismiss = { aboutMap = false }, title = stringResource(R.string.map_about),
+            confirmLabel = stringResource(R.string.close), onConfirm = { aboutMap = false }, dismissLabel = null,
+        ) {
+            Text(stringResource(R.string.map_about_text), style = MaterialTheme.typography.subheadline, color = colors.label)
         }
     }
 
@@ -206,29 +271,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                 item(key = "battery") { LowBatteryBanner(battery, vm.venue, origin, Modifier.padding(start = Gutter, end = Gutter, top = 8.dp)) }
             }
             item(key = "map") {
-                VenueMap(
-                    venue = vm.venue,
-                    modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp),
-                    position = origin,
-                    pins = pins,
-                    myZone = myZoneId,
-                    highlightZone = if (focus == MapFocus.ZONE) tapped else "",
-                    meetingFocused = focus == MapFocus.SPOT && spotType == Venue.MEETING,
-                    onTap = { point, zone ->
-                        if (simulate) vm.setSimulatedLocation(point)
-                        else if (zone != null) showZone(zone.id)
-                    },
-                    onPinTap = { vm.open(Dest.Incident(it.key)) },
-                    camera = camera,
-                    target = spot?.point,
-                    targetColor = spotColor(colors, spotType),
-                    // taller than the site: room for the top label and the buttons without covering the zones
-                    aspect = venueAspect(vm.venue) * 0.8f,
-                    reserved = listOfNotNull(
-                        MapReserve(MapCorner.BottomEnd, ControlsReserveWidth, ControlsReserveHeight),
-                        heat?.let { MapReserve(MapCorner.BottomStart, HeatReserveWidth, HeatReserveHeight) },
-                    ),
-                ) {
+                val overlay: @Composable BoxScope.() -> Unit = {
                     val whereText = when {
                         autoZone != null -> stringResource(R.string.map_here_at, autoZone.name)
                         here != null -> stringResource(R.string.map_outside)
@@ -240,9 +283,58 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     heat?.let { HeatPill(it.level, Modifier.align(Alignment.BottomStart).padding(10.dp)) }
                     MapControls(
                         Modifier.align(Alignment.BottomEnd).padding(10.dp),
-                        onZoomIn = { scope.launch { camera.zoomBy(2f, animateMoves) } },
-                        onZoomOut = { scope.launch { camera.zoomBy(0.5f, animateMoves) } },
+                        onZoomIn = { zoom(true) },
+                        onZoomOut = { zoom(false) },
                         onLocate = { showMine() },
+                    )
+                }
+                val mapModifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp)
+                // taller than the site: room for the top label and the buttons without covering the zones
+                val mapAspect = venueAspect(vm.venue) * 0.8f
+                val frame = mapModifier.fillMaxWidth().aspectRatio(mapAspect).clip(RoundedCornerShape(26.dp))
+                when (mapKind) {
+                    MapKind.REAL -> Box(frame) {
+                        // the map view goes with this item; its engine must not outlive it
+                        DisposableEffect(Unit) { onDispose { engine = null } }
+                        PingMap(
+                            pack = (mapState as MapState.Ready).pack,
+                            dark = colors.dark,
+                            palette = MapPalette(hex(colors.label), hex(colors.cell), hex(colors.accent), hex(colors.green)),
+                            modifier = Modifier.fillMaxSize(),
+                            onTap = { point, key ->
+                                when {
+                                    key != null -> vm.open(Dest.Incident(key))
+                                    simulate -> vm.setSimulatedLocation(point)
+                                    else -> vm.venue.zoneAt(point.lat, point.lon)?.let { showZone(it.id) }
+                                }
+                            },
+                            onReady = { engine = it },
+                        )
+                        overlay()
+                    }
+                    MapKind.PENDING -> Box(frame.background(colors.cell))
+                    MapKind.FALLBACK -> VenueMap(
+                        venue = vm.venue,
+                        modifier = mapModifier,
+                        position = origin,
+                        pins = pins,
+                        myZone = myZoneId,
+                        highlightZone = if (focus == MapFocus.ZONE) tapped else "",
+                        meetingFocused = focus == MapFocus.SPOT && spotType == Venue.MEETING,
+                        onTap = { point, zone ->
+                            if (simulate) vm.setSimulatedLocation(point)
+                            else if (zone != null) showZone(zone.id)
+                        },
+                        onPinTap = { vm.open(Dest.Incident(it.key)) },
+                        camera = camera,
+                        target = spot?.point,
+                        targetColor = spotColor(colors, spotType),
+                        aspect = mapAspect,
+                        reserved = listOfNotNull(
+                            MapReserve(MapCorner.BottomEnd, ControlsReserveWidth, ControlsReserveHeight),
+                            heat?.let { MapReserve(MapCorner.BottomStart, HeatReserveWidth, HeatReserveHeight) },
+                        ),
+                        overlay = overlay,
                     )
                 }
             }
@@ -327,6 +419,11 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             stringResource(R.string.pages_title), subtitle = stringResource(R.string.pages_map_text), icon = Sym.Info,
                             chevron = true, onClick = { vm.open(Dest.Pages) },
                         )
+                        GroupDivider()
+                        GroupRow(
+                            stringResource(R.string.map_about), subtitle = stringResource(R.string.map_about_subtitle), icon = Sym.Place,
+                            chevron = true, onClick = { aboutMap = true },
+                        )
                     }
                 }
             }
@@ -376,6 +473,11 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
         }
     }
 }
+
+/** VenueMap's zoom over the whole site, as a MapLibre zoom level: 1 is about level 16 at a festival's scale. */
+private fun realZoom(most: Float): Double = 16.0 + ln(most.toDouble()) / ln(2.0)
+
+private fun hex(color: Color): String = "#%06X".format(color.toArgb() and 0xFFFFFF)
 
 @Composable
 private fun spotLabel(type: String): String = stringResource(

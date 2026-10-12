@@ -111,6 +111,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.zxing.core)
+    implementation(libs.maplibre.android)
 
     // "@aar" also turns off transitive deps; otherwise lazysodium pulls jna.jar on top of jna.aar and classes clash.
     implementation("${libs.lazysodium.android.get()}@aar")
