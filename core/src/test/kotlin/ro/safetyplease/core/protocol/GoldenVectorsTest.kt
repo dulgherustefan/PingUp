@@ -2,6 +2,7 @@ package ro.safetyplease.core.protocol
 
 import com.goterl.lazysodium.LazySodiumJava
 import com.goterl.lazysodium.SodiumJava
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,6 +19,8 @@ import ro.safetyplease.core.crypto.Identity
 import ro.safetyplease.core.crypto.KeyChain
 import ro.safetyplease.core.crypto.QrCodes
 import ro.safetyplease.core.crypto.Revocation
+import ro.safetyplease.core.event.EventPacks
+import ro.safetyplease.core.event.PackStatus
 import ro.safetyplease.core.crypto.ShiftCard
 import ro.safetyplease.core.crypto.SodiumCrypto
 import ro.safetyplease.core.crypto.StaffCard
@@ -117,6 +120,9 @@ class GoldenVectorsTest {
         "announcement.revocation" to { Golden.revocation().encode().toHex() },
         "qr.shift" to { QrCodes.encodeShift(Golden.shiftCard) },
         "qr.revocation" to { QrCodes.encodeRevocation(Golden.revocation().encode()) },
+        "event.pack.hash" to { EventPacks.hashOf(Golden.PACK_BODY).toHex() },
+        "event.pack.signature" to { Golden.packSignature().toHex() },
+        "qr.event" to { QrCodes.encodeEventGate(EventPacks.hashOf(Golden.PACK_BODY)) },
         "frame.control" to { PacketCodec.encode(Golden.controlPacket).toHex() },
         "control.heartbeat" to { Golden.heartbeat.encode().toHex() },
         "control.heartbeat.unknown" to { Golden.unknownHeartbeat.encode().toHex() },
@@ -396,6 +402,15 @@ class GoldenVectorsTest {
     }
 
     @Test
+    fun eventPackVectorsVerify() {
+        val check = EventPacks.check(Golden.pack(), Golden.crypto, bytes("key.root.sign"), Golden.TIME)
+        assertEquals(PackStatus.VALID, check.status)
+        assertArrayEquals(bytes("event.pack.hash"), check.pack!!.hash)
+        assertArrayEquals(bytes("event.pack.hash"), QrCodes.decodeEventGate(vectors.getValue("qr.event")))
+        assertTrue(Golden.crypto.verify(bytes("event.pack.signature"), EventPacks.signedMessage(Golden.PACK_BODY), bytes("cert.organiser").copyOfRange(2, 34)))
+    }
+
+    @Test
     fun qrCodesDecode() {
         val friend = QrCodes.decodeFriend(vectors.getValue("qr.friend"))!!
         assertEquals(Golden.friendCard.fields(), friend.fields())
@@ -634,6 +649,17 @@ private object Golden {
     fun revocation(): Revocation = Revocation.sign(crypto, event, TIME + 600, listOf(staffCert.id, long("0102030405060708")))
 
     val shiftCard = ShiftCard(staffCert, seed(0x80), reportCert, seed(0xc0), null, "")
+
+    /** A real event pack for "Fest 2025" with the chain above and an empty venue; the organiser signs it. */
+    val PACK_BODY = """{"id":"fest-2025","version":1,"kind":"real","name":"Fest 2025","validFrom":${TIME - 3600},""" +
+        """"validUntil":${TIME + 3 * 86_400},"organiser":"${organiserCert.encode().toHex()}","event":"${eventCert.encode().toHex()}",""" +
+        """"reportKeys":["${reportCert.encode().toHex()}"],""" +
+        """"venue":{"name":"Fest","bounds":{"minLat":44.0,"minLon":26.0,"maxLat":44.01,"maxLon":26.01},"zones":[]}}"""
+
+    fun packSignature(): ByteArray = crypto.sign(EventPacks.signedMessage(PACK_BODY), organiser.secretKey)
+
+    fun pack(): String =
+        """{"format":"pingup-event","version":1,"body":${JsonPrimitive(PACK_BODY)},"signature":"${packSignature().toHex()}"}"""
     val staffCard = StaffCard(seed(0x10), seed(0x30), StaffRole.STAFF, "Medical 1", "")
 }
 

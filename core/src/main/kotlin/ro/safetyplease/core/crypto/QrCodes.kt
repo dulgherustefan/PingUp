@@ -50,6 +50,10 @@ object QrCodes {
     private const val STAFF_PREFIX = "SPS1."
     private const val SHIFT_PREFIX = "SPS2."
     private const val REVOCATION_PREFIX = "SPR1."
+
+    /** The gate code: the hash of an event pack the phone must already hold. */
+    private const val EVENT_PREFIX = "SPE1."
+    private const val EVENT_HASH = 32
     private const val MAX_TEXT = 512
 
     /** An SPS2 code with every optional part is up to 517 characters. */
@@ -138,6 +142,13 @@ object QrCodes {
     fun encodeRevocation(payload: ByteArray): String = REVOCATION_PREFIX + encoder.encodeToString(payload)
 
     fun decodeRevocation(text: String): ByteArray? = payload(text, REVOCATION_PREFIX)
+
+    fun encodeEventGate(hash: ByteArray): String {
+        require(hash.size == EVENT_HASH)
+        return EVENT_PREFIX + encoder.encodeToString(hash)
+    }
+
+    fun decodeEventGate(text: String): ByteArray? = payload(text, EVENT_PREFIX)?.takeIf { it.size == EVENT_HASH }
 
     fun isStaff(text: String): Boolean = text.startsWith(STAFF_PREFIX) || text.startsWith(SHIFT_PREFIX)
 

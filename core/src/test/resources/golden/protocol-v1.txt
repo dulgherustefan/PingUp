@@ -183,6 +183,14 @@ qr.shift SPS2.AQHNFLN_lW6VMZT_f7c7PYHcxWHWGnU4CUt8PhpkPuXzqmjneABo6CDAaIlNWPGPLD
 # SPR1 carrying announcement.revocation.
 qr.revocation SPR1.AWiJTVjxjyw0aOd6WAKAz9Jnv8WVTwECAwQFBgcIXbiseW_3yjDRwwyzuh6lJd9cvulRWTrtO-8zVENz_mziMS_HIwtYkWNsPkw5cRmLS9Ue526bKYWfTcJwttdzDg
 
+# Event pack (PROTOCOL.md, section 16). The body is the JSON text in GoldenVectorsTest (Golden.PACK_BODY): a real pack
+# "fest-2025", version 1, TIME - 3600 to TIME + 3 days, cert.organiser, cert.event, [cert.report_key], an empty venue.
+# Its hash is SHA-256 over the body's UTF-8 bytes; the signature is the organiser's (seed(0x40)) over "SP-PACK-v1" || body.
+event.pack.hash 1d939162713f2284043ee32d69d2caaf5c88e751054e88edf0d58ce7208c949e
+event.pack.signature 5d866aa4f96bc982c12c99678ae4d69fad4818b177575ca488141d4fc02c634d7cdf80b616408302265c3cc309953eaf7d72ada0e3c651c0be34da371663e708
+# SPE1 gate code carrying event.pack.hash.
+qr.event SPE1.HZORYnE_IoQEPuMtadLKr1yI51EFTojt8NWM5yCMlJ4
+
 # 1.1, control channel (PROTOCOL.md, section 6.9).
 # Whole frame: PRIVATE, ttl 6, id 0123456789abcdef, sender node.alice, TIME, recipient the control channel 5350
 # 2d4354524c31 ("SP-CTRL1"), E=1, payload 00 01 ... 3b (60 bytes, in place of a sealed heartbeat, which is random).
