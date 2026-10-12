@@ -33,6 +33,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `chat/` | Prietenii, grupurile, mesajele și reîncercările; blocarea, ieșirea din grup cu anunț și ultima zonă a prietenilor (fără difuzare periodică). |
 | `incidents/` | Rapoartele, confirmările și stările din teren ale staff-ului, răspunsurile rapide ale consolei către raportor și actualizările raportorului, urgența dedusă din triaj, anulările de verificat și semnalarea rapoartelor venite din aceeași zonă în același timp, semnalul de aglomerație pentru consolă (`CrowdWatch`), codurile rapide de staff (`StaffCodes`) și raportul discret (`Discreet`, rutat către rolul Safeguarding). Rutarea pe roluri (`Routing`): cine primește alerta insistentă, cine doar vibrația și când se extinde; `AlertPlanner` o transformă în notificări, fără repetări inutile. |
 | `control/` | Jurnalul consolei de control: rapoartele, ACK-urile cu semnături și deciziile operatorului, starea fiecărui incident pe consolă, exportul CSV și JSON. Tot aici, exportul metricilor de pilot și legătura lor cu jurnalul. |
+| `report/` | Raportul de tură și de ediție (`EditionReports`) pentru ISU, asigurator și sponsor, din jurnalele consolei (real și exercițiu, separat), metrici și ancorele auzite: incidente pe tip, urgență, oră și pătrat, timpi raport → primit → preluat → închis (mediană și p90, nearest-rank), escaladări, alarme false și anulări, sănătatea rețelei și secțiunea „ce acoperă și ce nu”, generată mereu. `ReportExport` scrie două CSV-uri fără id-uri, porecle, echipe, descrieri sau coordonate. |
 | `metrics/` | Metricile de pilot: timpii raportorului, instantaneele rețelei mesh și jurnalul rețelei mobile (secțiunea de mai jos). |
 | `data/` | Modelele salvate, `JsonStore` (fișiere JSON scrise atomic) și `ChatStore` (chat-ul, câte un fișier pe conversație). |
 | `venue/` | Harta evenimentului din `venue.json` sau din pachetul de eveniment: zone, punct de întâlnire, grila sitului (A1, B2...). |
@@ -54,7 +55,7 @@ Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate di
 | `ui/designsystem/` | Tema, culorile, tipografia, componentele de bază. Nu știe nimic despre mesaje sau incidente. |
 | `ui/common/` | Componente folosite de mai multe ecrane: harta, cardul QR, antetul de incident, starea rețelei. |
 | `ui/chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `onboarding/`, `staffcodes/`, `safety/` | Ecranele, câte un pachet pe funcționalitate. |
-| `ui/control/` | Consola camerei de control, în landscape pe o tabletă: coada, harta cu grila, alocarea, fraza pentru stație, rețeaua și exportul jurnalului. |
+| `ui/control/` | Consola camerei de control, în landscape pe o tabletă: coada, harta cu grila, alocarea, fraza pentru stație, rețeaua, exportul jurnalului și raportul de ediție (previzualizare, PDF cu `PdfDocument`, CSV). |
 
 `src/debug/` conține modul demo (simulare, comenzi adb); `src/release/` are aceeași clasă `Demo`, dar goală.
 

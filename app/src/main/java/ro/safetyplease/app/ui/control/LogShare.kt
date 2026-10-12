@@ -32,6 +32,8 @@ import ro.safetyplease.app.ui.designsystem.footnote
 import ro.safetyplease.core.control.ConsoleView
 import ro.safetyplease.core.control.ExportNames
 import ro.safetyplease.core.control.LogExport
+import ro.safetyplease.core.report.EditionReport
+import ro.safetyplease.core.report.ReportExport
 import ro.safetyplease.core.venue.Venue
 import java.io.File
 import java.text.SimpleDateFormat
@@ -115,4 +117,27 @@ private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNam
         context, 0, Intent(context, ExportShared::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
     shareFiles(context, files, shared.intentSender)
+}
+
+/**
+ * The report as a PDF in the app's language and two CSV files, one row per incident and the figures by section, then
+ * the share sheet. Like the log export, it replaces the files of the last export; it doesn't note an export in the log,
+ * since the log itself stays on the phone.
+ */
+internal suspend fun shareReport(context: Context, c: AppContainer, report: EditionReport, doc: ReportDoc) {
+    val files = withContext(Dispatchers.IO) {
+        val res = context.resources
+        val zone = ZoneId.systemDefault()
+        val names = reportNames(res)
+        val dir = freshExportDir(c.exportDir)
+        val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.ROOT).format(Date(report.until))
+        val appName = res.getString(R.string.app_name)
+        val footer = { page: Int -> res.getString(R.string.edition_footer, appName, c.venue.name, page) }
+        listOf(
+            File(dir, "raport-$stamp.pdf").also { writeReportPdf(doc, footer, it) },
+            File(dir, "raport-$stamp-incidente.csv").apply { writeText(ReportExport.incidentsCsv(report, names, zone)) },
+            File(dir, "raport-$stamp-sumar.csv").apply { writeText(ReportExport.summaryCsv(report, names, zone)) },
+        )
+    }
+    shareFiles(context, files)
 }

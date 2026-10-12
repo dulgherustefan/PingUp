@@ -133,6 +133,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var pane by rememberSaveable { mutableStateOf(Pane.QUEUE) }
     var confirmExport by remember { mutableStateOf(false) }
+    var showReport by remember { mutableStateOf(false) }
     val selected = selectedId?.let(cases::get)
     val onMap = remember(cases) { cases.values.filter { it.state != CaseState.CLOSED } }
 
@@ -154,6 +155,8 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 { c.mutedUntil.value = if (muted > 0) 0 else c.clock.wallMs() + AlertPlanner.MUTE_MS },
                 kind = if (muted > 0) ButtonKind.Primary else ButtonKind.Secondary, compact = true, icon = Sym.Bell,
             )
+            Spacer(Modifier.width(8.dp))
+            AppButton(stringResource(R.string.edition_open), { showReport = true }, kind = ButtonKind.Secondary, compact = true)
             Spacer(Modifier.width(8.dp))
             AppButton(stringResource(R.string.control_export), { confirmExport = true }, kind = ButtonKind.Secondary, compact = true)
         }
@@ -202,6 +205,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     }
 
     if (confirmExport) ExportDialog(c, log.entries.size, vm.viewModelScope) { confirmExport = false }
+    if (showReport) ReportDialog(c, vm.viewModelScope) { showReport = false }
 }
 
 /**

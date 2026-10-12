@@ -617,6 +617,75 @@
         <item quantity="other">%d de intrări</item>
     </plurals>
     <string name="control_export_empty">Jurnalul e încă gol.</string>
+    <string name="edition_open">Raport</string>
+    <string name="edition_title">Raport de ediție</string>
+    <string name="edition_kind_shift">Tura</string>
+    <string name="edition_kind_edition">Ediția</string>
+    <string name="edition_share">Trimite PDF și CSV</string>
+    <string name="edition_generated">Generat %1$s</string>
+    <string name="edition_window">Interval</string>
+    <string name="edition_window_value">%1$s – %2$s</string>
+    <string name="edition_mode_real">real</string>
+    <string name="edition_mode_exercise">exercițiu</string>
+    <string name="edition_section_limits">Ce acoperă și ce nu</string>
+    <string name="edition_limit_only_app">Sunt numărate doar rapoartele făcute prin aplicație.</string>
+    <string name="edition_limit_install_rate">Nu se știe câți oameni au instalat aplicația, așa că cifrele sunt numere, nu rate.</string>
+    <string name="edition_limit_radio">Incidentele tratate doar pe stație sau la fața locului nu apar.</string>
+    <string name="edition_limit_clocks">Timpii scad ceasurile a două telefoane, care pot diferi cu câteva secunde. Incidente cu un timp negativ, lăsate în afara medianelor: %1$d.</string>
+    <string name="edition_limit_anchors">Starea ancorelor e ce a auzit consola de la ultima pornire a aplicației.</string>
+    <string name="edition_limit_no_position">Rapoarte fără poziție, deci fără pătrat: %1$d.</string>
+    <string name="edition_limit_metrics_gaps">Consola a măsurat rețeaua doar %1$d%% din interval.</string>
+    <string name="edition_limit_no_records">Niciun raportor nu și-a dat metricile consolei, așa că nu se știe dacă s-au pierdut rapoarte.</string>
+    <string name="edition_limit_no_mobile">Jurnalul rețelei mobile a fost oprit pe acest telefon.</string>
+    <string name="edition_limit_exercise">Incidentele din exerciții (%1$d) sunt numărate separat, niciodată în cifrele reale.</string>
+    <string name="edition_section_incidents">Incidente</string>
+    <string name="edition_total">Total</string>
+    <string name="edition_staff_reports">Raportate de staff</string>
+    <string name="edition_empty">Niciun incident în interval.</string>
+    <string name="edition_section_category">Pe tip</string>
+    <string name="edition_section_severity">Pe urgență</string>
+    <string name="edition_section_outcome">Cum s-au încheiat</string>
+    <string-array name="edition_outcomes">
+        <item>Încă deschise</item>
+        <item>Alocate, nerezolvate</item>
+        <item>Rezolvate</item>
+        <item>Alarme false</item>
+        <item>Anulate</item>
+    </string-array>
+    <string name="edition_section_hour">Pe oră</string>
+    <string name="edition_section_grid">Pe pătrat</string>
+    <string name="edition_no_square">Fără poziție</string>
+    <string name="edition_section_times">Timpi de răspuns</string>
+    <string name="edition_time_received">Raport → primit</string>
+    <string name="edition_time_acknowledged">Raport → preluat</string>
+    <string name="edition_time_closed">Raport → închis</string>
+    <string name="edition_time_value">mediana %1$s · p90 %2$s · %3$s</string>
+    <plurals name="edition_cases">
+        <item quantity="one">un caz</item>
+        <item quantity="few">%d cazuri</item>
+        <item quantity="other">%d de cazuri</item>
+    </plurals>
+    <string name="edition_time_none">fără date</string>
+    <string name="edition_duration_min">%1$d min %2$d s</string>
+    <string name="edition_duration_s">%1$d s</string>
+    <string name="edition_section_escalation">Escaladări</string>
+    <string name="edition_widened_role">Alertă extinsă la tot rolul, după %1$d s</string>
+    <string name="edition_widened_all">Alertă extinsă la tot staff-ul, după %1$d s</string>
+    <string name="edition_reopened">Redeschise</string>
+    <string name="edition_section_network">Rețeaua</string>
+    <string name="edition_measured">Timp măsurat de consolă</string>
+    <string name="edition_isolated">Consola fără nicio legătură</string>
+    <string name="edition_minutes">%1$d min</string>
+    <string name="edition_count_of">%1$d / %2$d</string>
+    <string name="edition_anchors">Ancore auzite</string>
+    <string name="edition_anchors_silent">Ancore tăcute de peste %1$d min</string>
+    <string name="edition_anchor_row">Ancora %1$s, auzită ultima dată</string>
+    <string name="edition_mobile_worked">Probe de date mobile reușite</string>
+    <string name="edition_mobile_no_data">Pătrate fără date mobile</string>
+    <string name="edition_delivery">Rapoarte ajunse la consolă, din metricile raportorilor</string>
+    <string name="edition_section_exercise">Exerciții</string>
+    <string name="edition_exercise_none">Niciun exercițiu în interval.</string>
+    <string name="edition_footer">%1$s · %2$s · pagina %3$d</string>
     <string name="control_network_sent">pachete trimise</string>
     <string name="control_network_received">pachete primite</string>
     <string name="control_network_dropped">pachete aruncate</string>

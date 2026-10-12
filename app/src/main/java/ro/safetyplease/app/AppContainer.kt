@@ -67,6 +67,7 @@ import ro.safetyplease.core.data.IncidentData
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
+import ro.safetyplease.core.event.EventKind
 import ro.safetyplease.core.event.EventPack
 import ro.safetyplease.core.event.EventPacks
 import ro.safetyplease.core.event.EventShelf
@@ -146,6 +147,14 @@ class AppContainer(private val app: Application) {
         modeFile("console_log.json"), ConsoleLog.serializer(), ConsoleLog(), ioScope, ConsoleLog.SCHEMA_VERSION,
     )
     val console = ConsoleRecorder(consoleLog, grid, clock) { id -> incidentStore.value.staff.firstOrNull { it.incidentId == id } }
+
+    /** The other mode's console log, real or exercise, read once for the edition report; never written here. */
+    val otherConsoleLog: ConsoleLog by lazy {
+        val other = if (exercise) EventKind.REAL else EventKind.EXERCISE
+        JsonStore(
+            File(dataDir, modeFileName("console_log.json", other)), ConsoleLog.serializer(), ConsoleLog(), ioScope, ConsoleLog.SCHEMA_VERSION,
+        ).value
+    }
 
     /** When the console last heard each phone; kept while this phone is the console. */
     val heard = MutableStateFlow<Map<Int, HeardPeer>>(emptyMap())
