@@ -43,26 +43,31 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.designsystem.ConfirmDialog
 import ro.safetyplease.app.ui.designsystem.LocalAppColors
 import ro.safetyplease.app.ui.designsystem.ScreenScaffold
-import ro.safetyplease.core.crypto.StaffCard
+import ro.safetyplease.core.announce.NoticeTopic
+import ro.safetyplease.core.control.PointReport
+import ro.safetyplease.core.crypto.CertStatus
+import ro.safetyplease.core.crypto.QrCodes
 import ro.safetyplease.core.crypto.StaffRole
 import ro.safetyplease.core.data.Role
+import ro.safetyplease.core.event.PackStatus
 import ro.safetyplease.core.incidents.ReportDraft
 import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.protocol.Severity
-import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.nodePrefix
 import ro.safetyplease.core.util.shortHex
 import ro.safetyplease.core.util.toHex
+import ro.safetyplease.core.util.truncateUtf8
 
 /** Demo mode, debug builds only: tools for presenting and for debugging the transport. */
 object Demo {
@@ -90,31 +95,84 @@ object Demo {
         return recorder!!
     }
 
-    /** Demo staff keys bundled in debug builds; null if they don't match the app's public staff keys. */
-    fun staffCard(context: Context, role: StaffRole, team: String, zone: String): StaffCard? = runCatching {
-        val text = context.assets.open("demo_staff.json").bufferedReader().use { it.readText() }
-        val json = Json.parseToJsonElement(text).jsonObject
-        StaffCard(
-            json.getValue("boxSeed").jsonPrimitive.content.hexToBytes(),
-            json.getValue("signSeed").jsonPrimitive.content.hexToBytes(),
-            role, team, zone,
+    /** A shift of the demo chain (assets/demo_chain.json), activated as its SPS2 code would be. */
+    private fun takeShift(context: Context, c: AppContainer, role: StaffRole, team: String, zone: String): Boolean {
+        val card = DemoChain.load(context, c.crypto).shift(role, team.truncateUtf8(Limits.TEAM_BYTES), zone, c.clock.wallMs() / 1000)
+        return c.activateShift(card, QrCodes.encodeShift(card)) == CertStatus.VALID
+    }
+
+    /** [lead] makes the phone ring like the console for its role's urgencies. */
+    fun becomeStaff(context: Context, c: AppContainer, team: String, zone: String, lead: Boolean): Boolean {
+        if (!takeShift(context, c, StaffRole.STAFF, team, zone)) return false
+        c.settings.update { it.copy(roleLead = lead) }
+        return true
+    }
+
+    fun becomeControl(context: Context, c: AppContainer): Boolean = takeShift(context, c, StaffRole.CONTROL, "Control", "")
+
+    fun becomeAnchor(context: Context, c: AppContainer, zone: String): Boolean = takeShift(context, c, StaffRole.ANCHOR, "Ancora $zone", zone)
+
+    private fun packText(context: Context, c: AppContainer): String {
+        fun text(path: String) = context.assets.open(path).bufferedReader().use { it.readText() }
+        fun folder(dir: String) = context.assets.list(dir).orEmpty().filter { it.endsWith(".md") }.sorted().associateWith { text("$dir/$it") }
+        return DemoChain.load(context, c.crypto).pack(
+            Json.parseToJsonElement(text("demo_event.json")).jsonObject, text("venue.json"), text("notices.json"),
+            folder("firstaid"), mapOf("ro" to folder("pages"), "en" to folder("pages-en")), c.clock.wallMs() / 1000,
         )
-    }.getOrNull()
-
-    fun becomeStaff(context: Context, c: AppContainer, team: String): Boolean {
-        val card = staffCard(context, StaffRole.STAFF, team, "") ?: return false
-        return c.activateStaff(card)
     }
 
-    fun becomeControl(context: Context, c: AppContainer): Boolean {
-        val card = staffCard(context, StaffRole.CONTROL, "Control", "") ?: return false
-        return c.activateStaff(card)
+    /**
+     * Checks and keeps today's demo pack: its hash, to switch to with [AppContainer.switchEvent], which restarts the
+     * app; null when it is already in use, a failure naming the status when the phone refused it.
+     */
+    fun loadPack(context: Context, c: AppContainer): Result<String?> {
+        val text = packText(context, c)
+        val loaded = c.loadEventPack(text)
+        if (loaded.status != PackStatus.VALID) return Result.failure(IllegalStateException(loaded.status.name))
+        val hash = c.events.value.packs.first { it.text == text }.hash
+        return Result.success(hash.takeIf { it != c.events.value.active })
     }
 
-    fun becomeAnchor(context: Context, c: AppContainer, zone: String): Boolean {
-        val card = staffCard(context, StaffRole.ANCHOR, "Ancora $zone".take(20), zone) ?: return false
-        return c.activateStaff(card)
+    /** What the scenario last put on the point board, so a reset takes back only that. */
+    @Volatile
+    private var seededPoints: Map<Int, PointReport> = emptyMap()
+
+    /**
+     * Makes this phone the console and gives it a shift's test data ([DemoScenario]); the heat notice goes to the
+     * phones around, as a real one would. False if the demo chain refused the console's shift.
+     */
+    fun scenario(context: Context, c: AppContainer): Boolean {
+        if (c.settings.value.role != Role.CONTROL && !becomeControl(context, c)) return false
+        val now = c.clock.wallMs()
+        val incidents = DemoScenario.incidents(c.venue, now)
+        c.incidentStore.update { data ->
+            data.copy(
+                staff = data.staff.filterNot { DemoScenario.isDemo(it.incidentId) } + incidents,
+                dismissed = data.dismissed.filterNot(DemoScenario::isDemo),
+            )
+        }
+        seededPoints = DemoScenario.points(c.venue, now)
+        c.points.update { it + seededPoints }
+        c.heard.update { it + DemoScenario.anchors(c.venue, c.grid, now) }
+        c.noticeTemplates.forTopic(NoticeTopic.HEAT).firstOrNull { it.level == HEAT_LEVEL }?.let {
+            c.notices.publish(it, emptyList(), "", HEAT_VALID_S)
+        }
+        return true
     }
+
+    /** Takes back what [scenario] added, its lines in the console log too, and withdraws the heat notice. */
+    fun reset(c: AppContainer) {
+        c.incidentStore.update { data -> data.copy(staff = data.staff.filterNot { DemoScenario.isDemo(it.incidentId) }) }
+        c.consoleLog.update { log -> log.copy(entries = log.entries.filterNot { DemoScenario.isDemo(it.incidentId) }) }
+        val points = seededPoints
+        c.points.update { board -> board.filterNot { (number, report) -> points[number] == report } }
+        seededPoints = emptyMap()
+        c.heard.update { it - DemoScenario.ANCHOR_PREFIXES.toSet() }
+        c.notices.cancel(NoticeTopic.HEAT)
+    }
+
+    private const val HEAT_LEVEL = 2
+    private const val HEAT_VALID_S = 4 * 3600L
 
     private var testIncidents = 0
 
@@ -151,6 +209,7 @@ object Demo {
         var confirmWipe by remember { mutableStateOf(false) }
         var notice by remember { mutableStateOf<String?>(null) }
         var measureNotice by remember { mutableStateOf<String?>(null) }
+        var kitNotice by remember { mutableStateOf<String?>(null) }
 
         // Android pauses unfiltered scans with the screen off
         val view = LocalView.current
@@ -253,10 +312,10 @@ object Demo {
                         }) { Text(stringResource(R.string.demo_test_incident)) }
                     }
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val failed = stringResource(R.string.demo_keys_mismatch)
+                        val failed = stringResource(R.string.demo_chain_refused)
                         RoleButton(stringResource(R.string.demo_role_participant), settings.role == Role.PARTICIPANT) { c.leaveStaff() }
                         RoleButton(stringResource(R.string.demo_role_staff), settings.role == Role.STAFF) {
-                            if (!becomeStaff(context, c, "Echipa ${settings.nickname}".take(20))) notice = failed
+                            if (!becomeStaff(context, c, "Medical 1", vm.currentZoneId(), lead = true)) notice = failed
                         }
                         RoleButton(stringResource(R.string.demo_role_anchor), settings.role == Role.ANCHOR) {
                             if (becomeAnchor(context, c, vm.currentZoneId().ifEmpty { "main-stage" })) vm.stack.clear() else notice = failed
@@ -267,6 +326,32 @@ object Demo {
                     }
                     notice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     OutlinedButton(onClick = { confirmWipe = true }) { Text(stringResource(R.string.demo_wipe)) }
+                }
+
+                Card(stringResource(R.string.demo_kit)) {
+                    Text(
+                        stringResource(R.string.demo_kit_text),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val refused = stringResource(R.string.demo_chain_refused)
+                        val inUse = stringResource(R.string.demo_pack_active)
+                        val packRefused = stringResource(R.string.demo_pack_refused)
+                        Button(onClick = { kitNotice = if (scenario(context, c)) null else refused }) {
+                            Text(stringResource(R.string.demo_scenario))
+                        }
+                        OutlinedButton(onClick = {
+                            reset(c)
+                            kitNotice = null
+                        }) { Text(stringResource(R.string.demo_scenario_reset)) }
+                        FilledTonalButton(onClick = {
+                            loadPack(context, c).fold(
+                                onSuccess = { hash -> if (hash == null) kitNotice = inUse else c.switchEvent(hash) },
+                                onFailure = { kitNotice = packRefused.format(it.message) },
+                            )
+                        }) { Text(stringResource(R.string.demo_pack)) }
+                    }
+                    kitNotice?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 }
 
                 Card(stringResource(R.string.demo_measure)) {

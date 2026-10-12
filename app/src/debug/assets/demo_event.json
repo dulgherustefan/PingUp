@@ -1,0 +1,5 @@
+{
+  "id": "demo-festival",
+  "name": "Festival demo",
+  "grid": { "cellMeters": 50 }
+}

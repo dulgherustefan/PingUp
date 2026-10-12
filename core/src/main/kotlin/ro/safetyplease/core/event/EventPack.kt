@@ -15,6 +15,7 @@ import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.KeyChain
+import ro.safetyplease.core.crypto.KeyPair
 import ro.safetyplease.core.crypto.StaffPublicKeys
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
@@ -92,6 +93,16 @@ object EventPacks {
     }
 
     fun hashOf(body: String): ByteArray = sha256(body.utf8())
+
+    /** The pack file of [body], signed by the [organiser]'s key, as tools/gen_staff_keys.py "pack" writes it. */
+    fun sign(body: String, crypto: Crypto, organiser: KeyPair): String = JsonObject(
+        mapOf(
+            "format" to JsonPrimitive(FORMAT),
+            "version" to JsonPrimitive(1),
+            "body" to JsonPrimitive(body),
+            "signature" to JsonPrimitive(crypto.sign(signedMessage(body), organiser.secretKey).toHex()),
+        ),
+    ).toString()
 
     /**
      * Whether [text] is a pack this phone may use at [now] (seconds): the root signed the organiser, the organiser

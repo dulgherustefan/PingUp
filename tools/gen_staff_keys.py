@@ -334,7 +334,10 @@ def cmd_legacy(args) -> None:
 def cmd_demo(_args) -> None:
     """A separate pair for the debug build: its public key overrides the one from main in debug."""
     box_seed, sign_seed = os.urandom(32), os.urandom(32)
-    save_json(DEMO_PUBLIC, {"box": bindings.crypto_box_seed_keypair(box_seed)[0].hex(), "sign": sign_pair(sign_seed)[0].hex()})
+    # the demo chain's root and certificates (debug assets) stay as they are
+    data = load_json(DEMO_PUBLIC)
+    data.update(box=bindings.crypto_box_seed_keypair(box_seed)[0].hex(), sign=sign_pair(sign_seed)[0].hex())
+    save_json(DEMO_PUBLIC, data)
     save_json(DEMO, {"boxSeed": box_seed.hex(), "signSeed": sign_seed.hex()})
     print(f"demo keys -> {DEMO_PUBLIC.relative_to(ROOT)}, {DEMO.relative_to(ROOT)} (debug build only)")
 

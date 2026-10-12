@@ -28,6 +28,10 @@ import java.time.ZoneId
  * start also takes --ei pings 100 --ei every 1000 to send TEST packets while recording. The CSV files:
  *   adb pull /sdcard/Android/data/org.pingup.app/files/measure/
  * The pilot metrics, as the settings screen exports them, go to the same folder: --es cmd metrics.
+ *
+ * Demo kit (README, "Demo"): control, staff (--es team "Medical 1" --es zone main-stage --ez lead true) and
+ * anchor (--es zone bar) take shifts of the demo key chain; pack loads the demo event pack and restarts the app;
+ * scenario seeds the console's test data and reset takes it back.
  */
 class DebugCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -70,9 +74,25 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 Demo.testIncident(c, zone, center?.lat, center?.lon)
                 "reported in $zone"
             }
-            "staff" -> "staff=${Demo.becomeStaff(context, c, intent.getStringExtra("team") ?: "Echipa demo")}"
+            "staff" -> {
+                val team = intent.getStringExtra("team") ?: "Medical 1"
+                val zone = intent.getStringExtra("zone").orEmpty()
+                "staff=${Demo.becomeStaff(context, c, team, zone, intent.getBooleanExtra("lead", false))} $team $zone"
+            }
             "anchor" -> "anchor=${Demo.becomeAnchor(context, c, intent.getStringExtra("zone") ?: "bar")}"
             "control" -> "control=${Demo.becomeControl(context, c)}"
+            "pack" -> {
+                val hash = Demo.loadPack(context, c).getOrElse { return "pack refused: ${it.message}" } ?: return "pack already in use"
+                // switching restarts the app, so the reply goes out first
+                Log.i(TestPinger.TAG, "[pack] switching to ${hash.take(12)}, the app restarts")
+                c.switchEvent(hash)
+                "switched"
+            }
+            "scenario" -> if (Demo.scenario(context, c)) "scenario loaded" else "the demo chain refused the console's shift"
+            "reset" -> {
+                Demo.reset(c)
+                "scenario removed"
+            }
             "participant" -> {
                 c.leaveStaff()
                 "participant"

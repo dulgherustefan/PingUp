@@ -19,7 +19,6 @@
     <string name="demo_role_staff">Staff</string>
     <string name="demo_role_anchor">Ancoră</string>
     <string name="demo_role_control">Control</string>
-    <string name="demo_keys_mismatch">Cheile de demo nu corespund cheilor publice din aplicație. Folosește codul QR de staff.</string>
     <string name="demo_wipe">Șterge toate datele</string>
     <string name="demo_wipe_text">Se șterg identitatea, prietenii, mesajele și incidentele. Aplicația se închide.</string>
     <string name="demo_tests">Pachete TEST</string>
@@ -36,4 +35,12 @@
     <string name="demo_measure_failed">Înregistrarea n-a pornit. Verifică Bluetooth-ul și permisiunile.</string>
     <string name="demo_measure_none">Nicio înregistrare încă.</string>
     <string name="demo_radio_caps">Coded PHY: %1$s · advertising extins: %2$s (max %3$d B) · multi-advertising: %4$s · rază lungă activă: %5$s</string>
+    <string name="demo_chain_refused">Lanțul de chei demo n-a fost acceptat. Verifică ora telefonului și pachetul de eveniment în uz.</string>
+    <string name="demo_kit">Kit de prezentare</string>
+    <string name="demo_kit_text">Scenariul face din telefon consola și adaugă date de test: incidente, starea punctelor, două ancore și un anunț de căldură. Pachetul demo repornește aplicația.</string>
+    <string name="demo_scenario">Scenariu</string>
+    <string name="demo_scenario_reset">Resetează</string>
+    <string name="demo_pack">Pachetul demo</string>
+    <string name="demo_pack_active">Pachetul demo e deja în uz.</string>
+    <string name="demo_pack_refused">Pachetul demo a fost refuzat: %1$s</string>
 </resources>

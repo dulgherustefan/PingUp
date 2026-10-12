@@ -19,7 +19,6 @@
     <string name="demo_role_staff">Staff</string>
     <string name="demo_role_anchor">Anchor</string>
     <string name="demo_role_control">Control</string>
-    <string name="demo_keys_mismatch">The demo keys don’t match the public keys in the app. Use the staff QR code.</string>
     <string name="demo_wipe">Delete all data</string>
     <string name="demo_wipe_text">This deletes the identity, friends, messages and incidents. The app closes.</string>
     <string name="demo_tests">TEST packets</string>
@@ -36,4 +35,12 @@
     <string name="demo_measure_failed">Recording didn’t start. Check Bluetooth and permissions.</string>
     <string name="demo_measure_none">No recordings yet.</string>
     <string name="demo_radio_caps">Coded PHY: %1$s · extended advertising: %2$s (max %3$d B) · multi-advertising: %4$s · long range active: %5$s</string>
+    <string name="demo_chain_refused">The demo key chain wasn’t accepted. Check the phone’s time and the event pack in use.</string>
+    <string name="demo_kit">Presentation kit</string>
+    <string name="demo_kit_text">The scenario makes this phone the console and adds test data: incidents, point statuses, two anchors and a heat notice. The demo pack restarts the app.</string>
+    <string name="demo_scenario">Scenario</string>
+    <string name="demo_scenario_reset">Reset</string>
+    <string name="demo_pack">Demo pack</string>
+    <string name="demo_pack_active">The demo pack is already in use.</string>
+    <string name="demo_pack_refused">The demo pack was refused: %1$s</string>
 </resources>
