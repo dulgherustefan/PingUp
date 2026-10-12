@@ -91,7 +91,7 @@ class UiLogicTest {
     private val friend = 0x1234_5678_0000_0001L
     private val prefix = (friend ushr 32).toInt()
 
-    private fun link(peer: Long, muted: Boolean = false) = LinkInfo(1, "AA:BB", peer, null, 0, true, muted, 0)
+    private fun link(peer: Long) = LinkInfo(1, "AA:BB", peer, null, 0, true, 0)
 
     @Test
     fun nearbyIgnoresSignalAndTimingChurn() {
@@ -123,9 +123,9 @@ class UiLogicTest {
     }
 
     @Test
-    fun readyLinksCountsOnlyIdentifiedUnmutedLinks() {
-        val state = MeshState(links = listOf(link(friend), link(0L), link(0x2222_0000_0000_0002L, muted = true)))
-        assertEquals(1, Nearby.of(state).readyLinks)
+    fun readyLinksCountsOnlyIdentifiedLinks() {
+        val state = MeshState(links = listOf(link(friend), link(0L), link(0x2222_0000_0000_0002L)))
+        assertEquals(2, Nearby.of(state).readyLinks)
     }
 
     // --- screen stack ---

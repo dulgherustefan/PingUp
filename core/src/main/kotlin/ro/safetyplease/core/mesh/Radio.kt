@@ -17,6 +17,12 @@ sealed interface RadioEvent {
     class ConnectFailed(val address: String) : RadioEvent
 
     class Status(val status: RadioStatus) : RadioEvent
+
+    /**
+     * The radio has to start a new advertising set for a reason of its own (a change it couldn't make in place, a set
+     * the stack dropped). A new set has a new address, so it waits for a new prefix to show with it.
+     */
+    object PrefixWanted : RadioEvent
 }
 
 data class RadioStatus(

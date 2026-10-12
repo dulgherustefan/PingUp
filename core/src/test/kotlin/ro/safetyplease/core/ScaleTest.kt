@@ -163,8 +163,7 @@ class ScaleTest {
         val outcome = exercise(
             crowd,
             reporters = listOf(p[0], p[9], p[45]),
-            // three columns apart, three hops: chat reaches four (PacketType.CHAT_TTL)
-            chats = listOf(p[2] to p[5], p[10] to p[13], p[15] to p[18], p[31] to p[34], p[43] to p[46]),
+            chats = listOf(p[2] to p[6], p[10] to p[14], p[15] to p[19], p[31] to p[35], p[43] to p[47]),
             unreachable = p[40] to p[49],
             settleMs = 120_000,
         )
@@ -191,10 +190,10 @@ class ScaleTest {
         val others = crowd.phones - crowd.staff.toSet()
         val corners = listOf(Position(0.0, 0.0), Position(100.0, 0.0), Position(0.0, 100.0), Position(100.0, 100.0))
         val reporters = (corners + Position(50.0, 50.0)).map { crowd.nearest(it, others) }
-        // ten pairs of friends, each a little under two radio ranges apart; farther, chat's 4 hops often fall short
+        // ten pairs of friends, each about three radio ranges apart
         val partners = others.drop(11).toMutableList()
         val chats = others.take(10).map { a ->
-            val b = partners.minBy { abs(crowd.distance(it, a.radio.position!!) - 25.0) }
+            val b = partners.minBy { abs(crowd.distance(it, a.radio.position!!) - 40.0) }
             partners -= b
             a to b
         }
@@ -238,18 +237,15 @@ class ScaleTest {
 
         val states = crowd.phones.map { it.engine.state.value }
         val chat = crowd.net.traffic(PacketType.PRIVATE)
-        fun undelivered() = pairs.filter { it.first.messages.single().status != MsgStatus.DELIVERED }.map { it.first.name }
-        val late = undelivered().size
-        // chat goes on a few links, so a far partner may need a retry or two of the outbox
-        advanceTimeBy(5 * 60_000L)
+        val undelivered = pairs.filter { it.first.messages.single().status != MsgStatus.DELIVERED }.map { it.first.name }
         println(
             "Chat burst, ${pairs.size} messages at once among 200 phones, 5 reports 2 s later:\n" +
                 "  reports confirmed by staff after ${"%.2f".format(confirmedMs / 1000.0)} s\n" +
                 "  PRIVATE after 60 s: ${chat.packets} packets, ${chat.transmissions} transmissions\n" +
                 "  dropped ${states.sumOf { it.dropped }}, queue full ${states.sumOf { it.queueFull }}\n" +
-                "  delivered within 60 s: ${pairs.size - late} of ${pairs.size}, the rest within 6 min",
+                "  delivered within 60 s: ${pairs.size - undelivered.size} of ${pairs.size}",
         )
-        assertTrue("${undelivered()}", undelivered().isEmpty())
+        assertTrue("not delivered within 60 s: $undelivered", undelivered.isEmpty())
         for ((_, b) in pairs) assertEquals(b.name, 1, b.messages.size)
     }
 }

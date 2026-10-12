@@ -77,6 +77,8 @@ data class MeshConfig(
     /** Nickname is included in HELLO only in debug builds, for the demo peer list. */
     val nicknameInHello: Boolean = false,
     val allowTestPackets: Boolean = false,
+    /** A relay passes chat on only some of its links ([FanOut]) instead of all of them. */
+    val chatFanOut: Boolean = MeshEngine.CHAT_FAN_OUT,
 )
 
 sealed interface MeshEvent {
@@ -97,7 +99,6 @@ data class LinkInfo(
     val nickname: String?,
     val flags: Int,
     val outgoing: Boolean,
-    val muted: Boolean,
     val upAtMs: Long,
     /** The prefix the peer advertises, as in [SeenPeer.prefix]; null while unknown. */
     val prefix: Int? = null,
@@ -113,7 +114,6 @@ enum class DropReason(val label: String) {
     RATE_LIMIT("rate limit"),
     MALFORMED("malformed"),
     BEFORE_HELLO("before HELLO"),
-    IGNORED("ignorat"),
     TEST("test"),
 
     /** A frame, a packet type or a summary kind from a newer version that this one can't use. */
@@ -155,7 +155,7 @@ data class MeshState(
     val cachedReports: Int = 0,
     val counters: MeshCounters = MeshCounters(),
 ) {
-    val readyLinks: Int get() = links.count { it.peerId != 0L && !it.muted }
+    val readyLinks: Int get() = links.count { it.peerId != 0L }
 
     /** Phones, not addresses: a peer can briefly show up under two addresses after restarting its advertising. */
     val visiblePeers: Int get() = seen.map { it.prefix ?: it.address.hashCode() }.distinct().size
@@ -192,9 +192,12 @@ class MeshEngine(
         var peerFlags = 0
         var helloPrefix: Int? = null
         var nickname: String? = null
-        var muted = false
         var closing = false
         var lastActivityMs = upAtMs
+
+        /** When the peer last sent a packet that isn't link-local; null if it never did. */
+        var lastInboundMs: Long? = null
+
         var summaryAtMs = upAtMs
         var nextSendAtMs = 0L
         var fragSeq = 0
@@ -209,7 +212,7 @@ class MeshEngine(
         val announcements = WindowLimit(config.announcementsPerMinute, 60_000)
         val unsupported = WindowLimit(config.unsupportedPerMinute, 60_000)
 
-        val ready: Boolean get() = peerId != 0L && !muted && !closing
+        val ready: Boolean get() = peerId != 0L && !closing
         val label: String get() = if (peerId != 0L) peerId.shortHex() else address.takeLast(5)
 
         /** The peer announced 1.1 in its HELLO; a 1.0 peer gets only what 1.0 reads. */
@@ -227,7 +230,11 @@ class MeshEngine(
     private val seen = HashMap<String, Candidate>()
     private val dedup = DedupCache()
     private val cache = IncidentCache(config.retentionMs).apply {
-        cacheStore?.let { restore(it.value, clock.monoMs(), clock.wallMs(), maxOf(config.retentionMs, config.anchorRetentionMs)) }
+        cacheStore?.let { store ->
+            // only a cache: a file it can't read is deleted, so that saving starts over instead of stopping for good
+            if (store.unreadable) store.reset()
+            else restore(store.value, clock.monoMs(), clock.wallMs(), maxOf(config.retentionMs, config.anchorRetentionMs))
+        }
     }
 
     /** Packets waiting out the relay jitter, with the links that already gave us a copy. */
@@ -237,6 +244,10 @@ class MeshEngine(
     private val addressFailures = HashMap<String, Int>()
     private val prefixCooldownUntil = HashMap<Int, Long>()
     private val bannedAddressesUntil = HashMap<String, Long>()
+
+    /** Demo mode: where an ignored peer was found, kept away from until its address and prefix change. */
+    private val shutOutAddressesUntil = HashMap<String, Long>()
+    private val shutOutPrefixesUntil = HashMap<Int, Long>()
 
     private var connecting: String? = null
     private var connectingSinceMs = 0L
@@ -308,20 +319,29 @@ class MeshEngine(
         nickname = value?.truncateUtf8(Limits.NICK_BYTES)
     }
 
-    /** Demo mode: don't connect to these prefixes and drop everything from or to them. */
+    /**
+     * Demo mode: no link with the phones whose nodeId has one of these prefixes. A rotating prefix doesn't show who
+     * advertises it, so such a link opens and closes as soon as HELLO tells; an anchor advertises its nodeId's prefix
+     * and is never connected to.
+     */
     fun setIgnoredPrefixes(prefixes: Set<Int>) {
         ignored = prefixes
-        for (link in links.values) {
-            if (link.peerId == 0L) continue
-            val mute = link.peerId.nodePrefix() in prefixes
-            if (mute == link.muted) continue
-            link.muted = mute
-            if (!mute) {
-                sendSummary(link)
-                _events.tryEmit(MeshEvent.PeerLinked(link.peerId))
-            }
-        }
+        shutOutAddressesUntil.clear()
+        shutOutPrefixesUntil.clear()
+        val now = clock.monoMs()
+        for (link in links.values.toList()) if (!link.closing && link.peerId != 0L && isIgnored(link.peerId)) shutOut(link, now)
         publishState()
+    }
+
+    private fun isIgnored(peerId: Long): Boolean = peerId.nodePrefix() in ignored
+
+    /** Closes an ignored peer's link and keeps away from its address and prefix until it advertises new ones. */
+    private fun shutOut(link: Link, now: Long) {
+        val until = now + AdvertisedPrefix.INTERVAL_MS
+        shutOutAddressesUntil[link.address] = until
+        link.peerPrefix?.let { shutOutPrefixesUntil[it] = until }
+        log.link(clock.wallMs(), link.label, "ignored")
+        close(link)
     }
 
     fun clearCaches() {
@@ -411,9 +431,12 @@ class MeshEngine(
         return count
     }
 
-    /** A relay passes chat on a few links, the recipient's own among them; its writer and every other type use them all. */
+    /**
+     * With [MeshConfig.chatFanOut], a relay passes chat on a few links, the recipient's own among them; its writer and
+     * every other type use them all.
+     */
     private fun fanOut(packet: Packet, targets: List<Link>, own: Boolean): List<Link> {
-        if (own || packet.type != PacketType.PRIVATE) return targets
+        if (own || !config.chatFanOut || packet.type != PacketType.PRIVATE) return targets
         return FanOut.pick(targets, targets.firstOrNull { it.peerId == packet.recipient }, random)
     }
 
@@ -502,6 +525,7 @@ class MeshEngine(
                 radioStatus = event.status
                 publishState()
             }
+            RadioEvent.PrefixWanted -> renewPrefix(clock.monoMs())
         }
     }
 
@@ -519,7 +543,8 @@ class MeshEngine(
         if (e.outgoing && connecting == e.address) connecting = null
         val banned = (bannedAddressesUntil[e.address] ?: 0) > now
         val overLimit = !e.outgoing && links.values.count { !it.outgoing && !it.closing } >= limits.maxIn
-        if (banned || overLimit || e.maxFrame < PacketCodec.MIN_FRAME) {
+        val shutOut = (shutOutAddressesUntil[e.address] ?: 0) > now
+        if (banned || overLimit || shutOut || e.maxFrame < PacketCodec.MIN_FRAME) {
             if (banned) refusedBannedCount++
             log.link(clock.wallMs(), e.address.takeLast(5), "refuzat")
             radio.disconnect(e.link)
@@ -587,7 +612,6 @@ class MeshEngine(
 
         if (packet.type == PacketType.HELLO) return onHello(link, packet)
         if (link.peerId == 0L) return drop(packet, link, DropReason.BEFORE_HELLO)
-        if (link.muted) return drop(packet, link, DropReason.IGNORED)
 
         when (packet.type) {
             PacketType.SUMMARY, PacketType.SUMMARY2 -> onSummary(link, packet)
@@ -629,13 +653,11 @@ class MeshEngine(
         link.peerId = hello.nodeId
         setPeer(link, hello)
         addressFailures.remove(link.address)
+        if (isIgnored(hello.nodeId)) return shutOut(link, clock.monoMs())
         // our first HELLO left before we knew the peer reads the prefix
         if (link.readsPrefix) sendHello(link)
-        link.muted = hello.nodeId.nodePrefix() in ignored
-        if (!link.muted) {
-            sendSummary(link)
-            _events.tryEmit(MeshEvent.PeerLinked(link.peerId))
-        }
+        sendSummary(link)
+        _events.tryEmit(MeshEvent.PeerLinked(link.peerId))
         publishState()
     }
 
@@ -740,6 +762,7 @@ class MeshEngine(
             }
         }
         link.lastActivityMs = now
+        link.lastInboundMs = now
         val mine = packet.recipient == nodeId
         if (packet.recipient == null || mine) {
             receivedCount++
@@ -843,6 +866,8 @@ class MeshEngine(
         addressBlockedUntil.values.removeAll { it <= now }
         prefixCooldownUntil.values.removeAll { it <= now }
         bannedAddressesUntil.values.removeAll { it <= now }
+        shutOutAddressesUntil.values.removeAll { it <= now }
+        shutOutPrefixesUntil.values.removeAll { it <= now }
         if (rotatingPrefix.isDue(now)) renewPrefix(now)
 
         for (link in links.values.toList()) {
@@ -868,12 +893,13 @@ class MeshEngine(
 
     private fun isBlocked(c: Candidate, now: Long): Boolean {
         if ((addressBlockedUntil[c.address] ?: 0) > now || (bannedAddressesUntil[c.address] ?: 0) > now) return true
+        if ((shutOutAddressesUntil[c.address] ?: 0) > now) return true
         val prefix = c.prefix ?: return false
-        return prefix in ignored || (prefixCooldownUntil[prefix] ?: 0) > now
+        return prefix in ignored || (prefixCooldownUntil[prefix] ?: 0) > now || (shutOutPrefixesUntil[prefix] ?: 0) > now
     }
 
     private fun linkViews(): List<LinkView> = links.values.map {
-        LinkView(it.id, it.address, it.peerPrefix, it.peerFlags, it.outgoing, it.upAtMs, it.lastActivityMs)
+        LinkView(it.id, it.address, it.peerPrefix, it.peerFlags, it.outgoing, it.upAtMs, it.lastActivityMs, it.lastInboundMs)
     }
 
     private fun me() = Me(myPrefix(), nodeId.nodePrefix(), radioStatus.canAdvertise)
@@ -936,7 +962,7 @@ class MeshEngine(
         _state.value = MeshState(
             radio = radioStatus,
             links = links.values.filter { !it.closing }.map {
-                LinkInfo(it.id, it.address, it.peerId, it.nickname, it.peerFlags, it.outgoing, it.muted, it.upAtMs, it.peerPrefix)
+                LinkInfo(it.id, it.address, it.peerId, it.nickname, it.peerFlags, it.outgoing, it.upAtMs, it.peerPrefix)
             },
             seen = seen.values.map { SeenPeer(it.address, it.prefix, it.flags, it.rssi, it.lastSeenMs) }
                 .sortedByDescending { it.rssi },
@@ -954,5 +980,13 @@ class MeshEngine(
 
     private fun <K> HashMap<K, Long>.bump(key: K) {
         this[key] = (this[key] ?: 0L) + 1
+    }
+
+    companion object {
+        /**
+         * Off: chat floods like everything else, as it reaches farther (PROTOCOL.md, section 5). The fan-out stays,
+         * so the pilot can measure what it saves and what it costs in delivery.
+         */
+        const val CHAT_FAN_OUT = false
     }
 }

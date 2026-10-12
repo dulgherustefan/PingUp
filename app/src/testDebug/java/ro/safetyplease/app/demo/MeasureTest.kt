@@ -72,7 +72,7 @@ class MeasureTest {
     @Test
     fun meshCountersComeFromTheEngineState() {
         val state = MeshState(
-            links = listOf(LinkInfo(1, "A", 7L, null, 1, true, false, 0), LinkInfo(2, "B", 0L, null, 1, false, false, 0)),
+            links = listOf(LinkInfo(1, "A", 7L, null, 1, true, 0), LinkInfo(2, "B", 0L, null, 1, false, 0)),
             seen = listOf(SeenPeer("A", 1, 1, -60, 0), SeenPeer("B", 1, 1, -70, 0), SeenPeer("C", 2, 1, -80, 0)),
             sent = 10, received = 20, relayed = 5, dropped = 2, queueFull = 4, cachedReports = 3,
             counters = MeshCounters(

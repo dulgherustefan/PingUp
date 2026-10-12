@@ -42,6 +42,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import ro.safetyplease.core.mesh.NewSetPrefix
 import ro.safetyplease.core.mesh.PowerMode
 import ro.safetyplease.core.mesh.PowerPlan
 import ro.safetyplease.core.mesh.Radio
@@ -101,6 +102,9 @@ class BleRadio(
         var appliedFlags = 0
         var appliedPrefix = 0
         var appliedInterval = 0
+
+        /** The prefix this set last showed on the air, under the address it had then. */
+        var onAirPrefix: Int? = null
         private var op: AdvOp? = null
         private var signal: CompletableDeferred<Int>? = null
 
@@ -161,6 +165,7 @@ class BleRadio(
         fun started(advertisingSet: AdvertisingSet?, status: Int) {
             if (status == AdvertisingSetCallback.ADVERTISE_SUCCESS && advertisingSet != null) {
                 set = advertisingSet
+                onAirPrefix = appliedPrefix
                 log("advertising $name started")
                 if (!coded) {
                     if (failures.demoted) log("advertising works again, no longer a leaf")
@@ -180,6 +185,7 @@ class BleRadio(
 
     /** Until the engine gives the prefix it advertises. */
     private var prefix = nodeId.nodePrefix()
+    private val newSetPrefix = NewSetPrefix(fixed = nodeId.nodePrefix())
     private val serviceUuid = ParcelUuid(BleConstants.SERVICE)
     private val manager: BluetoothManager? = context.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? get() = manager?.adapter
@@ -958,6 +964,7 @@ class BleRadio(
     // Each set is started once and then updated in place. A new set gets a new MAC address,
     // and peers that were connecting to the old one hang until the timeout. A new prefix is the exception:
     // it restarts the set, so that the address changes with it and the old one can't be tied to the new one.
+    // The other way round too: a set that has to start again for another reason first gets a new prefix.
 
     private fun AdvSet.wanted(): Boolean {
         val legacyWanted = active && canAdvertise && serviceReady
@@ -1031,12 +1038,17 @@ class BleRadio(
     }
 
     private suspend fun AdvSet.restart(advertiser: BluetoothLeAdvertiser) {
+        // the old set stays on the air until the engine gives the prefix for the new one
+        if (!mayStart()) return
         stop()
         if (!wanted()) return
         start(advertiser)
     }
 
+    private fun AdvSet.mayStart(): Boolean = newSetPrefix.mayStart(prefix, onAirPrefix) { events.trySend(RadioEvent.PrefixWanted) }
+
     private suspend fun AdvSet.start(advertiser: BluetoothLeAdvertiser) {
+        if (!mayStart()) return
         val cb = newCallback()
         callback = cb
         startedAt = now()

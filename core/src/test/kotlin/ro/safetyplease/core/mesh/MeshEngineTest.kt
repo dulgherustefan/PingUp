@@ -73,7 +73,7 @@ class MeshEngineTest {
         val readyLinks: Int get() = engine.state.value.readyLinks
         fun ofType(type: Int) = received.filter { it.type == type }
 
-        /** By the prefix the others advertise now, so no link opens, and by their nodeId's, so one that opens carries nothing. */
+        /** By the prefix the others advertise now, so no link opens, and by their nodeId's, so one that opens is closed. */
         fun ignore(vararg others: Node) =
             engine.setIgnoredPrefixes(others.flatMap { listOf(it.radio.prefix, it.id.nodePrefix()) }.toSet())
     }
@@ -90,14 +90,17 @@ class MeshEngineTest {
         val clock = TestClock(scope.testScheduler)
         val bg = scope.backgroundScope
         val net = SimNet(bg)
-        fun node(name: String, id: Long, maxFrame: Int = 514, canAdvertise: Boolean = true, cache: JsonStore<CachedIncidents>? = null) =
-            Node(name, id, net, bg, clock, maxFrame, canAdvertise, cache = cache)
+        fun node(
+            name: String,
+            id: Long,
+            maxFrame: Int = 514,
+            canAdvertise: Boolean = true,
+            cache: JsonStore<CachedIncidents>? = null,
+            config: MeshConfig = MeshConfig(allowTestPackets = true),
+        ) = Node(name, id, net, bg, clock, maxFrame, canAdvertise, config, cache)
     }
 
-    /**
-     * The acceptance scenario chain: A and C, A and D, B and D ignore each other, so A - B - C - D. Both ends ignore,
-     * since chat goes on only some links and a link muted at one end only would swallow it.
-     */
+    /** The acceptance scenario chain: A and C, A and D, B and D ignore each other, so A - B - C - D. */
     private fun TestScope.chain(world: World = World(this), midFrame: Int = 514): List<Node> {
         val a = world.node("A", A)
         val b = world.node("B", B, maxFrame = midFrame)
@@ -514,10 +517,10 @@ class MeshEngineTest {
         low.ignore(high)
         world.net.start()
         advanceTimeBy(15_000)
-        assertTrue(high.engine.state.value.links.isEmpty())
+        assertTrue(high.radio.connectAttempts.isEmpty())
         advanceTimeBy(15_000)
-        assertEquals(1, high.engine.state.value.links.size)
-        assertEquals("the lower one keeps the silent peer", 0, low.readyLinks)
+        assertEquals(1, high.radio.connectAttempts.size)
+        assertEquals("the lower one closes the ignored peer's link", 0, low.readyLinks)
     }
 
     @Test
@@ -667,14 +670,126 @@ class MeshEngineTest {
     }
 
     @Test
-    fun aDamagedCacheFileStartsEmptyAndIsLeftAsItIs() = runTest {
+    fun aDamagedCacheFileIsDeletedAndSavingStartsOver() = runTest {
         val file = File(tmp.root, "cache.json").apply { writeText("{\"schemaVersion\":1,\"data\":{\"incidents\":[{") }
         val world = World(this)
-        val a = world.node("A", A, cache = cacheStore())
+        val store = cacheStore()
+        val a = world.node("A", A, cache = store)
         assertEquals(0, a.engine.state.value.cachedReports)
+        assertFalse(store.unreadable)
+        assertFalse(file.exists())
         a.engine.publishReport(incidentId(1), ByteArray(80))
         advanceTimeBy(1_000)
         assertEquals(1, a.engine.state.value.cachedReports)
-        assertEquals("{\"schemaVersion\":1,\"data\":{\"incidents\":[{", file.readText())
+        val again = cacheStore()
+        assertFalse(again.unreadable)
+        assertEquals(1, again.value.incidents.size)
+    }
+
+    // --- chat fan-out ---
+
+    /** A sender and four leaves, each linked only to the hub, which relays to the four links besides the sender's. */
+    private fun TestScope.star(fanOut: Boolean): List<Node> {
+        val world = World(this)
+        val hub = world.node("H", A, config = MeshConfig(allowTestPackets = true, chatFanOut = fanOut))
+        val edge = listOf("S" to B, "L1" to C, "L2" to D, "L3" to V, "L4" to 0x6000_0000_0000_000FL).map { (name, id) -> world.node(name, id) }
+        for (x in edge) for (y in edge) if (x !== y) world.net.outOfRange += setOf(x.name, y.name)
+        world.net.start()
+        advanceTimeBy(60_000)
+        assertEquals(5, hub.readyLinks)
+        return edge
+    }
+
+    private fun Node.got(type: Int): Long = engine.state.value.counters.receivedByType[type] ?: 0L
+
+    @Test
+    fun withoutTheFanOutARelayFloodsChatOnEveryLink() = runTest {
+        assertFalse("off by default", MeshConfig().chatFanOut)
+        val edge = star(fanOut = false)
+        val (sender, leaves) = edge.first() to edge.drop(1)
+        repeat(4) { sender.engine.unicast(PacketType.PRIVATE, leaves.first().id, ByteArray(40)) }
+        advanceTimeBy(5_000)
+        assertEquals(listOf(4L, 4L, 4L, 4L), leaves.map { it.got(PacketType.PRIVATE) })
+    }
+
+    @Test
+    fun withTheFanOutARelayPassesChatOnLog2LinksTheRecipientsAmongThemAndIncidentsStillFlood() = runTest {
+        val edge = star(fanOut = true)
+        val (sender, leaves) = edge.first() to edge.drop(1)
+        repeat(4) { sender.engine.unicast(PacketType.PRIVATE, leaves.first().id, ByteArray(40)) }
+        advanceTimeBy(5_000)
+        val chat = leaves.map { it.got(PacketType.PRIVATE) }
+        assertEquals("ceil(log2 4) = 2 of the 4 links, for each of 4 messages: $chat", 8L, chat.sum())
+        assertEquals("the recipient's link every time", 4L, chat.first())
+
+        sender.engine.publishReport(incidentId(1), ByteArray(80))
+        sender.engine.publishAck(ack(1, AckStatus.RECEIVED))
+        advanceTimeBy(5_000)
+        assertEquals(listOf(1L, 1L, 1L, 1L), leaves.map { it.got(PacketType.INCIDENT_REPORT) })
+        assertEquals(listOf(1L, 1L, 1L, 1L), leaves.map { it.got(PacketType.INCIDENT_ACK) })
+    }
+
+    // --- demo ignore ---
+
+    @Test
+    fun anIgnoredPhoneIsCutOffAsSoonAsItsHelloTellsWhoItIs() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        val b = world.node("B", B)
+        // as the demo does, by the nodeId's prefix only, which B never advertises
+        a.engine.setIgnoredPrefixes(setOf(B.nodePrefix()))
+        world.net.start()
+        var linkedSeconds = 0
+        repeat(20 * 60) {
+            advanceTimeBy(1_000)
+            if (a.engine.state.value.links.any { it.peerId == B }) linkedSeconds++
+        }
+        assertEquals(0, linkedSeconds)
+        assertTrue("through ${b.radio.prefixes.size} prefixes", b.radio.prefixes.size >= 2)
+        val connects = a.radio.connectAttempts.size + b.radio.connectAttempts.size
+        assertTrue("rare retries, not a loop: $connects", connects < 50)
+
+        a.engine.setIgnoredPrefixes(emptySet())
+        advanceTimeBy(3 * 60_000L)
+        assertEquals("linked again once no longer ignored", 1, a.readyLinks)
+    }
+
+    @Test
+    fun anIgnoredAnchorIsNeverConnectedTo() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        val anchor = world.node("N", B)
+        anchor.engine.setRole(staff = false, anchor = true)
+        a.ignore(anchor)
+        anchor.ignore(a)
+        world.net.start()
+        advanceTimeBy(5 * 60_000L)
+        assertTrue(a.radio.connectAttempts.none { it.startsWith("N") })
+        assertEquals(0, a.readyLinks)
+    }
+
+    // --- a new advertising set ---
+
+    @Test
+    fun aRadioThatHasToStartANewAdvertisingSetGetsANewPrefixThatNeighborsLearn() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        val b = world.node("B", B)
+        world.net.start()
+        advanceTimeBy(5_000)
+        assertEquals(1, a.readyLinks)
+        val prefixes = a.radio.prefixes.size
+        val connects = a.radio.connectAttempts.size + b.radio.connectAttempts.size
+        a.radio.events.trySend(RadioEvent.PrefixWanted)
+        advanceTimeBy(5_000)
+        assertEquals(prefixes + 1, a.radio.prefixes.size)
+        assertEquals(a.radio.prefixes.last(), b.engine.state.value.links.single().prefix)
+        assertEquals("no second link for it", connects, a.radio.connectAttempts.size + b.radio.connectAttempts.size)
+
+        a.engine.setRole(staff = false, anchor = true)
+        runCurrent()
+        a.radio.events.trySend(RadioEvent.PrefixWanted)
+        advanceTimeBy(1_000)
+        assertEquals("an anchor keeps its nodeId's", A.nodePrefix(), a.radio.prefixes.last())
     }
 }

@@ -24,10 +24,10 @@ object PacketType {
     private val known = V1_0 + setOf(SUMMARY2, REQUEST2)
 
     /**
-     * Chat reaches 4 hops, and each relay passes it on only a few links ([ro.safetyplease.core.mesh.FanOut]): a chat
-     * message no longer costs a flood of the whole crowd. Friends farther apart get it once they walk closer.
+     * Chat reaches 6 hops, one fewer than 1.0: delivery comes first, and at 6 friends three radio ranges apart in a
+     * walking crowd still get every message (PROTOCOL.md, section 5).
      */
-    const val CHAT_TTL = 4
+    const val CHAT_TTL = 6
 
     /** Types this version doesn't read, the reserved one included, start at this TTL and are never relayed above it. */
     const val OPAQUE_MAX_TTL = 3

@@ -391,8 +391,8 @@ class MeshPartsTest {
     private fun cand(addr: String, prefix: Int?, flags: Int = current, rssi: Int = -60, since: Long = 0, seen: Long = 0) =
         Candidate(addr, prefix, flags, rssi, since, seen)
 
-    private fun link(id: Int, prefix: Int, outgoing: Boolean, up: Long = 0, activity: Long = 0, flags: Int = 0) =
-        LinkView(id, "L$id", prefix, flags, outgoing, up, activity)
+    private fun link(id: Int, prefix: Int, outgoing: Boolean, up: Long = 0, activity: Long = 0, flags: Int = 0, inbound: Long? = null) =
+        LinkView(id, "L$id", prefix, flags, outgoing, up, activity, inbound)
 
     private fun me(prefix: Int, nodePrefix: Int = 0, canAdvertise: Boolean = true) = Me(prefix, nodePrefix, canAdvertise)
 
@@ -497,7 +497,8 @@ class MeshPartsTest {
         val now = 100_000L
         val c = listOf(cand("x", 100, seen = now))
         val links = listOf(
-            link(1, 1, true, up = 10, activity = 10, flags = NodeFlags.STAFF),
+            // idle, and the oldest, but staff sent something a minute ago
+            link(1, 1, true, up = 1, activity = now - 60_000, flags = NodeFlags.STAFF, inbound = now - 60_000),
             link(2, 2, true, up = 20, activity = 20),
             link(3, 3, true, up = 30, activity = now - 1_000),
             link(4, 4, true, up = 5, activity = 40),
@@ -509,21 +510,36 @@ class MeshPartsTest {
     }
 
     @Test
-    fun ofSeveralLinksWithARoleOnlyTheOneMostRecentlyInUseIsKept() {
+    fun ofSeveralLinksWithARoleOnlyTheOneMostRecentlyHeardFromIsKept() {
         val now = 100_000L
         val c = listOf(cand("x", 100, seen = now))
         val roles = listOf(
-            link(1, 1, true, up = 5, activity = 50, flags = NodeFlags.ANCHOR),
-            link(2, 2, true, up = 10, activity = 60, flags = NodeFlags.ANCHOR),
-            link(3, 3, true, up = 15, activity = 40, flags = NodeFlags.STAFF),
-            link(4, 4, true, up = 20, activity = 30, flags = NodeFlags.ANCHOR),
+            link(1, 1, true, up = 5, activity = now - 40_000, flags = NodeFlags.ANCHOR, inbound = now - 50_000),
+            link(2, 2, true, up = 10, activity = now - 40_000, flags = NodeFlags.ANCHOR, inbound = now - 40_000),
+            link(3, 3, true, up = 15, activity = now - 40_000, flags = NodeFlags.STAFF, inbound = now - 60_000),
+            link(4, 4, true, up = 20, activity = now - 35_000, flags = NodeFlags.ANCHOR),
         )
         assertEquals(1, ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, c, roles, now, none)!!.id)
         val next = roles.drop(1) + link(5, 5, true, up = 1_000, activity = 0)
         assertEquals("staff rotates too", 3, ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, c, next, now, none)!!.id)
-        val inbound = roles.map { if (it.id == 1) it.copy(outgoing = false, lastActivityMs = 90) else it } + link(6, 6, true, up = 1_000)
+        val inbound = roles.map {
+            if (it.id == 1) it.copy(outgoing = false, lastActivityMs = now - 1_000, lastInboundMs = now - 1_000) else it
+        } + link(6, 6, true, up = 1_000)
         assertEquals("the kept one came in, so every outgoing one rotates", 2,
             ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, c, inbound, now, none)!!.id)
+    }
+
+    @Test
+    fun aLinkWithARoleThatOnlyWeWriteToRotatesLikeAnyOther() {
+        val now = 100_000L
+        val c = listOf(cand("x", 100, seen = now))
+        val others = listOf(link(3, 3, true, up = 30), link(4, 4, true, up = 40))
+        // the oldest, and we wrote to it a moment before it went idle, but it never sent anything back
+        val fake = link(1, 1, true, up = 1, activity = now - ConnectionPolicy.INACTIVE_MS, flags = NodeFlags.ANCHOR)
+        val quiet = link(2, 2, true, up = 2, activity = 0, flags = NodeFlags.STAFF, inbound = now - ConnectionPolicy.ROLE_HEARD_MS)
+        assertEquals(1, ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, c, listOf(fake, quiet) + others, now, none)!!.id)
+        assertEquals("heard from too long ago", 2,
+            ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, c, listOf(quiet) + others + link(5, 5, true, up = 50), now, none)!!.id)
     }
 
     // --- advertised prefix ---
@@ -541,6 +557,22 @@ class MeshPartsTest {
             assertTrue(p.value != before)
             assertFalse(p.isDue(now))
         }
+    }
+
+    @Test
+    fun anAdvertisingSetStartingAgainUnderItsOldPrefixAsksForANewOneOnce() {
+        val gate = NewSetPrefix(fixed = 7)
+        var asked = 0
+        assertTrue("the first set", gate.mayStart(100, null) { asked++ })
+        assertTrue("a set for a new prefix", gate.mayStart(200, 100) { asked++ })
+        assertFalse(gate.mayStart(200, 200) { asked++ })
+        assertFalse("waits for it", gate.mayStart(200, 200) { asked++ })
+        assertEquals("asked once", 1, asked)
+        assertTrue(gate.mayStart(300, 200) { asked++ })
+        assertFalse(gate.mayStart(300, 300) { asked++ })
+        assertEquals(2, asked)
+        assertTrue("an anchor's prefix starts again as it is", gate.mayStart(7, 7) { asked++ })
+        assertEquals(2, asked)
     }
 
     @Test

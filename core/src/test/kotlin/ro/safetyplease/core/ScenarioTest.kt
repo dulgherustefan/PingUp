@@ -152,8 +152,9 @@ class ScenarioTest {
 
     /**
      * Four phones that claim to be anchors sit closest to the reporter and drop everything. Seeking roles first and
-     * never rotating them, the reporter would give them all its links; one is kept, the others rotate, and the report
-     * reaches staff through the honest relay. The reporter doesn't advertise, so only it chooses its links.
+     * never rotating them, the reporter would give them all its links; they never send it anything, so none is kept
+     * from rotation, and the report reaches staff through the honest relay. The reporter doesn't advertise, so only
+     * it chooses its links.
      */
     @Test
     fun fakeAnchorsThatDropEverythingCannotHoldEveryLink() = runTest {
@@ -181,10 +182,40 @@ class ScenarioTest {
         val start = testScheduler.currentTime
         while (staff.staffIncidents.isEmpty() && testScheduler.currentTime - start < 10 * 60_000L) advanceTimeBy(1_000)
         val tookMs = testScheduler.currentTime - start
-        println("A report next to four fake anchors reached staff after ${tookMs / 1000} s")
         assertEquals(1, staff.staffIncidents.size)
         assertTrue(relay.nodeId in reporter.engine.state.value.links.map { it.peerId })
         assertTrue("$tookMs ms", tookMs <= 3 * 60_000L)
+    }
+
+    /**
+     * One phone that claims to be an anchor and drops everything holds a slot of the reporter, who sought it first.
+     * Only our own writes ever crossed that link, so it isn't the role link kept from rotation: it goes like any idle
+     * link as soon as the slots are full and an honest phone waits.
+     */
+    @Test
+    fun aFakeAnchorHoldingASlotIsRotatedOut() = runTest {
+        val world = World(this)
+        world.net.range = 15.0
+        val reporter = TestPhone("R", this, world.net, world.clock, tmp.root, world.event, 900, canAdvertise = false)
+        reporter.radio.position = Position(0.0, 0.0)
+        val fake = world.phone("F").apply {
+            engine.setRole(staff = false, anchor = true)
+            radio.position = Position(1.0, 1.0)
+            radio.tamper = { frame -> frame.takeIf { it[1].toInt() == PacketType.HELLO } }
+        }
+        val honest = List(5) { i -> world.phone("H$i").apply { radio.position = Position(3.0 + 2 * i, -1.0) } }
+        // only the reporter links with them, so the honest ones always have a slot free for it
+        val others = honest + fake
+        for (x in others) for (y in others) if (x !== y) world.net.outOfRange += setOf(x.name, y.name)
+        world.net.start()
+        // links settle before the first rotation, a minute in
+        advanceTimeBy(50_000)
+        val before = reporter.engine.state.value.links.map { it.peerId }
+        assertTrue("the fake anchor holds a slot", fake.nodeId in before)
+        assertEquals("the slots are full", 4, before.size)
+
+        advanceTimeBy(25_000)
+        assertFalse("rotated out", fake.nodeId in reporter.engine.state.value.links.map { it.peerId })
     }
 
     @Test

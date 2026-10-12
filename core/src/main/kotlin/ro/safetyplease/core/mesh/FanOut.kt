@@ -4,7 +4,8 @@ import kotlin.random.Random
 
 /**
  * Chat goes on a few links, not all: k = ceil(log2 n) of the n, at least one, as in Bitchat. A message spreads
- * through the crowd at a fraction of the cost of a flood, and the outbox resends what didn't arrive.
+ * through the crowd at a fraction of the cost of a flood, and the outbox resends what didn't arrive. Used only with
+ * [MeshConfig.chatFanOut], off by default.
  */
 object FanOut {
     fun size(links: Int): Int = if (links <= 0) 0 else maxOf(1, 32 - Integer.numberOfLeadingZeros(links - 1))

@@ -106,7 +106,7 @@ class TestPhone(
         other.chat.addFriend(chat.myCard())
     }
 
-    /** By the prefix the others advertise now, so no link opens, and by their nodeId's, so one that opens carries nothing. */
+    /** By the prefix the others advertise now, so no link opens, and by their nodeId's, so one that opens is closed. */
     fun ignore(vararg others: TestPhone) =
         engine.setIgnoredPrefixes(others.flatMap { listOf(it.radio.prefix, it.nodeId.nodePrefix()) }.toSet())
 }

@@ -129,7 +129,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
         return buildString {
             append("node=${c.identity.nodeId.toHex()} prefix=${c.identity.nodeId.nodePrefix().toHex()} nick=${settings.nickname} role=${settings.role}")
             append(" | radio bt=${mesh.radio.bluetoothOn} scan=${mesh.radio.scanning} adv=${mesh.radio.advertising} periph=${mesh.radio.canAdvertise}")
-            append(" | links=${mesh.links.joinToString { "${it.peerId.shortHex()}${if (it.outgoing) ">" else "<"}${if (it.muted) "(muted)" else ""}" }}")
+            append(" | links=${mesh.links.joinToString { "${it.peerId.shortHex()}${if (it.outgoing) ">" else "<"}" }}")
             append(" | seen=${mesh.seen.joinToString { "${it.prefix?.toHex()}@${it.rssi}" }}")
             append(" | tx=${mesh.sent} rx=${mesh.received} relay=${mesh.relayed} drop=${mesh.dropped} cache=${mesh.cachedReports}")
             append(" | reports=${incidents.mine.joinToString { "${it.incidentId.take(6)}:${it.status}:${it.teamName}" }}")

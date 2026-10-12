@@ -368,7 +368,7 @@ class ConsoleLogTest {
             emptyMap(),
             MeshState(
                 seen = listOf(SeenPeer("aa", anchor, NodeFlags.ANCHOR, -60, mono - 5_000), SeenPeer("bb", null, 0, -70, mono)),
-                links = listOf(LinkInfo(1, "cc", staffNode, null, NodeFlags.STAFF, true, false, mono - 60_000)),
+                links = listOf(LinkInfo(1, "cc", staffNode, null, NodeFlags.STAFF, true, mono - 60_000)),
             ),
             wall, mono,
         )
@@ -391,7 +391,7 @@ class ConsoleLogTest {
         val rotating = 0x0bad_cafe
         val state = MeshState(
             seen = listOf(SeenPeer("aa", rotating, NodeFlags.STAFF, -60, 9_000)),
-            links = listOf(LinkInfo(1, "c:aa", 0x5566778899aabbccL, null, NodeFlags.STAFF, false, false, 0, prefix = rotating)),
+            links = listOf(LinkInfo(1, "c:aa", 0x5566778899aabbccL, null, NodeFlags.STAFF, false, 0, prefix = rotating)),
         )
         val book = PeerBook.update(emptyMap(), state, t0, 10_000)
         assertEquals(listOf(rotating), book.keys.toList())

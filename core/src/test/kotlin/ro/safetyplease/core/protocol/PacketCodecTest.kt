@@ -121,7 +121,7 @@ class PacketCodecTest {
         val table = mapOf(
             PacketType.HELLO to 1, PacketType.SUMMARY to 1, PacketType.REQUEST to 1, PacketType.SUMMARY2 to 1, PacketType.REQUEST2 to 1,
             PacketType.INCIDENT_REPORT to 7, PacketType.INCIDENT_ACK to 7, PacketType.INCIDENT_CANCEL to 7,
-            PacketType.PRIVATE to 4, PacketType.ANNOUNCEMENT to 3, PacketType.TEST to 7, 0x55 to 3, 0x06 to 1,
+            PacketType.PRIVATE to 6, PacketType.ANNOUNCEMENT to 3, PacketType.TEST to 7, 0x55 to 3, 0x06 to 1,
         )
         for ((type, ttl) in table) assertEquals(PacketType.name(type), ttl, PacketType.originTtl(type))
     }
@@ -196,9 +196,9 @@ class PacketCodecTest {
         assertEquals(1, packet(ttl = 7, type = report).hops)
         assertEquals(3, packet(ttl = 5, type = report).hops)
         assertEquals(7, packet(ttl = 1, type = report).hops)
-        assertEquals("chat starts at 4", 1, packet(ttl = 4).hops)
-        assertEquals(4, packet(ttl = 1).hops)
-        assertEquals("chat from a 1.0 phone started at 7", 2, packet(ttl = 6).hops)
+        assertEquals("chat starts at 6", 1, packet(ttl = 6).hops)
+        assertEquals(6, packet(ttl = 1).hops)
+        assertEquals("chat from a 1.0 phone started at 7", 1, packet(ttl = 7).hops)
         val announcement = PacketType.ANNOUNCEMENT
         assertEquals(1, packet(ttl = 3, type = announcement).hops)
         assertEquals(3, packet(ttl = 1, type = announcement).hops)

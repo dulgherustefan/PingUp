@@ -133,7 +133,7 @@ object Demo {
         if (flags and NodeFlags.ACCEPTS_CONNECTIONS != 0) append('C')
     }.ifEmpty { "-" }
 
-    private class PeerRow(val prefix: Int, val name: String, val linked: String?, val rssi: Int?, val flags: Int, val muted: Boolean)
+    private class PeerRow(val prefix: Int, val name: String, val linked: String?, val rssi: Int?, val flags: Int)
 
     @Composable
     fun Screen(vm: AppViewModel) {
@@ -169,18 +169,18 @@ object Demo {
                     PeerRow(
                         prefix, link.nickname ?: link.peerId.shortHex(),
                         stringResource(if (link.outgoing) R.string.demo_link_out else R.string.demo_link_in),
-                        seen?.rssi, link.flags, link.muted,
+                        seen?.rssi, link.flags,
                     )
                 )
             }
             for (seen in mesh.seen) {
                 val prefix = seen.prefix ?: continue
                 if (none { it.prefix == prefix } && mesh.links.none { it.prefix == prefix }) {
-                    add(PeerRow(prefix, prefix.toHex(), null, seen.rssi, seen.flags, false))
+                    add(PeerRow(prefix, prefix.toHex(), null, seen.rssi, seen.flags))
                 }
             }
             for (prefix in settings.ignoredPrefixes) {
-                if (none { it.prefix == prefix }) add(PeerRow(prefix, prefix.toHex(), null, null, 0, false))
+                if (none { it.prefix == prefix }) add(PeerRow(prefix, prefix.toHex(), null, null, 0))
             }
         }
 

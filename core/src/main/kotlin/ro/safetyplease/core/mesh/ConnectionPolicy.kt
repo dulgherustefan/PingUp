@@ -33,6 +33,8 @@ data class LinkView(
     val outgoing: Boolean,
     val upAtMs: Long,
     val lastActivityMs: Long,
+    /** When the peer last sent us a packet that isn't link-local; null if it never did. Our own writes don't count. */
+    val lastInboundMs: Long? = null,
 )
 
 /** Decides whom to connect to and which link to rotate. Stateless, so it can be tested directly. */
@@ -40,6 +42,9 @@ object ConnectionPolicy {
     const val FRESH_MS = 15_000L
     const val FALLBACK_MS = 20_000L
     const val INACTIVE_MS = 30_000L
+
+    /** A link with a role is kept from rotation only while the peer sent us something in this time. */
+    const val ROLE_HEARD_MS = 5 * 60_000L
 
     private const val ROLES = NodeFlags.STAFF or NodeFlags.ANCHOR
 
@@ -100,8 +105,9 @@ object ConnectionPolicy {
 
     /**
      * When outgoing slots are full and visible peers are unconnected, close our oldest idle outgoing link.
-     * One link to staff or an anchor is kept, the one most recently in use; any other rotates like the rest, so a
-     * phone that only claims the role can't hold on to a neighbor's slots.
+     * One link to staff or an anchor is kept: the one the peer most recently sent us something on, within
+     * [ROLE_HEARD_MS]. What we write to it doesn't count, so a phone that only claims the role and drops everything
+     * rotates like any other link and can't hold on to a neighbor's slots.
      */
     fun rotationVictim(
         me: Me,
@@ -114,8 +120,9 @@ object ConnectionPolicy {
         val full = links.count { it.outgoing } >= limits.maxOut || links.size >= limits.total
         if (!full) return null
         if (eligible(me, candidates, links, nowMs, blocked).isEmpty()) return null
-        val kept = links.filter { it.peerFlags and ROLES != 0 }
-            .maxWithOrNull(compareBy<LinkView> { it.lastActivityMs }.thenByDescending { it.upAtMs })
+        val kept = links
+            .filter { link -> link.peerFlags and ROLES != 0 && link.lastInboundMs.let { it != null && nowMs - it < ROLE_HEARD_MS } }
+            .maxWithOrNull(compareBy<LinkView> { it.lastInboundMs }.thenByDescending { it.upAtMs })
         return links
             .filter { it.outgoing && it !== kept && nowMs - it.lastActivityMs >= INACTIVE_MS }
             .minByOrNull { it.upAtMs }

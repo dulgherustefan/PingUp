@@ -31,3 +31,22 @@ class AdvertisedPrefix(private val random: Random, nowMs: Long, private val inte
         const val INTERVAL_MS = 15 * 60_000L
     }
 }
+
+/**
+ * A new advertising set gets a new address; the prefix the previous set showed would tie the two together. So a set
+ * that would start again under its old prefix asks for a new one, once, and waits for it. A fixed prefix, an anchor's
+ * nodeId prefix, starts again as it is.
+ */
+class NewSetPrefix(private val fixed: Int) {
+    private var askedFor: Int? = null
+
+    /** Whether a set that last showed [onAir] may start with [prefix]; if not, [ask] was called once for it. */
+    fun mayStart(prefix: Int, onAir: Int?, ask: () -> Unit): Boolean {
+        if (prefix != onAir || prefix == fixed) return true
+        if (askedFor != prefix) {
+            askedFor = prefix
+            ask()
+        }
+        return false
+    }
+}
