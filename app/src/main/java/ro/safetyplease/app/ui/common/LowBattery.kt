@@ -53,7 +53,7 @@ fun LowBatteryBanner(
         if (charger != null) append("\n").append(stringResource(R.string.low_battery_charger, charger))
     }
     Banner(
-        stringResource(R.string.low_battery_title, if (textOnly) PowerPolicy.TEXT_ONLY_PERCENT else PowerPolicy.LOW_BATTERY_PERCENT),
+        stringResource(R.string.low_battery_title, "${if (textOnly) PowerPolicy.TEXT_ONLY_PERCENT else PowerPolicy.LOW_BATTERY_PERCENT}%"),
         text, modifier, warning = true,
         action = stringResource(R.string.low_battery_show).takeIf { charger != null && onShowCharger != null }, onAction = { onShowCharger?.invoke() },
     )

@@ -174,7 +174,7 @@ private fun BeatLine(beat: Heartbeat, grid: SiteGrid) {
             mobile.level?.let { add(stringResource(R.string.control_beat_signal, technology, it)) }
             add(stringResource(cellText(Coverage.data(mobile))))
         }
-        beat.batteryPercent?.let { add(stringResource(R.string.control_beat_battery, it)) }
+        beat.batteryPercent?.let { add(stringResource(R.string.control_beat_battery, "$it%")) }
         if (beat.charging) add(stringResource(R.string.control_beat_plugged))
         beat.temperatureC?.let { add(stringResource(R.string.control_beat_temperature, it)) }
         add(pluralStringResource(R.plurals.control_beat_links, beat.links, beat.links))

@@ -87,6 +87,38 @@ android {
     }
 }
 
+/**
+ * The texts live in :ui (composeResources), one copy for both apps. The Android code that isn't a shared screen
+ * (notifications, widgets, the screens not moved yet) reads the same files as R.string, copied here at build time.
+ */
+abstract class SharedStrings : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val composeResources: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val out = outputDir.get().asFile
+        out.deleteRecursively()
+        composeResources.get().asFile.listFiles()?.filter { it.isDirectory && it.name.startsWith("values") }?.forEach { dir ->
+            File(dir, "strings.xml").takeIf { it.exists() }?.copyTo(File(out, "${dir.name}/strings.xml"))
+        }
+    }
+}
+
+val sharedStrings = tasks.register<SharedStrings>("sharedStrings") {
+    composeResources.set(rootProject.layout.projectDirectory.dir("ui/src/commonMain/composeResources"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.res?.addGeneratedSourceDirectory(sharedStrings, SharedStrings::outputDir)
+    }
+}
+
 dependencies {
     implementation(project(":core"))
 

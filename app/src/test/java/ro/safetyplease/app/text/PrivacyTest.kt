@@ -19,7 +19,7 @@ class PrivacyTest {
     fun theRepositoryPolicySaysWhatTheAppSays() {
         // links read as their text, as in the app
         val policy = File("../PRIVACY.md").readText().replace(Regex("""\[([^]]+)]\([^)]+\)"""), "$1")
-        val texts = privacyTexts("src/main/res/values/strings.xml") + privacyTexts("src/main/res/values-en/strings.xml")
+        val texts = privacyTexts("../ui/src/commonMain/composeResources/values/strings.xml") + privacyTexts("../ui/src/commonMain/composeResources/values-en/strings.xml")
         assertTrue("no privacy texts", texts.isNotEmpty())
         for (text in texts) assertTrue(text, text in policy)
     }

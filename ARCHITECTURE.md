@@ -44,6 +44,10 @@ Ping Up are trei module Gradle și aplicația de iPhone. Regula de bază: tot ce
 
 Testele de aici stau în `commonTest` și rulează pe JVM, fără emulator (`./gradlew :core:test`); pe un Mac rulează și pe simulatorul de iPhone (`./gradlew :core:iosSimulatorArm64Test`). Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.
 
+## `:ui`: ecranele comune
+
+`ui/src/commonMain/`, în Compose Multiplatform: ecranele ajung aici pe rând din `:app`, ca să ruleze și pe iPhone. Textele, în română și engleză, stau o singură dată pentru ambele aplicații, în `composeResources/values*/strings.xml`. Pe Android, codul care nu e încă un ecran comun (notificările, ecranele nemutate) le citește tot de acolo, ca `R.string`, copiate la build. Compose Multiplatform completează doar `%1$s` și `%1$d` și afișează escape-urile Android (`\'`, `\"`) așa cum sunt, de aceea textele folosesc numai argumente numerotate și ghilimelele și apostroful tipografice; `TranslationTest` verifică.
+
 ## `:app`: Android și interfața
 
 `app/src/main/java/ro/safetyplease/app/`

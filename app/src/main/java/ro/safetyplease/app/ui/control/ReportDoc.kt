@@ -152,7 +152,7 @@ private fun limitText(limit: Limit, res: Resources): String {
         LimitKind.CLOCKS -> res.getString(R.string.edition_limit_clocks, v)
         LimitKind.ANCHORS_FROM_MEMORY -> res.getString(R.string.edition_limit_anchors)
         LimitKind.NO_POSITION -> res.getString(R.string.edition_limit_no_position, v)
-        LimitKind.METRICS_GAPS -> res.getString(R.string.edition_limit_metrics_gaps, v)
+        LimitKind.METRICS_GAPS -> res.getString(R.string.edition_limit_metrics_gaps, "$v%")
         LimitKind.NO_REPORTER_RECORDS -> res.getString(R.string.edition_limit_no_records)
         LimitKind.NO_MOBILE_LOG -> res.getString(R.string.edition_limit_no_mobile)
         LimitKind.EXERCISE_APART -> res.getString(R.string.edition_limit_exercise, v)
