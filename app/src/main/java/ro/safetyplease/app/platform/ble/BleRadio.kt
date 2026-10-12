@@ -42,6 +42,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import ro.safetyplease.core.ble.Advert
+import ro.safetyplease.core.ble.AdvertData
+import ro.safetyplease.core.ble.BleLayout
+import ro.safetyplease.core.ble.ScanCycle
+import ro.safetyplease.core.ble.Sightings
 import ro.safetyplease.core.mesh.NewSetPrefix
 import ro.safetyplease.core.mesh.PowerMode
 import ro.safetyplease.core.mesh.PowerPlan
@@ -50,7 +55,6 @@ import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.session.MeshRadio
 import ro.safetyplease.core.util.nodePrefix
-import java.nio.ByteBuffer
 
 /**
  * BLE radio: every phone is both peripheral (GATT server + advertising) and central (scanning + GATT
@@ -464,7 +468,7 @@ class BleRadio(
             val ok = withTimeoutOrNull(timeoutMs) { setUp(link, device, timeoutMs) } ?: false
             if (ok && !link.closed && !link.ops.dropped) {
                 link.ready = true
-                events.trySend(RadioEvent.LinkUp(link.id, address, true, link.mtu - BleConstants.ATT_OVERHEAD))
+                events.trySend(RadioEvent.LinkUp(link.id, address, true, link.mtu - BleLayout.ATT_OVERHEAD))
                 // no suspension point between LinkUp and the early frames, so the order stays the wire order
                 for (frame in link.early) events.trySend(RadioEvent.Frame(link.id, frame))
                 link.early.clear()
@@ -793,7 +797,7 @@ class BleRadio(
                 incoming[address] = link
                 // without a server-side connect(), cancelConnection() can't close the link later
                 runCatching { gattServer?.connect(device, false) }
-                events.trySend(RadioEvent.LinkUp(link.id, address, false, mtu - BleConstants.ATT_OVERHEAD))
+                events.trySend(RadioEvent.LinkUp(link.id, address, false, mtu - BleLayout.ATT_OVERHEAD))
                 if (probe != null) runCatching { gattServer?.readPhy(device) }
             } else {
                 val link = incoming.remove(address) ?: return@post
@@ -941,11 +945,7 @@ class BleRadio(
     }
 
     private fun advert(result: ScanResult): Advert? {
-        val data = result.scanRecord?.getServiceData(serviceUuid)
-        val known = data != null && data.size >= BleConstants.ADVERT_DATA_SIZE &&
-            (data[0].toInt() and 0xff) == BleConstants.ADVERT_VERSION
-        val peerFlags = if (known) data[1].toInt() and 0xff else NodeFlags.ACCEPTS_CONNECTIONS
-        val peerPrefix = if (known) ByteBuffer.wrap(data, 2, 4).int else null
+        val (peerFlags, peerPrefix) = AdvertData.decode(result.scanRecord?.getServiceData(serviceUuid))
         if (peerPrefix == prefix) return null
         val coded = result.primaryPhy == BluetoothDevice.PHY_LE_CODED
         return Advert(result.device.address, peerPrefix, peerFlags, coded, result.rssi)
@@ -1114,8 +1114,7 @@ class BleRadio(
         return builder.build()
     }
 
-    private fun payload(flags: Int, prefix: Int): ByteArray = ByteBuffer.allocate(BleConstants.ADVERT_DATA_SIZE)
-        .put(BleConstants.ADVERT_VERSION.toByte()).put(flags.toByte()).putInt(prefix).array()
+    private fun payload(flags: Int, prefix: Int): ByteArray = AdvertData.encode(flags, prefix)
 
     // the UUID goes in the advertisement so scan filters match it; short data goes in the scan response
     private fun uuidData(): AdvertiseData = AdvertiseData.Builder().setIncludeDeviceName(false).setIncludeTxPowerLevel(false)

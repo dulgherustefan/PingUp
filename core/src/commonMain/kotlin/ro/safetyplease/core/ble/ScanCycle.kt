@@ -1,4 +1,4 @@
-package ro.safetyplease.app.platform.ble
+package ro.safetyplease.core.ble
 
 import ro.safetyplease.core.mesh.ScanDuty
 

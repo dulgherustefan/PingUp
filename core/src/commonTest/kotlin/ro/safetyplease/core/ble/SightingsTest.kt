@@ -1,10 +1,9 @@
-package ro.safetyplease.app.platform.ble
+package ro.safetyplease.core.ble
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import ro.safetyplease.core.mesh.PowerMode
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class SightingsTest {
     // --- RSSI average ---
@@ -45,8 +44,8 @@ class SightingsTest {
     fun forgottenAddressStartsAFreshAverage() {
         val s = Sightings()
         s.heard("A", 1, coded = false, rssi = -60, now = 0)
-        assertEquals(listOf("A"), s.forget(BleConstants.SIGHTING_FORGET_MS + 1))
-        assertEquals(-90, s.heard("A", 1, coded = false, rssi = -90, now = BleConstants.SIGHTING_FORGET_MS + 2))
+        assertEquals(listOf("A"), s.forget(SIGHTING_FORGET_MS + 1))
+        assertEquals(-90, s.heard("A", 1, coded = false, rssi = -90, now = SIGHTING_FORGET_MS + 2))
     }
 
     @Test
@@ -54,7 +53,7 @@ class SightingsTest {
         val s = Sightings()
         s.heard("A", 1, coded = false, rssi = -60, now = 0)
         s.stop()
-        assertNull("a callback after the radio went down", s.heard("A", 1, coded = false, rssi = -60, now = 2_000))
+        assertNull(s.heard("A", 1, coded = false, rssi = -60, now = 2_000), "a callback after the radio went down")
         assertTrue(s.heard(listOf(advert("B", 2, -60)), now = 2_000).isEmpty())
         assertEquals(0 to 0, s.drainStats())
         s.start()
@@ -66,9 +65,9 @@ class SightingsTest {
     @Test
     fun reportWindowEndsJustBeforeTheNextBatch() {
         assertTrue(shouldReport(null, false, full = true, now = 0))
-        assertEquals(false, shouldReport(0, true, full = true, now = BleConstants.REPORT_WINDOW_MS - 1))
-        assertTrue(shouldReport(0, true, full = true, now = BleConstants.REPORT_WINDOW_MS))
-        assertTrue("a batch a few ms early", shouldReport(0, true, full = true, now = BleConstants.SCAN_BATCH_DELAY_MS - 20))
+        assertEquals(false, shouldReport(0, true, full = true, now = REPORT_WINDOW_MS - 1))
+        assertTrue(shouldReport(0, true, full = true, now = REPORT_WINDOW_MS))
+        assertTrue(shouldReport(0, true, full = true, now = 980), "a batch a few ms early")
     }
 
     @Test
@@ -84,9 +83,9 @@ class SightingsTest {
         val s = Sightings()
         s.heard("A", 9, coded = false, rssi = -60, now = 0)
         assertNull(s.heard("A", null, coded = false, rssi = -60, now = 1_500))
-        assertNull(s.heard("A", null, coded = false, rssi = -60, now = BleConstants.FULL_RESULT_HOLD_MS - 1))
+        assertNull(s.heard("A", null, coded = false, rssi = -60, now = FULL_RESULT_HOLD_MS - 1))
         // no full result for 10 s, so report what we have
-        assertEquals(-60, s.heard("A", null, coded = false, rssi = -60, now = BleConstants.FULL_RESULT_HOLD_MS))
+        assertEquals(-60, s.heard("A", null, coded = false, rssi = -60, now = FULL_RESULT_HOLD_MS))
     }
 
     @Test
@@ -104,7 +103,7 @@ class SightingsTest {
     @Test
     fun legacyAddressWinsWhileRecentlyHeard() {
         assertEquals("L", preferredAddress("L", 0, "C", 2_900, now = 3_000))
-        assertEquals("L", preferredAddress("L", 0, "C", 3_000, now = BleConstants.LEGACY_PREFERENCE_MS))
+        assertEquals("L", preferredAddress("L", 0, "C", 3_000, now = LEGACY_PREFERENCE_MS))
     }
 
     @Test
@@ -211,19 +210,5 @@ class SightingsTest {
     @Test
     fun emptyBatchReportsNothing() {
         assertTrue(Sightings().heard(emptyList(), now = 0).isEmpty())
-    }
-
-    // --- batched scanning ---
-
-    @Test
-    fun scanIsBatchedOnlyWhereTheControllerQueuesResults() {
-        assertEquals(BleConstants.SCAN_BATCH_DELAY_MS, scanReportDelay(PowerMode.BALANCED, offloadedBatching = true))
-        assertEquals(BleConstants.SCAN_BATCH_DELAY_MS, scanReportDelay(PowerMode.LOW_POWER, offloadedBatching = true))
-        assertEquals(0L, scanReportDelay(PowerMode.BALANCED, offloadedBatching = false))
-    }
-
-    @Test
-    fun hurriedScanIsNeverBatched() {
-        assertEquals(0L, scanReportDelay(PowerMode.LOW_LATENCY, offloadedBatching = true))
     }
 }

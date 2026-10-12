@@ -1,14 +1,24 @@
-package ro.safetyplease.app.platform.ble
+package ro.safetyplease.core.ble
 
-import ro.safetyplease.core.mesh.PowerMode
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlin.math.roundToInt
+
+/** How fast the average follows a new sample. */
+const val RSSI_ALPHA = 0.3
+
+/** Just under a second, an Android batch: a batch that arrives a few ms early still reports each address. */
+const val REPORT_WINDOW_MS = 900L
+const val FULL_RESULT_HOLD_MS = 10_000L
+const val LEGACY_PREFERENCE_MS = 3_000L
+const val SIGHTING_FORGET_MS = 60_000L
 
 /** A scan result of our service; [prefix] is null when the scan response didn't arrive. */
 data class Advert(val address: String, val prefix: Int?, val flags: Int, val coded: Boolean, val rssi: Int)
 
 // a single sample varies by ~6 dB; sort by the recent average
 fun smoothRssi(previous: Double?, sample: Int): Double =
-    if (previous == null) sample.toDouble() else previous + BleConstants.RSSI_ALPHA * (sample - previous)
+    if (previous == null) sample.toDouble() else previous + RSSI_ALPHA * (sample - previous)
 
 /**
  * A long-range phone is heard under two addresses with the same prefix: the legacy set (1M) and the Coded one.
@@ -17,25 +27,18 @@ fun smoothRssi(previous: Double?, sample: Int): Double =
 fun preferredAddress(legacy: String?, legacyAt: Long, coded: String?, codedAt: Long, now: Long): String? = when {
     legacy == null -> coded
     coded == null -> legacy
-    now - legacyAt <= BleConstants.LEGACY_PREFERENCE_MS -> legacy
+    now - legacyAt <= LEGACY_PREFERENCE_MS -> legacy
     codedAt >= legacyAt -> coded
     else -> legacy
 }
 
 /** About one report per second per address; a result without scan response never hides a full one. */
 fun shouldReport(reportedAt: Long?, reportedFull: Boolean, full: Boolean, now: Long): Boolean =
-    reportedAt == null || now - reportedAt >= BleConstants.REPORT_WINDOW_MS || (full && !reportedFull)
-
-/**
- * Batches where the controller queues results itself, so the phone wakes once per batch, not once per advertisement.
- * LOW_LATENCY is the hurry mode (right after a report): there every result comes as soon as it is heard.
- */
-fun scanReportDelay(mode: PowerMode, offloadedBatching: Boolean): Long =
-    if (offloadedBatching && mode != PowerMode.LOW_LATENCY) BleConstants.SCAN_BATCH_DELAY_MS else 0L
+    reportedAt == null || now - reportedAt >= REPORT_WINDOW_MS || (full && !reportedFull)
 
 /**
  * Everything the scan heard, per address and per prefix; decides what reaches the engine as PeerSeen.
- * It runs on the scan callback thread, before anything is posted to the engine's thread, hence the locks.
+ * It runs on the scan callback thread, before anything is posted to the engine's thread, hence the lock.
  * After [stop] it ignores results until [start]: a scan callback can still arrive after the radio went down.
  */
 class Sightings {
@@ -56,6 +59,7 @@ class Sightings {
         fun preferred(now: Long) = preferredAddress(legacy, legacyAt, coded, codedAt, now)
     }
 
+    private val lock = SynchronizedObject()
     private val tracks = HashMap<String, Track>()
     private val byPrefix = HashMap<Int, Addresses>()
     private var legacyResults = 0
@@ -66,9 +70,8 @@ class Sightings {
      * Records a scan result ([prefix] null = no scan response) and returns the averaged RSSI to report,
      * or null if this result shouldn't be reported.
      */
-    @Synchronized
-    fun heard(address: String, prefix: Int?, coded: Boolean, rssi: Int, now: Long): Int? {
-        if (!on) return null
+    fun heard(address: String, prefix: Int?, coded: Boolean, rssi: Int, now: Long): Int? = synchronized(lock) {
+        if (!on) return@synchronized null
         val track = tracks.getOrPut(address) { Track(now) }
         track.heardAt = now
         track.rssi = smoothRssi(track.rssi, rssi)
@@ -90,51 +93,46 @@ class Sightings {
             }
         }
         val known = track.prefix
-        if (known != null && byPrefix[known]?.preferred(now) != address) return null
+        if (known != null && byPrefix[known]?.preferred(now) != address) return@synchronized null
         // without a scan response we don't know the flags; keep what a recent full result reported
         val fullAt = track.fullAt
-        if (!full && fullAt != null && now - fullAt < BleConstants.FULL_RESULT_HOLD_MS) return null
-        if (!shouldReport(track.reportedAt, track.reportedFull, full, now)) return null
+        if (!full && fullAt != null && now - fullAt < FULL_RESULT_HOLD_MS) return@synchronized null
+        if (!shouldReport(track.reportedAt, track.reportedFull, full, now)) return@synchronized null
         track.reportedAt = now
         track.reportedFull = full
-        return track.rssi?.roundToInt()
+        track.rssi?.roundToInt()
     }
 
     /**
      * The results of one scan callback, single or batched. Every result feeds the averages and the statistics;
      * only the ones to report come back, with the averaged RSSI.
      */
-    @Synchronized
-    fun heard(batch: List<Advert>, now: Long): List<Advert> = batch.mapNotNull { advert ->
-        heard(advert.address, advert.prefix, advert.coded, advert.rssi, now)?.let { advert.copy(rssi = it) }
+    fun heard(batch: List<Advert>, now: Long): List<Advert> = synchronized(lock) {
+        batch.mapNotNull { advert -> heard(advert.address, advert.prefix, advert.coded, advert.rssi, now)?.let { advert.copy(rssi = it) } }
     }
 
     /** Forgets addresses not heard for a minute and returns them, so the radio can clear its state too. */
-    @Synchronized
-    fun forget(now: Long): List<String> {
-        val gone = tracks.filterValues { now - it.heardAt > BleConstants.SIGHTING_FORGET_MS }.keys.toList()
+    fun forget(now: Long): List<String> = synchronized(lock) {
+        val gone = tracks.filterValues { now - it.heardAt > SIGHTING_FORGET_MS }.keys.toList()
         gone.forEach(tracks::remove)
-        byPrefix.values.removeAll { now - maxOf(it.legacyAt, it.codedAt) > BleConstants.SIGHTING_FORGET_MS }
-        return gone
+        byPrefix.values.removeAll { now - maxOf(it.legacyAt, it.codedAt) > SIGHTING_FORGET_MS }
+        gone
     }
 
     /** Legacy results since the last call, and how many of them came without a scan response. */
-    @Synchronized
-    fun drainStats(): Pair<Int, Int> {
+    fun drainStats(): Pair<Int, Int> = synchronized(lock) {
         val stats = legacyResults to withoutResponse
         legacyResults = 0
         withoutResponse = 0
-        return stats
+        stats
     }
 
-    @Synchronized
-    fun start() {
+    fun start() = synchronized(lock) {
         on = true
     }
 
     /** Forgets everything heard. */
-    @Synchronized
-    fun stop() {
+    fun stop() = synchronized(lock) {
         on = false
         tracks.clear()
         byPrefix.clear()

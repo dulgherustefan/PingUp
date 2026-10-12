@@ -25,8 +25,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.BuildConfig
-import ro.safetyplease.app.platform.ble.Advert
 import ro.safetyplease.app.platform.ble.RadioProbe
+import ro.safetyplease.core.ble.Advert
 import ro.safetyplease.core.util.nodePrefix
 import ro.safetyplease.core.util.toHex
 import java.io.File

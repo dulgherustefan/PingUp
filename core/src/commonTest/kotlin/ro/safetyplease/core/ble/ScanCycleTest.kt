@@ -1,10 +1,10 @@
-package ro.safetyplease.app.platform.ble
+package ro.safetyplease.core.ble
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.ScanDuty
 
@@ -25,10 +25,10 @@ class ScanCycleTest {
         assertEquals(15_000L, cycle.nextAt(scanning = true, startedAt = 5_000))
         cycle.pause(15_000)
         assertTrue(cycle.paused)
-        assertEquals("pause lasts interval minus window", 30_000L, cycle.nextAt(scanning = false, startedAt = 5_000))
+        assertEquals(30_000L, cycle.nextAt(scanning = false, startedAt = 5_000), "pause lasts interval minus window")
         cycle.resume()
         assertFalse(cycle.paused)
-        assertNull("down for another reason: the periodic check restarts it", cycle.nextAt(scanning = false, startedAt = 5_000))
+        assertNull(cycle.nextAt(scanning = false, startedAt = 5_000), "down for another reason: the periodic check restarts it")
     }
 
     @Test
@@ -46,7 +46,7 @@ class ScanCycleTest {
         val cycle = ScanCycle()
         cycle.set(duty)
         cycle.pause(10_000)
-        assertFalse("the same duty again changes nothing", cycle.set(ScanDuty(10_000, 25_000)))
+        assertFalse(cycle.set(ScanDuty(10_000, 25_000)), "the same duty again changes nothing")
         assertTrue(cycle.paused)
         assertTrue(cycle.set(ScanDuty.CONTINUOUS))
         assertFalse(cycle.paused)
