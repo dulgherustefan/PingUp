@@ -265,7 +265,8 @@ object ConnectionPolicy {
      * types it doesn't read go around it, through the phones that relay everything.
      */
     fun relays(mode: LinkMode, packet: Packet): Boolean = mode != LinkMode.LEAF || when (packet.type) {
-        PacketType.INCIDENT_REPORT, PacketType.INCIDENT_ACK, PacketType.INCIDENT_CANCEL -> true
+        PacketType.INCIDENT_REPORT, PacketType.INCIDENT_ACK, PacketType.INCIDENT_CANCEL, PacketType.INCIDENT_RESPONSE,
+        PacketType.INCIDENT_UPDATE -> true
         PacketType.PRIVATE -> packet.recipient == ControlChannel.ID
         else -> false
     }

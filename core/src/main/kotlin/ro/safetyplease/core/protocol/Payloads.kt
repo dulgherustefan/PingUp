@@ -50,6 +50,9 @@ object Limits {
 
     /** A SUMMARY2 with epochs: 2 + 47 × 10 + 1 bytes still fit in a payload. */
     const val SUMMARY2_EPOCH_ENTRIES = 47
+
+    /** A SUMMARY2 of responses: 2 + 39 × 12 bytes. */
+    const val SUMMARY2_RESPONSE_ENTRIES = 39
 }
 
 private fun WireWriter.coord(deg: Double) = i32((deg * 1e6).roundToInt())
@@ -251,18 +254,37 @@ object RequestCodec {
 /** What a SUMMARY2 or REQUEST2 lists, so store-and-forward can carry new kinds without a new packet type. */
 object SummaryKind {
     const val INCIDENTS = 1
+
+    /** The console's latest response to each reporter ([IncidentResponse]). */
+    const val RESPONSES = 2
+
+    /** The reporter's latest update of each incident ([IncidentUpdateCodec]). */
+    const val UPDATES = 3
+
+    /** Kinds that list [HeldEntry]s and are requested by id8. */
+    fun isHeld(kind: Int): Boolean = kind == RESPONSES || kind == UPDATES
 }
+
+/**
+ * What a node holds of [SummaryKind.RESPONSES] or [SummaryKind.UPDATES] for an incident: [version] is the response's
+ * timestamp or the update's sequence number, so that only a later one is asked for.
+ */
+data class HeldEntry(val id8: Long, val version: Long)
 
 /**
  * SUMMARY2 starts with a [kind]. For [SummaryKind.INCIDENTS] the entries are SUMMARY's, except that a status from a
  * newer version is kept, and a flags byte may follow them: with [Summary2Codec.EPOCHS], one epoch per entry comes
- * next. Whatever follows comes from a newer version and is skipped. A kind this version doesn't read decodes with
- * no entries.
+ * next. RESPONSES and UPDATES list [held] instead: a count, then per entry the id8 and the timestamp (`u32`) or the
+ * sequence number (`u8`). Whatever follows comes from a newer version and is skipped. A kind this version doesn't
+ * read decodes with no entries.
  */
-data class Summary2(val kind: Int, val entries: List<SummaryEntry>)
+data class Summary2(val kind: Int, val entries: List<SummaryEntry>, val held: List<HeldEntry> = emptyList())
 
-/** REQUEST2 answers a SUMMARY2 of the same kind; want bits from a newer version are ignored. */
-data class Request2(val kind: Int, val entries: List<RequestEntry>)
+/**
+ * REQUEST2 answers a SUMMARY2 of the same kind; want bits from a newer version are ignored. RESPONSES and UPDATES
+ * ask for [ids]: a count, then the id8 of each.
+ */
+data class Request2(val kind: Int, val entries: List<RequestEntry>, val ids: List<Long> = emptyList())
 
 object Summary2Codec {
     /** Bit of the flags byte after the entries: an epoch byte per entry follows, in their order. */
@@ -270,8 +292,17 @@ object Summary2Codec {
 
     fun encode(summary: Summary2): ByteArray {
         require(summary.kind == SummaryKind.INCIDENTS || summary.entries.isEmpty()) { "only INCIDENTS has entries" }
+        require(SummaryKind.isHeld(summary.kind) || summary.held.isEmpty()) { "only RESPONSES and UPDATES hold" }
         val entries = summary.entries
-        val w = WireWriter(3 + entries.size * 10).u8(summary.kind)
+        val w = WireWriter(3 + entries.size * 10 + summary.held.size * 12).u8(summary.kind)
+        if (SummaryKind.isHeld(summary.kind)) {
+            require(summary.held.size <= maxHeld(summary.kind))
+            w.u8(summary.held.size)
+            for (h in summary.held) {
+                w.i64(h.id8)
+                if (summary.kind == SummaryKind.RESPONSES) w.u32(h.version) else w.u8(h.version.toInt())
+            }
+        }
         if (summary.kind == SummaryKind.INCIDENTS) {
             w.summaryEntries(entries)
             // without a reopened incident the bytes stay those of a SUMMARY2 without epochs
@@ -287,6 +318,12 @@ object Summary2Codec {
     fun decode(payload: ByteArray): Summary2? = parseOrNull {
         val r = WireReader(payload)
         val kind = r.u8()
+        if (SummaryKind.isHeld(kind)) {
+            val count = r.u8()
+            if (count > maxHeld(kind)) throw MalformedException("summary too long")
+            val held = List(count) { HeldEntry(r.i64(), if (kind == SummaryKind.RESPONSES) r.u32() else r.u8().toLong()) }
+            return@parseOrNull Summary2(kind, emptyList(), held)
+        }
         if (kind != SummaryKind.INCIDENTS) return@parseOrNull Summary2(kind, emptyList())
         val entries = r.summaryEntries()
         val flags = if (r.remaining > 0) r.u8() else 0
@@ -298,20 +335,37 @@ object Summary2Codec {
     /** The entries one SUMMARY2 can carry: with epochs, each takes a byte more. */
     fun fitting(entries: List<SummaryEntry>): List<SummaryEntry> =
         if (entries.any { it.epoch > 0 }) entries.take(Limits.SUMMARY2_EPOCH_ENTRIES) else entries
+
+    /** How many [HeldEntry]s one SUMMARY2 of [kind] can carry. */
+    fun maxHeld(kind: Int): Int = if (kind == SummaryKind.RESPONSES) Limits.SUMMARY2_RESPONSE_ENTRIES else Limits.SUMMARY_ENTRIES
 }
 
 object Request2Codec {
     fun encode(request: Request2): ByteArray {
         require(request.kind == SummaryKind.INCIDENTS || request.entries.isEmpty()) { "only INCIDENTS has entries" }
-        val w = WireWriter(2 + request.entries.size * 9).u8(request.kind)
+        require(SummaryKind.isHeld(request.kind) || request.ids.isEmpty()) { "only RESPONSES and UPDATES ask by id" }
+        val w = WireWriter(2 + request.entries.size * 9 + request.ids.size * 8).u8(request.kind)
         if (request.kind == SummaryKind.INCIDENTS) w.requestEntries(request.entries)
+        if (SummaryKind.isHeld(request.kind)) {
+            require(request.ids.size <= Limits.SUMMARY_ENTRIES)
+            w.u8(request.ids.size)
+            for (id in request.ids) w.i64(id)
+        }
         return w.toByteArray()
     }
 
     fun decode(payload: ByteArray): Request2? = parseOrNull {
         val r = WireReader(payload)
         val kind = r.u8()
-        Request2(kind, if (kind == SummaryKind.INCIDENTS) r.requestEntries(strict = false) else emptyList())
+        when {
+            kind == SummaryKind.INCIDENTS -> Request2(kind, r.requestEntries(strict = false))
+            SummaryKind.isHeld(kind) -> {
+                val count = r.u8()
+                if (count > Limits.SUMMARY_ENTRIES) throw MalformedException("request too long")
+                Request2(kind, emptyList(), List(count) { r.i64() })
+            }
+            else -> Request2(kind, emptyList())
+        }
     }
 }
 
@@ -387,9 +441,9 @@ const val INCIDENT_ID_SIZE = 16
  * Report content. Only ever travels sealed-box encrypted to the staff key. [cancelHash] is missing
  * from reports written before cancelling existed.
  *
- * Fields after the cancel hash sit each behind a flag bit of its own: 1.1 adds [triage], [staff] and [location]. This
- * version ignores the flags it doesn't know and everything after the fields it reads. A category it doesn't know is
- * kept as a number.
+ * Fields after the cancel hash sit each behind a flag bit of its own: 1.1 adds [triage], [staff], [location] and
+ * [replyKey]. This version ignores the flags it doesn't know and everything after the fields it reads. A category it
+ * doesn't know is kept as a number.
  */
 class IncidentBody(
     val category: Int,
@@ -405,6 +459,8 @@ class IncidentBody(
     /** Set by staff, whose [nickname] is then the team's name. */
     val staff: StaffFields? = null,
     val location: LocationFields? = null,
+    /** The reporter's ephemeral X25519 key: the console seals its responses ([IncidentResponse]) to it. */
+    val replyKey: ByteArray? = null,
 ) {
     fun encode(): ByteArray {
         val zoneBytes = zone.utf8()
@@ -413,11 +469,13 @@ class IncidentBody(
         require(zoneBytes.size <= Limits.ZONE_BYTES && descBytes.size <= Limits.DESCRIPTION_BYTES)
         require(nickBytes == null || nickBytes.size <= Limits.NICK_BYTES)
         require(cancelHash == null || cancelHash.size == IncidentCancel.HASH_SIZE)
+        require(replyKey == null || replyKey.size == REPLY_KEY_SIZE)
         val hasCoords = lat != null && lon != null
         val flags = (if (hasCoords) FLAG_COORDS else 0) or (if (nickBytes != null) FLAG_NICK else 0) or
             (if (cancelHash != null) FLAG_CANCEL else 0) or (if (triage != null) FLAG_TRIAGE else 0) or
-            (if (staff != null) FLAG_STAFF else 0) or (if (location != null) FLAG_LOCATION else 0)
-        val w = WireWriter(38 + zoneBytes.size + descBytes.size)
+            (if (staff != null) FLAG_STAFF else 0) or (if (location != null) FLAG_LOCATION else 0) or
+            (if (replyKey != null) FLAG_REPLY else 0)
+        val w = WireWriter(70 + zoneBytes.size + descBytes.size)
         w.u8(category).u8(severity).u32(timestamp).u8(flags)
         w.u8(zoneBytes.size).bytes(zoneBytes)
         if (hasCoords) w.coord(lat!!).coord(lon!!)
@@ -427,16 +485,23 @@ class IncidentBody(
         if (triage != null) w.u8(triage.responds or (triage.breathes shl 2))
         if (staff != null) w.u8(staff.people).u8(if (staff.dangerContinues) STAFF_DANGER else 0)
         if (location != null) w.u8(location.accuracyM).u8(location.landmark)
+        if (replyKey != null) w.bytes(replyKey)
         return w.toByteArray()
     }
 
     companion object {
+        const val REPLY_KEY_SIZE = 32
+
+        /** The most a body may take for its report to fit in a payload. */
+        const val MAX_SIZE = PacketCodec.MAX_PAYLOAD - INCIDENT_ID_SIZE - IncidentReportCodec.SEAL_OVERHEAD
+
         private const val FLAG_COORDS = 0x01
         private const val FLAG_NICK = 0x02
         private const val FLAG_CANCEL = 0x04
         private const val FLAG_TRIAGE = 0x08
         private const val FLAG_STAFF = 0x10
         private const val FLAG_LOCATION = 0x20
+        private const val FLAG_REPLY = 0x40
         private const val STAFF_DANGER = 0x01
 
         fun decode(plain: ByteArray): IncidentBody? = parseOrNull {
@@ -458,7 +523,8 @@ class IncidentBody(
             val triage = if (flags and FLAG_TRIAGE != 0) r.u8().let { Triage(it and 0x03, (it shr 2) and 0x03) } else null
             val staff = if (flags and FLAG_STAFF != 0) StaffFields(r.u8(), r.u8() and STAFF_DANGER != 0) else null
             val location = if (flags and FLAG_LOCATION != 0) LocationFields(r.u8(), r.u8()) else null
-            IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash, triage, staff, location)
+            val replyKey = if (flags and FLAG_REPLY != 0) r.bytes(REPLY_KEY_SIZE) else null
+            IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash, triage, staff, location, replyKey)
         }
     }
 }
@@ -599,6 +665,170 @@ class IncidentCancel(val incidentId: ByteArray, val token: ByteArray) {
             IncidentCancel(id, token)
         }
     }
+}
+
+/** The console's predefined answers to a reporter (1.1). A code this version doesn't know is kept as a number. */
+object ResponseCode {
+    /** "Venim, rămâi pe loc." */
+    const val COMING = 1
+
+    /** "Nu te găsim, du-te la reperul X": [ResponseBody.landmark] is X. */
+    const val GO_TO_LANDMARK = 2
+
+    /** "Mergi la punctul medical." */
+    const val GO_TO_MEDICAL = 3
+}
+
+/** What a response carries, sealed to the reporter's key. Bytes after the landmark come from a newer version. */
+data class ResponseBody(val code: Int, val landmark: Int = 0) {
+    init {
+        require(code in 1..0xFF && landmark in 0..0xFF)
+    }
+
+    fun encode(): ByteArray = WireWriter(2).u8(code).u8(landmark).toByteArray()
+
+    companion object {
+        fun decode(plain: ByteArray): ResponseBody? = parseOrNull {
+            val r = WireReader(plain)
+            val code = r.u8()
+            if (code == 0) throw MalformedException("response code")
+            ResponseBody(code, r.u8())
+        }
+    }
+}
+
+/**
+ * INCIDENT_RESPONSE payload (1.1): the console's answer to the author of a report, bound to its incidentId. Relays
+ * read and check everything but [sealed], the [ResponseBody] sealed to the report's reply key. Signed like an ACK:
+ * with the key of [certificate], a control shift's, or without one with the build's staff key. [extensions] sit
+ * between the certificate and the signature: a newer version's fields, signed and kept as they came.
+ */
+class IncidentResponse(
+    val incidentId: ByteArray,
+    val timestamp: Long,
+    val sealed: ByteArray,
+    val certificate: Certificate?,
+    val signature: ByteArray,
+    val extensions: ByteArray = ByteArray(0),
+) {
+    fun encode(): ByteArray = unsigned(incidentId, timestamp, sealed, certificate) + extensions + signature
+
+    companion object {
+        /** Flag bit: the signer's certificate follows the sealed body. The other bits are reserved and ignored. */
+        const val CERT = 0x01
+        private val DOMAIN = "SP-RESP-v1".utf8()
+
+        fun unsigned(incidentId: ByteArray, timestamp: Long, sealed: ByteArray, certificate: Certificate?): ByteArray {
+            require(incidentId.size == INCIDENT_ID_SIZE && sealed.size in IncidentReportCodec.SEAL_OVERHEAD + 1..0xFF)
+            val w = WireWriter().bytes(incidentId).u32(timestamp).u8(if (certificate != null) CERT else 0)
+            w.u8(sealed.size).bytes(sealed)
+            certificate?.let { w.bytes(it.encode()) }
+            return w.toByteArray()
+        }
+
+        /** Bytes covered by the signature; the prefix binds it to this message type. */
+        fun signedMessage(unsigned: ByteArray): ByteArray = DOMAIN + unsigned
+
+        fun unsignedPart(payload: ByteArray): ByteArray = payload.copyOfRange(0, payload.size - IncidentAck.SIGNATURE_SIZE)
+
+        fun decode(payload: ByteArray): IncidentResponse? = parseOrNull {
+            val r = WireReader(payload)
+            val id = r.bytes(INCIDENT_ID_SIZE)
+            val timestamp = r.u32()
+            val flags = r.u8()
+            val size = r.u8()
+            if (size <= IncidentReportCodec.SEAL_OVERHEAD) throw MalformedException("sealed response")
+            val sealed = r.bytes(size)
+            val certificate = if (flags and CERT != 0) Certificate.read(r) else null
+            val extensions = r.bytes(r.remaining - IncidentAck.SIGNATURE_SIZE)
+            IncidentResponse(id, timestamp, sealed, certificate, r.bytes(IncidentAck.SIGNATURE_SIZE), extensions)
+        }
+    }
+}
+
+/** What the author of a report says later (1.1). A kind this version doesn't know is kept as a number. */
+object UpdateKind {
+    /** "Încă e nevoie de ajutor." */
+    const val STILL_ACTIVE = 1
+
+    /** The reporter moved: the update says where to. */
+    const val MOVED = 2
+
+    /** "S-a rezolvat singur." */
+    const val RESOLVED_ITSELF = 3
+}
+
+/**
+ * An update's content, sealed to the staff key like the report. [token] is the report's cancel token: staff check it
+ * against the cancel hash of the body, so only the author can update. The place fields sit behind flag bits; flags
+ * this version doesn't know and the bytes after the fields it reads come from a newer version and are skipped.
+ */
+class UpdateBody(
+    val kind: Int,
+    val timestamp: Long,
+    val token: ByteArray,
+    val zone: String? = null,
+    val lat: Double? = null,
+    val lon: Double? = null,
+    val location: LocationFields? = null,
+) {
+    fun encode(): ByteArray {
+        val zoneBytes = zone?.utf8()
+        require(kind in 1..0xFF && token.size == IncidentCancel.TOKEN_SIZE)
+        require(zoneBytes == null || zoneBytes.size <= Limits.ZONE_BYTES)
+        val hasCoords = lat != null && lon != null
+        val flags = (if (hasCoords) FLAG_COORDS else 0) or (if (zoneBytes != null) FLAG_ZONE else 0) or
+            (if (location != null) FLAG_LOCATION else 0)
+        val w = WireWriter().u8(kind).u32(timestamp).bytes(token).u8(flags)
+        if (lat != null && lon != null) w.coord(lat).coord(lon)
+        if (zoneBytes != null) w.u8(zoneBytes.size).bytes(zoneBytes)
+        if (location != null) w.u8(location.accuracyM).u8(location.landmark)
+        return w.toByteArray()
+    }
+
+    companion object {
+        private const val FLAG_COORDS = 0x01
+        private const val FLAG_ZONE = 0x02
+        private const val FLAG_LOCATION = 0x04
+
+        fun decode(plain: ByteArray): UpdateBody? = parseOrNull {
+            val r = WireReader(plain)
+            val kind = r.u8()
+            if (kind == 0) throw MalformedException("update kind")
+            val timestamp = r.u32()
+            val token = r.bytes(IncidentCancel.TOKEN_SIZE)
+            val flags = r.u8()
+            val hasCoords = flags and FLAG_COORDS != 0
+            val lat = if (hasCoords) r.coord() else null
+            val lon = if (hasCoords) r.coord() else null
+            val zone = if (flags and FLAG_ZONE != 0) r.string(r.u8(), Limits.ZONE_BYTES) else null
+            val location = if (flags and FLAG_LOCATION != 0) LocationFields(r.u8(), r.u8()) else null
+            UpdateBody(kind, timestamp, token, zone, lat, lon, location)
+        }
+    }
+}
+
+/**
+ * INCIDENT_UPDATE payload (1.1): the incidentId and the update's sequence number in clear, so that relays keep the
+ * latest of each incident, then the sealed [UpdateBody]. Anonymous like the report, and relays can't check it either.
+ */
+object IncidentUpdateCodec {
+    /** The first update of a report is 1. */
+    const val MAX_SEQ = 0xFF
+
+    fun encode(incidentId: ByteArray, seq: Int, sealed: ByteArray): ByteArray {
+        require(incidentId.size == INCIDENT_ID_SIZE && seq in 1..MAX_SEQ)
+        return incidentId + seq.toByte() + sealed
+    }
+
+    fun isWellFormed(payload: ByteArray): Boolean = payload.size > INCIDENT_ID_SIZE + 1 + IncidentReportCodec.SEAL_OVERHEAD
+
+    /** As with [IncidentReportCodec], these slice without checking: only for a payload [isWellFormed] accepts. */
+    fun incidentId(payload: ByteArray): ByteArray = payload.copyOfRange(0, INCIDENT_ID_SIZE)
+
+    fun seq(payload: ByteArray): Int = payload[INCIDENT_ID_SIZE].toInt() and 0xFF
+
+    fun sealed(payload: ByteArray): ByteArray = payload.copyOfRange(INCIDENT_ID_SIZE + 1, payload.size)
 }
 
 object QuickCode {

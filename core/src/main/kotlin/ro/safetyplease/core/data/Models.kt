@@ -131,6 +131,36 @@ data class MyReport(
     val firstAckHops: Int = 0,
     /** How many times the report was published again after a restart while it waited for staff. */
     val republished: Int = 0,
+    /** The ephemeral X25519 pair whose public key went in the report, hex: the console's responses open with it. */
+    val replyKey: String = "",
+    val replySecret: String = "",
+    /** The console's responses, oldest first. */
+    val responses: List<ReportResponse> = emptyList(),
+    /** What this phone said since, in order. */
+    val updates: List<IncidentUpdate> = emptyList(),
+)
+
+/**
+ * A predefined answer of the console ([ro.safetyplease.core.protocol.ResponseCode]); [landmark] is the site plan's
+ * number for "go to landmark X". [at] is the console's clock, [receivedAt] this phone's.
+ */
+@Serializable
+data class ReportResponse(val code: Int, val landmark: Int = 0, val at: Long, val receivedAt: Long)
+
+/**
+ * What the reporter said after its report ([ro.safetyplease.core.protocol.UpdateKind]), numbered from 1 by [seq]:
+ * still active, moved (where to) or resolved by itself. [at] is the reporter's clock.
+ */
+@Serializable
+data class IncidentUpdate(
+    val seq: Int,
+    val kind: Int,
+    val at: Long,
+    val zone: String? = null,
+    val lat: Double? = null,
+    val lon: Double? = null,
+    val accuracyM: Int = 0,
+    val landmark: Int = 0,
 )
 
 @Serializable
@@ -168,6 +198,12 @@ data class StaffIncident(
     val accuracyM: Int = 0,
     /** Number of the landmark nearest to the reporter, on the site plan; 0 for none. */
     val landmark: Int = 0,
+    /** The report's reply key, hex; empty if the reporter can't receive responses. */
+    val replyKey: String = "",
+    /** The reporter's updates that reached this phone, by [IncidentUpdate.seq]. */
+    val updates: List<IncidentUpdate> = emptyList(),
+    /** Responses this phone sent the reporter, oldest first. */
+    val responses: List<ReportResponse> = emptyList(),
 )
 
 @Serializable

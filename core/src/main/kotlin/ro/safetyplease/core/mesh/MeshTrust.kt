@@ -14,6 +14,9 @@ fun interface MeshTrust {
     /** A fresh HELLO nonce; from its own source, so the engine's random draws don't depend on it. */
     fun nonce(): ByteArray = Random.nextBytes(Hello.NONCE_SIZE)
 
+    /** A response to a reporter, checked like an ACK; one that isn't VALID is neither stored nor relayed. */
+    fun checkResponse(payload: ByteArray): Verdict = Verdict.REFUSED
+
     /** A VALID announcement is relayed and delivered like an incident; any other is relayed as an unknown type. */
     fun checkAnnouncement(payload: ByteArray): Verdict = Verdict.REFUSED
 

@@ -6,6 +6,7 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Hello
 import ro.safetyplease.core.protocol.HelloProof
 import ro.safetyplease.core.protocol.IncidentAck
+import ro.safetyplease.core.protocol.IncidentResponse
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.util.Clock
 
@@ -100,6 +101,26 @@ class KeyChain(
         }
         if (!allowed || ack.timestamp > now + SKEW_S || ack.timestamp < cert.validFrom - SKEW_S) return Verdict.REFUSED
         return Verdict.VALID
+    }
+
+    /**
+     * A response to a reporter: as an ACK, against the build's staff key without a certificate; with one, only a
+     * control shift may sign it, within its shift.
+     */
+    override fun checkResponse(payload: ByteArray): Verdict {
+        val response = IncidentResponse.decode(payload) ?: return Verdict.INVALID
+        val message = IncidentResponse.signedMessage(IncidentResponse.unsignedPart(payload))
+        val cert = response.certificate
+            ?: return if (crypto.verify(response.signature, message, legacySign)) Verdict.VALID else Verdict.INVALID
+        val now = nowSec()
+        when (status(cert, now)) {
+            CertStatus.VALID -> Unit
+            CertStatus.FORGED -> return Verdict.INVALID
+            else -> return Verdict.REFUSED
+        }
+        if (!crypto.verify(response.signature, message, cert.key)) return Verdict.INVALID
+        val late = response.timestamp > now + SKEW_S || response.timestamp < cert.validFrom - SKEW_S
+        return if (cert.role != CertRole.CONTROL || late) Verdict.REFUSED else Verdict.VALID
     }
 
     /** A revocation signed by the root, the organiser or the event; other kinds are this version's to relay only. */

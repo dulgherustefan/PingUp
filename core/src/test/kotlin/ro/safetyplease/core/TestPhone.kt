@@ -119,6 +119,9 @@ class TestPhone(
     val clearedAlerts = mutableListOf<String>()
     val reportUpdates = mutableListOf<MyReport>()
 
+    /** Our reports as they were each time a new response from the console arrived. */
+    val reportResponses = mutableListOf<MyReport>()
+
     /** ACKs IncidentManager reported: the ACK, whether this phone signed it, and its hops. */
     val acks = mutableListOf<Triple<IncidentAck, Boolean, Int>>()
     var staffCap = IncidentManager.MAX_STAFF
@@ -132,6 +135,7 @@ class TestPhone(
         staffSecret = { staffSecret }, teamName = { team },
         onStaffAlert = { alerts += it }, onStaffAlertCleared = { clearedAlerts += it },
         onReportUpdate = { reportUpdates += it },
+        onReportResponse = { reportResponses += it },
         onAck = { ack, own, hops -> acks += Triple(ack, own, hops) },
         staffCap = { staffCap },
     )

@@ -2,28 +2,40 @@ package ro.safetyplease.core.mesh
 
 import ro.safetyplease.core.protocol.AckOrder
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.HeldEntry
 import ro.safetyplease.core.protocol.IncidentAck
+import ro.safetyplease.core.protocol.IncidentResponse
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketCodec
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.RequestEntry
+import ro.safetyplease.core.protocol.Summary2Codec
 import ro.safetyplease.core.protocol.SummaryEntry
+import ro.safetyplease.core.protocol.SummaryKind
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.toLong
 
 /**
- * Store-and-forward for incidents and ACKs. Keeps packets for [retentionMs] after receipt, then only a trace
- * of the incident so the node doesn't request and relay it forever.
+ * Store-and-forward for incidents, ACKs, the console's responses to reporters and the reporters' updates. Keeps
+ * packets for [retentionMs] after receipt, then only a trace of the incident so the node doesn't request and relay it
+ * forever.
  */
 class IncidentCache(
     var retentionMs: Long = 30 * 60_000L,
     private val maxReports: Int = 50,
     private val traceMs: Long = 6 * 60 * 60_000L,
     private val maxTraces: Int = 2048,
+    private val maxUpdates: Int = 50,
 ) {
     private class Stored(val packet: Packet, val atMs: Long, val hops: Int = 0)
+
+    /** The latest packet of one kind; [version] is a response's timestamp or an update's sequence number, 0 for none. */
+    private class Kept {
+        var stored: Stored? = null
+        var version = 0L
+    }
 
     private class Entry(val id8: Long) {
         var reportSeen = false
@@ -35,11 +47,17 @@ class IncidentCache(
         var ackTeam = ""
         var ackAssigned = false
         var touchedMs = 0L
+        val response = Kept()
+        val update = Kept()
 
         /** This phone wrote the report. */
         var own = false
 
         val ownPending: Boolean get() = own && ackStatus < AckStatus.RECEIVED
+
+        val empty: Boolean get() = report == null && ack == null && response.stored == null && update.stored == null
+
+        fun kept(kind: Int): Kept = if (kind == SummaryKind.RESPONSES) response else update
     }
 
     private val entries = LinkedHashMap<Long, Entry>()
@@ -116,6 +134,50 @@ class IncidentCache(
 
     fun ackStatus(incidentId: ByteArray): Int = entries[incidentId.toLong()]?.ackStatus ?: AckStatus.NONE
 
+    /** Keeps the response if it is the incident's latest by the console's clock, which never gives two the same second. */
+    fun offerResponse(response: IncidentResponse, packet: Packet, nowMs: Long): Boolean =
+        offer(SummaryKind.RESPONSES, response.incidentId.toLong(), response.timestamp, packet, nowMs)
+
+    /**
+     * Keeps the update if its sequence number is the highest seen for the incident. Relays can't check updates, so at
+     * most [maxUpdates] are kept: past that, the one kept longest goes, never this phone's own.
+     */
+    fun offerUpdate(incidentId: ByteArray, seq: Int, packet: Packet, nowMs: Long, own: Boolean = false): Boolean {
+        if (!offer(SummaryKind.UPDATES, incidentId.toLong(), seq.toLong(), packet, nowMs)) return false
+        if (own) entries.getValue(incidentId.toLong()).own = true
+        if (entries.values.count { it.update.stored != null } > maxUpdates) {
+            entries.values.filter { it.update.stored != null && !it.own }.minByOrNull { it.update.stored!!.atMs }?.update?.stored = null
+        }
+        return true
+    }
+
+    private fun offer(kind: Int, id8: Long, version: Long, packet: Packet, nowMs: Long): Boolean {
+        purge(nowMs)
+        val kept = entry(id8, nowMs).kept(kind)
+        if (version <= kept.version) return false
+        kept.version = version
+        kept.stored = Stored(packet, nowMs)
+        return true
+    }
+
+    /** The responses or updates ([kind]) stored most recently, as many as one SUMMARY2 lists. */
+    fun held(kind: Int, nowMs: Long, servable: (Packet) -> Boolean = { true }): List<HeldEntry> {
+        purge(nowMs)
+        return entries.values
+            .mapNotNull { e -> e.kept(kind).takeIf { k -> k.stored?.packet?.let(servable) == true }?.let { e.id8 to it } }
+            .sortedByDescending { (_, k) -> k.stored!!.atMs }
+            .take(Summary2Codec.maxHeld(kind))
+            .map { (id8, k) -> HeldEntry(id8, k.version) }
+    }
+
+    /** The id8s of the responses or updates ([kind]) a peer holds a later one of. */
+    fun missing(kind: Int, remote: List<HeldEntry>, nowMs: Long): List<Long> {
+        purge(nowMs)
+        return remote.filter { it.version > (entries[it.id8]?.kept(kind)?.version ?: 0) }.map { it.id8 }.take(Limits.SUMMARY_ENTRIES)
+    }
+
+    fun kept(kind: Int, id8: Long): Packet? = entries[id8]?.kept(kind)?.stored?.packet
+
     /** The incidents stored most recently, listing only the packets [servable] lets us hand to this neighbor. */
     fun summary(nowMs: Long, servable: (Packet) -> Boolean = { true }): List<SummaryEntry> {
         purge(nowMs)
@@ -165,6 +227,7 @@ class IncidentCache(
             CachedIncident(
                 e.id8, e.reportSeen, e.own, saved(e.report), saved(e.ack),
                 e.ackStatus, e.ackEpoch, e.ackTimestamp, e.ackTeam, e.ackAssigned, wall(e.touchedMs),
+                saved(e.response.stored), e.response.version, saved(e.update.stored), e.update.version,
             )
         })
     }
@@ -183,19 +246,21 @@ class IncidentCache(
         }
         entries.clear()
         for (c in saved.incidents) {
-            val report = stored(c.report, PacketType.INCIDENT_REPORT)
-            val ack = stored(c.ack, PacketType.INCIDENT_ACK)
-            if (report == null && ack == null && wallMs - c.touchedAt > traceMs) continue
             val e = Entry(c.id8)
+            e.report = stored(c.report, PacketType.INCIDENT_REPORT)
+            e.ack = stored(c.ack, PacketType.INCIDENT_ACK)
+            e.response.stored = stored(c.response, PacketType.INCIDENT_RESPONSE)
+            e.update.stored = stored(c.update, PacketType.INCIDENT_UPDATE)
+            if (e.empty && wallMs - c.touchedAt > traceMs) continue
             e.reportSeen = c.reportSeen
             e.own = c.own
-            e.report = report
-            e.ack = ack
             e.ackStatus = c.ackStatus
             e.ackEpoch = c.ackEpoch
             e.ackTimestamp = c.ackTimestamp
             e.ackTeam = c.ackTeam
             e.ackAssigned = c.ackAssigned
+            e.response.version = c.responseVersion
+            e.update.version = c.updateVersion
             e.touchedMs = at(c.touchedAt)
             entries[c.id8] = e
         }
@@ -207,12 +272,12 @@ class IncidentCache(
             val e = it.next()
             e.report?.let { s -> if (nowMs - s.atMs > retentionMs) e.report = null }
             e.ack?.let { s -> if (nowMs - s.atMs > retentionMs) e.ack = null }
-            if (e.report == null && e.ack == null && nowMs - e.touchedMs > traceMs) it.remove()
+            for (k in listOf(e.response, e.update)) k.stored?.let { s -> if (nowMs - s.atMs > retentionMs) k.stored = null }
+            if (e.empty && nowMs - e.touchedMs > traceMs) it.remove()
         }
         if (entries.size > maxTraces) {
             val excess = entries.size - maxTraces
-            val victims = entries.values.filter { it.report == null && it.ack == null }
-                .sortedBy { it.touchedMs }.take(excess)
+            val victims = entries.values.filter { it.empty }.sortedBy { it.touchedMs }.take(excess)
             for (v in victims) entries.remove(v.id8)
         }
     }

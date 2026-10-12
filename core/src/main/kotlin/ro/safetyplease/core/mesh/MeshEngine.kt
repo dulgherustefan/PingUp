@@ -19,6 +19,8 @@ import ro.safetyplease.core.protocol.Hello
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentCancel
 import ro.safetyplease.core.protocol.IncidentReportCodec
+import ro.safetyplease.core.protocol.IncidentResponse
+import ro.safetyplease.core.protocol.IncidentUpdateCodec
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.protocol.Packet
@@ -69,6 +71,8 @@ data class MeshConfig(
      * sender; this one slows a neighbor that fills the cache with fakes, far above what people report.
      */
     val reportsPerMinute: Int = 6,
+    /** New reporter updates accepted from one link in a minute, counted apart from reports and for the same reason. */
+    val updatesPerMinute: Int = 6,
     /** Packets of types this version doesn't read, relayed from one link in a minute. */
     val opaquePerMinute: Int = 12,
     /** The same for ANNOUNCEMENT, smaller: any phone can send one, and a signed one can be sent again under new ids. */
@@ -117,6 +121,8 @@ data class SeenPeer(val address: String, val prefix: Int?, val flags: Int, val r
 enum class DropReason(val label: String) {
     DUPLICATE("duplicat"),
     KNOWN_INCIDENT("known incident"),
+
+    /** An ACK or a response that doesn't supersede the one kept. */
     STALE_ACK("stale ACK"),
     QUEUE_FULL("queue full"),
     RATE_LIMIT("rate limit"),
@@ -131,8 +137,14 @@ enum class DropReason(val label: String) {
     /** A type this version only relays, over its size limit or over the link's budget for such types. */
     OPAQUE_LIMIT("opaque limit"),
 
-    /** An ACK whose certificate this phone doesn't trust now: another event, revoked, out of its shift, not its role. */
+    /**
+     * An ACK or a response whose certificate this phone doesn't trust now: another event, revoked, out of its shift,
+     * not its role.
+     */
     UNTRUSTED("untrusted"),
+
+    /** A new update over the link's budget for them; like a report over its limit, it may still come later. */
+    UPDATE_LIMIT("update limit"),
 }
 
 /** Totals since the engine was created, for the field measurement export. */
@@ -233,6 +245,7 @@ class MeshEngine(
         val tx = TokenBucket(config.txBurst, config.txPerSecond, upAtMs)
         val malformedAt = ArrayDeque<Long>()
         val newReports = WindowLimit(config.reportsPerMinute, 60_000)
+        val newUpdates = WindowLimit(config.updatesPerMinute, 60_000)
         val opaque = WindowLimit(config.opaquePerMinute, 60_000)
         val announcements = WindowLimit(config.announcementsPerMinute, 60_000)
         val unsupported = WindowLimit(config.unsupportedPerMinute, 60_000)
@@ -440,6 +453,29 @@ class MeshEngine(
         return packet
     }
 
+    /** The console's response to a reporter; null if a later one is already known. */
+    fun publishResponse(response: IncidentResponse): Packet? {
+        val packet = newPacket(PacketType.INCIDENT_RESPONSE, response.encode(), null, encrypted = false, anonymous = false)
+        if (!cache.offerResponse(response, packet, clock.monoMs())) return null
+        saveCache()
+        ownNewsMs = clock.monoMs()
+        flood(packet, own = true)
+        return packet
+    }
+
+    /** The reporter's update of its incident, anonymous like the report; kept for store-and-forward like it. */
+    fun publishUpdate(incidentId: ByteArray, seq: Int, sealed: ByteArray): Packet {
+        val payload = IncidentUpdateCodec.encode(incidentId, seq, sealed)
+        val packet = newPacket(PacketType.INCIDENT_UPDATE, payload, null, encrypted = true, anonymous = true)
+        if (cache.offerUpdate(incidentId, seq, packet, clock.monoMs(), own = true)) saveCache()
+        ownNewsMs = clock.monoMs()
+        flood(packet, own = true)
+        return packet
+    }
+
+    /** The latest update this phone holds for the incident, as it came. */
+    fun cachedUpdate(incidentId: ByteArray): Packet? = cache.kept(SummaryKind.UPDATES, incidentId.toLong())
+
     /** No store-and-forward: the author resends it, as a new packet, until the CANCELLED ACK arrives. */
     fun publishCancel(incidentId: ByteArray, token: ByteArray): Packet {
         val payload = IncidentCancel(incidentId, token).encode()
@@ -523,16 +559,24 @@ class MeshEngine(
         sendLocal(link, PacketType.HELLO, hello.encode())
     }
 
-    /** SUMMARY2 to a 1.1 peer, the 1.0 SUMMARY to the others. */
+    /**
+     * SUMMARY2 to a 1.1 peer, the 1.0 SUMMARY to the others. A 1.1 peer also gets a SUMMARY2 of responses and one of
+     * updates, each only when there is something to list.
+     */
     private fun sendSummary(link: Link) {
         val now = clock.monoMs()
         link.summaryAtMs = now
         val entries = cache.summary(now) { canSend(link, it) }
-        if (entries.isEmpty()) return
-        if (link.speaks11) {
+        if (!link.speaks11) {
+            if (entries.isNotEmpty()) sendLocal(link, PacketType.SUMMARY, SummaryCodec.encode(entries))
+            return
+        }
+        if (entries.isNotEmpty()) {
             sendLocal(link, PacketType.SUMMARY2, Summary2Codec.encode(Summary2(SummaryKind.INCIDENTS, Summary2Codec.fitting(entries))))
-        } else {
-            sendLocal(link, PacketType.SUMMARY, SummaryCodec.encode(entries))
+        }
+        for (kind in listOf(SummaryKind.RESPONSES, SummaryKind.UPDATES)) {
+            val held = cache.held(kind, now) { canSend(link, it) }
+            if (held.isNotEmpty()) sendLocal(link, PacketType.SUMMARY2, Summary2Codec.encode(Summary2(kind, emptyList(), held)))
         }
     }
 
@@ -785,6 +829,7 @@ class MeshEngine(
             SummaryCodec.decode(packet.payload) ?: return malformed(link, "invalid SUMMARY")
         } else {
             val summary = Summary2Codec.decode(packet.payload) ?: return malformed(link, "invalid SUMMARY2")
+            if (SummaryKind.isHeld(summary.kind)) return onHeld(link, packet, summary)
             if (summary.kind != SummaryKind.INCIDENTS) return drop(packet, link, DropReason.UNSUPPORTED)
             summary.entries
         }
@@ -792,6 +837,15 @@ class MeshEngine(
         val now = clock.monoMs()
         val wanted = cache.missing(entries, now).withinReportBudget(link.newReports.remaining(now))
         if (wanted.isNotEmpty()) sendRequest(link, packet.type, wanted)
+    }
+
+    /** Responses and updates later than ours are asked for by id8; updates within the link's budget for new ones. */
+    private fun onHeld(link: Link, packet: Packet, summary: Summary2) {
+        log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${summary.held.size} entries")
+        val now = clock.monoMs()
+        var wanted = cache.missing(summary.kind, summary.held, now)
+        if (summary.kind == SummaryKind.UPDATES) wanted = wanted.take(link.newUpdates.remaining(now))
+        if (wanted.isNotEmpty()) sendLocal(link, PacketType.REQUEST2, Request2Codec.encode(Request2(summary.kind, emptyList(), wanted)))
     }
 
     /** Reports past the link's budget for new ones would be dropped on arrival, so they wait for a later summary. */
@@ -820,6 +874,11 @@ class MeshEngine(
             RequestCodec.decode(packet.payload) ?: return malformed(link, "invalid REQUEST")
         } else {
             val request = Request2Codec.decode(packet.payload) ?: return malformed(link, "invalid REQUEST2")
+            if (SummaryKind.isHeld(request.kind)) {
+                log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${request.ids.size} entries")
+                for (id8 in request.ids) cache.kept(request.kind, id8)?.let { serve(link, it) }
+                return
+            }
             if (request.kind != SummaryKind.INCIDENTS) return drop(packet, link, DropReason.UNSUPPORTED)
             request.entries
         }
@@ -837,6 +896,9 @@ class MeshEngine(
     private fun onMeshPacket(link: Link, packet: Packet, now: Long) {
         // before dedup, so the same report can still come later, through this link or another
         if (isReportOverLimit(link, packet, now)) return drop(packet, link, DropReason.REPORT_LIMIT)
+        if (packet.type == PacketType.INCIDENT_UPDATE && IncidentUpdateCodec.isWellFormed(packet.payload) && !link.newUpdates.tryAdd(now)) {
+            return drop(packet, link, DropReason.UPDATE_LIMIT)
+        }
         dedup.add(packet.dedupKey, now)
         // what we keep for store-and-forward is relayed with one hop less
         val forwardable = packet.withTtl(maxOf(packet.ttl - 1, 1))
@@ -864,6 +926,22 @@ class MeshEngine(
             }
             PacketType.INCIDENT_CANCEL -> {
                 if (packet.payload.size < IncidentCancel.SIZE) return malformed(link, "invalid CANCEL")
+            }
+            PacketType.INCIDENT_RESPONSE -> {
+                val response = IncidentResponse.decode(packet.payload) ?: return malformed(link, "invalid RESPONSE")
+                when (trust.checkResponse(packet.payload)) {
+                    Verdict.VALID -> Unit
+                    Verdict.REFUSED -> return drop(packet, link, DropReason.UNTRUSTED)
+                    Verdict.INVALID -> return malformed(link, "RESPONSE with invalid signature")
+                }
+                if (!cache.offerResponse(response, forwardable, now)) return drop(packet, link, DropReason.STALE_ACK)
+                saveCache()
+            }
+            // relays can't check an update, so an older one still goes on live; only the latest is kept
+            PacketType.INCIDENT_UPDATE -> {
+                if (!IncidentUpdateCodec.isWellFormed(packet.payload)) return malformed(link, "invalid UPDATE")
+                val id = IncidentUpdateCodec.incidentId(packet.payload)
+                if (cache.offerUpdate(id, IncidentUpdateCodec.seq(packet.payload), forwardable, now)) saveCache()
             }
             PacketType.PRIVATE -> {
                 if (packet.recipient == null || packet.sender == 0L || !packet.encrypted) {

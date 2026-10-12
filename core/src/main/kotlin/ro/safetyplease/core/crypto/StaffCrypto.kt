@@ -2,6 +2,8 @@ package ro.safetyplease.core.crypto
 
 import ro.safetyplease.core.mesh.Verdict
 import ro.safetyplease.core.protocol.IncidentAck
+import ro.safetyplease.core.protocol.IncidentResponse
+import ro.safetyplease.core.protocol.ResponseBody
 import ro.safetyplease.core.util.Clock
 
 /** The build's shared keys: [box] opens reports outside the event's days, [sign] checks ACKs from SPS1 phones. */
@@ -51,6 +53,14 @@ class StaffCrypto(
     }
 
     fun verifyAck(payload: ByteArray): Boolean = chain.checkAck(payload) == Verdict.VALID
+
+    /** [body] sealed to the reporter's [replyKey], signed like an ACK: under the certificate if there is one. */
+    fun signResponse(incidentId: ByteArray, timestamp: Long, body: ResponseBody, replyKey: ByteArray, secret: StaffSecretKeys): IncidentResponse {
+        val sealed = crypto.seal(body.encode(), replyKey)
+        val unsigned = IncidentResponse.unsigned(incidentId, timestamp, sealed, secret.certificate)
+        val signature = crypto.sign(IncidentResponse.signedMessage(unsigned), secret.sign.secretKey)
+        return IncidentResponse(incidentId, timestamp, sealed, secret.certificate, signature)
+    }
 
     /** Null if the seeds don't match this build's public keys. */
     fun secretFromSeeds(boxSeed: ByteArray, signSeed: ByteArray): StaffSecretKeys? {

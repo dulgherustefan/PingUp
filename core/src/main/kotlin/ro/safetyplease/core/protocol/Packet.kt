@@ -12,6 +12,12 @@ object PacketType {
     const val INCIDENT_REPORT = 0x10
     const val INCIDENT_ACK = 0x11
     const val INCIDENT_CANCEL = 0x12
+
+    /** 1.1: the console's answer to a reporter, signed, sealed to the report's reply key; stored and forwarded. */
+    const val INCIDENT_RESPONSE = 0x13
+
+    /** 1.1: the reporter's news of its incident, sealed to staff; stored and forwarded. */
+    const val INCIDENT_UPDATE = 0x14
     const val PRIVATE = 0x20
 
     /**
@@ -24,7 +30,7 @@ object PacketType {
     /** The types 1.0 reads. It counts any other as malformed, so a 1.1 node never sends one to a 1.0 peer. */
     val V1_0 = setOf(HELLO, SUMMARY, REQUEST, INCIDENT_REPORT, INCIDENT_ACK, INCIDENT_CANCEL, PRIVATE, TEST)
 
-    private val known = V1_0 + setOf(SUMMARY2, REQUEST2)
+    private val known = V1_0 + setOf(SUMMARY2, REQUEST2, INCIDENT_RESPONSE, INCIDENT_UPDATE)
 
     /**
      * Chat reaches 6 hops, one fewer than 1.0: delivery comes first, and at 6 friends three radio ranges apart in a
@@ -45,6 +51,8 @@ object PacketType {
         INCIDENT_REPORT -> "INCIDENT"
         INCIDENT_ACK -> "ACK"
         INCIDENT_CANCEL -> "CANCEL"
+        INCIDENT_RESPONSE -> "RESPONSE"
+        INCIDENT_UPDATE -> "UPDATE"
         PRIVATE -> "PRIVATE"
         ANNOUNCEMENT -> "ANNOUNCE"
         TEST -> "TEST"
@@ -60,7 +68,7 @@ object PacketType {
     /** The TTL a packet starts with (PROTOCOL.md, section 5). Incidents keep the 7 every flooded type had in 1.0. */
     fun originTtl(type: Int): Int = when (type) {
         HELLO, SUMMARY, REQUEST, SUMMARY2, REQUEST2 -> 1
-        INCIDENT_REPORT, INCIDENT_ACK, INCIDENT_CANCEL, ANNOUNCEMENT -> PacketCodec.MAX_TTL
+        INCIDENT_REPORT, INCIDENT_ACK, INCIDENT_CANCEL, INCIDENT_RESPONSE, INCIDENT_UPDATE, ANNOUNCEMENT -> PacketCodec.MAX_TTL
         PRIVATE -> CHAT_TTL
         TEST -> PacketCodec.MAX_TTL
         else -> if (isLinkLocal(type)) 1 else OPAQUE_MAX_TTL

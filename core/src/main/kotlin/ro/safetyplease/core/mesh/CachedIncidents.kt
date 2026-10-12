@@ -22,6 +22,12 @@ data class CachedIncident(
     val ackTeam: String = "",
     val ackAssigned: Boolean = false,
     val touchedAt: Long = 0,
+    val response: CachedPacket? = null,
+    /** The console's timestamp of the latest response seen, kept after the packet expires; 0 for none. */
+    val responseVersion: Long = 0,
+    val update: CachedPacket? = null,
+    /** The highest update sequence number seen, kept after the packet expires; 0 for none. */
+    val updateVersion: Long = 0,
 )
 
 /** [frame] is the packet as it goes on the wire, unfragmented, in hex. */

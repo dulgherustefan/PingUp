@@ -70,6 +70,12 @@ class DecoderFuzzTest {
             Revocation::encode, { Revocation.decode(it) },
         ),
         Codec("heartbeat", { heartbeat() }, Heartbeat::encode, { Heartbeat.decode(it) }, { listOf(it.zone) }, tolerant = true),
+        Codec(
+            "response", { response() }, IncidentResponse::encode, { IncidentResponse.decode(it) },
+            { listOfNotNull(it.certificate?.name) }, tolerant = true,
+        ),
+        Codec("response body", { ResponseBody(nextInt(1, 256), nextInt(0, 256)) }, ResponseBody::encode, { ResponseBody.decode(it) }, tolerant = true),
+        Codec("update body", { updateBody() }, UpdateBody::encode, { UpdateBody.decode(it) }, { listOfNotNull(it.zone) }, tolerant = true),
     )
 
     @Test(timeout = 10_000)
@@ -326,14 +332,36 @@ private fun Random.request() = List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { Re
 /** Mostly incidents, the only kind 1.1 reads, with statuses from newer versions and, now and then, epochs. */
 private fun Random.summary2(): Summary2 {
     if (nextInt(4) == 0) return Summary2(nextInt(256), emptyList())
+    if (nextInt(4) == 0) {
+        val kind = if (nextBoolean()) SummaryKind.RESPONSES else SummaryKind.UPDATES
+        val max = if (kind == SummaryKind.RESPONSES) 1L shl 32 else 256L
+        return Summary2(kind, emptyList(), List(nextInt(0, Summary2Codec.maxHeld(kind) + 1)) { HeldEntry(nextLong(), nextLong(0, max)) })
+    }
     val epochs = nextInt(4) == 0
     val count = nextInt(0, (if (epochs) Limits.SUMMARY2_EPOCH_ENTRIES else Limits.SUMMARY_ENTRIES) + 1)
     val entries = List(count) { SummaryEntry(nextLong(), nextBoolean(), nextInt(0, 0x80), if (epochs) nextInt(0, 256) else 0) }
     return Summary2(SummaryKind.INCIDENTS, entries)
 }
 
-private fun Random.request2(): Request2 =
-    if (nextInt(4) == 0) Request2(nextInt(256), emptyList()) else Request2(SummaryKind.INCIDENTS, request())
+private fun Random.request2(): Request2 = when (nextInt(4)) {
+    0 -> Request2(nextInt(256), emptyList())
+    1 -> Request2(if (nextBoolean()) SummaryKind.RESPONSES else SummaryKind.UPDATES, emptyList(), List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { nextLong() })
+    else -> Request2(SummaryKind.INCIDENTS, request())
+}
+
+private fun Random.response() = IncidentResponse(
+    nextBytes(16), nextLong(0, 1L shl 32), nextBytes(nextInt(IncidentReportCodec.SEAL_OVERHEAD + 1, 256)),
+    if (nextBoolean()) certificate() else null, nextBytes(64), if (nextInt(4) == 0) nextBytes(nextInt(0, 20)) else ByteArray(0),
+)
+
+private fun Random.updateBody(): UpdateBody {
+    val coords = nextBoolean()
+    return UpdateBody(
+        nextInt(1, 256), nextLong(0, 1L shl 32), nextBytes(IncidentCancel.TOKEN_SIZE), if (nextBoolean()) text(Limits.ZONE_BYTES) else null,
+        if (coords) coordinate(90) else null, if (coords) coordinate(180) else null,
+        if (nextBoolean()) LocationFields(nextInt(0, 256), nextInt(0, 256)) else null,
+    )
+}
 
 private fun Random.body(): IncidentBody {
     val coords = nextBoolean()
@@ -349,6 +377,8 @@ private fun Random.body(): IncidentBody {
         cancelHash = if (nextBoolean()) nextBytes(IncidentCancel.HASH_SIZE) else null,
         triage = if (nextBoolean()) Triage(nextInt(0, 4), nextInt(0, 4)) else null,
         staff = if (nextBoolean()) StaffFields(nextInt(0, 256), nextBoolean()) else null,
+        location = if (nextBoolean()) LocationFields(nextInt(0, 256), nextInt(0, 256)) else null,
+        replyKey = if (nextBoolean()) nextBytes(IncidentBody.REPLY_KEY_SIZE) else null,
     )
 }
 

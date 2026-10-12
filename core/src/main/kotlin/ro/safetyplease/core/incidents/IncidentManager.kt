@@ -9,8 +9,10 @@ import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.StaffCrypto
 import ro.safetyplease.core.crypto.StaffSecretKeys
 import ro.safetyplease.core.data.IncidentData
+import ro.safetyplease.core.data.IncidentUpdate
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.data.ReportResponse
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.MeshEvent
@@ -24,12 +26,16 @@ import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentBody
 import ro.safetyplease.core.protocol.IncidentCancel
 import ro.safetyplease.core.protocol.IncidentReportCodec
+import ro.safetyplease.core.protocol.IncidentResponse
+import ro.safetyplease.core.protocol.IncidentUpdateCodec
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
+import ro.safetyplease.core.protocol.ResponseBody
 import ro.safetyplease.core.protocol.StaffFields
 import ro.safetyplease.core.protocol.Triage
+import ro.safetyplease.core.protocol.UpdateBody
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.toHex
@@ -48,6 +54,15 @@ class ReportDraft(
     val staff: StaffFields? = null,
     /** "Cum te recunoaștem?", sent on the first line of the description ([Recognition]). */
     val recognition: String = "",
+    val location: LocationFields? = null,
+)
+
+/** What the reporter says after its report ([ro.safetyplease.core.protocol.UpdateKind]); a move says where to. */
+class UpdateDraft(
+    val kind: Int,
+    val zone: String? = null,
+    val lat: Double? = null,
+    val lon: Double? = null,
     val location: LocationFields? = null,
 )
 
@@ -70,6 +85,8 @@ class IncidentManager(
     private val onStaffAlertCleared: (incidentId: String) -> Unit = {},
     private val onReportUpdate: (MyReport) -> Unit = {},
     private val onReportSent: () -> Unit = {},
+    /** A new response from the console to one of our reports, already stored with it. */
+    private val onReportResponse: (MyReport) -> Unit = {},
     /** Every ACK that becomes an incident's state on the network: [own] if signed here, with the hops it traveled. */
     private val onAck: (ack: IncidentAck, own: Boolean, hops: Int) -> Unit = { _, _, _ -> },
     /** How many incidents staff keeps; the control console keeps the whole event. */
@@ -121,21 +138,24 @@ class IncidentManager(
         val now = clock.wallMs()
         val incidentId = crypto.random(INCIDENT_ID_SIZE)
         val cancelToken = crypto.random(IncidentCancel.TOKEN_SIZE)
-        val description = Recognition.join(draft.recognition, draft.description.trim().take(Limits.DESCRIPTION_CHARS))
-            .truncateUtf8(Limits.DESCRIPTION_BYTES)
+        val reply = crypto.boxKeyPair()
         val zone = draft.zone.truncateUtf8(Limits.ZONE_BYTES)
         // until reports are signed (2.18), the team named in the staff QR stands for who wrote it
         val staff = draft.staff?.takeIf { staffSecret() != null }
         val nickname = (if (staff != null) teamName() else draft.nickname)?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
-        val body = IncidentBody(
+        fun body(description: String) = IncidentBody(
             draft.category, draft.severity, now / 1000, zone, draft.lat, draft.lon, description, nickname,
-            IncidentCancel.hash(cancelToken), draft.triage, staff, draft.location,
+            IncidentCancel.hash(cancelToken), draft.triage, staff, draft.location, reply.publicKey,
         )
-        val sealed = staffCrypto.sealReport(body.encode())
+        // with every other field full, the reply key leaves the longest descriptions a few bytes short
+        val room = minOf(Limits.DESCRIPTION_BYTES, IncidentBody.MAX_SIZE - body("").encode().size)
+        val description = Recognition.join(draft.recognition, draft.description.trim().take(Limits.DESCRIPTION_CHARS)).truncateUtf8(room)
+        val sealed = staffCrypto.sealReport(body(description).encode())
         val report = MyReport(
             incidentId = incidentId.toHex(), category = draft.category, severity = draft.severity, zone = zone,
             lat = draft.lat, lon = draft.lon, description = description, anonymous = nickname == null,
             createdAt = now, updatedAt = now, cancelToken = cancelToken.toHex(), sealed = sealed.toHex(),
+            replyKey = reply.publicKey.toHex(), replySecret = reply.secretKey.toHex(),
         )
         store.update { it.copy(mine = (it.mine.withoutStaleSeals(now) + report).takeLast(MAX_MINE)) }
         scope.launch {
@@ -186,6 +206,38 @@ class IncidentManager(
         }
     }
 
+    /** Milliseconds until the report can take another update; null if it never can again (closed, cancelled or full). */
+    fun updateWaitMs(incidentId: String): Long? {
+        val report = store.value.mine.firstOrNull { it.incidentId == incidentId } ?: return null
+        if (!canUpdate(report)) return null
+        val last = report.updates.lastOrNull()?.at ?: return 0
+        return maxOf(0, last + UPDATE_INTERVAL_MS - clock.wallMs())
+    }
+
+    /**
+     * Tells staff what changed since the report: sealed to them like it, with the cancel token to show it comes from
+     * the author. Kept and served like the report, the latest of them; at most one every [UPDATE_INTERVAL_MS].
+     */
+    fun update(incidentId: String, draft: UpdateDraft): Boolean {
+        if (updateWaitMs(incidentId) != 0L) return false
+        val report = store.value.mine.first { it.incidentId == incidentId }
+        val now = clock.wallMs()
+        val zone = draft.zone?.truncateUtf8(Limits.ZONE_BYTES)
+        val seq = report.updates.size + 1
+        val body = UpdateBody(draft.kind, now / 1000, report.cancelToken.hexToBytes(), zone, draft.lat, draft.lon, draft.location)
+        val sealed = staffCrypto.sealReport(body.encode())
+        val entry = IncidentUpdate(
+            seq, draft.kind, now, zone, draft.lat, draft.lon, draft.location?.accuracyM ?: 0, draft.location?.landmark ?: 0,
+        )
+        store.update { data -> data.copy(mine = data.mine.map { if (it.incidentId == incidentId) it.copy(updates = it.updates + entry) else it }) }
+        scope.launch {
+            val packet = engine.publishUpdate(incidentId.hexToBytes(), seq, sealed)
+            // as with the report, a staff phone never receives its own update from the network
+            onUpdate(packet.payload)
+        }
+        return true
+    }
+
     // --- staff ---
 
     fun acknowledge(incidentId: String) = sendAck(incidentId, AckStatus.ACKNOWLEDGED)
@@ -213,6 +265,28 @@ class IncidentManager(
      * its phones show as theirs. Goes out only while nobody has taken the incident; the protocol can't reassign yet.
      */
     fun assign(incidentId: String, team: String) = sendAck(incidentId, AckStatus.ACKNOWLEDGED, team, AckFlags.ASSIGNED)
+
+    /**
+     * Answers the reporter with a predefined [ResponseCode][ro.safetyplease.core.protocol.ResponseCode], sealed to the
+     * report's reply key and signed like an ACK. Only a control shift's certificate signs one that relays accept
+     * (the build's shared key still can). Nothing goes out for a report without a reply key.
+     */
+    fun respond(incidentId: String, code: Int, landmark: Int = 0) {
+        scope.launch {
+            val secret = staffSecret() ?: return@launch
+            val incident = store.value.staff.firstOrNull { it.incidentId == incidentId }?.takeIf { it.replyKey.isNotEmpty() } ?: return@launch
+            // relays keep the latest response by its second, so two never share one
+            val time = maxOf(clock.wallMs() / 1000, (incident.responses.lastOrNull()?.at ?: 0) / 1000 + 1)
+            val response = staffCrypto.signResponse(incidentId.hexToBytes(), time, ResponseBody(code, landmark), incident.replyKey.hexToBytes(), secret)
+            if (engine.publishResponse(response) == null) return@launch
+            val sent = ReportResponse(code, landmark, time * 1000, clock.wallMs())
+            store.update { data ->
+                data.copy(staff = data.staff.map { if (it.incidentId == incidentId) it.copy(responses = it.responses + sent) else it })
+            }
+            // a console that wrote the report itself never receives the response from the network
+            onResponse(response)
+        }
+    }
 
     /** Removes the incident from this phone's list only, without sending anything. */
     fun dismiss(incidentId: String) {
@@ -285,6 +359,8 @@ class IncidentManager(
                     applyAck(it, hops = event.packet.hops)
                 }
                 PacketType.INCIDENT_CANCEL -> IncidentCancel.decode(event.packet.payload)?.let(::onCancel)
+                PacketType.INCIDENT_RESPONSE -> IncidentResponse.decode(event.packet.payload)?.let(::onResponse)
+                PacketType.INCIDENT_UPDATE -> onUpdate(event.packet.payload)
             }
             is MeshEvent.Sent -> {
                 val incidentId = packetToIncident.remove(event.packetId) ?: return
@@ -318,8 +394,11 @@ class IncidentManager(
             responds = body.triage?.responds ?: Answer.UNASKED, breathes = body.triage?.breathes ?: Answer.UNASKED,
             fromStaff = body.staff != null, people = body.staff?.people ?: 0, dangerContinues = body.staff?.dangerContinues == true,
             accuracyM = body.location?.accuracyM ?: 0, landmark = body.location?.landmark ?: 0,
+            replyKey = body.replyKey?.toHex().orEmpty(),
         )
         store.update { it.copy(staff = (it.staff + incident).takeLast(staffCap())) }
+        // an update that came before the report: relays keep the latest one, and so did this phone's cache
+        engine.cachedUpdate(incidentId)?.let { onUpdate(it.payload) }
         // a reopen that came before the report raises no alert of its own: the one below does, once, if [alert]
         engine.cachedAck(incidentId)?.let { applyAck(it, alertOnReopen = false) }
         earlyCancels.remove(key)?.takeIf { clock.monoMs() - it.atMs <= EARLY_CANCEL_MS }?.let { tryCancel(key, it.token, secret) }
@@ -365,6 +444,52 @@ class IncidentManager(
         val ack = staffCrypto.signAck(key.hexToBytes(), AckStatus.CANCELLED, clock.wallMs() / 1000, teamName(), secret)
         publishOwn(ack)
         applyAck(ack)
+    }
+
+    /** A response to one of our reports, opened with its reply key; a copy or one for someone else is ignored. */
+    private fun onResponse(response: IncidentResponse) {
+        val key = response.incidentId.toHex()
+        val at = response.timestamp * 1000
+        val report = store.value.mine.firstOrNull { it.incidentId == key && it.replySecret.isNotEmpty() } ?: return
+        if (report.responses.any { it.at == at }) return
+        val plain = crypto.sealOpen(response.sealed, report.replyKey.hexToBytes(), report.replySecret.hexToBytes()) ?: return
+        val body = ResponseBody.decode(plain) ?: return
+        val entry = ReportResponse(body.code, body.landmark, at, clock.wallMs())
+        var updated: MyReport? = null
+        store.update { data ->
+            data.copy(
+                mine = data.mine.map {
+                    if (it.incidentId == key) it.copy(responses = (it.responses + entry).sortedBy { r -> r.at }).also { r -> updated = r } else it
+                },
+            )
+        }
+        updated?.let(onReportResponse)
+    }
+
+    /**
+     * The reporter's update of an incident this staff phone holds, if it carries the author's cancel token. One that
+     * comes before the report waits in the mesh cache (see [onReport]).
+     */
+    private fun onUpdate(payload: ByteArray) {
+        val secret = staffSecret() ?: return
+        if (!IncidentUpdateCodec.isWellFormed(payload)) return
+        val key = IncidentUpdateCodec.incidentId(payload).toHex()
+        val seq = IncidentUpdateCodec.seq(payload)
+        val incident = store.value.staff.firstOrNull { it.incidentId == key } ?: return
+        if (incident.cancelHash.isEmpty() || incident.updates.any { it.seq == seq }) return
+        val plain = staffCrypto.openReport(IncidentUpdateCodec.sealed(payload), secret) ?: return
+        val body = UpdateBody.decode(plain) ?: return
+        if (!IncidentCancel.hash(body.token).contentEquals(incident.cancelHash.hexToBytes())) return
+        val entry = IncidentUpdate(
+            seq, body.kind, body.timestamp * 1000, body.zone, body.lat, body.lon, body.location?.accuracyM ?: 0, body.location?.landmark ?: 0,
+        )
+        store.update { data ->
+            data.copy(
+                staff = data.staff.map {
+                    if (it.incidentId == key) it.copy(updates = (it.updates + entry).sortedBy { u -> u.seq }) else it
+                },
+            )
+        }
     }
 
     /** [hops] is how far an ACK from the network traveled; null for one signed here, which times nothing. */
@@ -451,6 +576,10 @@ class IncidentManager(
         const val MAX_MINE = 50
         const val MAX_STAFF = 300
 
+        /** Updates of one report; relays rate-limit them per link as well. */
+        const val MAX_UPDATES = 10
+        const val UPDATE_INTERVAL_MS = 60_000L
+
         /** Far more than one event brings, so the console never drops an incident from its queue. */
         const val MAX_STAFF_CONSOLE = 5_000
         private const val EARLY_CANCEL_MS = 60 * 60_000L
@@ -478,6 +607,10 @@ class IncidentManager(
          * A report staff has may have been reopened without our knowing, and then staff checks the cancel: it stays.
          */
         private fun forgetsWithCancel(report: MyReport): Boolean = report.status == AckStatus.NONE && !cancelIsChecked(report)
+
+        /** Only the author updates, with the cancel token; a closed or withdrawn report has nothing left to say. */
+        fun canUpdate(report: MyReport): Boolean = report.cancelToken.isNotEmpty() && !report.cancelled &&
+            !AckStatus.isClosed(report.status) && report.updates.size < MAX_UPDATES
 
         /** Our report that hasn't reached staff yet and wasn't withdrawn. */
         fun isPending(report: MyReport, nowMs: Long): Boolean =

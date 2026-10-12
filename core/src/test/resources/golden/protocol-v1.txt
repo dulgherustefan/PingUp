@@ -201,3 +201,30 @@ control.heartbeat 01014efb012c0304024232
 control.heartbeat.unknown 0100ff80ffff000000
 # Built by hand: control.heartbeat with flag bit 0x80 and the bytes abcd after the zone, which a newer version may add.
 control.heartbeat.extended 01814efb012c0304024232abcd
+
+# 1.1, responses to the reporter and the reporter's updates (PROTOCOL.md, sections 6.3, 6.10 and 6.11).
+# incident.body.location with flag 0x40 and the reporter's reply key after the location fields: X25519 from seed(0xe0).
+incident.body.reply 010368e778006f0a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef70e0c04bbe343582f235ea6e2998ea061e98ef30cca8e7881c4874eb6137fbab3a4282d
+# Response plaintext: code 2 (go to landmark), landmark 4.
+response.body 0204
+# INCIDENT_RESPONSE at TIME + 120, flags 0: response.body sealed to the reply key with the ephemeral pair from seed(0xd0)
+# (50 bytes), then the build's staff signature over "SP-RESP-v1" || everything before it.
+incident.response 00112233445566778899aabbccddeeff68e778780032ea831a2f8791781cc3cabafbe15ae5dc6c5f9d8023c0f4df9094ecffe09811329ef39aa6054cfb803df2a0903ba092a5dab77c2d5420a39c1da0298f43468e67aa9f1026672e0e757e08ca1daa6401e26102301c48c1b04edf87e68b40028a68a3a0b0ec8cc507fdbdb476d5faf031f2ce0d
+# A control shift (role 3) "Control", key from seed(0xa0), TIME to TIME + 12 h, signed by the event.
+cert.control 01034fd099ccd47d7893dfe9ec24414ecb0d9b5420232aad30d91c465be33cbe65c468e7780068e820c068894d58f18f2c3407436f6e74726f6c14edbe900a36dfdd0d610987b4cbc7fa627e2a155f6b0328b588d9efbb75ad27bcbe9d401395b6961c2444ca29dff8eef56ff53cb5e277a846a57dcba3a1730f
+# The same response under cert.control: flags 01, the certificate after the sealed body, the shift key's signature.
+incident.response.cert 00112233445566778899aabbccddeeff68e778780132ea831a2f8791781cc3cabafbe15ae5dc6c5f9d8023c0f4df9094ecffe09811329ef39aa6054cfb803df2a0903ba092a5dab701034fd099ccd47d7893dfe9ec24414ecb0d9b5420232aad30d91c465be33cbe65c468e7780068e820c068894d58f18f2c3407436f6e74726f6c14edbe900a36dfdd0d610987b4cbc7fa627e2a155f6b0328b588d9efbb75ad27bcbe9d401395b6961c2444ca29dff8eef56ff53cb5e277a846a57dcba3a1730f8b139adc4a5f36603b8a24ef72573aa8698c31124aebbea86c2b44aef37f8a1b5bd22fa9ab176e4a16dcdd699fa9b25ef0f5342b4b9737b1f27849f04604bd06
+# Update plaintext: kind 2 (moved) at TIME + 180, the cancel token 2021...2f, flags 07: 44.4268, 26.1027, zone "Bar",
+# accuracy 9 m, landmark 4.
+update.body 0268e778b4202122232425262728292a2b2c2d2e2f0702a5e630018e4bac034261720904
+# INCIDENT_UPDATE: the incidentId, sequence number 1, update.body sealed to the staff key with the pair from seed(0xd0).
+incident.update 00112233445566778899aabbccddeeff01ea831a2f8791781cc3cabafbe15ae5dc6c5f9d8023c0f4df9094ecffe09811329d96dbb0f709a5c0ddeaf88849ad833f8ee709c5268c2d9de6035018eb4b12aad2c364c04006147d0cc22bf0fbe0b19d692cd67e
+# Whole frame: INCIDENT_UPDATE (0x14), ttl 7, E=1, id 0123456789abcdef, sender 0, TIME + 180, payload incident.update.
+frame.update 011407040123456789abcdef000000000000000068e778b4006500112233445566778899aabbccddeeff01ea831a2f8791781cc3cabafbe15ae5dc6c5f9d8023c0f4df9094ecffe09811329d96dbb0f709a5c0ddeaf88849ad833f8ee709c5268c2d9de6035018eb4b12aad2c364c04006147d0cc22bf0fbe0b19d692cd67e
+# SUMMARY2 kind 2 (RESPONSES): one entry, the id8 0011223344556677 and the response's timestamp TIME + 120.
+summary2.responses 0201001122334455667768e77878
+# SUMMARY2 kind 3 (UPDATES): id8 0011223344556677 at sequence 1, 0102030405060708 at sequence 3.
+summary2.updates 0302001122334455667701010203040506070803
+# REQUEST2 kind 2 for 0011223344556677, and kind 3 for 0011223344556677 and 0102030405060708.
+request2.responses 02010011223344556677
+request2.updates 030200112233445566770102030405060708

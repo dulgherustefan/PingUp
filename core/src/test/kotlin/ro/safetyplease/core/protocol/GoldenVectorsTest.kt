@@ -16,6 +16,7 @@ import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.Identity
+import ro.safetyplease.core.crypto.KeyPair
 import ro.safetyplease.core.crypto.KeyChain
 import ro.safetyplease.core.crypto.QrCodes
 import ro.safetyplease.core.crypto.Revocation
@@ -127,6 +128,18 @@ class GoldenVectorsTest {
         "control.heartbeat" to { Golden.heartbeat.encode().toHex() },
         "control.heartbeat.unknown" to { Golden.unknownHeartbeat.encode().toHex() },
         "control.heartbeat.extended" to { Golden.extendedHeartbeat().toHex() },
+        "incident.body.reply" to { Golden.replyBody.encode().toHex() },
+        "response.body" to { Golden.responseBody.encode().toHex() },
+        "incident.response" to { Golden.response(null).encode().toHex() },
+        "cert.control" to { Golden.controlCert.encode().toHex() },
+        "incident.response.cert" to { Golden.response(Golden.controlCert).encode().toHex() },
+        "update.body" to { Golden.updateBody.encode().toHex() },
+        "incident.update" to { Golden.update().toHex() },
+        "frame.update" to { PacketCodec.encode(Golden.updatePacket()).toHex() },
+        "summary2.responses" to { Summary2Codec.encode(Golden.summary2Responses).toHex() },
+        "summary2.updates" to { Summary2Codec.encode(Golden.summary2Updates).toHex() },
+        "request2.responses" to { Request2Codec.encode(Golden.request2Responses).toHex() },
+        "request2.updates" to { Request2Codec.encode(Golden.request2Updates).toHex() },
     )
 
     @Test
@@ -337,7 +350,8 @@ class GoldenVectorsTest {
         for (name in listOf("on_scene", "handed_over", "closed", "unfounded", "reopened", "assigned.epoch", "unknown")) {
             assertNull(name, Frozen10.ack(bytes("incident.ack.$name")))
         }
-        for (name in listOf("triage", "staff", "lost_friend", "location")) assertNull(name, Frozen10.body(bytes("incident.body.$name")))
+        for (name in listOf("triage", "staff", "lost_friend", "location", "reply")) assertNull(name, Frozen10.body(bytes("incident.body.$name")))
+        assertNull(Frozen10.frame(bytes("frame.update")))
     }
 
     /** The 1.0 phone of the interop tests writes with these, so they must still give the 1.0 bytes. */
@@ -408,6 +422,49 @@ class GoldenVectorsTest {
         assertArrayEquals(bytes("event.pack.hash"), check.pack!!.hash)
         assertArrayEquals(bytes("event.pack.hash"), QrCodes.decodeEventGate(vectors.getValue("qr.event")))
         assertTrue(Golden.crypto.verify(bytes("event.pack.signature"), EventPacks.signedMessage(Golden.PACK_BODY), bytes("cert.organiser").copyOfRange(2, 34)))
+    }
+
+    @Test
+    fun responsesAndUpdatesDecodeOpenAndVerify() {
+        val body = IncidentBody.decode(bytes("incident.body.reply"))!!
+        assertEquals(Golden.replyBody.fields(), body.fields())
+        assertArrayEquals(Golden.reply.publicKey, body.replyKey)
+
+        val chain = Golden.chain()
+        for (name in listOf("incident.response", "incident.response.cert")) {
+            val payload = bytes(name)
+            assertEquals(name, Verdict.VALID, chain.checkResponse(payload))
+            val response = IncidentResponse.decode(payload)!!
+            assertArrayEquals(Golden.INCIDENT_ID, response.incidentId)
+            assertEquals(Golden.TIME + 120, response.timestamp)
+            val plain = Golden.crypto.sealOpen(response.sealed, Golden.reply.publicKey, Golden.reply.secretKey)!!
+            assertArrayEquals(bytes("response.body"), plain)
+            assertEquals(Golden.responseBody, ResponseBody.decode(plain))
+            val tampered = payload.clone().also { it[INCIDENT_ID_SIZE + 3] = (it[INCIDENT_ID_SIZE + 3] + 1).toByte() }
+            assertEquals(name, Verdict.INVALID, chain.checkResponse(tampered))
+        }
+        assertEquals(Golden.controlCert.fields(), IncidentResponse.decode(bytes("incident.response.cert"))!!.certificate!!.fields())
+        assertEquals(CertStatus.VALID, chain.status(Certificate.decode(bytes("cert.control"))!!, Golden.TIME))
+        val byATeam = Golden.response(Golden.staffCert, Golden.shift).encode()
+        assertEquals("only a control shift answers reporters", Verdict.REFUSED, chain.checkResponse(byATeam))
+
+        val update = bytes("incident.update")
+        assertTrue(IncidentUpdateCodec.isWellFormed(update))
+        assertArrayEquals(Golden.INCIDENT_ID, IncidentUpdateCodec.incidentId(update))
+        assertEquals(1, IncidentUpdateCodec.seq(update))
+        val opened = Golden.staff.openReport(IncidentUpdateCodec.sealed(update), Golden.staffSecret)!!
+        assertArrayEquals(bytes("update.body"), opened)
+        val decoded = UpdateBody.decode(opened)!!
+        assertArrayEquals("the author's token", bytes("incident.cancelHash"), IncidentCancel.hash(decoded.token))
+        assertEquals(listOf(UpdateKind.MOVED, "Bar", LocationFields(9, 4)), listOf(decoded.kind, decoded.zone, decoded.location))
+        val frame = PacketCodec.decode(bytes("frame.update"))!!.packet
+        assertEquals(Golden.updatePacket().fields(), frame.fields())
+        assertFalse("never to a 1.0 phone", Compat10.accepts(frame))
+
+        assertEquals(Golden.summary2Responses, Summary2Codec.decode(bytes("summary2.responses")))
+        assertEquals(Golden.summary2Updates, Summary2Codec.decode(bytes("summary2.updates")))
+        assertEquals(Golden.request2Responses, Request2Codec.decode(bytes("request2.responses")))
+        assertEquals(Golden.request2Updates, Request2Codec.decode(bytes("request2.updates")))
     }
 
     @Test
@@ -493,17 +550,18 @@ private object Golden {
     fun extendedBody(): ByteArray = body.encode().also { it[6] = (it[6].toInt() or 0x80).toByte() } + EXTRA
 
     /** crypto_box_seal with a fixed ephemeral key (seed d0..ef), built step by step as libsodium does. */
-    fun report(): ByteArray {
+    fun report(): ByteArray = IncidentReportCodec.encode(INCIDENT_ID, seal(body.encode(), staffPublic.box))
+
+    private fun seal(plain: ByteArray, to: ByteArray): ByteArray {
         val epk = ByteArray(32)
         val esk = ByteArray(32)
         check(sodium.cryptoBoxSeedKeypair(epk, esk, seed(0xd0)))
         val nonce = ByteArray(24)
-        val nonceInput = epk + staffPublic.box
+        val nonceInput = epk + to
         check(sodium.cryptoGenericHash(nonce, nonce.size, nonceInput, nonceInput.size.toLong()))
-        val plain = body.encode()
         val cipher = ByteArray(plain.size + 16)
-        check(sodium.cryptoBoxEasy(cipher, plain, plain.size.toLong(), nonce, staffPublic.box, esk))
-        return IncidentReportCodec.encode(INCIDENT_ID, epk + cipher)
+        check(sodium.cryptoBoxEasy(cipher, plain, plain.size.toLong(), nonce, to, esk))
+        return epk + cipher
     }
 
     fun unsignedAck(): ByteArray = IncidentAck.unsigned(INCIDENT_ID, AckStatus.ACKNOWLEDGED, TIME + 60, "Medical 1")
@@ -612,7 +670,7 @@ private object Golden {
     val root = crypto.signKeyPairFromSeed(seed(0x20))
     private val organiser = crypto.signKeyPairFromSeed(seed(0x40))
     private val event = crypto.signKeyPairFromSeed(seed(0x60))
-    private val shift = crypto.signKeyPairFromSeed(seed(0x80))
+    val shift = crypto.signKeyPairFromSeed(seed(0x80))
     val organiserCert = Certificate.issue(crypto, CertRole.ORGANISER, organiser.publicKey, TIME - 86_400, TIME + 365 * 86_400, "Fest SRL", root)
     val eventCert = Certificate.issue(crypto, CertRole.EVENT, event.publicKey, TIME - 3600, TIME + 3 * 86_400, "Fest 2025", organiser)
     val staffCert = Certificate.issue(crypto, CertRole.STAFF, shift.publicKey, TIME, TIME + 12 * 3600, "Medical 1", event)
@@ -648,6 +706,42 @@ private object Golden {
 
     fun revocation(): Revocation = Revocation.sign(crypto, event, TIME + 600, listOf(staffCert.id, long("0102030405060708")))
 
+    // The reporter's reply key seed(0xe0) (X25519) and a control shift "Control", seed(0xa0), for responses.
+    val reply = crypto.boxKeyPairFromSeed(seed(0xe0))
+    private val control = crypto.signKeyPairFromSeed(seed(0xa0))
+    val controlCert = Certificate.issue(crypto, CertRole.CONTROL, control.publicKey, TIME, TIME + 12 * 3600, "Control", event)
+
+    /** [locationBody] with the reply key. */
+    val replyBody = IncidentBody(
+        IncidentCategory.MEDICAL, Severity.URGENT, TIME, "Scena mare", 44.426765, 26.102538,
+        "Persoană căzută lângă gard", "Ana", IncidentCancel.hash(TOKEN), Triage(Answer.NO, Answer.UNKNOWN),
+        location = LocationFields(accuracyM = 12, landmark = 4), replyKey = reply.publicKey,
+    )
+
+    val responseBody = ResponseBody(ResponseCode.GO_TO_LANDMARK, 4)
+
+    /** [responseBody] sealed to the reply key at TIME + 120: with the build's staff key, or under [cert] with [key]. */
+    fun response(cert: Certificate?, key: KeyPair = control): IncidentResponse {
+        val sealed = seal(responseBody.encode(), reply.publicKey)
+        val unsigned = IncidentResponse.unsigned(INCIDENT_ID, TIME + 120, sealed, cert)
+        val signer = if (cert == null) staffSecret.sign.secretKey else key.secretKey
+        return IncidentResponse(INCIDENT_ID, TIME + 120, sealed, cert, crypto.sign(IncidentResponse.signedMessage(unsigned), signer))
+    }
+
+    /** The reporter moved to "Bar", 9 m accuracy, landmark 4, at TIME + 180, with the report's cancel token. */
+    val updateBody = UpdateBody(UpdateKind.MOVED, TIME + 180, TOKEN, "Bar", 44.4268, 26.1027, LocationFields(9, 4))
+
+    fun update(): ByteArray = IncidentUpdateCodec.encode(INCIDENT_ID, 1, seal(updateBody.encode(), staffPublic.box))
+
+    fun updatePacket() = Packet(PacketType.INCIDENT_UPDATE, 7, long("0123456789abcdef"), 0L, TIME + 180, null, true, update())
+
+    val summary2Responses = Summary2(SummaryKind.RESPONSES, emptyList(), listOf(HeldEntry(INCIDENT_ID.toLong(), TIME + 120)))
+    val summary2Updates = Summary2(
+        SummaryKind.UPDATES, emptyList(), listOf(HeldEntry(INCIDENT_ID.toLong(), 1), HeldEntry(long("0102030405060708"), 3)),
+    )
+    val request2Responses = Request2(SummaryKind.RESPONSES, emptyList(), listOf(INCIDENT_ID.toLong()))
+    val request2Updates = Request2(SummaryKind.UPDATES, emptyList(), listOf(INCIDENT_ID.toLong(), long("0102030405060708")))
+
     val shiftCard = ShiftCard(staffCert, seed(0x80), reportCert, seed(0xc0), null, "")
 
     /** A real event pack for "Fest 2025" with the chain above and an empty venue; the organiser signs it. */
@@ -671,7 +765,7 @@ private fun Hello.fields() =
 private fun Certificate.fields() = listOf(role, key.toHex(), validFrom, validUntil, issuer, name, signature.toHex())
 
 private fun IncidentBody.fields() =
-    listOf(category, severity, timestamp, zone, lat, lon, description, nickname, cancelHash?.toHex(), triage, staff, location)
+    listOf(category, severity, timestamp, zone, lat, lon, description, nickname, cancelHash?.toHex(), triage, staff, location, replyKey?.toHex())
 
 private fun IncidentAck.fields() = listOf(incidentId.toHex(), status, timestamp, teamName, signature.toHex(), extensions.toHex())
 

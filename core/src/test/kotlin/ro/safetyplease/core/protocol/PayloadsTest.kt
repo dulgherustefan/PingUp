@@ -7,6 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.util.sha256
 import ro.safetyplease.core.util.truncateUtf8
 import ro.safetyplease.core.util.utf8
@@ -287,7 +288,7 @@ class PayloadsTest {
     fun incidentBodySkipsFieldsAndFlagsOfANewerVersion() {
         val hash = IncidentCancel.hash(ByteArray(IncidentCancel.TOKEN_SIZE))
         val body = IncidentBody(IncidentCategory.FIRE, Severity.URGENT, 9L, "bar", 43.95, 28.63, "fum", "Ana", hash).encode()
-        val newer = body.clone().also { it[6] = (it[6].toInt() or 0x40 or 0x80).toByte() } + byteArrayOf(4, 1, 2, 3, 4)
+        val newer = body.clone().also { it[6] = (it[6].toInt() or 0x80).toByte() } + byteArrayOf(4, 1, 2, 3, 4)
         val d = IncidentBody.decode(newer)!!
         assertEquals("fum", d.description)
         assertEquals("Ana", d.nickname)
@@ -447,5 +448,122 @@ class PayloadsTest {
         assertEquals("ăî", "ăîș".truncateUtf8(5))
         assertEquals(4, "😀😀".truncateUtf8(7).utf8().size)
         assertEquals("", "😀".truncateUtf8(3))
+    }
+
+    @Test
+    fun theReplyKeyFollowsTheLocationFieldsAndTheLongestBodyGivesUpDescriptionForIt() {
+        val key = ByteArray(IncidentBody.REPLY_KEY_SIZE) { it.toByte() }
+        fun body(desc: String) = IncidentBody(
+            IncidentCategory.OTHER, Severity.MEDIUM, 1L, "z".repeat(Limits.ZONE_BYTES),
+            -89.999999, 179.999999, desc, "n".repeat(Limits.NICK_BYTES), ByteArray(IncidentCancel.HASH_SIZE),
+            Triage(Answer.NO, Answer.NO), StaffFields(255, dangerContinues = true), LocationFields(255, 255), key,
+        )
+        val full = "€".repeat(Limits.DESCRIPTION_CHARS).truncateUtf8(Limits.DESCRIPTION_BYTES)
+        assertEquals(396 + 32, body(full).encode().size)
+        val room = IncidentBody.MAX_SIZE - body("").encode().size
+        val fitted = body(full.truncateUtf8(room)).encode()
+        assertTrue("size=${fitted.size}", fitted.size <= IncidentBody.MAX_SIZE)
+        assertEquals(PacketCodec.MAX_PAYLOAD, INCIDENT_ID_SIZE + IncidentBody.MAX_SIZE + IncidentReportCodec.SEAL_OVERHEAD)
+        val decoded = IncidentBody.decode(fitted)!!
+        assertArrayEquals(key, decoded.replyKey)
+        assertEquals(LocationFields(255, 255), decoded.location)
+        assertNull(IncidentBody.decode(fitted.copyOf(fitted.size - 1)))
+        assertNull(IncidentBody(IncidentCategory.OTHER, Severity.LOW, 1L, "", null, null, "", null).replyKey)
+    }
+
+    @Test
+    fun responseRoundTripsWithAndWithoutACertificate() {
+        val id = ByteArray(INCIDENT_ID_SIZE) { 7 }
+        val sealed = ByteArray(IncidentReportCodec.SEAL_OVERHEAD + 2) { 3 }
+        val sig = ByteArray(IncidentAck.SIGNATURE_SIZE) { 9 }
+        val plain = IncidentResponse(id, 1_760_000_100L, sealed, null, sig)
+        val bytes = plain.encode()
+        assertEquals(16 + 4 + 1 + 1 + sealed.size + 64, bytes.size)
+        val d = IncidentResponse.decode(bytes)!!
+        assertArrayEquals(id, d.incidentId)
+        assertEquals(1_760_000_100L, d.timestamp)
+        assertArrayEquals(sealed, d.sealed)
+        assertNull(d.certificate)
+        assertArrayEquals(bytes.copyOf(bytes.size - 64), IncidentResponse.unsignedPart(bytes))
+
+        val cert = Certificate(3, ByteArray(32) { 1 }, 10L, 20L, 5L, "Control", ByteArray(64) { 2 })
+        val signed = IncidentResponse(id, 1L, sealed, cert, sig, byteArrayOf(0x55)).encode()
+        assertTrue("the largest still crosses in one payload", signed.size + 24 <= PacketCodec.MAX_PAYLOAD)
+        val c = IncidentResponse.decode(signed)!!
+        assertEquals("Control", c.certificate!!.name)
+        assertArrayEquals("a newer version's fields are kept", byteArrayOf(0x55), c.extensions)
+        assertArrayEquals(signed, c.encode())
+
+        assertNull("too short to be sealed", IncidentResponse.decode(IncidentResponse(id, 1L, sealed, null, sig).encode().also { it[21] = 48 }))
+        assertNull(IncidentResponse.decode(bytes.copyOf(bytes.size - 1)))
+        assertThrows(IllegalArgumentException::class.java) { IncidentResponse.unsigned(id, 1L, ByteArray(48), null) }
+        assertEquals(ResponseBody(ResponseCode.GO_TO_LANDMARK, 4), ResponseBody.decode(ResponseBody(ResponseCode.GO_TO_LANDMARK, 4).encode() + 1))
+        assertEquals("a code from a newer version is kept", 99, ResponseBody.decode(byteArrayOf(99, 0))!!.code)
+        assertNull(ResponseBody.decode(byteArrayOf(0, 0)))
+    }
+
+    @Test
+    fun updateRoundTripsAndSkipsWhatANewerVersionAdds() {
+        val token = ByteArray(IncidentCancel.TOKEN_SIZE) { 4 }
+        val moved = UpdateBody(UpdateKind.MOVED, 1_760_000_200L, token, "Bar", 43.95, 28.63, LocationFields(8, 3))
+        val bytes = moved.encode()
+        val d = UpdateBody.decode(bytes)!!
+        assertEquals(listOf(UpdateKind.MOVED, 1_760_000_200L, "Bar", 43.95, 28.63, LocationFields(8, 3)), listOf(d.kind, d.timestamp, d.zone, d.lat, d.lon, d.location))
+        assertArrayEquals(token, d.token)
+        val newer = bytes.clone().also { it[21] = (it[21].toInt() or 0x80).toByte() } + byteArrayOf(1, 2)
+        assertArrayEquals(bytes, UpdateBody.decode(newer)!!.encode())
+        val still = UpdateBody(UpdateKind.STILL_ACTIVE, 1L, token).encode()
+        assertEquals(22, still.size)
+        assertNull(UpdateBody.decode(still.copyOf(21)))
+        assertNull(UpdateBody.decode(still.clone().also { it[0] = 0 }))
+
+        val id = ByteArray(INCIDENT_ID_SIZE) { 1 }
+        val sealed = ByteArray(IncidentReportCodec.SEAL_OVERHEAD + still.size)
+        val payload = IncidentUpdateCodec.encode(id, 3, sealed)
+        assertTrue(IncidentUpdateCodec.isWellFormed(payload))
+        assertFalse(IncidentUpdateCodec.isWellFormed(payload.copyOf(INCIDENT_ID_SIZE + 1 + IncidentReportCodec.SEAL_OVERHEAD)))
+        assertArrayEquals(id, IncidentUpdateCodec.incidentId(payload))
+        assertEquals(3, IncidentUpdateCodec.seq(payload))
+        assertArrayEquals(sealed, IncidentUpdateCodec.sealed(payload))
+        assertThrows(IllegalArgumentException::class.java) { IncidentUpdateCodec.encode(id, 0, sealed) }
+    }
+
+    @Test
+    fun responsesAndUpdatesHaveSummary2KindsOfTheirOwn() {
+        val responses = Summary2(SummaryKind.RESPONSES, emptyList(), List(Limits.SUMMARY2_RESPONSE_ENTRIES) { HeldEntry(it.toLong(), 0xFFFFFFF0L + it % 2) })
+        val bytes = Summary2Codec.encode(responses)
+        assertTrue("size=${bytes.size}", bytes.size <= PacketCodec.MAX_PAYLOAD)
+        assertEquals(responses, Summary2Codec.decode(bytes))
+        assertEquals("bytes after the entries are skipped", responses, Summary2Codec.decode(bytes + 7))
+        val tooMany = bytes.clone().also { it[1] = (Limits.SUMMARY2_RESPONSE_ENTRIES + 1).toByte() } + ByteArray(12)
+        assertNull(Summary2Codec.decode(tooMany))
+
+        val updates = Summary2(SummaryKind.UPDATES, emptyList(), List(Limits.SUMMARY_ENTRIES) { HeldEntry(-it.toLong(), 255) })
+        assertEquals(updates, Summary2Codec.decode(Summary2Codec.encode(updates)))
+        assertTrue(Summary2Codec.encode(updates).size <= PacketCodec.MAX_PAYLOAD)
+        assertThrows(IllegalArgumentException::class.java) {
+            Summary2Codec.encode(Summary2(SummaryKind.INCIDENTS, emptyList(), listOf(HeldEntry(1L, 1L))))
+        }
+
+        val request = Request2(SummaryKind.UPDATES, emptyList(), List(Limits.SUMMARY_ENTRIES) { it * 3L })
+        assertEquals(request, Request2Codec.decode(Request2Codec.encode(request) + 1))
+        assertNull(Request2Codec.decode(Request2Codec.encode(request).copyOf(10)))
+        assertEquals(Request2(SummaryKind.RESPONSES, emptyList(), listOf(5L)), Request2Codec.decode(Request2Codec.encode(Request2(SummaryKind.RESPONSES, emptyList(), listOf(5L)))))
+    }
+
+    @Test
+    fun responsesAndUpdatesNeverGoToAOneZeroPeerAndACertifiedResponseOnlyToAuth() {
+        fun packet(type: Int, payload: ByteArray) = Packet(type, 7, 1L, 2L, 3L, null, false, payload)
+        val id = ByteArray(INCIDENT_ID_SIZE)
+        val sealed = ByteArray(IncidentReportCodec.SEAL_OVERHEAD + 2)
+        val sig = ByteArray(IncidentAck.SIGNATURE_SIZE)
+        val plain = packet(PacketType.INCIDENT_RESPONSE, IncidentResponse(id, 1L, sealed, null, sig).encode())
+        val cert = Certificate(3, ByteArray(32), 10L, 20L, 5L, "Control", ByteArray(64))
+        val certified = packet(PacketType.INCIDENT_RESPONSE, IncidentResponse(id, 1L, sealed, cert, sig).encode())
+        val update = packet(PacketType.INCIDENT_UPDATE, IncidentUpdateCodec.encode(id, 1, sealed))
+        for (p in listOf(plain, certified, update)) assertFalse(Compat10.accepts(p))
+        assertFalse(CompatAuth.needsAuth(plain))
+        assertTrue(CompatAuth.needsAuth(certified))
+        assertFalse(CompatAuth.needsAuth(update))
     }
 }
