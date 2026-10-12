@@ -6,8 +6,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.ui.designsystem.AppColors
-import ro.safetyplease.app.ui.designsystem.MEDICAL_ZONE
+import ro.safetyplease.ui.designsystem.AppColors
+import ro.safetyplease.ui.designsystem.MEDICAL_ZONE
 import ro.safetyplease.core.venue.Venue
 
 /** Map icons: filled, on a 24 grid, so they read white on small colored circles. */

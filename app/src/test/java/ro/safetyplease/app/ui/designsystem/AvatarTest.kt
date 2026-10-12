@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.designsystem
+package ro.safetyplease.ui.designsystem
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

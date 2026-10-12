@@ -27,9 +27,9 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.ui.common.freshExportDir
 import ro.safetyplease.app.ui.common.shareFiles
-import ro.safetyplease.app.ui.designsystem.AppDialog
-import ro.safetyplease.app.ui.designsystem.AppTheme
-import ro.safetyplease.app.ui.designsystem.footnote
+import ro.safetyplease.ui.designsystem.AppDialog
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.core.control.ConsoleView
 import ro.safetyplease.core.control.ExportNames
 import ro.safetyplease.core.control.LogExport

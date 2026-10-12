@@ -49,9 +49,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.designsystem.ConfirmDialog
-import ro.safetyplease.app.ui.designsystem.LocalAppColors
-import ro.safetyplease.app.ui.designsystem.ScreenScaffold
+import ro.safetyplease.ui.designsystem.ConfirmDialog
+import ro.safetyplease.ui.designsystem.LocalAppColors
+import ro.safetyplease.ui.designsystem.ScreenScaffold
 import ro.safetyplease.core.crypto.StaffCard
 import ro.safetyplease.core.crypto.StaffRole
 import ro.safetyplease.core.data.Role

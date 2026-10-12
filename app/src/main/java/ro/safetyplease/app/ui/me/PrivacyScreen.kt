@@ -16,14 +16,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.designsystem.AppTheme
-import ro.safetyplease.app.ui.designsystem.GlassIconButton
-import ro.safetyplease.app.ui.designsystem.Gutter
-import ro.safetyplease.app.ui.designsystem.NavScreen
-import ro.safetyplease.app.ui.designsystem.SectionTitle
-import ro.safetyplease.app.ui.designsystem.Sym
-import ro.safetyplease.app.ui.designsystem.body
-import ro.safetyplease.app.ui.designsystem.footnote
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.GlassIconButton
+import ro.safetyplease.ui.designsystem.Gutter
+import ro.safetyplease.ui.designsystem.NavScreen
+import ro.safetyplease.ui.designsystem.SectionTitle
+import ro.safetyplease.ui.designsystem.Sym
+import ro.safetyplease.ui.designsystem.body
+import ro.safetyplease.ui.designsystem.footnote
 
 /** What each privacy section is about, in reading order; the same text is in PRIVACY.md. */
 private val sections = listOf(

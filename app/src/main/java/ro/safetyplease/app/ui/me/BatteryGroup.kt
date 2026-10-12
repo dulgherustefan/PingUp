@@ -14,11 +14,11 @@ import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.LowBatteryBanner
 import ro.safetyplease.app.ui.common.chargerText
 import ro.safetyplease.app.ui.common.helpOrigin
-import ro.safetyplease.app.ui.designsystem.GroupDivider
-import ro.safetyplease.app.ui.designsystem.GroupRow
-import ro.safetyplease.app.ui.designsystem.Gutter
-import ro.safetyplease.app.ui.designsystem.InsetGroup
-import ro.safetyplease.app.ui.designsystem.Sym
+import ro.safetyplease.ui.designsystem.GroupDivider
+import ro.safetyplease.ui.designsystem.GroupRow
+import ro.safetyplease.ui.designsystem.Gutter
+import ro.safetyplease.ui.designsystem.InsetGroup
+import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.core.mesh.PowerProfile
 
 private const val MINUTES_IN_HOUR = 60

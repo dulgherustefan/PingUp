@@ -18,13 +18,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.ui.designsystem.AppTheme
-import ro.safetyplease.app.ui.designsystem.Gutter
-import ro.safetyplease.app.ui.designsystem.IconCircle
-import ro.safetyplease.app.ui.designsystem.StatusLabel
-import ro.safetyplease.app.ui.designsystem.Sym
-import ro.safetyplease.app.ui.designsystem.subheadline
-import ro.safetyplease.app.ui.designsystem.title2
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.Gutter
+import ro.safetyplease.ui.designsystem.IconCircle
+import ro.safetyplease.ui.designsystem.StatusLabel
+import ro.safetyplease.ui.designsystem.Sym
+import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.designsystem.title2
 import ro.safetyplease.core.protocol.IncidentCategory
 
 fun categoryIcon(category: Int): ImageVector = when (category) {

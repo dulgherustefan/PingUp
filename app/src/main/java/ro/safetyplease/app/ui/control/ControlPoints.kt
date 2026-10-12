@@ -28,11 +28,11 @@ import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.common.pointLevelColor
 import ro.safetyplease.app.ui.common.pointLevelLabel
-import ro.safetyplease.app.ui.designsystem.AppColors
-import ro.safetyplease.app.ui.designsystem.AppTheme
-import ro.safetyplease.app.ui.designsystem.footnote
-import ro.safetyplease.app.ui.designsystem.headline
-import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.ui.designsystem.AppColors
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.footnote
+import ro.safetyplease.ui.designsystem.headline
+import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.core.control.CellData
 import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.control.PointReport

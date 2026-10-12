@@ -15,9 +15,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.Replies
-import ro.safetyplease.app.ui.designsystem.AppTheme
-import ro.safetyplease.app.ui.designsystem.footnote
-import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.footnote
+import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.core.data.IncidentUpdate
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue

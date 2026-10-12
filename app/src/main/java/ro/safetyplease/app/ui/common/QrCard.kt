@@ -36,8 +36,8 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import ro.safetyplease.app.R
-import ro.safetyplease.app.ui.designsystem.title1
-import ro.safetyplease.app.ui.designsystem.title3
+import ro.safetyplease.ui.designsystem.title1
+import ro.safetyplease.ui.designsystem.title3
 
 /** QR code with [ink] modules on white and no quiet zone: the card around it provides the margin. */
 fun qrBitmap(text: String, size: Int = 640, ink: Int = android.graphics.Color.BLACK): Bitmap {

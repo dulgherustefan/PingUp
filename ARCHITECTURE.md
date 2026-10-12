@@ -46,7 +46,7 @@ Testele de aici stau în `commonTest` și rulează pe JVM, fără emulator (`./g
 
 ## `:ui`: ecranele comune
 
-`ui/src/commonMain/`, în Compose Multiplatform: ecranele ajung aici pe rând din `:app`, ca să ruleze și pe iPhone. Textele, în română și engleză, stau o singură dată pentru ambele aplicații, în `composeResources/values*/strings.xml`. Pe Android, codul care nu e încă un ecran comun (notificările, ecranele nemutate) le citește tot de acolo, ca `R.string`, copiate la build. Compose Multiplatform completează doar `%1$s` și `%1$d` și afișează escape-urile Android (`\'`, `\"`) așa cum sunt, de aceea textele folosesc numai argumente numerotate și ghilimelele și apostroful tipografice; `TranslationTest` verifică.
+`ui/src/commonMain/`, în Compose Multiplatform: ecranele ajung aici pe rând din `:app`, ca să ruleze și pe iPhone. Primul a venit `designsystem/`: tema, culorile, tipografia (Inter, din `composeResources/font`) și componentele de bază; ce diferă pe fiecare telefon (blur-ul, „reduce motion”) e în `androidMain/` și `iosMain/`. Textele, în română și engleză, stau o singură dată pentru ambele aplicații, în `composeResources/values*/strings.xml`. Pe Android, codul care nu e încă un ecran comun (notificările, ecranele nemutate) le citește tot de acolo, ca `R.string`, copiate la build. Compose Multiplatform completează doar `%1$s` și `%1$d` și afișează escape-urile Android (`\'`, `\"`) așa cum sunt, de aceea textele folosesc numai argumente numerotate și ghilimelele și apostroful tipografice; `TranslationTest` verifică.
 
 ## `:app`: Android și interfața
 
@@ -59,7 +59,6 @@ Testele de aici stau în `commonTest` și rulează pe JVM, fără emulator (`./g
 | `service/` | Serviciul din prim-plan care ține rețeaua pornită și notificările. |
 | `text/` | Textele pentru codurile de protocol (categorii, stări), folosite de notificări și de ecrane. |
 | `ui/` | `AppViewModel` și `MainScreen` (tab-urile și navigarea), apoi câte un pachet pe funcționalitate. |
-| `ui/designsystem/` | Tema, culorile, tipografia, componentele de bază. Nu știe nimic despre mesaje sau incidente. |
 | `ui/common/` | Componente folosite de mai multe ecrane: harta, cardul QR, antetul de incident, starea rețelei. |
 | `ui/chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `onboarding/`, `staffcodes/`, `safety/`, `notices/`, `info/` | Ecranele, câte un pachet pe funcționalitate. |
 | `ui/control/` | Consola camerei de control, în landscape pe o tabletă: coada, harta cu grila și straturile de acoperire, starea punctelor, alocarea, fraza pentru stație, rețeaua, anunțurile, exportul jurnalului și raportul de ediție (previzualizare, PDF cu `PdfDocument`, CSV). |
@@ -85,8 +84,8 @@ Totul rămâne pe telefon, nimic nu circulă pe mesh. `BatteryMonitor` (`platfor
 
 1. **`:core` nu importă Android.** Compilatorul o verifică: modulul nu are Android pe classpath.
 2. **Telefonul intră prin interfețe.** `AppPlatform` (cu `Vault`, `Notifications`, `MeshRadio`), `Radio`, `Crypto` și `Clock` sunt definite în `:core`; pe Android le implementează `AndroidPlatform` și `platform/`, în teste `FakePlatform` și `SimNet` din `:core`.
-3. **Ecranele nu se importă între ele.** Ce folosesc două ecrane merge în `ui/common/`; ce e pur vizual, în `ui/designsystem/`.
-4. **Dependențele merg într-o singură direcție:** `ui` → `ui/common` → `ui/designsystem`, și totul → `:core`.
+3. **Ecranele nu se importă între ele.** Ce folosesc două ecrane merge în `ui/common/`; ce e pur vizual, în `designsystem/` din `:ui`, care nu știe nimic despre mesaje sau incidente.
+4. **Dependențele merg într-o singură direcție:** ecranele → `ui/common` → `designsystem`, și totul → `:core`.
 
 ## Unde pun cod nou
 

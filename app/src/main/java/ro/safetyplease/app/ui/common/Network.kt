@@ -8,7 +8,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import ro.safetyplease.app.R
-import ro.safetyplease.app.ui.designsystem.Banner
+import ro.safetyplease.ui.designsystem.Banner
 import ro.safetyplease.core.mesh.MeshState
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.util.nodePrefix

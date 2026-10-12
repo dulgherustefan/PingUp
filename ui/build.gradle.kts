@@ -16,6 +16,8 @@ kotlin {
         compileSdk = 37
         minSdk = 26
         compilerOptions { jvmTarget = JvmTarget.JVM_17 }
+        // off by default in AGP 9's library plugin; without it the shared resources (fonts, files) never reach the APK
+        androidResources { enable = true }
     }
     // the iPhone app links one static framework with the screens, :core and libsodium in it
     listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
@@ -32,6 +34,7 @@ kotlin {
             implementation(libs.compose.mp.foundation)
             implementation(libs.compose.mp.ui)
             implementation(libs.compose.mp.resources)
+            implementation(libs.compose.mp.material3)
         }
     }
 }

@@ -17,8 +17,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.R
-import ro.safetyplease.app.ui.designsystem.AppTheme
-import ro.safetyplease.app.ui.designsystem.caption1
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.caption1
 
 /** The band over every screen while the app runs an exercise pack, so a drill is never taken for the real thing. */
 @Composable

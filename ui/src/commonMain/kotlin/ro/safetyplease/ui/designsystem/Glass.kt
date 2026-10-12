@@ -1,6 +1,5 @@
-package ro.safetyplease.app.ui.designsystem
+package ro.safetyplease.ui.designsystem
 
-import android.os.Build
 import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,9 +37,6 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-
-/** Blurring what's behind a bar needs Android 12+; below that glass is nearly opaque. */
-val CanBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
 /**
  * What shows through glass: a screen's content, recorded into a graphics layer on every draw.

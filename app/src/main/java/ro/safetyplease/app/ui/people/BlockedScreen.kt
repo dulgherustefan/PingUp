@@ -17,16 +17,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.designsystem.AppTheme
-import ro.safetyplease.app.ui.designsystem.Avatar
-import ro.safetyplease.app.ui.designsystem.EmptyState
-import ro.safetyplease.app.ui.designsystem.GlassIconButton
-import ro.safetyplease.app.ui.designsystem.GroupDivider
-import ro.safetyplease.app.ui.designsystem.GroupRow
-import ro.safetyplease.app.ui.designsystem.InsetGroup
-import ro.safetyplease.app.ui.designsystem.NavScreen
-import ro.safetyplease.app.ui.designsystem.Sym
-import ro.safetyplease.app.ui.designsystem.TextLink
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.Avatar
+import ro.safetyplease.ui.designsystem.EmptyState
+import ro.safetyplease.ui.designsystem.GlassIconButton
+import ro.safetyplease.ui.designsystem.GroupDivider
+import ro.safetyplease.ui.designsystem.GroupRow
+import ro.safetyplease.ui.designsystem.InsetGroup
+import ro.safetyplease.ui.designsystem.NavScreen
+import ro.safetyplease.ui.designsystem.Sym
+import ro.safetyplease.ui.designsystem.TextLink
 
 /** The people this phone ignores, each with a way back. Opened from Me, which lists it only once someone is blocked. */
 @Composable

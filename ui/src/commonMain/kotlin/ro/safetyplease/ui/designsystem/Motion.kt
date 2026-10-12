@@ -1,9 +1,5 @@
-package ro.safetyplease.app.ui.designsystem
+package ro.safetyplease.ui.designsystem
 
-import android.os.Build
-import android.provider.Settings
-import android.view.HapticFeedbackConstants
-import android.view.View
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VisibilityThreshold
@@ -17,8 +13,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
 
 /**
@@ -60,28 +57,17 @@ val LocalReduceMotion = staticCompositionLocalOf { false }
 /** True when the battery is nearly empty: no map and no animations, only text. */
 val LocalTextOnly = staticCompositionLocalOf { false }
 
-@Composable
-fun rememberReduceMotion(): Boolean {
-    val context = LocalContext.current
-    return remember {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
-}
+/** Confirm and reject as the system plays them: Android's CONFIRM and REJECT (or the older ones), iOS's feedback generators. */
+class Haptics(private val feedback: HapticFeedback) {
+    fun confirm() = feedback.performHapticFeedback(HapticFeedbackType.Confirm)
 
-class Haptics(private val view: View) {
-    fun confirm() = perform(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.VIRTUAL_KEY)
+    fun reject() = feedback.performHapticFeedback(HapticFeedbackType.Reject)
 
-    fun reject() = perform(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) HapticFeedbackConstants.REJECT else HapticFeedbackConstants.LONG_PRESS)
-
-    fun longPress() = perform(HapticFeedbackConstants.LONG_PRESS)
-
-    private fun perform(constant: Int) {
-        view.performHapticFeedback(constant)
-    }
+    fun longPress() = feedback.performHapticFeedback(HapticFeedbackType.LongPress)
 }
 
 @Composable
 fun rememberHaptics(): Haptics {
-    val view = LocalView.current
-    return remember(view) { Haptics(view) }
+    val feedback = LocalHapticFeedback.current
+    return remember(feedback) { Haptics(feedback) }
 }

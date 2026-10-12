@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.designsystem
+package ro.safetyplease.ui.designsystem
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor

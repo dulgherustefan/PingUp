@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.designsystem
+package ro.safetyplease.ui.designsystem
 
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.LocalOverscrollFactory
@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -21,7 +22,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
@@ -30,9 +30,11 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import ro.safetyplease.app.R
+import org.jetbrains.compose.resources.Font
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.inter_variable
 
 /**
  * App colors, from the logo palette: pin green is the accent, green-black night is the dark background,
@@ -277,18 +279,26 @@ fun Modifier.screenBackground(base: Color): Modifier {
     return drawBehind { drawRect(screenGlow(size.width, base, glow)) }
 }
 
+@Composable
 private fun inter(opticalSize: TextUnit) = FontFamily(
     listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold).map { weight ->
         Font(
-            R.font.inter_variable, weight,
+            Res.font.inter_variable, weight,
             variationSettings = FontVariation.Settings(weight, FontStyle.Normal, FontVariation.opticalSizing(opticalSize)),
         )
     },
 )
 
 /** Inter: the text cut up to 22sp, the display cut above. */
-val TextFont = inter(14.sp)
-val DisplayFont = inter(32.sp)
+@Immutable
+class AppFonts(val text: FontFamily, val display: FontFamily)
+
+val LocalAppFonts = staticCompositionLocalOf<AppFonts> { error("no AppTheme around") }
+
+val TextFont: FontFamily
+    @Composable @ReadOnlyComposable get() = LocalAppFonts.current.text
+val DisplayFont: FontFamily
+    @Composable @ReadOnlyComposable get() = LocalAppFonts.current.display
 
 private val Trim = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)
 
@@ -301,20 +311,20 @@ private fun style(family: FontFamily, size: Int, line: Int, weight: FontWeight, 
  * iOS-style type scale (default "Large" size) mapped onto Material slots so Material components use it too.
  * The iOS names are extensions below: `typography.headline`, `typography.footnote`...
  */
-private val IosTypography = Typography(
-    headlineLarge = style(DisplayFont, 34, 41, FontWeight.Bold, 0.0),
-    headlineMedium = style(DisplayFont, 28, 34, FontWeight.Bold, 0.0),
-    headlineSmall = style(TextFont, 22, 28, FontWeight.Bold, -0.0183),
-    titleLarge = style(TextFont, 20, 25, FontWeight.SemiBold, -0.0167),
-    titleMedium = style(TextFont, 17, 22, FontWeight.SemiBold, -0.0128),
-    titleSmall = style(TextFont, 15, 20, FontWeight.SemiBold, -0.0088),
-    bodyLarge = style(TextFont, 17, 22, FontWeight.Normal, -0.0128),
-    bodyMedium = style(TextFont, 15, 20, FontWeight.Normal, -0.0088),
-    bodySmall = style(TextFont, 13, 18, FontWeight.Normal, -0.0032),
-    labelLarge = style(TextFont, 17, 22, FontWeight.SemiBold, -0.0128),
-    labelMedium = style(TextFont, 12, 16, FontWeight.Normal, 0.0005),
-    labelSmall = style(TextFont, 11, 13, FontWeight.Normal, 0.0048),
-    displaySmall = style(DisplayFont, 34, 41, FontWeight.Bold, 0.0),
+private fun iosTypography(fonts: AppFonts) = Typography(
+    headlineLarge = style(fonts.display, 34, 41, FontWeight.Bold, 0.0),
+    headlineMedium = style(fonts.display, 28, 34, FontWeight.Bold, 0.0),
+    headlineSmall = style(fonts.text, 22, 28, FontWeight.Bold, -0.0183),
+    titleLarge = style(fonts.text, 20, 25, FontWeight.SemiBold, -0.0167),
+    titleMedium = style(fonts.text, 17, 22, FontWeight.SemiBold, -0.0128),
+    titleSmall = style(fonts.text, 15, 20, FontWeight.SemiBold, -0.0088),
+    bodyLarge = style(fonts.text, 17, 22, FontWeight.Normal, -0.0128),
+    bodyMedium = style(fonts.text, 15, 20, FontWeight.Normal, -0.0088),
+    bodySmall = style(fonts.text, 13, 18, FontWeight.Normal, -0.0032),
+    labelLarge = style(fonts.text, 17, 22, FontWeight.SemiBold, -0.0128),
+    labelMedium = style(fonts.text, 12, 16, FontWeight.Normal, 0.0005),
+    labelSmall = style(fonts.text, 11, 13, FontWeight.Normal, 0.0048),
+    displaySmall = style(fonts.display, 34, 41, FontWeight.Bold, 0.0),
 )
 
 val Typography.largeTitle: TextStyle get() = headlineLarge
@@ -352,11 +362,14 @@ private val DarkScheme = scheme(DarkColors)
 @Composable
 fun AppTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val colors = if (dark) DarkColors else LightColors
+    val fonts = AppFonts(inter(14.sp), inter(32.sp))
+    val typography = remember(fonts.text, fonts.display) { iosTypography(fonts) }
     CompositionLocalProvider(
         LocalAppColors provides colors,
+        LocalAppFonts provides fonts,
         LocalReduceMotion provides rememberReduceMotion(),
     ) {
-        MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme, typography = IosTypography) {
+        MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme, typography = typography) {
             CompositionLocalProvider(
                 LocalRippleConfiguration provides null,
                 LocalIndication provides PressHighlight(if (dark) Color(0x26FFFFFF) else Color(0x1F000000)),

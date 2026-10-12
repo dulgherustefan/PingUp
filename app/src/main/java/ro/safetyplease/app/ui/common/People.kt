@@ -16,10 +16,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.agoText
-import ro.safetyplease.app.ui.designsystem.Avatar
-import ro.safetyplease.app.ui.designsystem.GlassSize
-import ro.safetyplease.app.ui.designsystem.TouchTarget
-import ro.safetyplease.app.ui.designsystem.pressScale
+import ro.safetyplease.ui.designsystem.Avatar
+import ro.safetyplease.ui.designsystem.GlassSize
+import ro.safetyplease.ui.designsystem.TouchTarget
+import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.venue.Venue
 

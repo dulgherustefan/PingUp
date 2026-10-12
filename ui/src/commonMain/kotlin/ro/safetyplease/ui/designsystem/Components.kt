@@ -1,5 +1,11 @@
-package ro.safetyplease.app.ui.designsystem
+package ro.safetyplease.ui.designsystem
 
+import org.jetbrains.compose.resources.stringResource
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.cancel
+import ro.safetyplease.ui.resources.confirm
+import ro.safetyplease.ui.resources.more_options
+import ro.safetyplease.ui.resources.Res
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
@@ -88,7 +94,6 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -106,7 +111,6 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import ro.safetyplease.app.R
 import ro.safetyplease.core.data.MsgStatus
 import kotlin.math.roundToInt
 
@@ -315,7 +319,7 @@ fun ScreenScaffold(
     Box(Modifier.fillMaxSize()) {
         NavScreen(
             title, subtitle = subtitle, background = AppTheme.colors.grouped, scrolled = true,
-            leading = { b -> if (onBack != null) GlassIconButton(Sym.Back, stringResource(R.string.back), onBack, b) },
+            leading = { b -> if (onBack != null) GlassIconButton(Sym.Back, stringResource(Res.string.back), onBack, b) },
             trailing = { Row(content = actions) },
             content = content,
         )
@@ -469,7 +473,7 @@ fun GroupRow(
             .then(
                 when {
                     onClick != null && onLongClick != null -> Modifier.combinedClickable(
-                        role = Role.Button, onLongClickLabel = stringResource(R.string.more_options), onLongClick = onLongClick, onClick = onClick,
+                        role = Role.Button, onLongClickLabel = stringResource(Res.string.more_options), onLongClick = onLongClick, onClick = onClick,
                     )
                     onClick != null -> Modifier.clickable(role = Role.Button, onClick = onClick)
                     else -> Modifier
@@ -671,7 +675,7 @@ fun AppDialog(
     title: String,
     confirmLabel: String,
     onConfirm: () -> Unit,
-    dismissLabel: String? = stringResource(R.string.cancel),
+    dismissLabel: String? = stringResource(Res.string.cancel),
     confirmEnabled: Boolean = true,
     destructive: Boolean = false,
     content: @Composable ColumnScope.() -> Unit = {},
@@ -700,7 +704,7 @@ fun ConfirmDialog(
     title: String,
     text: String,
     onDismiss: () -> Unit,
-    confirmLabel: String = stringResource(R.string.confirm),
+    confirmLabel: String = stringResource(Res.string.confirm),
     destructive: Boolean = false,
     onConfirm: () -> Unit,
 ) {
