@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_welcome">Mesaje fără semnal</string>
+    <string name="onboarding_intro">Scrii prietenilor și chemi ajutor chiar când rețeaua cade. Mesajele sar din telefon în telefon, prin Bluetooth.</string>
+</resources>

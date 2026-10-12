@@ -1,0 +1,60 @@
+# The iPhone app. Generate the Xcode project from this file after changing it:
+#
+#   cd iosApp && xcodegen
+#
+# Swift only hosts the shared screens from :ui (Compose Multiplatform); Xcode builds them through Gradle first.
+name: PingUp
+options:
+  bundleIdPrefix: org.pingup
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+targets:
+  PingUp:
+    type: application
+    platform: iOS
+    scheme: {}
+    sources:
+      - path: PingUp
+    info:
+      path: PingUp/Info.plist
+      properties:
+        CFBundleDisplayName: Ping Up
+        # Romanian first, English second, as values/ and values-en/ on Android
+        CFBundleDevelopmentRegion: ro
+        CFBundleLocalizations: [ro, en]
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # Compose draws at the screen's own rate (120 Hz on ProMotion) only with this
+        CADisableMinimumFrameDurationOnPhone: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.pingup.app
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        TARGETED_DEVICE_FAMILY: "1"
+        FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        OTHER_LDFLAGS: [$(inherited), -framework, PingUpUi]
+        # Gradle writes the framework outside the sandbox Xcode gives build scripts
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    preBuildScripts:
+      - name: Build the Kotlin framework
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "YES" = "$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED" ]; then
+            echo "Skipping the Gradle build: OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED is YES"
+            exit 0
+          fi
+          # Xcode starts scripts without the shell's environment: find a JDK as Android Studio would
+          if [ -z "$JAVA_HOME" ]; then
+            for jdk in "/Applications/Android Studio.app/Contents/jbr/Contents/Home" "$(/usr/libexec/java_home 2>/dev/null)"; do
+              if [ -x "$jdk/bin/java" ]; then export JAVA_HOME="$jdk"; break; fi
+            done
+          fi
+          cd "$SRCROOT/.."
+          ./gradlew :ui:embedAndSignAppleFrameworkForXcode

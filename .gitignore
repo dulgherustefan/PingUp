@@ -11,6 +11,7 @@ captures/
 
 # local machine
 local.properties
+xcuserdata/
 .idea/
 *.iml
 .DS_Store
