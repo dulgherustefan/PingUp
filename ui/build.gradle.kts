@@ -18,6 +18,8 @@ kotlin {
         compilerOptions { jvmTarget = JvmTarget.JVM_17 }
         // off by default in AGP 9's library plugin; without it the shared resources (fonts, files) never reach the APK
         androidResources { enable = true }
+        // the shared tests run on the JVM too, as `./gradlew test` and CI run them
+        withHostTest {}
     }
     // the iPhone app links one static framework with the screens, :core and libsodium in it
     listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
@@ -36,9 +38,19 @@ kotlin {
             implementation(libs.compose.mp.resources)
             implementation(libs.compose.mp.material3)
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
     }
 }
 
 compose.resources {
     packageOfResClass = "ro.safetyplease.ui.resources"
+}
+
+// `./gradlew test`, as CI runs it, runs the shared tests here on the JVM
+tasks.register("test") {
+    description = "Runs the shared tests on the JVM."
+    group = "verification"
+    dependsOn("testAndroidHostTest")
 }
