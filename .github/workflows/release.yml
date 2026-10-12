@@ -66,4 +66,7 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" ping-up.apk --title "$GITHUB_REF_NAME" --notes-file notes.md
+        # mapping.txt turns R8's renamed stack traces back into readable ones for this exact build
+        run: |
+          gh release create "$GITHUB_REF_NAME" ping-up.apk app/build/outputs/mapping/release/mapping.txt \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md
