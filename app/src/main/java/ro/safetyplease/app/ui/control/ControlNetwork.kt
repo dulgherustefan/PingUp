@@ -39,7 +39,10 @@ import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title3
 import ro.safetyplease.core.control.HeardPeer
 import ro.safetyplease.core.control.PeerBook
+import ro.safetyplease.core.mesh.AnchorHeartbeat
 import ro.safetyplease.core.mesh.MeshState
+import ro.safetyplease.core.mesh.PowerPolicy
+import ro.safetyplease.core.protocol.Heartbeat
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.util.toHex
 
@@ -47,10 +50,13 @@ import ro.safetyplease.core.util.toHex
 private const val SILENT_ANCHOR_MIN = 10
 private const val MAX_HEARD_ROWS = 60
 
+/** An anchor that has heard no phone for this long says so on the console. */
+private const val QUIET_S = 5 * 60
+
 /**
  * The network as this console sees it: what stops the radio, the counters since the app started and the phones heard,
- * every anchor among them, with when each was last heard. Anchor heartbeats come later; until then, silence is the
- * only signal.
+ * every anchor among them, with when each was last heard and what its last heartbeat said. An anchor whose heartbeats
+ * stop goes silent wherever it is.
  */
 @Composable
 internal fun NetworkPane(mesh: MeshState, heard: Map<Int, HeardPeer>, gate: RadioGate, now: Long, modifier: Modifier) {
@@ -127,21 +133,54 @@ private fun HeardRow(peer: HeardPeer, now: Long) {
         peer.flags and NodeFlags.STAFF != 0 -> stringResource(if (peer.verified) R.string.staff_verified else R.string.control_heard_staff)
         else -> ""
     }
-    Row(Modifier.fillMaxWidth().heightIn(min = 36.dp).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-        Text(peer.prefix.toHex(), style = MaterialTheme.typography.subheadline.copy(fontFamily = FontFamily.Monospace), modifier = Modifier.width(96.dp))
-        Text(role, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.weight(1f))
-        Text(
-            when {
-                peer.linked -> stringResource(R.string.control_heard_linked)
-                silent -> pluralStringResource(R.plurals.control_heard_silent, quietMin, quietMin)
-                else -> stringResource(R.string.control_heard_at, agoText(peer.lastHeardMs, now))
-            },
-            style = MaterialTheme.typography.footnote,
-            color = when {
-                silent -> colors.orangeInk
-                peer.linked -> colors.accent
-                else -> colors.secondaryLabel
-            },
-        )
+    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(peer.prefix.toHex(), style = MaterialTheme.typography.subheadline.copy(fontFamily = FontFamily.Monospace), modifier = Modifier.width(96.dp))
+            Text(role, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.weight(1f))
+            Text(
+                when {
+                    peer.linked -> stringResource(R.string.control_heard_linked)
+                    silent -> pluralStringResource(R.plurals.control_heard_silent, quietMin, quietMin)
+                    else -> stringResource(R.string.control_heard_at, agoText(peer.lastHeardMs, now))
+                },
+                style = MaterialTheme.typography.footnote,
+                color = when {
+                    silent -> colors.orangeInk
+                    peer.linked -> colors.accent
+                    else -> colors.secondaryLabel
+                },
+            )
+        }
+        if (anchor) peer.beat?.let { BeatLine(it) }
     }
+}
+
+/** What an anchor's last heartbeat said. Nothing signs heartbeats yet, so the line says it is only indicative. */
+@Composable
+private fun BeatLine(beat: Heartbeat) {
+    val colors = AppTheme.colors
+    val parts = buildList {
+        beat.batteryPercent?.let { add(stringResource(R.string.control_beat_battery, it)) }
+        if (beat.charging) add(stringResource(R.string.control_beat_plugged))
+        beat.temperatureC?.let { add(stringResource(R.string.control_beat_temperature, it)) }
+        add(pluralStringResource(R.plurals.control_beat_links, beat.links, beat.links))
+        add(stringResource(R.string.control_beat_crowd, crowdText(beat.crowd)))
+        beat.quietS?.takeIf { it >= QUIET_S }?.let { add(stringResource(R.string.control_beat_quiet, it / 60)) }
+        add(stringResource(R.string.control_beat_indicative))
+    }
+    val lowBattery = !beat.charging && (beat.batteryPercent ?: 100) < PowerPolicy.LOW_BATTERY_PERCENT
+    val warning = lowBattery || (beat.temperatureC ?: 0) >= AnchorHeartbeat.HOT_C || (beat.quietS ?: 0) >= SILENT_ANCHOR_MIN * 60
+    Text(
+        parts.joinToString(" · "),
+        style = MaterialTheme.typography.footnote,
+        color = if (warning) colors.orangeInk else colors.secondaryLabel,
+        modifier = Modifier.padding(start = 96.dp, bottom = 6.dp),
+    )
+}
+
+/** The bucket as a range of phones: 0, 1-2, 3-5 ... 100+. */
+private fun crowdText(bucket: Int): String {
+    val low = Heartbeat.CROWD[bucket]
+    val next = Heartbeat.CROWD.getOrNull(bucket + 1) ?: return "${low - 1}+"
+    return if (next - 1 == low) "$low" else "$low–${next - 1}"
 }

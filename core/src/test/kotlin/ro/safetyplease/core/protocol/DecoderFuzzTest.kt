@@ -69,6 +69,7 @@ class DecoderFuzzTest {
             "revocation", { Revocation(nextLong(), nextLong(0, 1L shl 32), List(nextInt(1, Revocation.MAX_IDS + 1)) { nextLong() }, nextBytes(64)) },
             Revocation::encode, { Revocation.decode(it) },
         ),
+        Codec("heartbeat", { heartbeat() }, Heartbeat::encode, { Heartbeat.decode(it) }, { listOf(it.zone) }, tolerant = true),
     )
 
     @Test(timeout = 10_000)
@@ -359,6 +360,16 @@ private fun Random.ack(): IncidentAck {
         nextLong(0, 1L shl 32), text(Limits.TEAM_BYTES), nextBytes(64), if (newer) nextBytes(nextInt(0, 40)) else ByteArray(0),
     )
 }
+
+private fun Random.heartbeat() = Heartbeat(
+    batteryPercent = if (nextBoolean()) nextInt(0, 101) else null,
+    charging = nextBoolean(),
+    temperatureC = if (nextBoolean()) nextInt(-127, 128) else null,
+    quietS = if (nextBoolean()) nextInt(0, Heartbeat.MAX_QUIET_S + 1) else null,
+    links = nextInt(0, 256),
+    crowd = nextInt(0, Heartbeat.CROWD.size),
+    zone = text(Limits.ZONE_BYTES),
+)
 
 private fun Random.inner(): Inner {
     val msgId = nextLong()

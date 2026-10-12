@@ -117,6 +117,10 @@ class GoldenVectorsTest {
         "announcement.revocation" to { Golden.revocation().encode().toHex() },
         "qr.shift" to { QrCodes.encodeShift(Golden.shiftCard) },
         "qr.revocation" to { QrCodes.encodeRevocation(Golden.revocation().encode()) },
+        "frame.control" to { PacketCodec.encode(Golden.controlPacket).toHex() },
+        "control.heartbeat" to { Golden.heartbeat.encode().toHex() },
+        "control.heartbeat.unknown" to { Golden.unknownHeartbeat.encode().toHex() },
+        "control.heartbeat.extended" to { Golden.extendedHeartbeat().toHex() },
     )
 
     @Test
@@ -134,6 +138,16 @@ class GoldenVectorsTest {
     fun fileHoldsExactlyTheCheckedVectors() {
         assertEquals("duplicate names", Golden.lines.size, vectors.size)
         assertEquals(encoders.keys, vectors.keys)
+    }
+
+    @Test
+    fun controlChannelDecodes() {
+        val frame = PacketCodec.decode(bytes("frame.control"))!!.packet
+        assertEquals(Golden.controlPacket.fields(), frame.fields())
+        assertEquals(ControlChannel.ID, frame.recipient)
+        assertEquals(Golden.heartbeat, Heartbeat.decode(bytes("control.heartbeat")))
+        assertEquals(Golden.unknownHeartbeat, Heartbeat.decode(bytes("control.heartbeat.unknown")))
+        assertEquals("unknown flag bits and what follows the zone are skipped", Golden.heartbeat, Heartbeat.decode(bytes("control.heartbeat.extended")))
     }
 
     @Test
@@ -562,6 +576,12 @@ private object Golden {
     )
     val privatePacket = Packet(PacketType.PRIVATE, 5, long("0123456789abcdef"), alice.nodeId, TIME, bob.nodeId, true, boxed())
     val opaquePacket = Packet(0x55, 7, long("0123456789abcdef"), alice.nodeId, TIME, null, false, "future".toByteArray())
+
+    /** The payload stands for a sealed heartbeat, which is random. */
+    val controlPacket = Packet(PacketType.PRIVATE, 6, long("0123456789abcdef"), alice.nodeId, TIME, ControlChannel.ID, true, ByteArray(60) { it.toByte() })
+    val heartbeat = Heartbeat(batteryPercent = 78, charging = true, temperatureC = -5, quietS = 300, links = 3, crowd = 4, zone = "B2")
+    val unknownHeartbeat = Heartbeat(batteryPercent = null, charging = false, temperatureC = null, quietS = null, links = 0, crowd = 0, zone = "")
+    fun extendedHeartbeat(): ByteArray = heartbeat.encode().also { it[1] = (it[1].toInt() or 0x80).toByte() } + EXTRA
 
     /** 60 bytes with a recipient at the smallest frame (64): chunks of 26, 26 and 8. */
     val fragmented = Packet(

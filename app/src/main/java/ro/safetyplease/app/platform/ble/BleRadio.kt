@@ -445,7 +445,7 @@ class BleRadio(
         if (scanning) scheduleCycle() else requestScan()
     }
 
-    override fun connect(address: String) {
+    override fun connect(address: String, timeoutMs: Long) {
         val adapter = adapter
         if (!active || adapter == null || outgoing.containsKey(address)) {
             events.trySend(RadioEvent.ConnectFailed(address))
@@ -461,7 +461,7 @@ class BleRadio(
         val link = OutLink(nextLinkId++, address)
         outgoing[address] = link
         link.setupJob = scope.launch {
-            val ok = withTimeoutOrNull(BleConstants.SETUP_TIMEOUT_MS) { setUp(link, device) } ?: false
+            val ok = withTimeoutOrNull(timeoutMs) { setUp(link, device, timeoutMs) } ?: false
             if (ok && !link.closed && !link.ops.dropped) {
                 link.ready = true
                 events.trySend(RadioEvent.LinkUp(link.id, address, true, link.mtu - BleConstants.ATT_OVERHEAD))
@@ -490,10 +490,11 @@ class BleRadio(
 
     // --- central: GATT clients ---
 
-    private suspend fun setUp(link: OutLink, device: BluetoothDevice): Boolean {
+    /** The whole setup has [timeoutMs]: a session's is short, so a GATT collision doesn't hold up the anchor's round. */
+    private suspend fun setUp(link: OutLink, device: BluetoothDevice, timeoutMs: Long): Boolean {
         val callback = ClientCallback(link)
         val startedAt = now()
-        if (!link.ops.run(Op.CONNECT, BleConstants.CONNECT_TIMEOUT_MS) {
+        if (!link.ops.run(Op.CONNECT, minOf(BleConstants.CONNECT_TIMEOUT_MS, timeoutMs)) {
                 // the BluetoothGattConnectionSettings variant only exists on recent Android versions
                 @Suppress("DEPRECATION")
                 link.gatt = if (longRange) {

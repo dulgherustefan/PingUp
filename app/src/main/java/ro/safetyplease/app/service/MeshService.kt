@@ -29,6 +29,8 @@ import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.incidents.IncidentManager
+import ro.safetyplease.core.mesh.AnchorHeartbeat
+import ro.safetyplease.core.mesh.DeviceReadings
 import ro.safetyplease.core.mesh.PowerPolicy
 
 /**
@@ -38,19 +40,21 @@ import ro.safetyplease.core.mesh.PowerPolicy
 class MeshService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var container: AppContainer
-    private val battery = MutableStateFlow(Battery(percent = 100, charging = false))
+    private val battery = MutableStateFlow(Battery(percent = 100, charging = false, temperatureC = null))
     private val screenOn = MutableStateFlow(true)
     private val boosting = MutableStateFlow(false)
     private val reportPending = MutableStateFlow(false)
 
-    private data class Battery(val percent: Int, val charging: Boolean)
+    private data class Battery(val percent: Int, val charging: Boolean, val temperatureC: Int?)
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
             val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
             val percent = if (level >= 0 && scale > 0) level * 100 / scale else battery.value.percent
-            battery.value = Battery(percent, intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0)
+            // tenths of a degree Celsius
+            val temperature = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
+            battery.value = Battery(percent, intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0, temperature?.let { it / 10 })
         }
     }
 
@@ -123,6 +127,24 @@ class MeshService : Service() {
             }.distinctUntilChanged().collect { plan ->
                 container.meshScope.launch { container.radio.setPower(plan) }
             }
+        }
+        scope.launch {
+            container.settings.state.map { it.role == Role.ANCHOR }.distinctUntilChanged().collectLatest { anchor ->
+                if (anchor) beatAsAnchor()
+            }
+        }
+    }
+
+    /** Tells the console this anchor is alive, how its battery is and what it hears (PROTOCOL.md, section 6.9). */
+    private suspend fun beatAsAnchor() {
+        val heartbeat = AnchorHeartbeat()
+        while (true) {
+            // the first wait also lets the battery broadcast arrive
+            delay(AnchorHeartbeat.CHECK_MS)
+            val b = battery.value
+            val device = DeviceReadings(b.percent, b.charging, b.temperatureC)
+            val zone = container.settings.value.anchorZone
+            heartbeat.next(container.engine.state.value, device, zone, container.clock.monoMs())?.let { container.sendHeartbeat(it) }
         }
     }
 

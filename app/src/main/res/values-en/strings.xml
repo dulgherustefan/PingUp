@@ -609,6 +609,16 @@
         <item quantity="one">Anchor silent for a minute</item>
         <item quantity="other">Anchor silent for %d minutes</item>
     </plurals>
+    <string name="control_beat_battery">battery %1$d%%</string>
+    <string name="control_beat_plugged">plugged in</string>
+    <string name="control_beat_temperature">%1$d °C</string>
+    <plurals name="control_beat_links">
+        <item quantity="one">one link</item>
+        <item quantity="other">%d links</item>
+    </plurals>
+    <string name="control_beat_crowd">%1$s phones around</string>
+    <string name="control_beat_quiet">no phones for %1$d min</string>
+    <string name="control_beat_indicative">indicative, unsigned</string>
     <string-array name="control_roles">
         <item>Medical</item>
         <item>Security</item>

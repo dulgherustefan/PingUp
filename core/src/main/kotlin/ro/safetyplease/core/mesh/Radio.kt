@@ -46,7 +46,8 @@ data class RadioStatus(
 interface Radio {
     val events: ReceiveChannel<RadioEvent>
 
-    fun connect(address: String)
+    /** Ends in [RadioEvent.LinkUp], or in [RadioEvent.ConnectFailed] if the link isn't ready within [timeoutMs]. */
+    fun connect(address: String, timeoutMs: Long)
 
     fun disconnect(link: Int)
 

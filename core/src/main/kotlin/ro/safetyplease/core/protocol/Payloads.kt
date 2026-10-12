@@ -28,6 +28,12 @@ object NodeFlags {
      * certificate with a signature over the peer's nonce (PROTOCOL.md, section 6.1).
      */
     const val HELLO_AUTH = 0x40
+
+    /**
+     * Advertising only (1.1): a phone keeps a slot for an anchor's session even when it takes no other connections,
+     * and closes a link on it whose HELLO isn't an anchor's.
+     */
+    const val ANCHOR_SLOT = 0x80
 }
 
 object Limits {

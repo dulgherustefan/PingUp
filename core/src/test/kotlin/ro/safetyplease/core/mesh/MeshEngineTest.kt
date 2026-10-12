@@ -432,7 +432,7 @@ class MeshEngineTest {
         world.net.start()
         // a phone that claims to be V and sends garbage, to get V banned
         val framer = world.net.radio("X", 0x7777_7777, canAdvertise = false)
-        framer.connect("B")
+        framer.connect("B", 20_000)
         advanceTimeBy(1_000)
         val link = framer.links.keys.single()
         val hello = Hello(PacketCodec.VERSION, V, NodeFlags.PROTOCOL_1_1, null).encode()
@@ -440,7 +440,7 @@ class MeshEngineTest {
         repeat(5) { framer.inject(link, byteArrayOf(1, 9, 9)) }
         advanceTimeBy(2_000)
         assertTrue(b.engine.state.value.links.isEmpty())
-        framer.connect("B")
+        framer.connect("B", 20_000)
         advanceTimeBy(2_000)
         assertTrue("its address stays out", framer.links.isEmpty() && b.engine.state.value.counters.refusedBanned >= 1)
 
@@ -486,7 +486,7 @@ class MeshEngineTest {
         world.net.start()
         advanceTimeBy(5_000)
         // a second link the other way round, whichever end the prefixes made connect first
-        if (a.engine.state.value.links.single().outgoing) b.radio.connect("A") else a.radio.connect("B")
+        if (a.engine.state.value.links.single().outgoing) b.radio.connect("A", 20_000) else a.radio.connect("B", 20_000)
         advanceTimeBy(5_000)
         assertEquals(1, a.engine.state.value.links.size)
         assertEquals(1, b.engine.state.value.links.size)
@@ -530,12 +530,14 @@ class MeshEngineTest {
         val b = world.node("B", B)
         world.net.start()
         runCurrent()
-        val always = NodeFlags.PROTOCOL_1_1 or NodeFlags.PREFIX_IN_HELLO or NodeFlags.HELLO_AUTH
-        assertEquals(always or NodeFlags.ACCEPTS_CONNECTIONS, a.radio.flags)
+        val always = NodeFlags.PROTOCOL_1_1 or NodeFlags.PREFIX_IN_HELLO or NodeFlags.HELLO_AUTH or NodeFlags.ACCEPTS_CONNECTIONS
+        assertEquals(always or NodeFlags.ANCHOR_SLOT, a.radio.flags)
         a.engine.setRole(staff = true, anchor = false)
-        assertEquals(always or NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, a.radio.flags)
+        assertEquals(always or NodeFlags.ANCHOR_SLOT or NodeFlags.STAFF, a.radio.flags)
         advanceTimeBy(5_000)
-        assertEquals(always or NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, b.engine.state.value.links.single().flags)
+        assertEquals("the anchor slot is only advertised", always or NodeFlags.STAFF, b.engine.state.value.links.single().flags)
+        a.engine.setRole(staff = false, anchor = true)
+        assertEquals("an anchor keeps no slot for another", always or NodeFlags.ANCHOR, a.radio.flags)
     }
 
     @Test

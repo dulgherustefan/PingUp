@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
@@ -34,6 +35,7 @@ import ro.safetyplease.app.service.Notifier
 import ro.safetyplease.app.text.EscalationReminder
 import ro.safetyplease.app.text.nextEscalation
 import ro.safetyplease.core.chat.ChatManager
+import ro.safetyplease.core.control.AnchorBeats
 import ro.safetyplease.core.control.ConsoleLog
 import ro.safetyplease.core.control.ConsoleRecorder
 import ro.safetyplease.core.control.HeardPeer
@@ -66,11 +68,15 @@ import ro.safetyplease.core.incidents.Routing
 import ro.safetyplease.core.mesh.CachedIncidents
 import ro.safetyplease.core.mesh.MeshConfig
 import ro.safetyplease.core.mesh.MeshEngine
+import ro.safetyplease.core.mesh.MeshEvent
 import ro.safetyplease.core.mesh.PacketLog
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.metrics.MeshMetrics
 import ro.safetyplease.core.metrics.MetricsLog
 import ro.safetyplease.core.metrics.NetworkLog
+import ro.safetyplease.core.protocol.ControlChannel
+import ro.safetyplease.core.protocol.Heartbeat
+import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.SiteGrid
@@ -236,13 +242,29 @@ class AppContainer(private val app: Application) {
     }
 
     /**
-     * While this phone is the console: logs every report it opens and remembers when it last heard each phone.
+     * While this phone is the console: logs every report it opens, remembers when it last heard each phone and keeps
+     * the anchors' heartbeats.
      * Files a past export left in the cache go when the console starts; the log keeps everything they held.
      */
     private suspend fun watchAsConsole() = coroutineScope {
         launch(Dispatchers.IO) { exportDir.deleteRecursively() }
         launch { incidentStore.state.collect { console.sawIncidents(it.staff) } }
-        launch { engine.state.collect { heard.value = PeerBook.update(heard.value, it, clock.wallMs(), clock.monoMs()) } }
+        launch { engine.state.collect { state -> heard.update { PeerBook.update(it, state, clock.wallMs(), clock.monoMs()) } } }
+        launch {
+            engine.events.collect { event ->
+                if (event !is MeshEvent.Received) return@collect
+                val secret = staffSecret ?: return@collect
+                val beat = AnchorBeats.open(staffCrypto, secret, event.packet) ?: return@collect
+                heard.update { PeerBook.heartbeat(it, event.packet.sender, beat, clock.wallMs()) }
+            }
+        }
+    }
+
+    /** An anchor's heartbeat, to whichever console the mesh reaches. */
+    fun sendHeartbeat(beat: Heartbeat) {
+        meshScope.launch {
+            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, AnchorBeats.seal(staffCrypto, beat))
+        }
     }
 
     /**

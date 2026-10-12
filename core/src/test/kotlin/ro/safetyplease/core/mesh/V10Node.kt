@@ -128,7 +128,7 @@ class V10Node(
                 (s.prefix == null || Integer.compareUnsigned(nodeId.nodePrefix(), s.prefix) <= 0 || now - s.sinceMs >= 20_000)
         } ?: return
         connecting = pick.key
-        radio.connect(pick.key)
+        radio.connect(pick.key, 20_000)
     }
 
     private fun forget(link: Link) {

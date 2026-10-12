@@ -74,13 +74,19 @@ class KeyChainScenarioTest {
         val anchor = w.shift("A", CertRole.ANCHOR, "Ancora bar")
         val medic = w.phone("M", "Medic Ana").also { it.activate(w.event.shift(CertRole.STAFF, "Medical 1")) }
         val fake = w.phone("F", "Medic").also { it.engine.setRole(staff = false, anchor = true) }
-        started(w)
+        w.net.start()
+        // a phone meets anchors in sessions of a few seconds: keep each link's verified state if it had one
+        val seen = HashMap<Long, LinkInfo>()
+        repeat(30) {
+            advanceTimeBy(1_000)
+            participant.engine.state.value.links.forEach { link -> seen.merge(link.peerId, link) { old, new -> if (old.verified) old else new } }
+        }
 
-        assertTrue(participant.link(anchor).verified)
+        assertTrue(seen.getValue(anchor.nodeId).verified)
         assertTrue(participant.link(medic).verified)
         assertEquals("Medic Ana", participant.link(medic).nickname)
-        assertFalse(participant.link(fake).verified)
-        assertNull("a staff name from a phone that proves nothing", participant.link(fake).nickname)
+        assertFalse(seen.getValue(fake.nodeId).verified)
+        assertNull("a staff name from a phone that proves nothing", seen.getValue(fake.nodeId).nickname)
         assertFalse("a participant has no role to prove", medic.link(participant).verified)
     }
 

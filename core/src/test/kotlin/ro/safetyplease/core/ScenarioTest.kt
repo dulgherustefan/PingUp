@@ -22,6 +22,7 @@ import ro.safetyplease.core.data.MsgStatus
 import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.ReportDraft
+import ro.safetyplease.core.mesh.ConnectionPolicy
 import ro.safetyplease.core.mesh.Position
 import ro.safetyplease.core.mesh.SimNet
 import ro.safetyplease.core.mesh.TestClock
@@ -151,9 +152,9 @@ class ScenarioTest {
     }
 
     /**
-     * Four phones that claim to be anchors sit closest to the reporter and drop everything. Seeking roles first and
-     * never rotating them, the reporter would give them all its links; they never send it anything, so none is kept
-     * from rotation, and the report reaches staff through the honest relay. The reporter doesn't advertise, so only
+     * Four phones that claim to be anchors sit closest to the reporter and drop everything. Anchors come in sessions,
+     * a phone has one at a time outside its limits, and each ends once the exchange is over: the fakes never hold the
+     * reporter's links, and the report reaches staff through the honest relay. The reporter doesn't advertise, so only
      * it chooses its links.
      */
     @Test
@@ -171,29 +172,31 @@ class ScenarioTest {
         val relay = world.phone("X").apply { radio.position = Position(12.0, 0.0) }
         val staff = world.phone("S").apply { radio.position = Position(24.0, 0.0) }
         staff.staffSecret = world.event.secret
-        // they keep their slots for the reporter
         for (fake in fakes) for (other in fakes + relay + staff) if (fake !== other) world.net.outOfRange += setOf(fake.name, other.name)
         world.net.start()
-        // before the first rotation, a minute in
         advanceTimeBy(50_000)
-        assertEquals("the loudest are the fakes", fakes.map { it.nodeId }.toSet(), reporter.engine.state.value.links.map { it.peerId }.toSet())
+        assertTrue(relay.nodeId in reporter.engine.state.value.links.map { it.peerId })
 
         assertTrue(reporter.incidents.report(medical()))
         val start = testScheduler.currentTime
-        while (staff.staffIncidents.isEmpty() && testScheduler.currentTime - start < 10 * 60_000L) advanceTimeBy(1_000)
+        var mostFakes = 0
+        while (staff.staffIncidents.isEmpty() && testScheduler.currentTime - start < 10 * 60_000L) {
+            advanceTimeBy(1_000)
+            mostFakes = maxOf(mostFakes, reporter.engine.state.value.links.count { link -> fakes.any { it.nodeId == link.peerId } })
+        }
         val tookMs = testScheduler.currentTime - start
         assertEquals(1, staff.staffIncidents.size)
+        assertTrue("one session at a time", mostFakes <= 1)
         assertTrue(relay.nodeId in reporter.engine.state.value.links.map { it.peerId })
         assertTrue("$tookMs ms", tookMs <= 3 * 60_000L)
     }
 
     /**
-     * One phone that claims to be an anchor and drops everything holds a slot of the reporter, who sought it first.
-     * Only our own writes ever crossed that link, so it isn't the role link kept from rotation: it goes like any idle
-     * link as soon as the slots are full and an honest phone waits.
+     * One phone that claims to be an anchor and drops everything gets a session like any anchor. The session is outside
+     * the reporter's limits, so its slots stay with the honest phones, and it ends a few seconds after the exchange.
      */
     @Test
-    fun aFakeAnchorHoldingASlotIsRotatedOut() = runTest {
+    fun aFakeAnchorGetsOnlyAShortSession() = runTest {
         val world = World(this)
         world.net.range = 15.0
         val reporter = TestPhone("R", this, world.net, world.clock, tmp.root, world.event, 900, canAdvertise = false)
@@ -204,18 +207,20 @@ class ScenarioTest {
             radio.tamper = { frame -> frame.takeIf { it[1].toInt() == PacketType.HELLO } }
         }
         val honest = List(5) { i -> world.phone("H$i").apply { radio.position = Position(3.0 + 2 * i, -1.0) } }
-        // only the reporter links with them, so the honest ones always have a slot free for it
         val others = honest + fake
         for (x in others) for (y in others) if (x !== y) world.net.outOfRange += setOf(x.name, y.name)
         world.net.start()
-        // links settle before the first rotation, a minute in
-        advanceTimeBy(50_000)
-        val before = reporter.engine.state.value.links.map { it.peerId }
-        assertTrue("the fake anchor holds a slot", fake.nodeId in before)
-        assertEquals("the slots are full", 4, before.size)
-
-        advanceTimeBy(25_000)
-        assertFalse("rotated out", fake.nodeId in reporter.engine.state.value.links.map { it.peerId })
+        var linkedMs = 0L
+        var longestMs = 0L
+        repeat(6 * 60) {
+            advanceTimeBy(1_000)
+            val peers = reporter.engine.state.value.links.map { it.peerId }
+            linkedMs = if (fake.nodeId in peers) linkedMs + 1_000 else 0
+            longestMs = maxOf(longestMs, linkedMs)
+            if (it >= 50) assertEquals("the slots stay with the honest phones", 4, peers.count { id -> honest.any { h -> h.nodeId == id } })
+        }
+        assertTrue("it had a session", longestMs > 0)
+        assertTrue("$longestMs ms", longestMs <= ConnectionPolicy.SESSION_IDLE_MS + 3_000)
     }
 
     @Test

@@ -14,6 +14,7 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.crypto.ReservedNames
 import ro.safetyplease.core.protocol.Compat10
 import ro.safetyplease.core.protocol.CompatAuth
+import ro.safetyplease.core.protocol.ControlChannel
 import ro.safetyplease.core.protocol.Hello
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentCancel
@@ -43,7 +44,8 @@ import kotlin.random.Random
 
 data class MeshConfig(
     val helloTimeoutMs: Long = 10_000,
-    val connectTimeoutMs: Long = 25_000,
+    /** The radio's time to set up a link; the engine gives up [MeshEngine.CONNECT_GRACE_MS] later if the radio never answers. */
+    val connectTimeoutMs: Long = 20_000,
     val summaryIntervalMs: Long = 60_000,
     val rotationIntervalMs: Long = 60_000,
     val rotationCooldownMs: Long = 120_000,
@@ -81,6 +83,8 @@ data class MeshConfig(
     val allowTestPackets: Boolean = false,
     /** A relay passes chat on only some of its links ([FanOut]) instead of all of them. */
     val chatFanOut: Boolean = MeshEngine.CHAT_FAN_OUT,
+    /** A participant that had a link with staff or an anchor lately becomes a leaf ([LinkMode.LEAF]). */
+    val leaves: Boolean = MeshEngine.LEAVES,
 )
 
 sealed interface MeshEvent {
@@ -213,6 +217,12 @@ class MeshEngine(
         /** When the peer last sent a packet that isn't link-local; null if it never did. */
         var lastInboundMs: Long? = null
 
+        /** When the link last carried anything but HELLO, either way; null before the peer's HELLO. */
+        var syncMs: Long? = null
+
+        /** Taken on the slot a phone keeps for an anchor ([NodeFlags.ANCHOR_SLOT]): closed if HELLO isn't an anchor's. */
+        var spare = false
+
         var summaryAtMs = upAtMs
         var nextSendAtMs = 0L
         var fragSeq = 0
@@ -241,10 +251,10 @@ class MeshEngine(
 
         val readsAuth: Boolean get() = peerFlags and NodeFlags.HELLO_AUTH != 0
 
-        /** The roles the peer claims count only as far as it proved them. */
+        /** The peer's flags with STAFF only if proven ([ProvenRoles]). */
         val roleFlags: Int get() = ProvenRoles.linkFlags(peerFlags, provenRoles)
 
-        val verified: Boolean get() = peerFlags and ProvenRoles.ROLES != 0 && roleFlags == peerFlags
+        val verified: Boolean get() = ProvenRoles.verified(peerFlags, provenRoles)
 
         /** What the peer advertises: from its HELLO; a peer that doesn't rotate advertises its nodeId's prefix. */
         val peerPrefix: Int?
@@ -280,12 +290,25 @@ class MeshEngine(
 
     private var connecting: String? = null
     private var connectingSinceMs = 0L
+    private var connectingTimeoutMs = 0L
     private var lastRotationMs = 0L
     private var ignored: Set<Int> = emptySet()
     private var radioStatus = RadioStatus()
 
     private var roleFlags = 0
-    private var limits = LinkLimits.DEFAULT
+    private var mode = LinkMode.RELAY
+
+    /** When this phone last had a link with staff or an anchor; it is a leaf for a while after. */
+    private var roleLinkMs: Long? = null
+
+    /** When the last session with each peer ended, by the prefix the peer advertised. */
+    private val sessionEnds = HashMap<Int, Long>()
+
+    /** When this phone last wrote a report, an ACK or a cancel. */
+    private var ownNewsMs: Long? = null
+
+    /** An anchor stops taking connections for a random while after each one it takes. */
+    private var admitPausedUntilMs = 0L
     private var nickname: String? = null
     private var advertisedFlags = -1
     private var advertisedPrefix: Int? = null
@@ -341,7 +364,7 @@ class MeshEngine(
         val flags = (if (staff) NodeFlags.STAFF else 0) or (if (anchor) NodeFlags.ANCHOR else 0)
         if (flags == roleFlags) return
         roleFlags = flags
-        limits = if (anchor) LinkLimits.ANCHOR else LinkLimits.DEFAULT
+        updateMode(clock.monoMs())
         cache.retentionMs = if (anchor) config.anchorRetentionMs else config.retentionMs
         // the HELLOs go first, so neighbors know a changed prefix before they see it advertised
         links.values.filter { !it.closing }.forEach { sendHello(it) }
@@ -402,6 +425,7 @@ class MeshEngine(
         val payload = IncidentReportCodec.encode(incidentId, sealed)
         val packet = newPacket(PacketType.INCIDENT_REPORT, payload, null, encrypted = true, anonymous = true)
         if (cache.offerReport(incidentId, packet, clock.monoMs(), own = true)) saveCache()
+        ownNewsMs = clock.monoMs()
         flood(packet, own = true)
         publishState()
         return packet
@@ -411,6 +435,7 @@ class MeshEngine(
         val packet = newPacket(PacketType.INCIDENT_ACK, ack.encode(), null, encrypted = false, anonymous = false)
         if (!cache.offerAck(ack, packet, clock.monoMs())) return null
         saveCache()
+        ownNewsMs = clock.monoMs()
         flood(packet, own = true)
         return packet
     }
@@ -419,6 +444,7 @@ class MeshEngine(
     fun publishCancel(incidentId: ByteArray, token: ByteArray): Packet {
         val payload = IncidentCancel(incidentId, token).encode()
         val packet = newPacket(PacketType.INCIDENT_CANCEL, payload, null, encrypted = false, anonymous = true)
+        ownNewsMs = clock.monoMs()
         flood(packet, own = true)
         return packet
     }
@@ -492,7 +518,8 @@ class MeshEngine(
         val prefix = if (link.readsPrefix) myPrefix() else null
         val auth = prefix != null && link.readsAuth
         val proof = if (auth) link.peerNonce?.let { trust.helloProof(it, nodeId) } else null
-        val hello = Hello(PacketCodec.VERSION, nodeId, currentFlags(), nick, prefix, link.nonce.takeIf { auth }, proof)
+        val flags = currentFlags() and NodeFlags.ANCHOR_SLOT.inv()
+        val hello = Hello(PacketCodec.VERSION, nodeId, flags, nick, prefix, link.nonce.takeIf { auth }, proof)
         sendLocal(link, PacketType.HELLO, hello.encode())
     }
 
@@ -537,6 +564,7 @@ class MeshEngine(
         val packet = out.packet
         log.packet(clock.wallMs(), if (out.own) LogKind.TX else LogKind.RELAY, packet, link.label)
         sentByType.bump(packet.type)
+        if (packet.type != PacketType.HELLO && link.peerId != 0L) link.syncMs = clock.monoMs()
         if (PacketType.isLinkLocal(packet.type)) return
         link.lastActivityMs = clock.monoMs()
         if (out.own) {
@@ -582,18 +610,22 @@ class MeshEngine(
         val now = clock.monoMs()
         if (e.outgoing && connecting == e.address) connecting = null
         val banned = (bannedAddressesUntil[e.address] ?: 0) > now
-        val overLimit = !e.outgoing && links.values.count { !it.outgoing && !it.closing } >= limits.maxIn
+        val overLimit = !e.outgoing && heldInbound() >= mode.limits.maxIn
+        val spare = overLimit && keepsAnchorSlot()
         val shutOut = (shutOutAddressesUntil[e.address] ?: 0) > now
-        if (banned || overLimit || shutOut || e.maxFrame < PacketCodec.MIN_FRAME) {
+        if (banned || (overLimit && !spare) || shutOut || e.maxFrame < PacketCodec.MIN_FRAME) {
             if (banned) refusedBannedCount++
             log.link(clock.wallMs(), e.address.takeLast(5), "refuzat")
             radio.disconnect(e.link)
             return
         }
         val link = Link(e.link, e.address, e.outgoing, e.maxFrame, now, seen[e.address]?.prefix, config, trust.nonce()) { queueFullCount++ }
+        link.spare = spare
         links[e.link] = link
         linksOpened++
         log.link(clock.wallMs(), link.label, if (e.outgoing) "link up (out) mtu=${e.maxFrame}" else "link up (in) mtu=${e.maxFrame}")
+        // phones that found the anchor together would otherwise all connect in the same second and collide
+        if (!e.outgoing && mode == LinkMode.ANCHOR) admitPausedUntilMs = now + ConnectionPolicy.admissionBackoffMs(random)
         startPump(link)
         sendHello(link)
         refreshAdvertising()
@@ -606,6 +638,7 @@ class MeshEngine(
         linksClosed++
         val now = clock.monoMs()
         log.link(clock.wallMs(), link.label, "link down")
+        if (link.peerId != 0L && ConnectionPolicy.isSession(mode, link.peerFlags)) link.peerPrefix?.let { sessionEnds[it] = now }
         // a link that drops before HELLO (refused by the peer, say) isn't retried right away
         if (link.outgoing && link.peerId == 0L) registerFailure(link.address)
         // After a lost link, forget the peer: if it's still in range we'll see its advertising within a second;
@@ -655,6 +688,7 @@ class MeshEngine(
 
         if (packet.type == PacketType.HELLO) return onHello(link, packet)
         if (link.peerId == 0L) return drop(packet, link, DropReason.BEFORE_HELLO)
+        link.syncMs = now
 
         when (packet.type) {
             PacketType.SUMMARY, PacketType.SUMMARY2 -> onSummary(link, packet)
@@ -696,8 +730,14 @@ class MeshEngine(
             if (loser === link) return
         }
         link.peerId = hello.nodeId
+        link.syncMs = clock.monoMs()
         setPeer(link, hello)
+        if (link.spare && !ConnectionPolicy.isSpareSession(mode, hello.flags)) {
+            log.link(clock.wallMs(), link.label, "the anchor slot is for anchors")
+            return close(link)
+        }
         addressFailures.remove(link.address)
+        updateMode(clock.monoMs())
         if (isIgnored(hello.nodeId)) return shutOut(link, clock.monoMs())
         // our first HELLO left before we knew the peer reads the prefix
         if (authenticate(link, hello) || link.readsPrefix) sendHello(link)
@@ -838,6 +878,9 @@ class MeshEngine(
             receivedCount++
             log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "hops=${packet.hops}")
             _events.tryEmit(MeshEvent.Received(packet, link.peerId))
+        } else if (packet.recipient == ControlChannel.ID) {
+            // for the console, which also passes it on, in case it isn't the only one
+            _events.tryEmit(MeshEvent.Received(packet, link.peerId))
         }
         relayOnward(link, packet)
         publishState()
@@ -877,6 +920,7 @@ class MeshEngine(
     }
 
     private fun relay(packet: Packet, from: Link) {
+        if (!ConnectionPolicy.relays(mode, packet)) return
         relayedCount++
         val jitter = random.nextLong(config.relayJitterMinMs, config.relayJitterMaxMs + 1)
         val key = packet.dedupKey
@@ -950,6 +994,9 @@ class MeshEngine(
         shutOutPrefixesUntil.values.removeAll { it <= now }
         unprovenUntil.values.removeAll { it <= now }
         if (rotatingPrefix.isDue(now)) renewPrefix(now)
+        sessionEnds.values.removeAll { now - it > ConnectionPolicy.SELF_SESSION_MS + ConnectionPolicy.SESSION_SPREAD_MS }
+        updateMode(now)
+        endSessions(now)
 
         for (link in links.values.toList()) {
             if (link.closing) continue
@@ -961,7 +1008,7 @@ class MeshEngine(
             }
         }
 
-        if (connecting != null && now - connectingSinceMs > config.connectTimeoutMs) {
+        if (connecting != null && now - connectingSinceMs > connectingTimeoutMs + CONNECT_GRACE_MS) {
             onConnectFailed(connecting!!)
         }
         if (now - lastRotationMs >= config.rotationIntervalMs) {
@@ -969,7 +1016,38 @@ class MeshEngine(
             rotate(now)
         }
         maintainConnections(now)
+        refreshAdvertising()
         publishState()
+    }
+
+    /** A participant with a link to staff or an anchor lately is a leaf; its links over a leaf's limits go once idle. */
+    private fun updateMode(now: Long) {
+        if (links.values.any { it.ready && it.peerFlags and (NodeFlags.STAFF or NodeFlags.ANCHOR) != 0 }) roleLinkMs = now
+        val next = ConnectionPolicy.mode(
+            anchor = roleFlags and NodeFlags.ANCHOR != 0,
+            staff = roleFlags and NodeFlags.STAFF != 0,
+            roleLinkMs = roleLinkMs.takeIf { config.leaves },
+            nowMs = now,
+        )
+        if (next == mode) return
+        log.link(clock.wallMs(), "-", "mode ${next.name.lowercase()}")
+        mode = next
+        refreshAdvertising()
+    }
+
+    private fun endSessions(now: Long) {
+        val open = linkViews().filter { links[it.id]?.closing == false }
+        for (view in open) {
+            if (!ConnectionPolicy.sessionOver(mode, view, now)) continue
+            val link = links[view.id] ?: continue
+            log.link(clock.wallMs(), link.label, "session over")
+            close(link)
+        }
+        for (view in ConnectionPolicy.surplus(me(), open, now)) {
+            val link = links[view.id] ?: continue
+            log.link(clock.wallMs(), link.label, "over the ${mode.name.lowercase()} limits")
+            close(link)
+        }
     }
 
     private fun isBlocked(c: Candidate, now: Long): Boolean {
@@ -980,22 +1058,27 @@ class MeshEngine(
     }
 
     private fun linkViews(): List<LinkView> = links.values.map {
-        LinkView(it.id, it.address, it.peerPrefix, it.roleFlags, it.outgoing, it.upAtMs, it.lastActivityMs, it.lastInboundMs)
+        LinkView(it.id, it.address, it.peerPrefix, it.roleFlags, it.outgoing, it.upAtMs, it.lastActivityMs, it.lastInboundMs, it.syncMs)
     }
 
-    private fun me() = Me(myPrefix(), nodeId.nodePrefix(), radioStatus.canAdvertise)
+    private fun me() = Me(myPrefix(), nodeId.nodePrefix(), radioStatus.canAdvertise, mode)
+
+    private fun sessions() = Sessions(sessionEnds, ownNewsMs)
 
     private fun maintainConnections(now: Long) {
         if (connecting != null || !radioStatus.bluetoothOn) return
-        val pick = ConnectionPolicy.pick(me(), limits, candidates(now), linkViews(), now) { isBlocked(it, now) } ?: return
+        val pick = ConnectionPolicy.pick(me(), candidates(now), linkViews(), now, sessions()) { isBlocked(it, now) } ?: return
+        val session = ConnectionPolicy.isSession(mode, pick.flags)
         connecting = pick.address
         connectingSinceMs = now
-        log.link(clock.wallMs(), pick.address.takeLast(5), "connect ${pick.prefix?.toHex() ?: "?"} rssi=${pick.rssi}")
-        radio.connect(pick.address)
+        connectingTimeoutMs = if (session) ConnectionPolicy.SESSION_SETUP_MS else config.connectTimeoutMs
+        val what = if (session) "session" else "connect"
+        log.link(clock.wallMs(), pick.address.takeLast(5), "$what ${pick.prefix?.toHex() ?: "?"} rssi=${pick.rssi}")
+        radio.connect(pick.address, connectingTimeoutMs)
     }
 
     private fun rotate(now: Long) {
-        val victim = ConnectionPolicy.rotationVictim(me(), limits, candidates(now), linkViews(), now) { isBlocked(it, now) } ?: return
+        val victim = ConnectionPolicy.rotationVictim(me(), candidates(now), linkViews(), now, sessions()) { isBlocked(it, now) } ?: return
         val link = links[victim.id] ?: return
         victim.peerPrefix?.let { prefixCooldownUntil[it] = now + config.rotationCooldownMs }
         log.link(clock.wallMs(), link.label, "rotatie")
@@ -1020,11 +1103,21 @@ class MeshEngine(
      */
     private fun currentFlags(): Int {
         var flags = roleFlags or NodeFlags.PROTOCOL_1_1 or NodeFlags.PREFIX_IN_HELLO or NodeFlags.HELLO_AUTH
-        if (links.values.count { !it.outgoing && !it.closing } < limits.maxIn) {
-            flags = flags or NodeFlags.ACCEPTS_CONNECTIONS
-        }
+        val admitting = clock.monoMs() >= admitPausedUntilMs
+        if (admitting && heldInbound() < mode.limits.maxIn) flags = flags or NodeFlags.ACCEPTS_CONNECTIONS
+        if (keepsAnchorSlot()) flags = flags or NodeFlags.ANCHOR_SLOT
         return flags
     }
+
+    /** Inbound links within the limits: not a phone's session with an anchor, nor one on the slot kept for it. */
+    private fun heldInbound(): Int = links.values.count {
+        !it.outgoing && !it.closing && !it.spare && !(it.peerId != 0L && ConnectionPolicy.isSpareSession(mode, it.peerFlags))
+    }
+
+    /** A phone's slot for an anchor is free while it has no session with one. */
+    private fun keepsAnchorSlot(): Boolean = mode != LinkMode.ANCHOR &&
+        links.values.none { !it.closing && (it.spare || (it.peerId != 0L && ConnectionPolicy.isSpareSession(mode, it.peerFlags))) }
+
 
     private fun refreshAdvertising() {
         val flags = currentFlags()
@@ -1072,5 +1165,16 @@ class MeshEngine(
          * so the pilot can measure what it saves and what it costs in delivery.
          */
         const val CHAT_FAN_OUT = false
+
+        const val CONNECT_GRACE_MS = 5_000L
+
+        /**
+         * Off: a leaf trusts the role its neighbor claims in HELLO, so a phone that only claims one could turn the
+         * phones around it into leaves and cut the chat between them; and with most phones down to two links, the
+         * leaves of a crowd split into chains (PROTOCOL.md, section 14). On once roles are signed (2.18).
+         */
+        const val LEAVES = false
+
+
     }
 }

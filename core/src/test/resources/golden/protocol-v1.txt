@@ -182,3 +182,14 @@ announcement.revocation 0168894d58f18f2c3468e77a580280cfd267bfc5954f010203040506
 qr.shift SPS2.AQHNFLN_lW6VMZT_f7c7PYHcxWHWGnU4CUt8PhpkPuXzqmjneABo6CDAaIlNWPGPLDQJTWVkaWNhbCAxkgBgArXvyIxF5BRPOcFXv0mYVSbL9SvBtPHJW3JbFEay76PemTg8dgEe6rW5Ul8_VFUGFqYuCWeI3zZicfSFDoCBgoOEhYaHiImKi4yNjo-QkZKTlJWWl5iZmpucnZ6fAwESEk5MoKWu0MgH7L2Ivl46pMD1FJmCOHWfuQps_8iBhV1o52nwaOi7cGiJTVjxjyw0AKvMYiN1FxcarWgRZyHQpzOTSi9SvBJPXZ0NUA9AIRIBD4awc_IzLnW0x0G--rfT624YRYF1uFGuY6omMIdXZg3AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3wA
 # SPR1 carrying announcement.revocation.
 qr.revocation SPR1.AWiJTVjxjyw0aOd6WAKAz9Jnv8WVTwECAwQFBgcIXbiseW_3yjDRwwyzuh6lJd9cvulRWTrtO-8zVENz_mziMS_HIwtYkWNsPkw5cRmLS9Ue526bKYWfTcJwttdzDg
+
+# 1.1, control channel (PROTOCOL.md, section 6.9).
+# Whole frame: PRIVATE, ttl 6, id 0123456789abcdef, sender node.alice, TIME, recipient the control channel 5350
+# 2d4354524c31 ("SP-CTRL1"), E=1, payload 00 01 ... 3b (60 bytes, in place of a sealed heartbeat, which is random).
+frame.control 012006050123456789abcdef79388b6b02a70d4968e77800003c53502d4354524c31000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b
+# Heartbeat plaintext: charging, battery 78 %, -5 degrees C, quiet 300 s, 3 links, crowd bucket 4 (11-20), zone "B2".
+control.heartbeat 01014efb012c0304024232
+# Heartbeat with nothing known: not charging, no battery, no temperature, never heard a phone, no links, no crowd, no zone.
+control.heartbeat.unknown 0100ff80ffff000000
+# Built by hand: control.heartbeat with flag bit 0x80 and the bytes abcd after the zone, which a newer version may add.
+control.heartbeat.extended 01814efb012c0304024232abcd

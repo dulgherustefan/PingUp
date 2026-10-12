@@ -629,6 +629,17 @@
         <item quantity="few">Ancoră tăcută de %d minute</item>
         <item quantity="other">Ancoră tăcută de %d de minute</item>
     </plurals>
+    <string name="control_beat_battery">baterie %1$d%%</string>
+    <string name="control_beat_plugged">în priză</string>
+    <string name="control_beat_temperature">%1$d °C</string>
+    <plurals name="control_beat_links">
+        <item quantity="one">o legătură</item>
+        <item quantity="few">%d legături</item>
+        <item quantity="other">%d de legături</item>
+    </plurals>
+    <string name="control_beat_crowd">%1$s telefoane în jur</string>
+    <string name="control_beat_quiet">niciun telefon de %1$d min</string>
+    <string name="control_beat_indicative">indicativ, nesemnat</string>
     <string-array name="control_roles">
         <item>Medical</item>
         <item>Securitate</item>

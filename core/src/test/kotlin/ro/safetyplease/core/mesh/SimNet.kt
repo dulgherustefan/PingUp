@@ -216,7 +216,7 @@ class SimRadio(
         events.trySend(RadioEvent.Status(RadioStatus(on, on, on && canAdvertise, canAdvertise)))
     }
 
-    override fun connect(address: String) {
+    override fun connect(address: String, timeoutMs: Long) {
         connectAttempts += address
         net.connect(this, address)
     }

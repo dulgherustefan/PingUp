@@ -9,9 +9,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.core.mesh.Candidate
 import ro.safetyplease.core.mesh.ConnectionPolicy
-import ro.safetyplease.core.mesh.LinkLimits
 import ro.safetyplease.core.mesh.Me
 import ro.safetyplease.core.mesh.ProvenRoles
+import ro.safetyplease.core.mesh.Sessions
 import ro.safetyplease.core.mesh.Verdict
 import ro.safetyplease.core.protocol.AckFlags
 import ro.safetyplease.core.protocol.AckStatus
@@ -240,17 +240,21 @@ class KeyChainTest {
     }
 
     @Test
-    fun anUnprovenAnchorIsRankedLikeAnyPeer() {
+    fun anUnprovenStaffPhoneIsRankedLikeAnyPeer() {
         val open = NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.PREFIX_IN_HELLO
         val me = Me(prefix = 0, nodePrefix = 0, canAdvertise = true)
-        val fake = Candidate("F", 1, NodeFlags.ANCHOR or open, rssi = -50, sinceMs = 0, lastSeenMs = 0)
-        val real = Candidate("A", 2, NodeFlags.ANCHOR or open, rssi = -80, sinceMs = 0, lastSeenMs = 0)
+        val fake = Candidate("F", 1, NodeFlags.STAFF or open, rssi = -50, sinceMs = 0, lastSeenMs = 0)
+        val real = Candidate("S", 2, NodeFlags.STAFF or open, rssi = -80, sinceMs = 0, lastSeenMs = 0)
         val plain = Candidate("P", 3, open, rssi = -60, sinceMs = 0, lastSeenMs = 0)
-        fun pick(vararg c: Candidate) = ConnectionPolicy.pick(me, LinkLimits.DEFAULT, c.toList(), emptyList(), 0) { false }!!.address
+        fun pick(vararg c: Candidate) = ConnectionPolicy.pick(me, c.toList(), emptyList(), 0, Sessions()) { false }!!.address
         assertEquals("F", pick(fake, real, plain))
         val unproven = ProvenRoles.candidate(fake, ProvenRoles.UNPROVEN_MS, 0)
-        assertEquals("A", pick(unproven, real, plain))
+        assertEquals("S", pick(unproven, real, plain))
         assertEquals("F", pick(ProvenRoles.candidate(fake, ProvenRoles.UNPROVEN_MS, ProvenRoles.UNPROVEN_MS), real))
-        assertEquals(open, ProvenRoles.linkFlags(NodeFlags.ANCHOR or open, 0))
+        assertEquals(open, ProvenRoles.linkFlags(NodeFlags.STAFF or open, 0))
+        assertEquals("an anchor's link is a session whatever it proves", NodeFlags.ANCHOR or open, ProvenRoles.linkFlags(NodeFlags.ANCHOR or open, 0))
+        assertFalse(ProvenRoles.verified(NodeFlags.ANCHOR or open, 0))
+        assertFalse(ProvenRoles.verified(NodeFlags.STAFF or NodeFlags.ANCHOR, NodeFlags.ANCHOR))
+        assertTrue(ProvenRoles.verified(NodeFlags.ANCHOR or open, NodeFlags.ANCHOR))
     }
 }

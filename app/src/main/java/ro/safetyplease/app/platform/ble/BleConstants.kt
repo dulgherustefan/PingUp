@@ -15,8 +15,6 @@ object BleConstants {
     const val DEFAULT_MTU = 23
     const val ATT_OVERHEAD = 3
 
-    const val SETUP_TIMEOUT_MS = 20_000L
-
     /** Connect phase only; tune it from the `connected ... in N ms` log lines. */
     const val CONNECT_TIMEOUT_MS = 20_000L
     const val OPERATION_TIMEOUT_MS = 5_000L
