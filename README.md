@@ -14,6 +14,7 @@ A  →  B  →  C  →  D
 - „Trimite zona mea" apeși pe mesaj și se deschide harta cu un pin.
 - Hartă offline, desenată local, pe baza unui fișier cu zonele evenimentului (`venue.json`).
 - Store-and-forward: dacă un telefon e offline un timp, primește raportul când revine în rețea.
+- Fără server și fără conturi. Ce date folosește aplicația și unde ajung: [PRIVACY.md](PRIVACY.md).
 
 ## Tehnologii
 Kotlin, Jetpack Compose, Bluetooth LE (GATT), libsodium (prin lazysodium), Gradle, Python (script pentru chei de staff).

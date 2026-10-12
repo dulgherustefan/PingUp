@@ -116,6 +116,7 @@ import ro.safetyplease.app.ui.map.PinScreen
 import ro.safetyplease.app.ui.me.AnchorScreen
 import ro.safetyplease.app.ui.me.EventScreen
 import ro.safetyplease.app.ui.me.MeScreen
+import ro.safetyplease.app.ui.me.PrivacyScreen
 import ro.safetyplease.app.ui.notices.NoticeAlert
 import ro.safetyplease.app.ui.notices.NoticeBands
 import ro.safetyplease.app.ui.notices.shownNotices
@@ -323,6 +324,7 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         Dest.Blocked -> BlockedScreen(vm)
         is Dest.Incident -> IncidentDetailScreen(vm, dest.id)
         Dest.Me -> MeScreen(vm, onStartMesh)
+        Dest.Privacy -> PrivacyScreen(vm)
         Dest.Event -> EventScreen(vm)
         Dest.Demo -> Demo.Screen(vm)
         is Dest.Pin -> PinScreen(vm, dest)

@@ -199,6 +199,8 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 }
 
                 InsetGroup(Modifier.padding(bottom = 24.dp)) {
+                    GroupRow(stringResource(R.string.me_privacy), icon = Sym.Hidden, chevron = true, onClick = { vm.open(Dest.Privacy) })
+                    GroupDivider()
                     GroupRow(
                         stringResource(R.string.me_version), icon = Sym.Info,
                         value = stringResource(R.string.app_name) + " " + BuildConfig.VERSION_NAME,

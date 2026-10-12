@@ -75,6 +75,7 @@ sealed interface Dest {
 
     /** Your profile and settings. */
     data object Me : Dest
+    data object Privacy : Dest
     data object Demo : Dest
 
     /** The event packs on this phone and the one in use. */
