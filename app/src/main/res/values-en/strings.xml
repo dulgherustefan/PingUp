@@ -91,7 +91,7 @@
     <string name="onboarding_start">Start</string>
 
     <string name="messages_empty_title">No friends yet</string>
-    <string name="messages_empty_text">Scan each other’s codes so you can text. Works without internet.</string>
+    <string name="messages_empty_text">Scan a friend’s code and you can text each other. Works without internet.</string>
     <string name="messages_empty_action">Add a friend</string>
     <string name="messages_no_messages">No messages yet</string>
     <string name="menu_add_friend">Add friend</string>
@@ -120,6 +120,7 @@
     <string name="quick_meet">Let’s go to the meeting point</string>
     <string name="msg_zone">I’m at: %1$s</string>
     <string name="msg_group_invite">%1$s added you to the group</string>
+    <string name="msg_friend_added">%1$s added you as a friend</string>
     <string name="msg_queued">Waiting for a phone nearby</string>
     <string name="msg_sent">On its way</string>
     <string name="msg_delivered">Delivered</string>
@@ -140,8 +141,7 @@
     <string name="add_friend_scan_hint">Point the camera at their code. Works for staff codes too.</string>
     <string name="add_friend_no_camera">Without camera access, you can use the code as text.</string>
     <string name="add_friend_allow_camera">Allow camera access</string>
-    <string name="add_friend_done">%1$s is on your list. Now show them your code so they can scan you too.</string>
-    <string name="add_friend_show_mine">Show them your code</string>
+    <string name="add_friend_done">Done, you can text each other. You’ll appear on %1$s’s list automatically.</string>
     <string name="add_friend_text_link">Use the code as text</string>
     <string name="code_sheet_mine">Your code</string>
     <string name="code_sheet_copy">Copy code</string>

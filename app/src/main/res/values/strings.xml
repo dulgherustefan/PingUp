@@ -97,7 +97,7 @@
     <string name="onboarding_start">Pornește</string>
 
     <string name="messages_empty_title">Niciun prieten încă</string>
-    <string name="messages_empty_text">Scanați-vă codurile ca să vă puteți scrie. Merge fără internet.</string>
+    <string name="messages_empty_text">Scanează codul unui prieten și vă puteți scrie. Merge fără internet.</string>
     <string name="messages_empty_action">Adaugă un prieten</string>
     <string name="messages_no_messages">Niciun mesaj încă</string>
     <string name="menu_add_friend">Adaugă prieten</string>
@@ -128,6 +128,7 @@
     <string name="quick_meet">Hai la punctul de întâlnire</string>
     <string name="msg_zone">Sunt la: %1$s</string>
     <string name="msg_group_invite">%1$s te-a adăugat în grup</string>
+    <string name="msg_friend_added">%1$s te-a adăugat ca prieten</string>
     <string name="msg_queued">Așteaptă un telefon în apropiere</string>
     <string name="msg_sent">În drum</string>
     <string name="msg_delivered">A ajuns</string>
@@ -148,8 +149,7 @@
     <string name="add_friend_scan_hint">Îndreaptă camera spre codul lui. Merge și pentru codul de staff.</string>
     <string name="add_friend_no_camera">Fără acces la cameră poți folosi codul ca text.</string>
     <string name="add_friend_allow_camera">Dă acces la cameră</string>
-    <string name="add_friend_done">%1$s e în lista ta. Acum arată-i codul tău, ca să te poată scana.</string>
-    <string name="add_friend_show_mine">Arată-i codul tău</string>
+    <string name="add_friend_done">Gata, vă puteți scrie. %1$s te primește automat în listă.</string>
     <string name="add_friend_text_link">Folosește codul ca text</string>
     <string name="code_sheet_mine">Codul tău</string>
     <string name="code_sheet_copy">Copiază codul</string>

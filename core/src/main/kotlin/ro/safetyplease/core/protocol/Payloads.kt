@@ -879,6 +879,18 @@ sealed interface Inner {
 
     /** The sender's zone, for a friend's list: not a chat message, and never repeated on a timer. */
     class ZoneUpdate(override val msgId: Long, val zone: String) : Inner
+
+    /**
+     * The sender's card, for someone whose QR they scanned, so one scan makes both phones friends. It travels sealed
+     * (the recipient doesn't have the sender's key yet) and signed, so nobody can introduce themselves under other keys.
+     */
+    class Intro(
+        override val msgId: Long,
+        val boxKey: ByteArray,
+        val signKey: ByteArray,
+        val nickname: String,
+        val signature: ByteArray,
+    ) : Inner
 }
 
 object InnerCodec {
@@ -892,10 +904,18 @@ object InnerCodec {
     private const val LEFT_GROUP = 8
     private const val ZONE_REQUEST = 9
     private const val ZONE_UPDATE = 10
+    private const val INTRO = 11
 
     private const val FLAG_GROUP = 0x01
     private const val FLAG_COORDS = 0x02
     const val BOX_KEY_SIZE = 32
+    const val SIGN_KEY_SIZE = 32
+    const val SIGNATURE_SIZE = 64
+    private val INTRO_DOMAIN = "SP-INTRO-v1".utf8()
+
+    /** What an intro's signature covers. The recipient is in it, so the intro can't be replayed to someone else. */
+    fun introSignedBytes(recipient: Long, msgId: Long, boxKey: ByteArray, signKey: ByteArray, nickname: String): ByteArray =
+        INTRO_DOMAIN + WireWriter().i64(recipient).i64(msgId).bytes(boxKey).bytes(signKey).bytes(nickname.utf8()).toByteArray()
 
     fun encode(inner: Inner): ByteArray {
         val w = WireWriter()
@@ -935,6 +955,13 @@ object InnerCodec {
                 val zone = inner.zone.utf8()
                 require(zone.size in 1..Limits.ZONE_BYTES)
                 w.u8(ZONE_UPDATE).i64(inner.msgId).u8(zone.size).bytes(zone)
+            }
+            is Inner.Intro -> {
+                val nick = inner.nickname.utf8()
+                require(inner.boxKey.size == BOX_KEY_SIZE && inner.signKey.size == SIGN_KEY_SIZE)
+                require(nick.size <= Limits.NICK_BYTES && inner.signature.size == SIGNATURE_SIZE)
+                w.u8(INTRO).i64(inner.msgId).bytes(inner.boxKey).bytes(inner.signKey).u8(nick.size).bytes(nick)
+                w.bytes(inner.signature)
             }
         }
         return w.toByteArray()
@@ -1013,6 +1040,14 @@ object InnerCodec {
                 r.expectEnd()
                 if (zone.isEmpty()) throw MalformedException("empty zone")
                 Inner.ZoneUpdate(msgId, zone)
+            }
+            INTRO -> {
+                val boxKey = r.bytes(BOX_KEY_SIZE)
+                val signKey = r.bytes(SIGN_KEY_SIZE)
+                val nick = r.string(r.u8(), Limits.NICK_BYTES)
+                val signature = r.bytes(SIGNATURE_SIZE)
+                r.expectEnd()
+                Inner.Intro(msgId, boxKey, signKey, nick, signature)
             }
             else -> throw MalformedException("inner type")
         }

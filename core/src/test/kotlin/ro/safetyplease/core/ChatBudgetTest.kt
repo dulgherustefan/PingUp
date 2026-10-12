@@ -65,7 +65,8 @@ class ChatBudgetTest {
         repeat(20) { a.chat.sendText(Conversations.friend(b.nodeId), "mesaj $it") }
         advanceTimeBy(5 * 60_000L)
         val outbox = a.chatStore.value.outbox
-        assertEquals(20, outbox.size)
+        // besides the messages, A's intro is still waiting for B
+        assertEquals(20, outbox.count { !it.sealed })
         assertEquals(ChatManager.MAX_IN_FLIGHT, outbox.count { it.attempts > 0 })
         assertTrue(a.messages.count { it.status == MsgStatus.QUEUED } >= 20 - ChatManager.MAX_IN_FLIGHT)
 

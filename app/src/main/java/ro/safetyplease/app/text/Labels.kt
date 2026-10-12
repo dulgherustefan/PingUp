@@ -9,6 +9,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalResources
 import kotlinx.coroutines.delay
 import ro.safetyplease.app.R
+import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentCategory
@@ -47,6 +48,11 @@ object Labels {
 
     @StringRes
     fun urgency(severity: Int): Int = if (severity == Severity.URGENT) R.string.sev_urgent else R.string.sev_normal
+
+    /** A notice in a group means we were invited; in a friend chat, that they added us by our code. */
+    @StringRes
+    fun systemNotice(conversation: String): Int =
+        if (Conversations.isGroup(conversation)) R.string.msg_group_invite else R.string.msg_friend_added
 
     @StringRes
     fun answer(answer: Int): Int = when (answer) {

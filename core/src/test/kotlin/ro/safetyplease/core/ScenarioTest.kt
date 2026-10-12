@@ -13,6 +13,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import ro.safetyplease.core.chat.ChatManager
+import ro.safetyplease.core.crypto.ReservedNames
 import ro.safetyplease.core.crypto.StaffCrypto
 import ro.safetyplease.core.crypto.StaffPublicKeys
 import ro.safetyplease.core.crypto.testCrypto
@@ -29,6 +30,8 @@ import ro.safetyplease.core.mesh.TestClock
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCancel
 import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.Inner
+import ro.safetyplease.core.protocol.InnerCodec
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.protocol.PacketCodec
 import ro.safetyplease.core.protocol.PacketType
@@ -646,14 +649,104 @@ class ScenarioTest {
     }
 
     @Test
-    fun messagesFromNonFriendsAreDropped() = runTest {
+    fun scanningOnceMakesBothFriends() = runTest {
         val w = chain()
-        w.d.chat.addFriend(w.c.chat.myCard())
-        advanceTimeBy(2_000)
-        w.d.chat.sendText(Conversations.friend(w.c.nodeId), "salut")
-        advanceTimeBy(20_000)
+        w.a.chat.addFriend(w.c.chat.myCard())
+        advanceTimeBy(5_000)
+        val atC = w.c.friends.value.single()
+        assertEquals(w.a.nodeId, atC.nodeId)
+        assertEquals("A", atC.nickname)
+        val notice = w.c.messages.single()
+        assertEquals(MsgKind.SYSTEM, notice.kind)
+        assertEquals(Conversations.friend(w.a.nodeId), notice.conversation)
+        assertEquals(listOf(notice.msgId), w.c.incoming.map { it.msgId })
+        assertTrue("the intro was confirmed", w.a.chatStore.value.outbox.isEmpty())
+
+        w.a.chat.sendText(Conversations.friend(w.c.nodeId), "salut")
+        advanceTimeBy(5_000)
+        assertEquals("salut", w.c.messages.last().text)
+        assertEquals(MsgStatus.DELIVERED, w.a.messages.single().status)
+    }
+
+    @Test
+    fun privateMessagesFromStrangersAreDropped() = runTest {
+        val w = chain()
+        val inner = InnerCodec.encode(Inner.Text(1L, null, "salut"))
+        val boxed = testCrypto.box(inner, w.c.identity.box.publicKey, w.d.identity.box.secretKey)
+        w.d.engine.unicast(PacketType.PRIVATE, w.c.nodeId, boxed)
+        advanceTimeBy(5_000)
         assertTrue(w.c.messages.isEmpty())
-        assertEquals(MsgStatus.SENT, w.d.messages.single().status)
+        assertTrue(w.c.friends.value.isEmpty())
+    }
+
+    @Test
+    fun introCarryingSomeoneElsesKeysIsIgnored() = runTest {
+        val w = chain()
+        val a = w.a.identity
+        // A's own intro for C, sent again by D under D's nodeId
+        val signed = InnerCodec.introSignedBytes(w.c.nodeId, 9L, a.box.publicKey, a.sign.publicKey, "Mama")
+        val replay = Inner.Intro(9L, a.box.publicKey, a.sign.publicKey, "Mama", testCrypto.sign(signed, a.sign.secretKey))
+        w.d.engine.unicast(PacketType.PRIVATE, w.c.nodeId, testCrypto.seal(InnerCodec.encode(replay), w.c.identity.box.publicKey))
+        advanceTimeBy(5_000)
+        assertTrue(w.c.friends.value.isEmpty())
+        assertTrue(w.c.messages.isEmpty())
+    }
+
+    @Test
+    fun introSignedForSomeoneElseIsIgnored() = runTest {
+        val w = chain()
+        val d = w.d.identity
+        val signed = InnerCodec.introSignedBytes(w.b.nodeId, 5L, d.box.publicKey, d.sign.publicKey, "D")
+        val intro = Inner.Intro(5L, d.box.publicKey, d.sign.publicKey, "D", testCrypto.sign(signed, d.sign.secretKey))
+        w.d.engine.unicast(PacketType.PRIVATE, w.c.nodeId, testCrypto.seal(InnerCodec.encode(intro), w.c.identity.box.publicKey))
+        advanceTimeBy(5_000)
+        assertTrue(w.c.friends.value.isEmpty())
+    }
+
+    @Test
+    fun introUnderAStaffNameArrivesUnderANeutralOne() = runTest {
+        val world = World(this)
+        val fake = world.phone("Securitate")
+        val c = world.phone("C")
+        world.net.start()
+        advanceTimeBy(30_000)
+        fake.chat.addFriend(c.chat.myCard())
+        advanceTimeBy(5_000)
+        val atC = c.friends.value.single()
+        assertEquals(fake.nodeId, atC.nodeId)
+        assertFalse(atC.nickname, ReservedNames.imitatesStaff(atC.nickname))
+    }
+
+    @Test
+    fun removedFriendStaysRemovedUntilTheyScanAgain() = runTest {
+        val w = chain()
+        w.a.chat.addFriend(w.c.chat.myCard())
+        advanceTimeBy(5_000)
+        w.c.chat.removeFriend(w.a.nodeId)
+        advanceTimeBy(120_000)
+        assertTrue(w.c.friends.value.isEmpty())
+
+        w.a.chat.addFriend(w.c.chat.myCard())
+        advanceTimeBy(5_000)
+        assertEquals(listOf(w.a.nodeId), w.c.friends.value.map { it.nodeId })
+    }
+
+    @Test
+    fun blockedPersonCantAddThemselvesBack() = runTest {
+        val w = chain()
+        w.a.chat.addFriend(w.c.chat.myCard())
+        advanceTimeBy(5_000)
+        w.c.chat.block(w.a.nodeId)
+        w.a.chat.addFriend(w.c.chat.myCard())
+        advanceTimeBy(60_000)
+        assertTrue("C blocked A, so A's new intro is ignored", w.c.friends.value.isEmpty())
+
+        w.c.chat.addFriend(w.a.chat.myCard())
+        advanceTimeBy(5_000)
+        assertEquals(listOf(w.a.nodeId), w.c.friends.value.map { it.nodeId })
+        w.a.chat.sendText(Conversations.friend(w.c.nodeId), "iar suntem prieteni")
+        advanceTimeBy(5_000)
+        assertEquals("iar suntem prieteni", w.c.messages.last().text)
     }
 
     @Test
@@ -873,9 +966,11 @@ class ScenarioTest {
         a.befriend(c)
         a.chat.sendText(Conversations.friend(c.nodeId), "m-am razgandit")
         advanceTimeBy(2_000)
-        a.chat.deleteMessage(a.messages.single())
+        val deleted = a.messages.single()
+        a.chat.deleteMessage(deleted)
         assertTrue(a.messages.isEmpty())
-        assertTrue(a.chatStore.value.outbox.isEmpty())
+        // what's left is the intro, which still goes
+        assertTrue(a.chatStore.value.outbox.none { it.msgId == deleted.msgId })
         world.net.start()
         advanceTimeBy(40_000)
         assertTrue(c.messages.isEmpty())

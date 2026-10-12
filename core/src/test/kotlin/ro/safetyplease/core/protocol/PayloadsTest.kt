@@ -458,6 +458,22 @@ class PayloadsTest {
     }
 
     @Test
+    fun introRoundTripsAndFitsInASealedBox() {
+        val nick = "n".repeat(Limits.NICK_BYTES)
+        val bytes = InnerCodec.encode(Inner.Intro(8L, ByteArray(32) { 1 }, ByteArray(32) { 2 }, nick, ByteArray(64) { 3 }))
+        // sealed box: ephemeral key 32 + MAC 16
+        assertTrue("size=${bytes.size}", bytes.size + 48 <= PacketCodec.MAX_PAYLOAD)
+        val back = InnerCodec.decode(bytes) as Inner.Intro
+        assertEquals(8L, back.msgId)
+        assertArrayEquals(ByteArray(32) { 1 }, back.boxKey)
+        assertArrayEquals(ByteArray(32) { 2 }, back.signKey)
+        assertEquals(nick, back.nickname)
+        assertArrayEquals(ByteArray(64) { 3 }, back.signature)
+        assertNull("truncated signature", InnerCodec.decode(bytes.copyOf(bytes.size - 1)))
+        assertNull("trailing byte", InnerCodec.decode(bytes + 0))
+    }
+
+    @Test
     fun innerRejectsGarbage() {
         assertNull(InnerCodec.decode(ByteArray(0)))
         assertNull(InnerCodec.decode(byteArrayOf(99, 0, 0, 0, 0, 0, 0, 0, 1)))

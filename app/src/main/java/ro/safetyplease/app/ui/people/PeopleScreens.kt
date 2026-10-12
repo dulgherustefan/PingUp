@@ -115,7 +115,6 @@ import ro.safetyplease.app.ui.designsystem.ActionTile
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.Avatar
-import ro.safetyplease.app.ui.designsystem.ButtonKind
 import ro.safetyplease.app.ui.designsystem.ConfirmDialog
 import ro.safetyplease.app.ui.designsystem.GlassIconButton
 import ro.safetyplease.app.ui.designsystem.GroupDivider
@@ -306,21 +305,13 @@ fun AddFriendScreen(vm: AppViewModel) {
                     Modifier.widthIn(max = QrCardWidth).fillMaxWidth().padding(top = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    // friendship works both ways: after you scan them, they need to scan you
-                    if (success is ScanOutcome.FriendAdded) {
-                        AppButton(stringResource(R.string.add_friend_show_mine), {
-                            outcome = null
-                            lastText = ""
-                            tab = 0
-                        }, Modifier.fillMaxWidth())
-                    }
                     AppButton(stringResource(R.string.done), {
                         when (success) {
                             ScanOutcome.StaffOn -> vm.home(Tab.INCIDENTS)
                             ScanOutcome.AnchorOn, ScanOutcome.ControlOn -> vm.stack.clear()
                             else -> vm.back()
                         }
-                    }, Modifier.fillMaxWidth(), kind = if (success is ScanOutcome.FriendAdded) ButtonKind.Secondary else ButtonKind.Primary)
+                    }, Modifier.fillMaxWidth())
                 }
             } else if (tab == 0) {
                 QrBadge(code, settings.nickname, { bigCode = true }, Modifier.padding(top = 24.dp))

@@ -81,6 +81,8 @@ inner.left_group 0801020304050607081112131415161718
 inner.zone_request 090102030405060708
 # ZoneUpdate: MSG, "bar"
 inner.zone_update 0a010203040506070803626172
+# Intro: MSG, key.alice.box, key.alice.sign, "Ana", then alice's Ed25519 signature over "SP-INTRO-v1" || node.bob || MSG || key.alice.box || key.alice.sign || "Ana". It travels as crypto_box_seal to bob's box key; older phones drop it silently
+inner.intro 0b01020304050607081084f97dcc3125bdd2c3ccbe57dc872fe246539a43565830f47e6e78257b3a721ce56a48c82ff99162a14bc544612674e5d61fb9317e65d4055780fdbcb4dc3503416e61000a9f712f9a22d6572ff29ea9180f6d5da0a43741eb563f7c310e468d35bd9faf9400b8299f68e0197db386c64eb06ad725b4fae399120bb427cba391e5570f
 # PRIVATE payload: nonce e0 e1 ... f7 || crypto_box(inner.text) from alice's box key to bob's.
 private.box e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7bcc50159847f3c091d324a3c6dbd75d6137db72ae9d85fcef99d38bbe145743426c021490c4e822f631249d007
 

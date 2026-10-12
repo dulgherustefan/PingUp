@@ -103,6 +103,8 @@ data class OutboxItem(
     val lastAttemptAt: Long = 0,
     /** The recipient's box key, hex, when it is no longer in the friends or groups (we left the group). */
     val boxKey: String = "",
+    /** Our intro: sealed to the recipient's key instead of boxed, since they don't have ours yet. */
+    val sealed: Boolean = false,
 )
 
 @Serializable

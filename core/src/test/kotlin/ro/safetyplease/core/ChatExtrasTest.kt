@@ -268,6 +268,8 @@ class ChatExtrasTest {
         x.chat.addFriend(a.chat.myCard())
         w.net.start()
         advanceTimeBy(30_000)
+        // X's scan made them A's friend too; A takes them off
+        a.chat.removeFriend(x.nodeId)
         a.chat.zoneChanged("bar")
         advanceTimeBy(5_000)
 

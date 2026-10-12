@@ -10,7 +10,7 @@ A  →  B  →  C  →  D
 ## Ce poate face
 - Raportare de incidente: în doar 2 tap-uri (alegi categoria și trimiți). Poți adăuga și gravitatea, zona și o descriere, dar sunt opționale.
 - Staff-ul primește alerta, apasă „Preiau" sau „Rezolvat", iar cel care a raportat vede în ce stadiu e: se transmite → ajuns la staff → preluat → rezolvat.
-- Chat criptat cap-coadă cu prietenii, adăugați prin cod QR (se scanează amândoi). Merg și grupuri de maxim 8 persoane.
+- Chat criptat cap-coadă cu prietenii, adăugați prin cod QR: e de ajuns ca unul să-l scaneze pe celălalt. Merg și grupuri de maxim 8 persoane.
 - „Trimite zona mea" apeși pe mesaj și se deschide harta cu un pin.
 - Hartă offline, desenată local, pe baza unui fișier cu zonele evenimentului (`venue.json`).
 - Store-and-forward: dacă un telefon e offline un timp, primește raportul când revine în rețea.

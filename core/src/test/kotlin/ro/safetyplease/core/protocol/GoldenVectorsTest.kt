@@ -88,6 +88,7 @@ class GoldenVectorsTest {
         "inner.left_group" to { InnerCodec.encode(Golden.leftGroup).toHex() },
         "inner.zone_request" to { InnerCodec.encode(Golden.zoneRequest).toHex() },
         "inner.zone_update" to { InnerCodec.encode(Golden.zoneUpdate).toHex() },
+        "inner.intro" to { InnerCodec.encode(Golden.intro).toHex() },
         "private.box" to { Golden.boxed().toHex() },
         "qr.friend" to { QrCodes.encodeFriend(Golden.friendCard) },
         "qr.staff" to { QrCodes.encodeStaff(Golden.staffCard) },
@@ -261,8 +262,12 @@ class GoldenVectorsTest {
             "inner.zone" to Golden.zone, "inner.zone.plain" to Golden.plainZone, "inner.ping" to Golden.ping,
             "inner.pong" to Golden.pong, "inner.delivered" to Golden.delivered, "inner.invite" to Golden.invite,
             "inner.left_group" to Golden.leftGroup, "inner.zone_request" to Golden.zoneRequest, "inner.zone_update" to Golden.zoneUpdate,
+            "inner.intro" to Golden.intro,
         )
         for ((name, inner) in inners) assertEquals(name, inner.fields(), InnerCodec.decode(bytes(name))!!.fields())
+        val intro = InnerCodec.decode(bytes("inner.intro")) as Inner.Intro
+        val signed = InnerCodec.introSignedBytes(Golden.bob.nodeId, intro.msgId, intro.boxKey, intro.signKey, intro.nickname)
+        assertTrue("alice signed it for bob", Golden.crypto.verify(intro.signature, signed, bytes("key.alice.sign")))
 
         val opened = Golden.crypto.boxOpen(bytes("private.box"), Golden.alice.box.publicKey, Golden.bob.box.secretKey)!!
         assertArrayEquals(bytes("inner.text"), opened)
@@ -696,6 +701,10 @@ private object Golden {
     val leftGroup = Inner.LeftGroup(msgId, groupId)
     val zoneRequest = Inner.ZoneRequest(msgId)
     val zoneUpdate = Inner.ZoneUpdate(msgId, "bar")
+    val intro = Inner.Intro(
+        msgId, alice.box.publicKey, alice.sign.publicKey, "Ana",
+        crypto.sign(InnerCodec.introSignedBytes(bob.nodeId, msgId, alice.box.publicKey, alice.sign.publicKey, "Ana"), alice.sign.secretKey),
+    )
     val invite = Inner.GroupInvite(
         msgId, groupId, "Prietenii",
         listOf(
@@ -865,6 +874,7 @@ private fun Inner.fields(): List<Any?> = when (this) {
     is Inner.LeftGroup -> listOf("left_group", msgId, groupId)
     is Inner.ZoneRequest -> listOf("zone_request", msgId)
     is Inner.ZoneUpdate -> listOf("zone_update", msgId, zone)
+    is Inner.Intro -> listOf("intro", msgId, boxKey.toHex(), signKey.toHex(), nickname, signature.toHex())
     is Inner.GroupInvite ->
         listOf("invite", msgId, groupId, name, members.map { listOf(it.nodeId, it.boxKey.toHex(), it.nickname) })
 }

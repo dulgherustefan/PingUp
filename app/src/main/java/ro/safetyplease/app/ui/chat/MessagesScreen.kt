@@ -99,7 +99,7 @@ fun messagePreview(vm: AppViewModel, message: ChatMessage): String = when (messa
     MsgKind.TEXT -> message.text
     MsgKind.QUICK -> stringResource(Labels.quick(message.quickCode))
     MsgKind.ZONE -> stringResource(R.string.msg_zone, zoneLabel(vm, message))
-    MsgKind.SYSTEM -> stringResource(R.string.msg_group_invite, vm.c.chat.nameOf(message.senderId))
+    MsgKind.SYSTEM -> stringResource(Labels.systemNotice(message.conversation), vm.c.chat.nameOf(message.senderId))
     MsgKind.LEFT -> stringResource(R.string.msg_group_left, message.text)
 }
 

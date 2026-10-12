@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.Identity
+import ro.safetyplease.core.crypto.ReservedNames
 import ro.safetyplease.core.data.BlockedPerson
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.ChatStore
@@ -35,8 +36,8 @@ import ro.safetyplease.core.util.truncateUtf8
 import kotlin.random.Random
 
 /**
- * Private chat over the mesh: crypto_box envelopes, an outbox retried until DELIVERED, PING/PONG,
- * and groups by fan-out. Runs on the mesh context; public methods can be called from anywhere.
+ * Private chat over the mesh: crypto_box envelopes, an outbox retried until DELIVERED, PING/PONG, sealed intros (one
+ * scan makes both phones friends) and groups by fan-out. Runs on the mesh context; public methods can be called from anywhere.
  */
 class ChatManager(
     private val scope: CoroutineScope,
@@ -82,7 +83,7 @@ class ChatManager(
 
     /**
      * Returns false for our own code. An existing friend only gets their nickname updated. Scanning the code of
-     * someone blocked is a decision to talk to them again.
+     * someone blocked is a decision to talk to them again. Either way our card goes to them, so they have us too.
      */
     fun addFriend(card: FriendCard): Boolean {
         val nodeId = card.nodeId
@@ -93,8 +94,20 @@ class ChatManager(
             if (list.any { it.nodeId == nodeId }) list.map { if (it.nodeId == nodeId) it.copy(nickname = card.nickname) else it }
             else list + friend
         }
+        scope.launch { introduce(nodeId) }
         ping(nodeId)
         return true
+    }
+
+    /** Our card, signed for [recipient], through the outbox like a message; it replaces an intro still waiting for them. */
+    private fun introduce(recipient: Long) {
+        val msgId = newId()
+        val nick = myNickname().truncateUtf8(Limits.NICK_BYTES)
+        val box = identity.box.publicKey
+        val sign = identity.sign.publicKey
+        val signature = crypto.sign(InnerCodec.introSignedBytes(recipient, msgId, box, sign, nick), identity.sign.secretKey)
+        chat.update { data -> data.copy(outbox = data.outbox.filterNot { it.recipient == recipient && it.sealed }) }
+        enqueue(msgId, recipient, InnerCodec.encode(Inner.Intro(msgId, box, sign, nick, signature)), sealed = true)
     }
 
     fun removeFriend(nodeId: Long) {
@@ -296,8 +309,8 @@ class ChatManager(
         return null to listOf(friend.nodeId)
     }
 
-    private fun enqueue(msgId: Long, recipient: Long, inner: ByteArray, boxKey: String = "") {
-        val item = OutboxItem(msgId, recipient, inner.toHex(), clock.wallMs(), boxKey = boxKey)
+    private fun enqueue(msgId: Long, recipient: Long, inner: ByteArray, boxKey: String = "", sealed: Boolean = false) {
+        val item = OutboxItem(msgId, recipient, inner.toHex(), clock.wallMs(), boxKey = boxKey, sealed = sealed)
         chat.update { it.copy(outbox = it.outbox + item) }
         attempt(item)
     }
@@ -311,7 +324,8 @@ class ChatManager(
         if (item.attempts == 0 && chat.value.outbox.count { it.attempts > 0 } >= MAX_IN_FLIGHT) return
         val key = item.boxKey.takeIf { it.isNotEmpty() }?.hexToBytes() ?: boxKeyOf(item.recipient) ?: return
         if (!sendLimit.tryAdd(clock.monoMs())) return
-        val payload = crypto.box(item.innerHex.hexToBytes(), key, identity.box.secretKey)
+        val inner = item.innerHex.hexToBytes()
+        val payload = if (item.sealed) crypto.seal(inner, key) else crypto.box(inner, key, identity.box.secretKey)
         val packet = engine.unicast(PacketType.PRIVATE, item.recipient, payload)
         attempts[packet.id] = item.msgId to item.recipient
         while (attempts.size > 512) attempts.remove(attempts.keys.first())
@@ -393,8 +407,14 @@ class ChatManager(
     private fun onPrivate(packet: Packet) {
         val sender = packet.sender
         if (isBlocked(sender)) return
-        val key = boxKeyOf(sender) ?: return
-        val plain = crypto.boxOpen(packet.payload, key, identity.box.secretKey) ?: return
+        val plain = boxKeyOf(sender)?.let { crypto.boxOpen(packet.payload, it, identity.box.secretKey) }
+        if (plain == null) {
+            // not boxed by anyone we know: all a stranger may send is a sealed intro
+            val intro = crypto.sealOpen(packet.payload, identity.box.publicKey, identity.box.secretKey)
+                ?.let(InnerCodec::decode) as? Inner.Intro
+            if (intro != null) onIntro(packet, intro)
+            return
+        }
         val inner = InnerCodec.decode(plain) ?: return
         touch(sender, packet.hops)
         when (inner) {
@@ -410,6 +430,8 @@ class ChatManager(
                 sendDirect(sender, Inner.ZoneUpdate(newId(), myZone))
             }
             is Inner.ZoneUpdate -> setLastZone(sender, inner.zone)
+            // an intro only ever comes sealed
+            is Inner.Intro -> Unit
         }
     }
 
@@ -444,6 +466,34 @@ class ChatManager(
         chat.update { it.copy(messages = (it.messages + message).takeLast(MAX_MESSAGES)) }
         if (kind == MsgKind.ZONE && groupId == null) setLastZone(sender, zone)
         onIncoming(message, nameOf(sender))
+    }
+
+    /**
+     * Someone scanned our code. The keys must be the sender's and the signature made for us; then the sender is a
+     * friend, under a neutral name if theirs passes for staff, since nothing in an intro proves it.
+     */
+    private fun onIntro(packet: Packet, intro: Inner.Intro) {
+        val sender = packet.sender
+        if (Identity.nodeIdOf(intro.signKey, intro.boxKey) != sender) return
+        val signed = InnerCodec.introSignedBytes(identity.nodeId, intro.msgId, intro.boxKey, intro.signKey, intro.nickname)
+        if (!crypto.verify(intro.signature, signed, intro.signKey)) return
+        val known = isFriend(sender)
+        val staffName = ReservedNames.imitatesStaff(intro.nickname)
+        val nickname = if (staffName) sender.toHex().take(8) else intro.nickname
+        val now = clock.wallMs()
+        friends.update { list ->
+            if (known) list.map { if (it.nodeId == sender && !staffName) it.copy(nickname = nickname) else it }
+            else list + Friend(sender, nickname, intro.boxKey.toHex(), intro.signKey.toHex(), now)
+        }
+        touch(sender, packet.hops)
+        confirm(sender, intro.msgId)
+        if (known) return
+        val notice = ChatMessage(
+            msgId = intro.msgId, conversation = Conversations.friend(sender), senderId = sender, fromMe = false,
+            kind = MsgKind.SYSTEM, timeMs = now, status = MsgStatus.RECEIVED, read = false,
+        )
+        chat.update { it.copy(messages = (it.messages + notice).takeLast(MAX_MESSAGES)) }
+        onIncoming(notice, nickname)
     }
 
     private fun setLastZone(sender: Long, zone: String) {

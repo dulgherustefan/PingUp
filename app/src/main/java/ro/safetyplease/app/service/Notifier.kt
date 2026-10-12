@@ -254,7 +254,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             MsgKind.TEXT -> message.text
             MsgKind.QUICK -> context.getString(Labels.quick(message.quickCode))
             MsgKind.ZONE -> context.getString(R.string.msg_zone, venue.zoneName(message.zone))
-            MsgKind.SYSTEM -> context.getString(R.string.msg_group_invite, senderName)
+            MsgKind.SYSTEM -> context.getString(Labels.systemNotice(message.conversation), senderName)
             MsgKind.LEFT -> context.getString(R.string.msg_group_left, message.text)
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_CHAT)
