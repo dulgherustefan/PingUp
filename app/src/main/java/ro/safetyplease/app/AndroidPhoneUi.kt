@@ -12,8 +12,10 @@ import okio.Path
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.platform.power.BatteryExemption
 import ro.safetyplease.app.platform.share.ShareSheet
+import ro.safetyplease.app.platform.torch.CameraTorch
 import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.ui.PhoneUi
+import ro.safetyplease.ui.common.Torch
 
 /**
  * What the screens need from an Android phone: the mesh service, permissions, GPS, the system's own screens. It lives
@@ -55,6 +57,8 @@ class AndroidPhoneUi(private val app: Application, private val container: AppCon
     }
 
     override fun shareFiles(files: List<Path>, onShared: (() -> Unit)?) = open(ShareSheet.intent(app, files.map(Path::toFile), onShared))
+
+    override fun torch(): Torch = CameraTorch(app)
 
     override fun batteryHintNeeded(): Boolean = BatteryExemption.hintNeeded(app)
 

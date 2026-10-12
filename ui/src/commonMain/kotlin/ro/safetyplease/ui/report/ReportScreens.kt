@@ -1,8 +1,5 @@
-package ro.safetyplease.app.ui.report
+package ro.safetyplease.ui.report
 
-import android.content.Intent
-import android.provider.Settings
-import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -61,9 +58,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -78,14 +73,6 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.Emergency
-import ro.safetyplease.app.platform.torch.Torch
-import ro.safetyplease.app.text.quantityText
-import ro.safetyplease.app.text.text
-import ro.safetyplease.ui.common.RadioProblemBanner
-import ro.safetyplease.ui.common.placeLine
-import ro.safetyplease.ui.rememberLocationRequest
-import ro.safetyplease.ui.rememberRadioGate
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.incidents.ESCALATE_AFTER_MS
 import ro.safetyplease.core.incidents.IncidentManager
@@ -111,8 +98,10 @@ import ro.safetyplease.ui.common.CategoryCircle
 import ro.safetyplease.ui.common.IncidentHeader
 import ro.safetyplease.ui.common.MapGlyph
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.RadioProblemBanner
 import ro.safetyplease.ui.common.categoryIcon
 import ro.safetyplease.ui.common.helpOrigin
+import ro.safetyplease.ui.common.placeLine
 import ro.safetyplease.ui.common.routeText
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppDialog
@@ -149,6 +138,8 @@ import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
 import ro.safetyplease.ui.isOpen
 import ro.safetyplease.ui.pickedZoneAge
+import ro.safetyplease.ui.rememberLocationRequest
+import ro.safetyplease.ui.rememberRadioGate
 import ro.safetyplease.ui.report.MEDICAL
 import ro.safetyplease.ui.report.reportStep
 import ro.safetyplease.ui.report.staysPut
@@ -272,7 +263,9 @@ import ro.safetyplease.ui.resources.torch_on
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.Replies
 import ro.safetyplease.ui.text.agoText
+import ro.safetyplease.ui.text.fill
 import ro.safetyplease.ui.text.rememberNow
+import ro.safetyplease.ui.text.wallNowMs
 
 /** A lost child is always urgent and a lost friend never is, so neither offers the urgent switch. */
 private fun hasFixedUrgency(category: Int): Boolean =
@@ -307,7 +300,7 @@ private fun CategoryChip(icon: ImageVector, label: String, selected: Boolean, on
 }
 
 /** Two columns while every word of every label fits on one line of a button; otherwise one. */
-internal fun categoryColumns(widestWordPx: Int, roomPerColumnPx: Int): Int = if (widestWordPx <= roomPerColumnPx) 2 else 1
+fun categoryColumns(widestWordPx: Int, roomPerColumnPx: Int): Int = if (widestWordPx <= roomPerColumnPx) 2 else 1
 
 /** What a category button takes besides its label: padding, icon and the space after it. */
 private val ChipChrome = 12.dp * 2 + 20.dp + 10.dp
@@ -662,7 +655,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         stringResource(Res.string.report_not_112), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                         modifier = Modifier.weight(1f).padding(end = 12.dp),
                     )
-                    Call112Button(compact = true)
+                    Call112Button(vm.phone::dial112, compact = true)
                 }
             }
             if (waitMs > 0) {
@@ -751,22 +744,21 @@ private fun ZoneOption(name: String, selected: Boolean, onClick: () -> Unit) {
  */
 @Composable
 private fun LocationRow(vm: AppViewModel, spot: ReportSpot?, check: Int, onAllow: () -> Unit) {
-    val context = LocalContext.current
-    val res = LocalResources.current
+    val gps = stringResource(Res.string.report_location_gps)
+    val near = stringResource(Res.string.place_near)
+    val accuracy = stringResource(Res.string.place_accuracy)
     val permitted = remember(check) { vm.phone.locationAllowed() }
     val gpsOn = remember(check) { vm.phone.locationOn() }
     val row: Pair<String, (() -> Unit)?> = when {
         spot != null -> {
             val zone = vm.venue.zoneAt(spot.point.lat, spot.point.lon)?.name.orEmpty()
             val landmark = spot.landmark?.name.orEmpty()
-            val where = zone.ifEmpty { if (landmark.isEmpty()) res.text(Res.string.report_location_gps) else "" }
-            val line = placeLine(
-                where, landmark, spot.accuracyM, { res.text(Res.string.place_near, it) }, { res.text(Res.string.place_accuracy, it) },
-            )
+            val where = zone.ifEmpty { if (landmark.isEmpty()) gps else "" }
+            val line = placeLine(where, landmark, spot.accuracyM, { near.fill(it) }, { accuracy.fill(it) })
             line.replaceFirstChar { it.uppercase() } to null
         }
         !permitted -> stringResource(if (vm.locationBlocked) Res.string.report_location_blocked else Res.string.report_location_missing) to onAllow
-        !gpsOn -> stringResource(Res.string.report_location_gps_off) to { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+        !gpsOn -> stringResource(Res.string.report_location_gps_off) to vm.phone::openLocationSettings
         else -> stringResource(Res.string.report_location_searching) to null
     }
     val (subtitle, onClick) = row
@@ -823,10 +815,9 @@ private fun stepName(step: Int, report: MyReport): String = stepLabel(step, repo
 
 /** Opens the dialer with 112 filled in; the person places the call. */
 @Composable
-private fun Call112Button(modifier: Modifier = Modifier, compact: Boolean = false) {
-    val context = LocalContext.current
+private fun Call112Button(onCall: () -> Unit, modifier: Modifier = Modifier, compact: Boolean = false) {
     AppButton(
-        stringResource(Res.string.emergency_call), { Emergency.dial(context) }, modifier, ButtonKind.Secondary,
+        stringResource(Res.string.emergency_call), onCall, modifier, ButtonKind.Secondary,
         compact = compact, icon = Sym.Phone,
     )
 }
@@ -960,7 +951,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
                     )
                 }
                 val stayPut = staysPut(report, escalated)
-                if (stayPut) StayPutBanner(Modifier.padding(start = Gutter, end = Gutter, top = 20.dp))
+                if (stayPut) StayPutBanner(vm, Modifier.padding(start = Gutter, end = Gutter, top = 20.dp))
                 if (lostFriend && !withdrawn) {
                     MeetingSteps(vm, helpOrigin(position, report, settings.manualZone, vm.venue))
                 } else if (waiting || escalated) {
@@ -980,7 +971,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
         FloatingFooter(LocalBottomClearance.current, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
             // the call button keeps its full label; Done takes the rest of the row
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Call112Button()
+                Call112Button(vm.phone::dial112)
                 AppButton(stringResource(Res.string.done), { vm.back() }, Modifier.weight(1f))
             }
             if (report.isOpen()) {
@@ -1005,10 +996,10 @@ private enum class Confirm { CANCEL, DELETE }
 @Composable
 private fun rememberEscalated(report: MyReport): Boolean {
     val at = escalationAt(report)
-    val escalated by produceState(report.needsEscalation(System.currentTimeMillis()), at) {
-        value = at != null && System.currentTimeMillis() >= at
+    val escalated by produceState(report.needsEscalation(wallNowMs()), at) {
+        value = at != null && wallNowMs() >= at
         if (at != null && !value) {
-            delay(at - System.currentTimeMillis())
+            delay(at - wallNowMs())
             value = true
         }
     }
@@ -1017,9 +1008,9 @@ private fun rememberEscalated(report: MyReport): Boolean {
 
 /** Stay where the team will look for you, with the phone's torch to be seen; the torch goes out with the banner. */
 @Composable
-private fun StayPutBanner(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val torch = remember(context) { Torch(context.applicationContext) }
+private fun StayPutBanner(vm: AppViewModel, modifier: Modifier = Modifier) {
+    val torch = remember { vm.phone.torch() }
+    val failed = stringResource(Res.string.torch_failed)
     val lit by torch.on.collectAsStateWithLifecycle()
     DisposableEffect(torch) {
         torch.watch()
@@ -1028,7 +1019,7 @@ private fun StayPutBanner(modifier: Modifier = Modifier) {
     Banner(
         stringResource(Res.string.report_stay_title), stringResource(Res.string.report_stay_text), modifier,
         action = if (torch.available) stringResource(if (lit) Res.string.torch_off else Res.string.torch_on) else null,
-        onAction = { if (!torch.set(!lit)) Toast.makeText(context, context.text(Res.string.torch_failed), Toast.LENGTH_LONG).show() },
+        onAction = { if (!torch.set(!lit)) vm.phone.toast(failed, long = true) },
     )
 }
 
@@ -1038,7 +1029,6 @@ private fun StayPutBanner(modifier: Modifier = Modifier) {
  */
 @Composable
 private fun HelpSteps(vm: AppViewModel, origin: GeoPoint?, stay: Boolean) {
-    val context = LocalContext.current
     val medical = vm.venue.nearest(MEDICAL, origin)
     SectionTitle(stringResource(Res.string.report_help_title))
     InsetGroup {
@@ -1070,7 +1060,7 @@ private fun HelpSteps(vm: AppViewModel, origin: GeoPoint?, stay: Boolean) {
         GroupDivider()
         GroupRow(
             stringResource(Res.string.emergency_call), subtitle = stringResource(Res.string.report_help_call_text), icon = Sym.Phone,
-            onClick = { Emergency.dial(context) },
+            onClick = vm.phone::dial112,
         )
     }
 }
@@ -1095,14 +1085,13 @@ private fun MeetingSteps(vm: AppViewModel, origin: GeoPoint?) {
 /** The organisers' answers, newest first; the way to the medical point opens the map. */
 @Composable
 private fun Responses(vm: AppViewModel, report: MyReport) {
-    val res = LocalResources.current
     SectionTitle(stringResource(Res.string.report_responses_title))
     InsetGroup {
         report.responses.asReversed().forEachIndexed { i, r ->
             if (i > 0) GroupDivider()
             val medical = r.code == ResponseCode.GO_TO_MEDICAL
             GroupRow(
-                res.text(Replies.response(r.code), Replies.landmarkName(vm.venue, r.landmark)), subtitle = Labels.clock(r.receivedAt),
+                stringResource(Replies.response(r.code), Replies.landmarkName(vm.venue, r.landmark)), subtitle = Labels.clock(r.receivedAt),
                 icon = if (medical) Sym.Medical else Sym.Chat, chevron = medical,
                 onClick = if (medical) ({ vm.open(Dest.Map(spot = MEDICAL)) }) else null,
             )

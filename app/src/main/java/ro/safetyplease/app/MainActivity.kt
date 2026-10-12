@@ -12,7 +12,7 @@ import androidx.activity.viewModels
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ro.safetyplease.app.demo.Demo
-import ro.safetyplease.app.ui.AppRoot
+import ro.safetyplease.ui.AppRoot
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.OpenTarget
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
         // on recreation (rotation, theme, font size) the launch intent was already handled
         if (savedInstanceState == null) intent?.getStringExtra(EXTRA_OPEN)?.let(vm::openTarget)
         setContent {
-            AppTheme { AppRoot(vm, onStartMesh = ::startMesh) }
+            AppTheme { AppRoot(vm, onStartMesh = ::startMesh) { Demo.Screen(vm) } }
         }
     }
 

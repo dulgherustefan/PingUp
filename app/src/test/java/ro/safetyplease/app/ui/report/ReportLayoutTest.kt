@@ -1,5 +1,6 @@
 package ro.safetyplease.app.ui.report
 
+import ro.safetyplease.ui.report.categoryColumns
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

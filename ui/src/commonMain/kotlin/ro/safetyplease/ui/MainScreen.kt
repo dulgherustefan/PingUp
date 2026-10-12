@@ -1,20 +1,6 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.ui
 
-import android.Manifest
-import android.app.Activity
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
-import android.content.Context
-import android.content.Intent
-import android.location.LocationManager
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
-import android.widget.Toast
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.LocalActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import ro.safetyplease.ui.common.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.animateColorAsState
@@ -67,7 +53,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -76,19 +61,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
-import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.demo.Demo
-import ro.safetyplease.app.text.text
 import ro.safetyplease.ui.control.ControlScreen
-import ro.safetyplease.app.ui.report.MyReportsScreen
-import ro.safetyplease.app.ui.report.ReportScreen
-import ro.safetyplease.app.ui.report.ReportSentScreen
+import ro.safetyplease.ui.report.MyReportsScreen
+import ro.safetyplease.ui.report.ReportScreen
+import ro.safetyplease.ui.report.ReportSentScreen
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
@@ -154,8 +135,9 @@ import ro.safetyplease.core.data.Role as AppRole
 /** Screens that slide up as sheets; the rest push in from the right. */
 private fun Dest?.isSheet() = this == Dest.Me || this == Dest.AddFriend || this == Dest.NewGroup
 
+/** Every screen of the app; [demo] is the screen of the test tools, in a build that has them. */
 @Composable
-fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
+fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> Unit = {}) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val battery by vm.c.battery.state.collectAsStateWithLifecycle()
     val textOnly = PowerPolicy.textOnly(battery.percent, battery.charging)
@@ -187,7 +169,7 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
                 NoticeBands(vm, bands, statusBar = !vm.c.exercise)
                 Box(Modifier.weight(1f).then(if (topTaken) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
                     CompositionLocalProvider(LocalStatusBarTop provides if (topTaken) 0.dp else null) {
-                        Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce)
+                        Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce, demo)
                     }
                 }
             }
@@ -197,7 +179,15 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
 }
 
 @Composable
-private fun Screens(vm: AppViewModel, onboarded: Boolean, role: AppRole, onStartMesh: () -> Unit, holder: SaveableStateHolder, reduce: Boolean) {
+private fun Screens(
+    vm: AppViewModel,
+    onboarded: Boolean,
+    role: AppRole,
+    onStartMesh: () -> Unit,
+    holder: SaveableStateHolder,
+    reduce: Boolean,
+    demo: @Composable () -> Unit,
+) {
     Box(Modifier.fillMaxSize()) {
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         if (!onboarded) OnboardingScreen(vm, onStartMesh)
@@ -211,7 +201,7 @@ private fun Screens(vm: AppViewModel, onboarded: Boolean, role: AppRole, onStart
         ) { (size, dest) ->
             holder.SaveableStateProvider(entryKey(size, dest)) {
                 CompositionLocalProvider(LocalBottomClearance provides navBottom) {
-                    Screen(vm, dest, role, onStartMesh)
+                    Screen(vm, dest, role, onStartMesh, demo)
                 }
             }
         }
@@ -222,7 +212,7 @@ private fun Screens(vm: AppViewModel, onboarded: Boolean, role: AppRole, onStart
 private fun entryKey(size: Int, dest: Dest?): String = if (dest == null) "root" else "$size:$dest"
 
 @Composable
-private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: () -> Unit) {
+private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: () -> Unit, demo: @Composable () -> Unit) {
     when (dest) {
         is Dest.Conversation -> ConversationScreen(vm, dest.id)
         is Dest.Profile -> ProfileScreen(vm, dest.conversation)
@@ -238,7 +228,7 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         Dest.Me -> MeScreen(vm, onStartMesh)
         Dest.Privacy -> PrivacyScreen(vm)
         Dest.Event -> EventScreen(vm)
-        Dest.Demo -> Demo.Screen(vm)
+        Dest.Demo -> demo()
         is Dest.Pin -> PinScreen(vm, dest)
         is Dest.Map -> MapScreen(vm, dest)
         Dest.FirstAid -> FirstAidScreen(vm)

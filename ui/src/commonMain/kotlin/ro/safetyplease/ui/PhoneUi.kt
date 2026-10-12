@@ -2,6 +2,7 @@ package ro.safetyplease.ui
 
 import okio.Path
 import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.common.Torch
 
 /**
  * What the screens need from the phone itself, past what the session gives: the Android app and the iPhone app each
@@ -44,6 +45,9 @@ interface PhoneUi {
 
     /** The share sheet for [files]; [onShared] once the person picked where they go, never when they back out. */
     fun shareFiles(files: List<Path>, onShared: (() -> Unit)? = null)
+
+    /** The flash as a torch, followed only while the screen that shows it is up. */
+    fun torch(): Torch
 
     /** The phone's maker stops apps like this one in the background unless the person exempts it. */
     fun batteryHintNeeded(): Boolean
