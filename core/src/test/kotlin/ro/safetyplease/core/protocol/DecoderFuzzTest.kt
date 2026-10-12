@@ -65,7 +65,8 @@ class DecoderFuzzTest {
             "cancel", { IncidentCancel(nextBytes(16), nextBytes(16)) }, IncidentCancel::encode, { IncidentCancel.decode(it) },
             tolerant = true,
         ),
-        Codec("inner", { inner() }, InnerCodec::encode, InnerCodec::decode, ::stringsOf),
+        // a position drops the reserved bits of its flags
+        Codec("inner", { inner() }, InnerCodec::encode, InnerCodec::decode, ::stringsOf, tolerant = true),
         Codec("certificate", { certificate() }, Certificate::encode, { Certificate.decode(it) }, { listOf(it.name) }),
         Codec(
             "revocation", { Revocation(nextLong(), nextLong(0, 1L shl 32), List(nextInt(1, Revocation.MAX_IDS + 1)) { nextLong() }, nextBytes(64)) },
@@ -436,7 +437,7 @@ private fun Random.pointStatus() = PointStatus(
 private fun Random.inner(): Inner {
     val msgId = nextLong()
     val group = if (nextBoolean()) nextLong() else null
-    return when (nextInt(10)) {
+    return when (nextInt(12)) {
         0 -> Inner.Text(msgId, group, text(Limits.TEXT_BYTES))
         1 -> Inner.Quick(msgId, group, QuickCode.all.random(this))
         2 -> if (nextBoolean()) Inner.Zone(msgId, group, text(Limits.ZONE_BYTES), coordinate(90), coordinate(180))
@@ -447,6 +448,11 @@ private fun Random.inner(): Inner {
         6 -> Inner.LeftGroup(msgId, nextLong())
         7 -> Inner.ZoneRequest(msgId)
         8 -> Inner.ZoneUpdate(msgId, text(Limits.ZONE_BYTES).ifEmpty { "z" })
+        9 -> Inner.Position(
+            if (nextBoolean()) PositionPoint.Grid(nextInt(4096), nextInt(4096)) else PositionPoint.Absolute(coordinate(90), coordinate(180)),
+            nextInt(8), nextInt(4), nextInt(0x10000), nextInt(256), nextInt(256), nextInt(256),
+        )
+        10 -> Inner.ShareSession(nextInt(ShareAction.START, ShareAction.ACCEPT + 1), nextInt(0x10000), nextInt(3), nextInt(256))
         else -> Inner.GroupInvite(
             msgId, nextLong(), text(Limits.GROUP_NAME_BYTES),
             List(nextInt(0, Limits.GROUP_MAX_MEMBERS - 1)) { GroupMemberWire(nextLong(), nextBytes(32), text(Limits.GROUP_NICK_BYTES)) },
@@ -478,7 +484,7 @@ private fun stringsOf(inner: Inner): List<String> = when (inner) {
 /** One of: random bytes, bit flips, truncation, trailing bytes, a boundary value (often a length), a cut or an insert. */
 private fun Random.mutate(valid: ByteArray): ByteArray {
     if (valid.isEmpty()) return nextBytes(nextInt(0, 64))
-    return when (nextInt(10)) {
+    return when (nextInt(12)) {
         0 -> nextBytes(nextInt(0, valid.size + 64))
         1 -> valid.clone().also { b ->
             repeat(nextInt(1, 9)) {

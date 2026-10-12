@@ -4,11 +4,13 @@ import kotlinx.coroutines.channels.Channel
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
 
-class Outbound(val packet: Packet, val own: Boolean)
+/** [position]: one of this phone's shared positions (P2), which relays can't tell from chat; it goes last. */
+class Outbound(val packet: Packet, val own: Boolean, val position: Boolean = false)
 
 /**
- * Per-link send queue. Incidents always go before chat; when full, the least important item is dropped first.
- * [onFull] runs once for every item lost that way, refused or evicted. Not thread-safe: used only from the mesh context.
+ * Per-link send queue. Incidents always go before chat; when full, the least important item is dropped first, and
+ * positions are the least important of all. [onFull] runs once for every item lost that way, refused or evicted.
+ * Not thread-safe: used only from the mesh context.
  */
 class SendQueue(private val capacity: Int = 128, private val onFull: () -> Unit = {}) {
     private val levels = Array(LEVELS) { ArrayDeque<Outbound>() }
@@ -17,7 +19,7 @@ class SendQueue(private val capacity: Int = 128, private val onFull: () -> Unit 
         private set
 
     fun offer(item: Outbound): Boolean {
-        val level = priorityOf(item.packet.type)
+        val level = if (item.position) POSITION_LEVEL else priorityOf(item.packet.type)
         if (size >= capacity) {
             onFull()
             val victim = (LEVELS - 1 downTo level + 1).firstOrNull { levels[it].isNotEmpty() } ?: return false
@@ -47,11 +49,12 @@ class SendQueue(private val capacity: Int = 128, private val onFull: () -> Unit 
     }
 
     companion object {
-        private const val LEVELS = 6
+        private const val LEVELS = 7
+        private const val POSITION_LEVEL = LEVELS - 1
 
         /**
          * SUMMARY and REQUEST carry store-and-forward, so chat load must not push them out. Types this version only
-         * relays go last, except the one reserved for organiser announcements, which goes with reports.
+         * relays go last but for positions, except the one reserved for organiser announcements, which goes with reports.
          */
         fun priorityOf(type: Int): Int = when (type) {
             PacketType.HELLO -> 0

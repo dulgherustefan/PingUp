@@ -88,6 +88,9 @@ class GoldenVectorsTest {
         "inner.left_group" to { InnerCodec.encode(Golden.leftGroup).toHex() },
         "inner.zone_request" to { InnerCodec.encode(Golden.zoneRequest).toHex() },
         "inner.zone_update" to { InnerCodec.encode(Golden.zoneUpdate).toHex() },
+        "inner.position" to { InnerCodec.encode(Golden.position).toHex() },
+        "inner.position.absolute" to { InnerCodec.encode(Golden.absolutePosition).toHex() },
+        "inner.share_session" to { InnerCodec.encode(Golden.shareSession).toHex() },
         "private.box" to { Golden.boxed().toHex() },
         "qr.friend" to { QrCodes.encodeFriend(Golden.friendCard) },
         "qr.staff" to { QrCodes.encodeStaff(Golden.staffCard) },
@@ -261,6 +264,8 @@ class GoldenVectorsTest {
             "inner.zone" to Golden.zone, "inner.zone.plain" to Golden.plainZone, "inner.ping" to Golden.ping,
             "inner.pong" to Golden.pong, "inner.delivered" to Golden.delivered, "inner.invite" to Golden.invite,
             "inner.left_group" to Golden.leftGroup, "inner.zone_request" to Golden.zoneRequest, "inner.zone_update" to Golden.zoneUpdate,
+            "inner.position" to Golden.position, "inner.position.absolute" to Golden.absolutePosition,
+            "inner.share_session" to Golden.shareSession,
         )
         for ((name, inner) in inners) assertEquals(name, inner.fields(), InnerCodec.decode(bytes(name))!!.fields())
 
@@ -696,6 +701,11 @@ private object Golden {
     val leftGroup = Inner.LeftGroup(msgId, groupId)
     val zoneRequest = Inner.ZoneRequest(msgId)
     val zoneUpdate = Inner.ZoneUpdate(msgId, "bar")
+    val position = Inner.Position(PositionPoint.Grid(1234, 567), 1, PositionMethod.GNSS, 600, 7, 1, 64)
+    val absolutePosition = Inner.Position(
+        PositionPoint.Absolute(-22.951916, -43.210487), 4, PositionMethod.MANUAL_PIN, 0xFFFF, 0xFF, NextUpdate.ON_REQUEST, Heading.UNKNOWN,
+    )
+    val shareSession = Inner.ShareSession(ShareAction.START, 90, SharePrecision.APPROXIMATE, 3)
     val invite = Inner.GroupInvite(
         msgId, groupId, "Prietenii",
         listOf(
@@ -865,6 +875,8 @@ private fun Inner.fields(): List<Any?> = when (this) {
     is Inner.LeftGroup -> listOf("left_group", msgId, groupId)
     is Inner.ZoneRequest -> listOf("zone_request", msgId)
     is Inner.ZoneUpdate -> listOf("zone_update", msgId, zone)
+    is Inner.Position -> listOf("position", point, accuracy, method, fixMinute, seq, nextUpdate, heading)
+    is Inner.ShareSession -> listOf("share_session", action, durationMin, precision, seq)
     is Inner.GroupInvite ->
         listOf("invite", msgId, groupId, name, members.map { listOf(it.nodeId, it.boxKey.toHex(), it.nickname) })
 }

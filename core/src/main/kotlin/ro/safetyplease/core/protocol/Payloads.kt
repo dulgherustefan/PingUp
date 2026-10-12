@@ -848,37 +848,148 @@ object QuickCode {
 
 class GroupMemberWire(val nodeId: Long, val boxKey: ByteArray, val nickname: String)
 
-/** The message inside a PRIVATE envelope. [msgId] identifies it across retransmissions. */
+/**
+ * The message inside a PRIVATE envelope. Most kinds carry a msgId that identifies them across retransmissions;
+ * [Position] and [ShareSession] (1.1) are never retried or confirmed, so they have none.
+ */
 sealed interface Inner {
-    val msgId: Long
-
-    class Text(override val msgId: Long, val groupId: Long?, val text: String) : Inner
-    class Quick(override val msgId: Long, val groupId: Long?, val code: Int) : Inner
+    class Text(val msgId: Long, val groupId: Long?, val text: String) : Inner
+    class Quick(val msgId: Long, val groupId: Long?, val code: Int) : Inner
     class Zone(
-        override val msgId: Long,
+        val msgId: Long,
         val groupId: Long?,
         val zone: String,
         val lat: Double?,
         val lon: Double?,
     ) : Inner
-    class Ping(override val msgId: Long) : Inner
-    class Pong(override val msgId: Long, val pingId: Long) : Inner
-    class Delivered(override val msgId: Long, val deliveredId: Long) : Inner
+    class Ping(val msgId: Long) : Inner
+    class Pong(val msgId: Long, val pingId: Long) : Inner
+    class Delivered(val msgId: Long, val deliveredId: Long) : Inner
     class GroupInvite(
-        override val msgId: Long,
+        val msgId: Long,
         val groupId: Long,
         val name: String,
         val members: List<GroupMemberWire>,
     ) : Inner
 
     /** The sender left the group [groupId]. */
-    class LeftGroup(override val msgId: Long, val groupId: Long) : Inner
+    class LeftGroup(val msgId: Long, val groupId: Long) : Inner
 
-    /** "Where are you?": a friend asks for the sender's zone. */
-    class ZoneRequest(override val msgId: Long) : Inner
+    /** "Where are you?": a friend asks for the sender's zone, or for their position from a phone that reads it. */
+    class ZoneRequest(val msgId: Long) : Inner
 
     /** The sender's zone, for a friend's list: not a chat message, and never repeated on a timer. */
-    class ZoneUpdate(override val msgId: Long, val zone: String) : Inner
+    class ZoneUpdate(val msgId: Long, val zone: String) : Inner
+
+    /**
+     * Where the sender is (1.1). [fixMinute] counts minutes from the event's day start, modulo 2^16; the other codes
+     * are those of [AccuracyClass], [PositionMethod], [NextUpdate] and [Heading]. Reserved flag bits are dropped.
+     */
+    class Position(
+        val point: PositionPoint,
+        val accuracy: Int,
+        val method: Int,
+        val fixMinute: Int,
+        val seq: Int,
+        val nextUpdate: Int,
+        val heading: Int,
+    ) : Inner {
+        init {
+            require(accuracy in 0..AccuracyClass.UNKNOWN && method in 0..PositionMethod.UNKNOWN)
+            require(fixMinute in 0..0xFFFF && seq in 0..0xFF && nextUpdate in 0..0xFF && heading in 0..0xFF)
+        }
+    }
+
+    /** The sender starts, stops or renews sharing their position with the recipient (1.1); see [ShareAction]. */
+    class ShareSession(val action: Int, val durationMin: Int, val precision: Int, val seq: Int) : Inner {
+        init {
+            require(action in ShareAction.START..ShareAction.ACCEPT && precision in SharePrecision.EXACT..SharePrecision.ZONE)
+            require(durationMin in 0..0xFFFF && seq in 0..0xFF)
+        }
+    }
+}
+
+/** Where an [Inner.Position] puts the sender: metres in the event's grid box, or micro-degrees outside it. */
+sealed interface PositionPoint {
+    data class Grid(val x: Int, val y: Int) : PositionPoint {
+        init {
+            require(x in 0 until GRID_SIZE && y in 0 until GRID_SIZE)
+        }
+    }
+
+    data class Absolute(val lat: Double, val lon: Double) : PositionPoint
+
+    companion object {
+        /** 12 bits a side, one metre each. */
+        const val GRID_SIZE = 4096
+    }
+}
+
+/** How far off a shared position may be, in the eight classes of a 3-bit field. */
+object AccuracyClass {
+    const val OVER_200 = 6
+    const val UNKNOWN = 7
+    private val LIMITS = intArrayOf(5, 10, 20, 50, 100, 200)
+
+    fun of(meters: Double?): Int {
+        if (meters == null || meters.isNaN() || meters <= 0.0) return UNKNOWN
+        val index = LIMITS.indexOfFirst { meters <= it }
+        return if (index < 0) OVER_200 else index
+    }
+
+    /** The largest radius the class stands for; null past 200 m or when unknown. */
+    fun meters(code: Int): Int? = LIMITS.getOrNull(code)
+}
+
+object PositionMethod {
+    const val GNSS = 0
+    const val MANUAL_PIN = 1
+    const val ZONE_ONLY = 2
+    const val UNKNOWN = 3
+}
+
+/** When the sender expects to send again, so a quiet friend shows as stationary, not lost. Codes above 7 read as unknown. */
+object NextUpdate {
+    const val ON_REQUEST = 5
+    const val SESSION_ENDED = 6
+    const val UNKNOWN = 7
+    private val MINUTES = intArrayOf(1, 2, 5, 10, 15)
+
+    /** The smallest class that covers [intervalMs]; unknown past 15 minutes. */
+    fun of(intervalMs: Long): Int {
+        val index = MINUTES.indexOfFirst { intervalMs <= it * 60_000L }
+        return if (index < 0) UNKNOWN else index
+    }
+
+    fun ms(code: Int): Long? = MINUTES.getOrNull(code)?.let { it * 60_000L }
+}
+
+/** Course over ground in one byte: 0..254 spread over the circle, 255 unknown. */
+object Heading {
+    const val UNKNOWN = 255
+
+    fun of(degrees: Double?): Int {
+        if (degrees == null || degrees.isNaN()) return UNKNOWN
+        val normal = ((degrees % 360) + 360) % 360
+        return (normal * UNKNOWN / 360).roundToInt() % UNKNOWN
+    }
+
+    fun degrees(code: Int): Int? = if (code in 0 until UNKNOWN) (code * 360.0 / UNKNOWN).roundToInt() else null
+}
+
+object ShareAction {
+    const val START = 1
+    const val STOP = 2
+    const val RENEW = 3
+
+    /** The recipient's answer to START: its phone reads positions, so the sharer sends them instead of the zone. */
+    const val ACCEPT = 4
+}
+
+object SharePrecision {
+    const val EXACT = 0
+    const val APPROXIMATE = 1
+    const val ZONE = 2
 }
 
 object InnerCodec {
@@ -892,10 +1003,16 @@ object InnerCodec {
     private const val LEFT_GROUP = 8
     private const val ZONE_REQUEST = 9
     private const val ZONE_UPDATE = 10
+    private const val POSITION = 11
+    private const val SHARE_SESSION = 12
 
     private const val FLAG_GROUP = 0x01
     private const val FLAG_COORDS = 0x02
     const val BOX_KEY_SIZE = 32
+
+    private const val POSITION_ABSOLUTE = 0x01
+    private const val ACCURACY_SHIFT = 1
+    private const val METHOD_SHIFT = 4
 
     fun encode(inner: Inner): ByteArray {
         val w = WireWriter()
@@ -936,6 +1053,19 @@ object InnerCodec {
                 require(zone.size in 1..Limits.ZONE_BYTES)
                 w.u8(ZONE_UPDATE).i64(inner.msgId).u8(zone.size).bytes(zone)
             }
+            is Inner.Position -> {
+                val point = inner.point
+                val absolute = if (point is PositionPoint.Absolute) POSITION_ABSOLUTE else 0
+                val flags = absolute or (inner.accuracy shl ACCURACY_SHIFT) or (inner.method shl METHOD_SHIFT)
+                w.u8(POSITION).u8(flags).u16(inner.fixMinute).u8(inner.seq).u8(inner.nextUpdate).u8(inner.heading)
+                when (point) {
+                    // x in the upper 12 bits, y in the lower 12
+                    is PositionPoint.Grid -> w.u8(point.x shr 4).u8((point.x shl 4) or (point.y shr 8)).u8(point.y)
+                    is PositionPoint.Absolute -> w.coord(point.lat).coord(point.lon)
+                }
+            }
+            is Inner.ShareSession ->
+                w.u8(SHARE_SESSION).u8(inner.action).u16(inner.durationMin).u8(inner.precision).u8(inner.seq)
         }
         return w.toByteArray()
     }
@@ -948,6 +1078,8 @@ object InnerCodec {
     fun decode(plain: ByteArray): Inner? = parseOrNull {
         val r = WireReader(plain)
         val type = r.u8()
+        if (type == POSITION) return@parseOrNull r.position()
+        if (type == SHARE_SESSION) return@parseOrNull r.shareSession()
         val msgId = r.i64()
         when (type) {
             TEXT -> {
@@ -1016,6 +1148,37 @@ object InnerCodec {
             }
             else -> throw MalformedException("inner type")
         }
+    }
+
+    private fun WireReader.position(): Inner.Position {
+        val flags = u8()
+        val fixMinute = u16()
+        val seq = u8()
+        val nextUpdate = u8()
+        val heading = u8()
+        val point = if (flags and POSITION_ABSOLUTE != 0) {
+            PositionPoint.Absolute(coord(), coord())
+        } else {
+            val a = u8()
+            val b = u8()
+            val c = u8()
+            PositionPoint.Grid((a shl 4) or (b shr 4), ((b and 0x0F) shl 8) or c)
+        }
+        expectEnd()
+        val accuracy = (flags shr ACCURACY_SHIFT) and 0x07
+        val method = (flags shr METHOD_SHIFT) and 0x03
+        return Inner.Position(point, accuracy, method, fixMinute, seq, nextUpdate, heading)
+    }
+
+    private fun WireReader.shareSession(): Inner.ShareSession {
+        val action = u8()
+        val duration = u16()
+        val precision = u8()
+        val seq = u8()
+        expectEnd()
+        if (action !in ShareAction.START..ShareAction.ACCEPT) throw MalformedException("share action")
+        if (precision > SharePrecision.ZONE) throw MalformedException("share precision")
+        return Inner.ShareSession(action, duration, precision, seq)
     }
 
     private fun WireReader.group(allowedExtra: Int): Pair<Long?, Int> {

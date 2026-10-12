@@ -81,6 +81,12 @@ inner.left_group 0801020304050607081112131415161718
 inner.zone_request 090102030405060708
 # ZoneUpdate: MSG, "bar"
 inner.zone_update 0a010203040506070803626172
+# Position in the grid box (no msgId): accuracy class 1 (<= 10 m), GNSS, minute 600, seq 7, next update class 1 (2 min), heading 64 (90 degrees), x 1234, y 567
+inner.position 0b0202580701404d2237
+# Position outside the box: lat -22.951916, lon -43.210487, accuracy class 4 (<= 100 m), manual pin, minute 65535, seq 255, on request, heading unknown
+inner.position.absolute 0b19ffffff05fffea1c814fd6ca909
+# ShareSession: START, 90 minutes, approximate, seq 3
+inner.share_session 0c01005a0103
 # PRIVATE payload: nonce e0 e1 ... f7 || crypto_box(inner.text) from alice's box key to bob's.
 private.box e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7bcc50159847f3c091d324a3c6dbd75d6137db72ae9d85fcef99d38bbe145743426c021490c4e822f631249d007
 

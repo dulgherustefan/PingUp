@@ -279,6 +279,7 @@ class MeshEngine(
     private val links = LinkedHashMap<Int, Link>()
     private val seen = HashMap<String, Candidate>()
     private val dedup = DedupCache()
+    private val positionBudget = PositionBudget(config.txPerSecond)
     private val cache = IncidentCache(config.retentionMs).apply {
         cacheStore?.let { store ->
             // only a cache: a file it can't read is deleted, so that saving starts over instead of stopping for good
@@ -434,6 +435,14 @@ class MeshEngine(
         return packet
     }
 
+    /** A shared position, a PRIVATE of class P2 ([PositionBudget]): null when the budget has no room for it now. */
+    fun unicastPosition(recipient: Long, payload: ByteArray): Packet? {
+        if (!positionBudget.tryPosition(clock.monoMs())) return null
+        val packet = newPacket(PacketType.PRIVATE, payload, recipient, encrypted = true, anonymous = false)
+        flood(packet, own = true, position = true)
+        return packet
+    }
+
     /** Our own report: the cache keeps it until staff confirms receipt, whatever else arrives. */
     fun publishReport(incidentId: ByteArray, sealed: ByteArray): Packet {
         val payload = IncidentReportCodec.encode(incidentId, sealed)
@@ -530,14 +539,15 @@ class MeshEngine(
             payload = payload,
         )
         dedup.add(packet.dedupKey, clock.monoMs())
+        positionBudget.onUnique(clock.monoMs())
         return packet
     }
 
-    private fun flood(packet: Packet, except: Set<Int> = emptySet(), own: Boolean): Int {
+    private fun flood(packet: Packet, except: Set<Int> = emptySet(), own: Boolean, position: Boolean = false): Int {
         val targets = links.values.filter { it.ready && it.id !in except && canSend(it, packet) }
         var count = 0
         for (link in fanOut(packet, targets, own)) {
-            if (link.queue.offer(Outbound(packet, own))) count++ else drop(packet, link, DropReason.QUEUE_FULL)
+            if (link.queue.offer(Outbound(packet, own, position))) count++ else drop(packet, link, DropReason.QUEUE_FULL)
         }
         return count
     }
@@ -922,6 +932,7 @@ class MeshEngine(
             return drop(packet, link, DropReason.UPDATE_LIMIT)
         }
         dedup.add(packet.dedupKey, now)
+        positionBudget.onUnique(now)
         // what we keep for store-and-forward is relayed with one hop less
         val forwardable = packet.withTtl(maxOf(packet.ttl - 1, 1))
         when (packet.type) {

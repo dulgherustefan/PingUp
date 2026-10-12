@@ -21,6 +21,7 @@ import ro.safetyplease.core.mesh.Verdict
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.toHex
+import ro.safetyplease.core.venue.PositionBox
 import ro.safetyplease.core.venue.Venue
 
 class EventPackTest {
@@ -317,5 +318,26 @@ class EventPackTest {
         assertNull(inUse.gateTarget(festHash))
         assertEquals(other.pack().hashHex, inUse.gateTarget(other.pack().hash)?.hash)
         assertNull(inUse.gateTarget(ByteArray(32)))
+    }
+
+    @Test
+    fun theGridCarriesTheBoxAndTheDayStartOfSharedPositions() {
+        val event = Event()
+        val plain = event.pack()
+        assertNull("the venue bounds give the box", plain.positionBox)
+        assertEquals("the UTC day of validFrom", Math.floorDiv(event.validFrom, 86_400L) * 86_400L, plain.dayStart)
+
+        val grid = """"grid":{"cellMeters":40}"""
+        val withBox = event.body().replace(
+            grid, """"grid":{"cellMeters":40,"box":{"originLat":44.0,"originLon":26.0,"azimuth":30,"version":2}},"dayStart":1760054400""",
+        )
+        val pack = event.check(text = event.text(withBox)).pack!!
+        assertEquals(PositionBox(44.0, 26.0, 30.0, 2), pack.positionBox)
+        assertEquals(1_760_054_400L, pack.dayStart)
+
+        for (bad in listOf("""{"originLat":100,"originLon":26}""", """{"originLat":44,"originLon":26,"azimuth":360}""", "[]")) {
+            val body = event.body().replace(grid, """"grid":{"cellMeters":40,"box":$bad}""")
+            assertEquals(bad, PackStatus.MALFORMED, event.check(text = event.text(body)).status)
+        }
     }
 }

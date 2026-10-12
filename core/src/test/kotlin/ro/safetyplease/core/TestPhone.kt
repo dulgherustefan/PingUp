@@ -5,6 +5,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import ro.safetyplease.core.announce.NoticeBoard
 import ro.safetyplease.core.announce.Notices
 import ro.safetyplease.core.chat.ChatManager
+import ro.safetyplease.core.chat.PositionFrame
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.Identity
@@ -25,6 +26,7 @@ import ro.safetyplease.core.data.Group
 import ro.safetyplease.core.data.IncidentData
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.data.PositionStore
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.mesh.CachedIncidents
@@ -36,6 +38,7 @@ import ro.safetyplease.core.mesh.TestClock
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.nodePrefix
+import ro.safetyplease.core.venue.PositionBox
 import java.io.File
 import kotlin.random.Random
 
@@ -130,10 +133,12 @@ class TestPhone(
     val acks = mutableListOf<Triple<IncidentAck, Boolean, Int>>()
     var staffCap = IncidentManager.MAX_STAFF
     var sharesZone = true
+    val positions = PositionStore.open(File(dir, "$name-positions.json"), bg)
+    var positionFrame = PositionFrame(PositionBox(BOX_LAT, BOX_LON), TestEvent.START * 1000)
 
     val chat = ChatManager(
         bg, engine, testCrypto, identity, friends, groups, blocked, chatStore, clock, Random(seed + 1), { name },
-        shareZone = { sharesZone },
+        shareZone = { sharesZone }, positions = positions, positionFrame = { positionFrame },
     ) { message, _ -> incoming += message }
 
     val incidents = IncidentManager(
@@ -188,3 +193,7 @@ class TestPhone(
     fun ignore(vararg others: TestPhone) =
         engine.setIgnoredPrefixes(others.flatMap { listOf(it.radio.prefix, it.nodeId.nodePrefix()) }.toSet())
 }
+
+/** The south-west corner of the test phones' grid box. */
+const val BOX_LAT = 44.0
+const val BOX_LON = 26.0

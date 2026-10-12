@@ -2,6 +2,40 @@ package ro.safetyplease.core.venue
 
 import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
+
+/**
+ * The 4,096 m square in which shared positions travel as metres instead of degrees (PROTOCOL.md, section 6.6): its
+ * south-west corner, the bearing of its y axis clockwise from north, and a version the event pack names. x grows
+ * along the axis 90 degrees clockwise from y. Within one event the curvature of the earth doesn't matter.
+ */
+data class PositionBox(val originLat: Double, val originLon: Double, val azimuthDeg: Double = 0.0, val version: Int = 0) {
+    private val theta = Math.toRadians(azimuthDeg)
+    private val metersPerDegreeLon = METERS_PER_DEGREE * cos(Math.toRadians(originLat))
+
+    /** Whole metres from the corner, or null outside the box. */
+    fun toGrid(lat: Double, lon: Double): Pair<Int, Int>? {
+        val north = (lat - originLat) * METERS_PER_DEGREE
+        val east = (lon - originLon) * metersPerDegreeLon
+        val x = (east * cos(theta) - north * sin(theta)).roundToInt()
+        val y = (east * sin(theta) + north * cos(theta)).roundToInt()
+        return if (x in 0 until SIZE && y in 0 until SIZE) x to y else null
+    }
+
+    fun toLatLon(x: Int, y: Int): GeoPoint {
+        val east = x * cos(theta) + y * sin(theta)
+        val north = -x * sin(theta) + y * cos(theta)
+        return GeoPoint(originLat + north / METERS_PER_DEGREE, originLon + east / metersPerDegreeLon)
+    }
+
+    companion object {
+        const val SIZE = 4096
+        const val METERS_PER_DEGREE = 111_320.0
+
+        /** Without a box in the pack: the venue bounds' south-west corner, north up. */
+        fun of(bounds: Bounds): PositionBox = PositionBox(bounds.minLat, bounds.minLon)
+    }
+}
 
 /**
  * The site plan's square grid over the venue bounds: columns A, B, C... from west to east, rows 1, 2, 3... from north

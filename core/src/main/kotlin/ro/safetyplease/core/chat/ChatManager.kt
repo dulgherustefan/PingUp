@@ -3,6 +3,10 @@ package ro.safetyplease.core.chat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ro.safetyplease.core.crypto.Crypto
@@ -19,19 +23,30 @@ import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.MsgKind
 import ro.safetyplease.core.data.MsgStatus
 import ro.safetyplease.core.data.OutboxItem
+import ro.safetyplease.core.data.OutgoingShare
+import ro.safetyplease.core.data.PositionData
+import ro.safetyplease.core.data.PositionRecord
+import ro.safetyplease.core.data.PositionStore
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.MeshEvent
 import ro.safetyplease.core.mesh.WindowLimit
+import ro.safetyplease.core.protocol.AccuracyClass
 import ro.safetyplease.core.protocol.GroupMemberWire
+import ro.safetyplease.core.protocol.Heading
 import ro.safetyplease.core.protocol.Inner
 import ro.safetyplease.core.protocol.InnerCodec
 import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.NextUpdate
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
+import ro.safetyplease.core.protocol.PositionMethod
+import ro.safetyplease.core.protocol.ShareAction
+import ro.safetyplease.core.protocol.SharePrecision
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.truncateUtf8
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /**
@@ -51,6 +66,9 @@ class ChatManager(
     private val random: Random,
     private val myNickname: () -> String,
     private val shareZone: () -> Boolean = { true },
+    private val positions: PositionStore = PositionStore.inMemory(),
+    /** The event's grid box and day start, read again at every position sent or received. */
+    private val positionFrame: () -> PositionFrame = { PositionFrame.NONE },
     private val onIncoming: (message: ChatMessage, senderName: String) -> Unit = { _, _ -> },
 ) {
     private val attempts = LinkedHashMap<Long, Pair<Long, Long>>()
@@ -66,12 +84,32 @@ class ChatManager(
     private var myZone = ""
     private val zoneTold = HashMap<Long, String>()
 
+    /** The last fix the app gave us, and when each share's START last went to a recipient that hasn't accepted it. */
+    private var lastFix: Fix? = null
+    private val policy = PositionPolicy()
+    private var positionSeq = 0
+    private val startSent = HashMap<Pair<String, Long>, Pair<Int, Long>>()
+    private val asked = PerFriendLimit(REQUEST_INTERVAL_MS)
+    private val answered = PerFriendLimit(REQUEST_INTERVAL_MS)
+
+    /** When we last asked each friend where they are: their answer is accepted for a while without a session. */
+    private val askedAt = HashMap<Long, Long>()
+
+    /** The latest position each friend shares with us, until the session we hold for them ends. */
+    val friendPositions: StateFlow<List<PositionRecord>> =
+        positions.state.map { it.records }.stateIn(scope, SharingStarted.Eagerly, positions.value.records)
+
+    /** What we share now, and with which conversation. */
+    val activeShares: StateFlow<List<OutgoingShare>> =
+        positions.state.map { it.shares }.stateIn(scope, SharingStarted.Eagerly, positions.value.shares)
+
     fun start() {
         scope.launch { engine.events.collect(::onEvent) }
         scope.launch {
             while (isActive) {
                 delay(RETRY_TICK_MS)
                 retryOutbox(linkTrigger = false)
+                positionTick()
             }
         }
     }
@@ -99,6 +137,7 @@ class ChatManager(
 
     fun removeFriend(nodeId: Long) {
         friends.update { list -> list.filterNot { it.nodeId == nodeId } }
+        positions.update { it.forget(nodeId) }
         val conversation = Conversations.friend(nodeId)
         chat.update { data ->
             data.copy(
@@ -169,6 +208,235 @@ class ChatManager(
             if (zoneTold[friend.nodeId] == myZone) continue
             if (sendDirect(friend.nodeId, Inner.ZoneUpdate(newId(), myZone))) zoneTold[friend.nodeId] = myZone
         }
+    }
+
+    // --- positions (PROTOCOL.md, section 6.6) ---
+
+    /**
+     * Shares this phone's position with [conversation], a friend or a group, for [durationMin] minutes (1 to 120) at
+     * [precision] ([SharePrecision]). Each recipient gets a START; those whose phone accepts it get positions, the
+     * others only the zone. A new share with the same conversation replaces the old one.
+     */
+    fun startShare(conversation: String, durationMin: Int, precision: Int) {
+        scope.launch {
+            val recipients = recipientsOf(conversation)?.second ?: return@launch
+            if (recipients.isEmpty() || precision !in SharePrecision.EXACT..SharePrecision.ZONE) return@launch
+            val minutes = durationMin.coerceIn(1, PositionData.MAX_SHARE_MIN)
+            val share = OutgoingShare(conversation, precision, clock.wallMs() + minutes * 60_000L, nextSeq())
+            positions.update { data -> data.copy(shares = data.shares.filterNot { it.conversation == conversation } + share) }
+            startSent.keys.removeAll { it.first == conversation }
+            policy.reset()
+            sharePosition()
+        }
+    }
+
+    /** Stops at once. Recipients that no other share still reaches get a STOP; the others' phones end it at expiry anyway. */
+    fun stopShare(conversation: String) {
+        scope.launch {
+            val share = positions.value.shares.firstOrNull { it.conversation == conversation } ?: return@launch
+            positions.update { data -> data.copy(shares = data.shares - share) }
+            startSent.keys.removeAll { it.first == conversation }
+            val still = shareTargets(clock.wallMs()).keys
+            for (recipient in recipientsOf(conversation)?.second.orEmpty()) {
+                if (recipient !in still) sendDirect(recipient, Inner.ShareSession(ShareAction.STOP, 0, share.precision, share.seq))
+            }
+        }
+    }
+
+    /** Another [durationMin] minutes (1 to 120) from now. */
+    fun renewShare(conversation: String, durationMin: Int) {
+        scope.launch {
+            val share = positions.value.shares.firstOrNull { it.conversation == conversation } ?: return@launch
+            val minutes = durationMin.coerceIn(1, PositionData.MAX_SHARE_MIN)
+            val renewed = share.copy(expiresAtMs = clock.wallMs() + minutes * 60_000L)
+            positions.update { data -> data.copy(shares = data.shares.map { if (it.conversation == conversation) renewed else it }) }
+            for (recipient in share.accepted) {
+                sendDirect(recipient, Inner.ShareSession(ShareAction.RENEW, minutes, share.precision, share.seq))
+            }
+        }
+    }
+
+    /**
+     * A fix from the app: [accuracyM] its radius (null if unknown), [headingDeg] the course over ground, [method] a
+     * [PositionMethod], [timeMs] when it was taken, on the wall clock. [PositionPolicy] decides whether it goes now.
+     */
+    fun onFix(lat: Double, lon: Double, accuracyM: Double?, headingDeg: Double?, method: Int, timeMs: Long) {
+        scope.launch {
+            lastFix = Fix(lat, lon, accuracyM, headingDeg, method.coerceIn(PositionMethod.GNSS, PositionMethod.UNKNOWN), timeMs)
+            sharePosition()
+        }
+    }
+
+    /**
+     * "Unde ești?" for a friend's position: at most once a minute per friend. A phone that reads positions answers with
+     * one, if it shares with us or answers anyone, and has a fix under 2 minutes old; otherwise with its zone, as before.
+     */
+    fun requestPosition(friendId: Long) {
+        scope.launch {
+            if (!isFriend(friendId) || !asked.tryTake(friendId, clock.monoMs())) return@launch
+            if (sendDirect(friendId, Inner.ZoneRequest(newId()))) askedAt[friendId] = clock.wallMs()
+        }
+    }
+
+    /** Whether a friend we don't share with gets our approximate position when they ask. */
+    fun setAutoAnswer(enabled: Boolean) {
+        positions.update { if (it.autoAnswer == enabled) it else it.copy(autoAnswer = enabled) }
+    }
+
+    private class Fix(val lat: Double, val lon: Double, val accuracyM: Double?, val headingDeg: Double?, val method: Int, val timeMs: Long)
+
+    private fun positionTick() {
+        val now = clock.wallMs()
+        askedAt.entries.removeAll { now - it.value >= ANSWER_WINDOW_MS }
+        sharePosition()
+    }
+
+    /** Each recipient of a share still running, with the most precise of the shares that reach them. */
+    private fun shareTargets(now: Long): Map<Long, Int> {
+        val targets = HashMap<Long, Int>()
+        for (share in positions.value.shares) {
+            if (share.expiresAtMs <= now) continue
+            for (recipient in recipientsOf(share.conversation)?.second.orEmpty()) {
+                targets[recipient] = minOf(targets[recipient] ?: share.precision, share.precision)
+            }
+        }
+        return targets
+    }
+
+    /** What expired ends, START goes to who hasn't accepted yet, and the position goes if the policy says so. */
+    private fun sharePosition() {
+        val now = clock.wallMs()
+        positions.update { it.pruned(now) }
+        offerStarts(now)
+        val targets = shareTargets(now)
+        if (targets.isEmpty()) return policy.reset()
+        val best = targets.values.min()
+        if (best == SharePrecision.ZONE) return targets.keys.forEach(::tellZone)
+        val fix = lastFix ?: return
+        val frame = positionFrame()
+        val approximate = best == SharePrecision.APPROXIMATE
+        val at = frame.latLon(frame.point(fix.lat, fix.lon, approximate)) ?: return
+        val accuracyM = radiusOf(fix, approximate)?.roundToInt()
+        val keys = liveKeys()
+        if (!policy.due(now, at, accuracyM, keys)) return
+        policy.sent(now, at, accuracyM)
+        val nextUpdate = NextUpdate.of(policy.nextUpdateMs(keys))
+        val seq = nextSeq()
+        val readers = positions.value.readers
+        for ((recipient, precision) in targets) {
+            if (precision == SharePrecision.ZONE || recipient !in readers) tellZone(recipient)
+            else sendPosition(recipient, positionOf(fix, frame, precision, seq, nextUpdate))
+        }
+    }
+
+    /** START until the recipient accepts, a minute apart, [MAX_START_TRIES] times: an older phone never will. */
+    private fun offerStarts(now: Long) {
+        val mono = clock.monoMs()
+        for (share in positions.value.shares) {
+            if (share.expiresAtMs <= now) continue
+            val minutes = ((share.expiresAtMs - now + 59_999) / 60_000).toInt()
+            for (recipient in recipientsOf(share.conversation)?.second.orEmpty()) {
+                if (recipient in share.accepted) continue
+                val key = share.conversation to recipient
+                val tries = startSent[key]
+                if (tries != null && (tries.first >= MAX_START_TRIES || mono - tries.second < START_RETRY_MS)) continue
+                val start = Inner.ShareSession(ShareAction.START, minutes, share.precision, share.seq)
+                if (sendDirect(recipient, start)) startSent[key] = (tries?.first ?: 0) + 1 to mono
+            }
+        }
+    }
+
+    /** The zone instead of a position, for a phone that doesn't read them or a share of the zone only. */
+    private fun tellZone(recipient: Long) {
+        if (myZone.isEmpty() || zoneTold[recipient] == myZone) return
+        if (sendDirect(recipient, Inner.ZoneUpdate(newId(), myZone))) zoneTold[recipient] = myZone
+    }
+
+    private fun radiusOf(fix: Fix, approximate: Boolean): Double? =
+        if (approximate) maxOf(fix.accuracyM ?: 0.0, PositionFrame.APPROXIMATE_RADIUS_M) else fix.accuracyM
+
+    /** Masked before it is sealed: an approximate position never leaves the phone more precise than its cell. */
+    private fun positionOf(fix: Fix, frame: PositionFrame, precision: Int, seq: Int, nextUpdate: Int): Inner.Position {
+        val approximate = precision == SharePrecision.APPROXIMATE
+        return Inner.Position(
+            frame.point(fix.lat, fix.lon, approximate), AccuracyClass.of(radiusOf(fix, approximate)), fix.method,
+            frame.fixMinute(fix.timeMs), seq, nextUpdate, if (approximate) Heading.UNKNOWN else Heading.of(fix.headingDeg),
+        )
+    }
+
+    /** Positions are P2: over budget the packet isn't written, and in the queue it goes after everything else. */
+    private fun sendPosition(recipient: Long, position: Inner.Position): Boolean {
+        if (engine.state.value.readyLinks == 0) return false
+        val key = boxKeyOf(recipient) ?: return false
+        return engine.unicastPosition(recipient, crypto.box(InnerCodec.encode(position), key, identity.box.secretKey)) != null
+    }
+
+    /** K in [PositionPolicy.intervalMs]: the positions this phone holds, its own included while it shares. */
+    private fun liveKeys(): Int = positions.value.records.size + (if (positions.value.shares.isNotEmpty()) 1 else 0)
+
+    private fun nextSeq(): Int {
+        positionSeq = (positionSeq + 1) and 0xFF
+        return positionSeq
+    }
+
+    private fun answerWhereAreYou(friend: Long) {
+        if (answerWithPosition(friend)) return
+        if (myZone.isNotEmpty() && shareZone()) sendDirect(friend, Inner.ZoneUpdate(newId(), myZone))
+    }
+
+    /** True when the question is dealt with: a position went, or one already went to this friend in the last minute. */
+    private fun answerWithPosition(friend: Long): Boolean {
+        val data = positions.value
+        if (friend !in data.readers) return false
+        val now = clock.wallMs()
+        val precision = shareTargets(now)[friend] ?: SharePrecision.APPROXIMATE.takeIf { data.autoAnswer } ?: return false
+        if (precision == SharePrecision.ZONE) return false
+        val fix = lastFix?.takeIf { now - it.timeMs < ANSWER_FIX_MAX_AGE_MS } ?: return false
+        if (!answered.tryTake(friend, clock.monoMs())) return true
+        return sendPosition(friend, positionOf(fix, positionFrame(), precision, nextSeq(), NextUpdate.ON_REQUEST))
+    }
+
+    private fun onShareSession(sender: Long, session: Inner.ShareSession) {
+        if (!knows(sender)) return
+        when (session.action) {
+            ShareAction.START, ShareAction.RENEW -> {
+                positions.update { it.startedBy(sender, session.durationMin, session.precision, clock.wallMs()) }
+                sendDirect(sender, Inner.ShareSession(ShareAction.ACCEPT, session.durationMin, session.precision, session.seq))
+            }
+            // silent: the friend's position just ends, as at expiry
+            ShareAction.STOP -> positions.update { it.stoppedBy(sender) }
+            ShareAction.ACCEPT -> onAccepted(sender, session.seq)
+        }
+    }
+
+    /** The recipient reads positions: it gets ours now, without waiting for the next move. */
+    private fun onAccepted(sender: Long, seq: Int) {
+        val share = positions.value.shares.firstOrNull { share ->
+            share.seq == seq && sender !in share.accepted && sender in recipientsOf(share.conversation)?.second.orEmpty()
+        } ?: return
+        positions.update { data -> data.copy(shares = data.shares.map { if (it == share) it.copy(accepted = it.accepted + sender) else it }) }
+        val precision = shareTargets(clock.wallMs())[sender] ?: return
+        val fix = lastFix ?: return
+        if (precision == SharePrecision.ZONE) return
+        val nextUpdate = NextUpdate.of(policy.nextUpdateMs(liveKeys()))
+        sendPosition(sender, positionOf(fix, positionFrame(), precision, nextSeq(), nextUpdate))
+    }
+
+    /** Kept only inside a session the sender started, or for a while after we asked them. */
+    private fun onPosition(packet: Packet, position: Inner.Position) {
+        val sender = packet.sender
+        if (!knows(sender)) return
+        val now = clock.wallMs()
+        val expires = positions.value.sessionOf(sender, now)?.expiresAtMs
+            ?: askedAt[sender]?.takeIf { now - it < ANSWER_WINDOW_MS }?.let { now + ANSWER_KEPT_MS }
+            ?: return
+        val frame = positionFrame()
+        val at = frame.latLon(position.point) ?: return
+        val record = PositionRecord(
+            sender, at.lat, at.lon, position.accuracy, position.method, Heading.degrees(position.heading),
+            frame.fixTime(position.fixMinute, now), now, expires, position.seq, position.nextUpdate, packet.hops,
+        )
+        positions.update { it.withPosition(record) }
     }
 
     /** Deletes the message from this phone only; if it was ours and still in transit, it's no longer retried. */
@@ -397,6 +665,7 @@ class ChatManager(
         val plain = crypto.boxOpen(packet.payload, key, identity.box.secretKey) ?: return
         val inner = InnerCodec.decode(plain) ?: return
         touch(sender, packet.hops)
+        if (isOneOne(inner) && knows(sender)) positions.update { it.withReader(sender) }
         when (inner) {
             is Inner.Text -> onMessage(packet, inner.msgId, inner.groupId, MsgKind.TEXT, text = inner.text)
             is Inner.Quick -> onMessage(packet, inner.msgId, inner.groupId, MsgKind.QUICK, quickCode = inner.code)
@@ -406,10 +675,10 @@ class ChatManager(
             is Inner.Delivered -> onDelivered(sender, inner.deliveredId)
             is Inner.GroupInvite -> onInvite(sender, inner)
             is Inner.LeftGroup -> onLeft(sender, inner)
-            is Inner.ZoneRequest -> if (isFriend(sender) && myZone.isNotEmpty() && shareZone()) {
-                sendDirect(sender, Inner.ZoneUpdate(newId(), myZone))
-            }
+            is Inner.ZoneRequest -> if (isFriend(sender)) answerWhereAreYou(sender)
             is Inner.ZoneUpdate -> setLastZone(sender, inner.zone)
+            is Inner.Position -> onPosition(packet, inner)
+            is Inner.ShareSession -> onShareSession(sender, inner)
         }
     }
 
@@ -540,6 +809,13 @@ class ChatManager(
 
     private fun isFriend(nodeId: Long) = friends.value.any { it.nodeId == nodeId }
 
+    /** A friend, or someone in a group with us: who may share a position with us. */
+    private fun knows(nodeId: Long) = isFriend(nodeId) || groups.value.any { group -> group.members.any { it.nodeId == nodeId } }
+
+    /** A kind added in 1.1: whoever sends one gets positions from now on, instead of only the zone. */
+    private fun isOneOne(inner: Inner): Boolean = inner is Inner.LeftGroup || inner is Inner.ZoneRequest ||
+        inner is Inner.ZoneUpdate || inner is Inner.Position || inner is Inner.ShareSession
+
     fun isBlocked(nodeId: Long) = blocked.value.any { it.nodeId == nodeId }
 
     /** A group we left is gone, but a member still has to be able to answer the notice that we left. */
@@ -589,6 +865,17 @@ class ChatManager(
 
         /** Chat packets this phone may write in a minute: a message to a full group is 7, its receipts 1 each. */
         const val PACKETS_PER_MINUTE = 30
+
+        /** "Unde ești?": one a minute per friend, asked and answered. */
+        const val REQUEST_INTERVAL_MS = 60_000L
+
+        /** An answer counts within this long of asking, and is kept this long; only a fix this fresh is given. */
+        const val ANSWER_WINDOW_MS = 2 * 60_000L
+        const val ANSWER_KEPT_MS = 15 * 60_000L
+        const val ANSWER_FIX_MAX_AGE_MS = 2 * 60_000L
+
+        const val START_RETRY_MS = 60_000L
+        const val MAX_START_TRIES = 5
 
         fun backoffMs(attempts: Int): Long = when {
             attempts <= 0 -> 0

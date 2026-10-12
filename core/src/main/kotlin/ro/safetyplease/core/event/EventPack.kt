@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 import ro.safetyplease.core.announce.NoticeTemplates
@@ -22,10 +23,13 @@ import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.sha256
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.utf8
+import ro.safetyplease.core.venue.PositionBox
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+
+private const val DAY_S = 86_400L
 
 /** A real event, or an exercise: everything opened under an exercise pack is marked and never sounds a live alarm. */
 enum class EventKind(val code: String) { REAL("real"), EXERCISE("exercise") }
@@ -56,7 +60,11 @@ class EventPack(
     /** Static information pages by language, then file name (section 16); empty when the pack has none. */
     val pages: Map<String, Map<String, String>>,
     val hash: ByteArray,
-    val notices: NoticeTemplates? = null,
+    val notices: NoticeTemplates?,
+    /** The grid's box for shared positions (`grid.box`); null when the pack has none and the venue bounds give it. */
+    val positionBox: PositionBox?,
+    /** Seconds; positions count their minutes from it. `dayStart` in the pack, else the UTC day of [validFrom]. */
+    val dayStart: Long,
 ) {
     val exercise: Boolean get() = kind == EventKind.EXERCISE
 
@@ -161,16 +169,32 @@ object EventPacks {
         if (kind == EventKind.EXERCISE && (box.isEmpty() || sign.isEmpty())) return null
         val venue = (o["venue"] as? JsonObject)?.toString() ?: return null
         if (runCatching { Venue.parse(venue) }.isFailure) return null
-        val grid = (o["grid"] as? JsonObject)?.int("cellMeters") ?: SiteGrid.CELL_METERS
+        val gridObject = o["grid"] as? JsonObject
+        val grid = gridObject?.int("cellMeters") ?: SiteGrid.CELL_METERS
         if (grid !in 10..500) return null
+        val positionBox = gridObject?.get("box")?.let { positionBox(it) ?: return null }
+        val dayStart = if ("dayStart" in o) o.long("dayStart") ?: return null else null
         val firstAid = (o["firstAid"] as? JsonObject)?.mapValues { (_, v) -> (v as? JsonPrimitive)?.contentOrNull ?: return null }.orEmpty()
         val notices = o["notices"]?.let { NoticeTemplates.parse(it) ?: return null }
         val pages = InfoPages.fromJson(o["pages"]) ?: return null
         return EventPack(
             id, version, kind, o.string("name").orEmpty(), from, until, organiser, event, reportKeys,
             box.takeIf { it.isNotEmpty() }, sign.takeIf { it.isNotEmpty() }, venue, grid, firstAid, pages, hashOf(body), notices,
+            positionBox, dayStart ?: (Math.floorDiv(from, DAY_S) * DAY_S),
         )
     }
+
+    /** `{"originLat", "originLon", "azimuth", "version"}`; azimuth and version may be left out. */
+    private fun positionBox(element: JsonElement): PositionBox? {
+        val o = element as? JsonObject ?: return null
+        val lat = o.double("originLat")?.takeIf { it in -90.0..90.0 } ?: return null
+        val lon = o.double("originLon")?.takeIf { it in -180.0..180.0 } ?: return null
+        val azimuth = if ("azimuth" in o) o.double("azimuth")?.takeIf { it >= 0.0 && it < 360.0 } ?: return null else 0.0
+        val version = if ("version" in o) o.int("version")?.takeIf { it >= 0 } ?: return null else 0
+        return PositionBox(lat, lon, azimuth, version)
+    }
+
+    private fun JsonObject.double(key: String): Double? = (get(key) as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull
 
     private fun element(text: String): JsonElement? = try {
         json.parseToJsonElement(text)
