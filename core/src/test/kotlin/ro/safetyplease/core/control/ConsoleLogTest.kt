@@ -20,6 +20,7 @@ import ro.safetyplease.core.mesh.LinkInfo
 import ro.safetyplease.core.mesh.MeshState
 import ro.safetyplease.core.mesh.SeenPeer
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.NodeFlags
@@ -47,8 +48,8 @@ class ConsoleLogTest {
         description = "A leșinat", reportedAt = t0, receivedAt = t0 + 20_000, hops = 3, status = status, teamName = team,
     )
 
-    private fun ack(status: Int, team: String, atSec: Long, own: Boolean = false) =
-        LogEntry(t0 + atSec * 1000, LogEvent.ACK, id, status = status, team = team, signedAt = t0 + atSec * 1000, own = own)
+    private fun ack(status: Int, team: String, atSec: Long, own: Boolean = false, epoch: Int = 0) =
+        LogEntry(t0 + atSec * 1000, LogEvent.ACK, id, status = status, epoch = epoch, team = team, signedAt = t0 + atSec * 1000, own = own)
 
     private fun decision(event: LogEvent, team: String, atSec: Long, reason: String = "") =
         LogEntry(t0 + atSec * 1000, event, id, team = team, reason = reason)
@@ -171,23 +172,69 @@ class ConsoleLogTest {
     }
 
     @Test
-    fun unfoundedClosesWithItsOwnWordWhileTheNetworkCarriesResolved() {
+    fun unfoundedClosesWithItsOwnWordEverywhere() {
         val c = case(
             ack(AckStatus.RECEIVED, "Control", 30, own = true),
             decision(LogEvent.UNFOUNDED, "Control", 200, "nimeni la fața locului"),
-            ack(AckStatus.RESOLVED, "Control", 201, own = true),
+            ack(AckStatus.RESOLVED, "Control", 200, own = true),
+            ack(AckStatus.UNFOUNDED, "Control", 202, own = true),
         )
         assertEquals(CaseState.CLOSED, c.state)
         assertTrue(c.unfounded)
         assertFalse(c.localOnly)
-        assertEquals("closed by the decision, not by its ACK a second later", 200L, c.secondsTo(c.closedAt))
+        assertEquals(AckStatus.UNFOUNDED, c.network)
+        assertEquals("closed by the decision, not by its ACKs seconds later", 200L, c.secondsTo(c.closedAt))
+        val fromAnotherConsole = case(ack(AckStatus.ACKNOWLEDGED, "Medical 1", 60), ack(AckStatus.UNFOUNDED, "Control 2", 300))
+        assertTrue("the network says so, without a decision here", fromAnotherConsole.unfounded)
         val reopened = case(
             decision(LogEvent.UNFOUNDED, "Control", 200),
-            ack(AckStatus.RESOLVED, "Control", 201, own = true),
+            ack(AckStatus.UNFOUNDED, "Control", 201, own = true),
             decision(LogEvent.REOPEN, "", 300),
         )
         assertFalse(reopened.unfounded)
         assertEquals(CaseState.OPEN, reopened.state)
+    }
+
+    @Test
+    fun aReopenOnTheNetworkStartsAnEpochThatOldAcksCannotClose() {
+        val c = case(
+            ack(AckStatus.ACKNOWLEDGED, "Medical 1", 60),
+            ack(AckStatus.CLOSED_BY_CONTROL, "Control", 300, own = true),
+            decision(LogEvent.REOPEN, "", 400, "a căzut din nou"),
+            ack(AckStatus.REOPENED, "Control", 400, own = true, epoch = 1),
+            ack(AckStatus.CANCELLED, "Medical 2", 310),
+        )
+        assertEquals(CaseState.OPEN, c.state)
+        assertFalse("the field sees it reopened too", c.localOnly)
+        assertEquals(1, c.epoch)
+        assertNull(c.closedAt)
+        val taken = case(
+            ack(AckStatus.CLOSED_BY_CONTROL, "Control", 300, own = true),
+            ack(AckStatus.REOPENED, "Control", 400, own = true, epoch = 1),
+            ack(AckStatus.ON_SCENE, "Medical 2", 500, epoch = 1),
+        )
+        assertEquals(CaseState.ASSIGNED, taken.state)
+        assertEquals("Medical 2", taken.team)
+        assertEquals(CaseState.ASSIGNED, ConsoleView.stateOf(AckStatus.HANDED_OVER))
+        assertEquals(CaseState.OPEN, ConsoleView.stateOf(AckStatus.REOPENED))
+    }
+
+    @Test
+    fun aCancelToCheckShowsUntilTheOperatorDecidesOrTheIncidentIsReopened() {
+        val request = LogEntry(t0 + 100_000, LogEvent.CANCEL_REQUEST, id)
+        assertTrue(case(ack(AckStatus.RECEIVED, "Control", 30), request).cancelRequested)
+        assertTrue("from the incident before the log has it", case(stored = incident().copy(cancelRequested = true)).cancelRequested)
+        val confirmed = case(
+            ack(AckStatus.RECEIVED, "Control", 30), request, decision(LogEvent.CANCEL, "Control", 120),
+            ack(AckStatus.CANCELLED, "Control", 120, own = true),
+        )
+        assertFalse(confirmed.cancelRequested)
+        assertEquals(CaseState.CLOSED, confirmed.state)
+        assertEquals(120L, confirmed.secondsTo(confirmed.closedAt))
+        val reopened = case(
+            ack(AckStatus.RECEIVED, "Control", 30), request, ack(AckStatus.REOPENED, "Control", 200, epoch = 1),
+        )
+        assertFalse("a request from the old epoch is settled", reopened.cancelRequested)
     }
 
     @Test
@@ -218,8 +265,8 @@ class ConsoleLogTest {
         override fun monoMs() = now
     }
 
-    private fun signed(status: Int, team: String, atSec: Long) =
-        IncidentAck(id.hexToBytes(), status, (t0 / 1000) + atSec, team, ByteArray(64) { 7 })
+    private fun signed(status: Int, team: String, atSec: Long, epoch: Int = 0) =
+        IncidentAck(id.hexToBytes(), status, (t0 / 1000) + atSec, team, ByteArray(64) { 7 }, IncidentAck.extensions(0, epoch))
 
     @Test
     fun recorderAppendsTheReportBeforeTheAckSignedWhileOpeningIt() = runTest {
@@ -251,6 +298,33 @@ class ConsoleLogTest {
         val again = JsonStore(File(tmp.root, "console.json"), ConsoleLog.serializer(), ConsoleLog(), backgroundScope)
         ConsoleRecorder(again, grid, clock) { stored }.sawIncidents(listOf(incident()))
         assertEquals(5, again.value.entries.size)
+    }
+
+    @Test
+    fun recorderLogsEachCancelToCheckOncePerEpochAndWhatTheReportSaid() = runTest {
+        val store = JsonStore(File(tmp.root, "console.json"), ConsoleLog.serializer(), ConsoleLog(), backgroundScope)
+        val recorder = ConsoleRecorder(store, grid, FixedClock(t0 + 20_000)) { null }
+        val staffReport = incident().copy(
+            responds = Answer.NO, breathes = Answer.UNKNOWN, fromStaff = true, nickname = "Medical 1", people = 2, dangerContinues = true,
+        )
+        recorder.sawIncidents(listOf(staffReport))
+        val report = store.value.entries.single()
+        assertEquals(listOf(Answer.NO, Answer.UNKNOWN), listOf(report.responds, report.breathes))
+        assertTrue(report.fromStaff && report.dangerContinues)
+        assertEquals("Medical 1", report.team)
+        assertEquals(2, report.people)
+
+        val requested = staffReport.copy(cancelRequested = true)
+        recorder.sawIncidents(listOf(requested))
+        recorder.sawIncidents(listOf(requested))
+        recorder.sawIncidents(listOf(requested.copy(epoch = 1)))
+        assertEquals(
+            listOf(LogEvent.REPORT, LogEvent.CANCEL_REQUEST, LogEvent.CANCEL_REQUEST),
+            store.value.entries.map { it.event },
+        )
+        assertEquals(listOf(0, 1), store.value.entries.drop(1).map { it.epoch })
+        recorder.sawAck(signed(AckStatus.REOPENED, "Control", 30, epoch = 1), own = true, hops = 0)
+        assertEquals(1, store.value.entries.last().epoch)
     }
 
     // --- the field side of an assignment ---

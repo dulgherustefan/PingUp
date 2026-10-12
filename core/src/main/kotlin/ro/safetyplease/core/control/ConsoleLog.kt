@@ -15,20 +15,28 @@ enum class LogEvent {
 
     ASSIGN,
     TAKE,
+
+    /** The operator closed the incident. */
     RESOLVE,
 
-    /** Closed as a false alarm. The network only carries RESOLVED; the word and the reason stay in the log. */
+    /** Closed as a false alarm. */
     UNFOUNDED,
 
-    /** Open again on the console only: the phones in the field keep the state they had. */
+    /** Open again, in the next epoch on the network. */
     REOPEN,
 
     /** The log was shared, usually at the end of a shift. */
     EXPORT,
+
+    /** The reporter cancelled a report the operator has to check: someone may still need help. */
+    CANCEL_REQUEST,
+
+    /** The operator checked the reporter's cancel and confirmed it. */
+    CANCEL,
     ;
 
     companion object {
-        val DECISIONS = setOf(ASSIGN, TAKE, RESOLVE, UNFOUNDED, REOPEN)
+        val DECISIONS = setOf(ASSIGN, TAKE, RESOLVE, UNFOUNDED, REOPEN, CANCEL)
     }
 }
 
@@ -53,7 +61,9 @@ data class LogEntry(
     val hops: Int = 0,
     val description: String = "",
     val status: Int = 0,
-    /** The team named in the ACK, or the one the operator chose. */
+    /** The epoch of the ACK, or the one a cancel request came in. */
+    val epoch: Int = 0,
+    /** The team named in the ACK, the one the operator chose, or the one that wrote a staff report. */
     val team: String = "",
     val signedAt: Long = 0,
     /** Ed25519 signature of the ACK, in hex. */
@@ -62,6 +72,13 @@ data class LogEntry(
     val own: Boolean = false,
     /** Why the operator decided so. */
     val reason: String = "",
+    /** Triage answers of a medical report, as [ro.safetyplease.core.protocol.Answer] codes. */
+    val responds: Int = 0,
+    val breathes: Int = 0,
+    /** A report written by staff, with its ETHANE-lite fields. */
+    val fromStaff: Boolean = false,
+    val people: Int = 0,
+    val dangerContinues: Boolean = false,
 )
 
 @Serializable
@@ -80,6 +97,9 @@ fun reportEntry(incident: StaffIncident, grid: SiteGrid, at: Long = incident.rec
         category = incident.category, severity = incident.severity, zone = incident.zone,
         grid = if (lat != null && lon != null) grid.cellAt(lat, lon).orEmpty() else "",
         lat = lat, lon = lon, reportedAt = incident.reportedAt, hops = incident.hops, description = incident.description,
+        team = if (incident.fromStaff) incident.nickname.orEmpty() else "",
+        responds = incident.responds, breathes = incident.breathes,
+        fromStaff = incident.fromStaff, people = incident.people, dangerContinues = incident.dangerContinues,
     )
 }
 

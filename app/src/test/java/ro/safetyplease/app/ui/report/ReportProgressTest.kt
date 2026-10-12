@@ -74,6 +74,29 @@ class ReportProgressTest {
         assertNull(Labels.myReportStatus(AckStatus.CANCELLED, hasTeam = false))
     }
 
+    @Test
+    fun fieldStatesAndClosingsNameTheirOwnStep() {
+        val onScene = report(status = AckStatus.ON_SCENE, sent = true, team = "Medical 1")
+        assertEquals(3, reportStep(onScene))
+        assertEquals(R.string.status_on_scene, stepLabel(3, onScene))
+        assertEquals(R.string.status_handed_over, stepLabel(3, report(status = AckStatus.HANDED_OVER, team = "Medical 1")))
+        val reopened = report(status = AckStatus.REOPENED, team = "Control")
+        assertEquals("back with staff", 3, reportStep(reopened))
+        assertEquals(R.string.status_reopened, stepLabel(3, reopened))
+        val closed = report(status = AckStatus.CLOSED_BY_CONTROL, team = "Control")
+        assertEquals(4, reportStep(closed))
+        assertEquals(R.string.status_closed_by_control, stepLabel(4, closed))
+        assertEquals(R.string.status_acknowledged, stepLabel(3, closed))
+        assertEquals(R.string.status_unfounded, stepLabel(4, report(status = AckStatus.UNFOUNDED)))
+        assertEquals(R.string.status_resolved, stepLabel(4, report(status = AckStatus.RESOLVED)))
+        val words = mapOf(
+            AckStatus.ON_SCENE to R.string.status_on_scene, AckStatus.HANDED_OVER to R.string.status_handed_over,
+            AckStatus.CLOSED_BY_CONTROL to R.string.status_closed_by_control, AckStatus.UNFOUNDED to R.string.status_unfounded,
+            AckStatus.REOPENED to R.string.status_reopened,
+        )
+        for ((status, word) in words) assertEquals(word, Labels.myReportStatus(status, hasTeam = true))
+    }
+
     // --- escalation ---
 
     @Test
@@ -84,6 +107,7 @@ class ReportProgressTest {
         assertTrue("an automatic RECEIVED doesn't stop it", report(status = AckStatus.RECEIVED).needsEscalation(t0 + ESCALATE_AFTER_MS))
         assertFalse(report(status = AckStatus.ACKNOWLEDGED).needsEscalation(t0 + 60 * 60_000L))
         assertFalse(report(status = AckStatus.RESOLVED).needsEscalation(t0 + 60 * 60_000L))
+        assertFalse("control has seen a reopened one", report(status = AckStatus.REOPENED).needsEscalation(t0 + 60 * 60_000L))
     }
 
     @Test

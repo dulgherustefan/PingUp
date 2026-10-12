@@ -141,8 +141,8 @@ class SmallPartsTest {
     }
 
     @Test
-    fun violenceAndLostPersonAreNeverOneIncidentEither() {
-        for (category in listOf(IncidentCategory.VIOLENCE, IncidentCategory.LOST_PERSON)) {
+    fun violenceAndLostPeopleAreNeverOneIncidentEither() {
+        for (category in listOf(IncidentCategory.VIOLENCE, IncidentCategory.LOST_CHILD, IncidentCategory.LOST_FRIEND)) {
             val hint = Clustering.suggestions(listOf(incident("a", category, "bar", 0.0), incident("b", category, "bar", 2.0))).getValue("b")
             assertEquals(2, hint.count)
             assertFalse(hint.sameEvent)
@@ -211,6 +211,11 @@ class SmallPartsTest {
         assertFalse(StatusFilter.ACTIVE.matches(with(AckStatus.RESOLVED)))
         assertFalse(StatusFilter.ACTIVE.matches(with(AckStatus.CANCELLED)))
         assertTrue(StatusFilter.RESOLVED.matches(with(AckStatus.CANCELLED)))
+        for (status in listOf(AckStatus.ON_SCENE, AckStatus.HANDED_OVER)) {
+            assertTrue(StatusFilter.TAKEN.matches(with(status)) && StatusFilter.ACTIVE.matches(with(status)))
+        }
+        for (status in listOf(AckStatus.CLOSED_BY_CONTROL, AckStatus.UNFOUNDED)) assertTrue(StatusFilter.RESOLVED.matches(with(status)))
+        assertTrue("a reopened incident waits for a team again", StatusFilter.OPEN.matches(with(AckStatus.REOPENED)))
         assertFalse(StatusFilter.RESOLVED.matches(with(AckStatus.ACKNOWLEDGED)))
         assertTrue(StatusFilter.ALL.matches(with(AckStatus.NONE)))
     }

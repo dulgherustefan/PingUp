@@ -50,6 +50,7 @@ import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.hopsText
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.common.CategoryCircle
+import ro.safetyplease.app.ui.common.reportFacts
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppDialog
 import ro.safetyplease.app.ui.designsystem.AppTheme
@@ -69,6 +70,7 @@ import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry
 import ro.safetyplease.core.control.LogEvent
+import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.util.truncateUtf8
@@ -130,7 +132,8 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
         if (case.localOnly) {
             Note(stringResource(R.string.control_local_only, Labels.staffStatus(context, case.network, case.networkTeam)), colors.orangeInk)
         }
-        if (case.unfounded) Note(stringResource(R.string.control_unfounded_note), colors.secondaryLabel)
+        if (case.cancelRequested) Note(stringResource(R.string.incident_cancel_requested), colors.orangeInk)
+        if (Priority.isInformational(r.category)) Note(stringResource(R.string.incident_informational), colors.secondaryLabel)
 
         Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.fill).padding(12.dp)) {
             Text(
@@ -170,7 +173,6 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
                     if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
-            Text(stringResource(R.string.control_actions_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
         }
 
         Text(
@@ -184,6 +186,9 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
             ).joinToString(" · "),
             style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 2.dp),
         )
+        reportFacts(r.responds, r.breathes, r.fromStaff, r.people, r.dangerContinues)?.let {
+            Text(it, style = MaterialTheme.typography.subheadline, modifier = Modifier.padding(top = 6.dp))
+        }
 
         Text(stringResource(R.string.control_history), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
         history.forEach { HistoryRow(it) }
@@ -207,11 +212,15 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
 /** The status in a sentence, for the detail; the queue uses the short form of [caseLook]. */
 @Composable
 private fun statusText(case: Case): String = when (case.state) {
-    CaseState.OPEN -> stringResource(if (case.localOnly) R.string.control_state_reopened else R.string.control_state_open)
-    CaseState.ASSIGNED -> stringResource(R.string.control_state_assigned, case.team)
+    CaseState.OPEN -> stringResource(if (case.reopened) R.string.control_state_reopened else R.string.control_state_open)
+    CaseState.ASSIGNED -> when (case.network) {
+        AckStatus.ON_SCENE, AckStatus.HANDED_OVER -> Labels.staffStatus(LocalContext.current, case.network, case.team)
+        else -> stringResource(R.string.control_state_assigned, case.team)
+    }
     CaseState.CLOSED -> when {
         case.unfounded -> stringResource(R.string.control_state_unfounded)
         case.network == AckStatus.CANCELLED -> stringResource(R.string.staff_status_cancelled)
+        case.network == AckStatus.CLOSED_BY_CONTROL -> stringResource(R.string.staff_status_closed)
         else -> stringResource(R.string.staff_status_resolved, case.team)
     }
 }
@@ -219,8 +228,9 @@ private fun statusText(case: Case): String = when (case.state) {
 private fun actionLabel(action: Action, case: Case): Int = when (action) {
     Action.ASSIGN -> if (case.state == CaseState.OPEN) R.string.control_assign else R.string.control_reassign
     Action.TAKE -> R.string.incident_take
-    Action.RESOLVE -> R.string.control_resolve
+    Action.CLOSE -> R.string.control_close
     Action.UNFOUNDED -> R.string.control_unfounded
+    Action.CONFIRM_CANCEL -> R.string.control_confirm_cancel
     Action.REOPEN -> R.string.control_reopen
 }
 
@@ -242,6 +252,11 @@ private fun rememberRadioWords(): RadioWords {
             urgent = res.getString(R.string.control_radio_urgent),
             notUrgent = res.getString(R.string.control_radio_not_urgent),
             unknownPlace = res.getString(R.string.control_radio_no_place),
+            triage = { responds, breathes ->
+                res.getString(R.string.control_radio_triage, res.getString(Labels.answer(responds)), res.getString(Labels.answer(breathes)))
+            },
+            people = { res.getQuantityString(R.plurals.incident_people, it, it) },
+            dangerContinues = res.getString(R.string.incident_danger_continues),
         )
     }
 }
@@ -255,9 +270,11 @@ private fun HistoryRow(e: LogEntry) {
         LogEvent.ACK -> stringResource(R.string.control_event_ack, stringResource(ackWord(e.status)), e.team)
         LogEvent.ASSIGN -> stringResource(R.string.control_event_assign, e.team)
         LogEvent.TAKE -> stringResource(R.string.control_event_take)
-        LogEvent.RESOLVE -> stringResource(R.string.control_event_resolve)
+        LogEvent.RESOLVE -> stringResource(R.string.control_event_close)
         LogEvent.UNFOUNDED -> stringResource(R.string.control_state_unfounded)
         LogEvent.REOPEN -> stringResource(R.string.control_state_reopened)
+        LogEvent.CANCEL_REQUEST -> stringResource(R.string.incident_cancel_requested)
+        LogEvent.CANCEL -> stringResource(R.string.control_event_cancel)
         LogEvent.EXPORT -> return
     }
     val detail = when (e.event) {
@@ -335,15 +352,19 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Resolve asks for an optional reason; unfounded and reopen need one, since they stay in the log as decisions. */
+/**
+ * Closing asks for an optional reason; unfounded, reopen and confirming a cancel need one, since they stay in the log
+ * as decisions.
+ */
 @Composable
 private fun ReasonDialog(action: Action, onDismiss: () -> Unit, onConfirm: (reason: String) -> Unit) {
     val (title, text, confirm) = when (action) {
-        Action.RESOLVE -> Triple(R.string.control_resolve_title, R.string.control_resolve_text, R.string.control_resolve)
+        Action.CLOSE -> Triple(R.string.control_close_title, R.string.control_close_text, R.string.control_close)
         Action.UNFOUNDED -> Triple(R.string.control_unfounded_title, R.string.control_unfounded_text, R.string.close)
+        Action.CONFIRM_CANCEL -> Triple(R.string.control_confirm_cancel_title, R.string.control_confirm_cancel_text, R.string.control_confirm_cancel)
         else -> Triple(R.string.control_reopen_title, R.string.control_reopen_text, R.string.control_reopen)
     }
-    val required = action != Action.RESOLVE
+    val required = action != Action.CLOSE
     var reason by remember { mutableStateOf("") }
     AppDialog(
         onDismiss, stringResource(title), stringResource(confirm),

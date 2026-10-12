@@ -73,6 +73,11 @@ class ScenarioTest {
         IncidentCategory.MEDICAL, Severity.URGENT, "main-stage", 43.9505, 28.6350, description, nickname,
     )
 
+    /** A report whose cancel closes it by itself (see Priority.cancelNeedsReview). */
+    private fun crowd(description: String = "Îmbulzeală la bar") = ReportDraft(
+        IncidentCategory.CROWD, Severity.MEDIUM, "main-stage", 43.9505, 28.6350, description, null,
+    )
+
     // --- incidents (steps 1-4 and 6) ---
 
     @Test
@@ -289,7 +294,7 @@ class ScenarioTest {
         d.staffSecret = world.event.secret
         a.incidents.report(medical("vechi"))
         advanceTimeBy(IncidentManager.PENDING_MS + 60_000L)
-        a.incidents.report(medical("retras"))
+        a.incidents.report(crowd("retras"))
         a.incidents.cancel(a.myReports.last().incidentId)
         advanceTimeBy(2_000)
 
@@ -321,7 +326,7 @@ class ScenarioTest {
         val w = chain()
         val seen = mutableListOf<ByteArray>()
         w.b.radio.tamper = { frame -> frame.also { seen += it } }
-        w.a.incidents.report(medical())
+        w.a.incidents.report(crowd())
         advanceTimeBy(10_000)
         val id = w.a.myReports.single().incidentId
         assertEquals(AckStatus.RECEIVED, w.d.staffIncidents.single().status)
@@ -349,7 +354,7 @@ class ScenarioTest {
     @Test
     fun cancelWithAWrongTokenIsIgnored() = runTest {
         val w = chain()
-        w.a.incidents.report(medical())
+        w.a.incidents.report(crowd())
         advanceTimeBy(10_000)
         val id = w.a.myReports.single().incidentId
         w.b.engine.publishCancel(id.hexToBytes(), testCrypto.random(IncidentCancel.TOKEN_SIZE))
@@ -375,7 +380,7 @@ class ScenarioTest {
                 else -> frame
             }
         }
-        w.a.incidents.report(medical())
+        w.a.incidents.report(crowd())
         advanceTimeBy(5_000)
         w.a.incidents.cancel(w.a.myReports.single().incidentId)
         advanceTimeBy(5_000)
@@ -391,7 +396,7 @@ class ScenarioTest {
     @Test
     fun staffThatFindsAnAlreadyCancelledReportRaisesNoAlert() = runTest {
         val w = chain()
-        w.a.incidents.report(medical())
+        w.a.incidents.report(crowd())
         advanceTimeBy(10_000)
         w.a.incidents.cancel(w.a.myReports.single().incidentId)
         advanceTimeBy(10_000)
@@ -406,7 +411,7 @@ class ScenarioTest {
     @Test
     fun staffPhoneCancelsItsOwnReport() = runTest {
         val w = chain()
-        w.d.incidents.report(medical())
+        w.d.incidents.report(crowd())
         advanceTimeBy(1_000)
         w.d.incidents.cancel(w.d.myReports.single().incidentId)
         advanceTimeBy(1_000)
@@ -435,7 +440,7 @@ class ScenarioTest {
         advanceTimeBy(2_000)
         var cancelsSent = 0
         w.a.radio.tamper = { frame -> frame.also { if (it[1].toInt() == PacketType.INCIDENT_CANCEL) cancelsSent++ } }
-        w.a.incidents.report(medical())
+        w.a.incidents.report(crowd())
         advanceTimeBy(5_000)
         w.a.incidents.cancel(w.a.myReports.single().incidentId)
         advanceTimeBy(1_000)
@@ -474,7 +479,7 @@ class ScenarioTest {
     @Test
     fun deletingAnOpenReportCancelsItFirst() = runTest {
         val w = chain()
-        w.a.incidents.report(medical())
+        w.a.incidents.report(crowd())
         advanceTimeBy(10_000)
         w.a.incidents.delete(w.a.myReports.single().incidentId)
         assertTrue(w.a.myReports.isEmpty())

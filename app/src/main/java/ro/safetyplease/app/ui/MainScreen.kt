@@ -114,6 +114,7 @@ import ro.safetyplease.app.ui.report.MyReportsScreen
 import ro.safetyplease.app.ui.report.ReportScreen
 import ro.safetyplease.app.ui.report.ReportSentScreen
 import ro.safetyplease.core.mesh.RadioStatus
+import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.data.Role as AppRole
 
@@ -312,7 +313,7 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
     val tabs = rememberSaveableStateHolder()
     // badge counts conversations with unread messages, not messages
     val unreadChats = chat.messages.filter { !it.read }.map { it.conversation }.distinct().size
-    val openIncidents = incidents.staff.count { it.status < AckStatus.ACKNOWLEDGED }
+    val openIncidents = incidents.staff.count { !AckStatus.isTaken(it.status) && !AckStatus.isClosed(it.status) && !Priority.isInformational(it.category) }
     val items = buildList {
         add(TabItem(Tab.MESSAGES, R.string.tab_messages, Sym.ChatFill, unreadChats))
         add(TabItem(Tab.REPORT, R.string.tab_report, Sym.ReportFill))

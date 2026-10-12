@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.Bounds
@@ -31,6 +32,7 @@ class LogExportTest {
         status = { listOf("", "primit", "preluat", "rezolvat", "anulat")[it] },
         state = { it.name.lowercase() },
         zone = { if (it == "main-stage") "Scena principală" else it },
+        answer = { listOf("", "da", "nu", "nu știu")[it] },
     )
 
     private val report = LogEntry(
@@ -57,13 +59,13 @@ class LogExportTest {
         assertEquals(entries.size + 1, rows.size)
         assertEquals(
             "1,2026-10-12T22:15:20+03:00,report,$id,E2,Scena principală,Medical,Urgent,,,,,,3,2026-10-12T22:15:00+03:00," +
-                "43.950500,28.635000,\"A leșinat, lângă bar \"\"Nord\"\"\",",
+                "43.950500,28.635000,\"A leșinat, lângă bar \"\"Nord\"\"\",,,,,0,,",
             rows[1],
         )
-        assertEquals("2,2026-10-12T22:15:21+03:00,ack,$id,,,,,primit,Control,2026-10-12T22:15:21+03:00,${"ab".repeat(64)},1,0,,,,,", rows[2])
-        assertEquals("3,2026-10-12T22:16:00+03:00,assign,$id,,,,,,Medical 2,,,,,,,,,cea mai apropiată", rows[3])
-        assertEquals("5,2026-10-12T22:25:00+03:00,ack,$id,,,,,rezolvat,Medical 2,2026-10-12T22:24:59+03:00,${"ef".repeat(64)},0,2,,,,,", rows[5])
-        assertEquals("6,2026-10-12T22:26:40+03:00,export" + ",".repeat(16), rows[6])
+        assertEquals("2,2026-10-12T22:15:21+03:00,ack,$id,,,,,primit,Control,2026-10-12T22:15:21+03:00,${"ab".repeat(64)},1,0,,,,,,0,,,,,", rows[2])
+        assertEquals("3,2026-10-12T22:16:00+03:00,assign,$id,,,,,,Medical 2,,,,,,,,,cea mai apropiată,,,,,,", rows[3])
+        assertEquals("5,2026-10-12T22:25:00+03:00,ack,$id,,,,,rezolvat,Medical 2,2026-10-12T22:24:59+03:00,${"ef".repeat(64)},0,2,,,,,,0,,,,,", rows[5])
+        assertEquals("6,2026-10-12T22:26:40+03:00,export" + ",".repeat(22), rows[6])
         rows.drop(1).forEach { assertEquals(it, LogExport.EVENT_COLUMNS.size, cells(it).size) }
     }
 
@@ -120,6 +122,20 @@ class LogExportTest {
     }
 
     /** Splits one CSV row, honoring quotes. */
+    @Test
+    fun triageStaffFieldsAndEpochsHaveTheirOwnColumns() {
+        val staffReport = report.copy(
+            responds = Answer.NO, breathes = Answer.UNKNOWN, fromStaff = true, team = "Medical 1", people = 2, dangerContinues = true,
+        )
+        val request = LogEntry(t0 + 30_000, LogEvent.CANCEL_REQUEST, id, epoch = 1)
+        val rows = lines(LogExport.eventsCsv(listOf(staffReport, request, report), names, zone)).drop(1).map(::cells)
+        fun cell(row: List<String>, column: String) = row[LogExport.EVENT_COLUMNS.indexOf(column)]
+        val columns = listOf("team", "responds", "breathes", "staff_report", "people", "danger_continues")
+        assertEquals(listOf("Medical 1", "nu", "nu știu", "1", "2", "1"), columns.map { cell(rows[0], it) })
+        assertEquals("1", cell(rows[1], "epoch"))
+        assertEquals("a participant's report: nothing asked, not staff", listOf("", "", "", "0", "", ""), columns.map { cell(rows[2], it) })
+    }
+
     private fun cells(row: String): List<String> {
         val out = mutableListOf<String>()
         val cell = StringBuilder()

@@ -157,8 +157,8 @@ class MeshPartsTest {
 
     private fun id(n: Int) = ByteArray(INCIDENT_ID_SIZE).also { it[7] = n.toByte() }
 
-    private fun ack(n: Int, status: Int, ts: Long = 100, team: String = "T1") =
-        IncidentAck(id(n), status, ts, team, ByteArray(IncidentAck.SIGNATURE_SIZE))
+    private fun ack(n: Int, status: Int, ts: Long = 100, team: String = "T1", epoch: Int = 0) =
+        IncidentAck(id(n), status, ts, team, ByteArray(IncidentAck.SIGNATURE_SIZE), IncidentAck.extensions(0, epoch))
 
     @Test
     fun cacheStoresReportOnce() {
@@ -229,8 +229,61 @@ class MeshPartsTest {
     @Test
     fun aStatusFromANewerVersionIsNotRequested() {
         val c = IncidentCache()
-        val wanted = c.missing(listOf(SummaryEntry(1L, true, 9), SummaryEntry(2L, false, 9)), 0)
+        val wanted = c.missing(listOf(SummaryEntry(1L, true, 0x7e), SummaryEntry(2L, false, 0x7e)), 0)
         assertEquals(listOf(RequestEntry(1L, wantReport = true, wantAck = false)), wanted)
+    }
+
+    @Test
+    fun fieldStatesAndControlsDecisionsFollowTheRankTable() {
+        val c = IncidentCache()
+        var n = 0L
+        fun offer(status: Int, ts: Long = 100) = c.offerAck(ack(1, status, ts), packet(PacketType.INCIDENT_ACK, ++n), 0)
+        val climb = listOf(
+            AckStatus.RECEIVED, AckStatus.ACKNOWLEDGED, AckStatus.ON_SCENE, AckStatus.HANDED_OVER, AckStatus.RESOLVED,
+            AckStatus.CLOSED_BY_CONTROL, AckStatus.UNFOUNDED, AckStatus.CANCELLED,
+        )
+        for (status in climb) assertTrue("$status moves it on", offer(status))
+        for (status in climb.dropLast(1) + AckStatus.REOPENED) assertFalse("$status comes too late", offer(status, ts = 1))
+        assertEquals(AckStatus.CANCELLED, c.ackStatus(id(1)))
+    }
+
+    @Test
+    fun aReopenStartsAnEpochThatBeatsEveryStatusOfTheOneBefore() {
+        val c = IncidentCache()
+        var n = 0L
+        fun offer(status: Int, epoch: Int) = c.offerAck(ack(1, status, epoch = epoch), packet(PacketType.INCIDENT_ACK, ++n), 0)
+        assertTrue(offer(AckStatus.CANCELLED, 0))
+        assertTrue("a reopen ranks low, but in the next epoch", offer(AckStatus.REOPENED, 1))
+        assertFalse("the old epoch's closing is stale now", offer(AckStatus.RESOLVED, 0))
+        assertTrue(offer(AckStatus.ACKNOWLEDGED, 1))
+        assertFalse("a reopen is the start of its epoch", offer(AckStatus.REOPENED, 1))
+        assertEquals(listOf(SummaryEntry(1L, false, AckStatus.ACKNOWLEDGED, epoch = 1)), c.summary(0))
+    }
+
+    @Test
+    fun summariesCompareEpochsBeforeStatuses() {
+        val c = IncidentCache()
+        c.offerReport(id(1), packet(PacketType.INCIDENT_REPORT, 1), 0)
+        c.offerAck(ack(1, AckStatus.CLOSED_BY_CONTROL), packet(PacketType.INCIDENT_ACK, 2), 0)
+        c.offerAck(ack(2, AckStatus.CANCELLED), packet(PacketType.INCIDENT_ACK, 3), 0)
+        c.offerAck(ack(3, AckStatus.UNFOUNDED), packet(PacketType.INCIDENT_ACK, 4), 0)
+        val wanted = c.missing(
+            listOf(
+                SummaryEntry(1L, true, AckStatus.ACKNOWLEDGED, epoch = 1),
+                SummaryEntry(2L, true, AckStatus.REOPENED, epoch = 1),
+                SummaryEntry(3L, true, AckStatus.RESOLVED),
+            ),
+            0,
+        )
+        assertEquals(
+            listOf(
+                RequestEntry(1L, wantReport = false, wantAck = true),
+                // reopened, so no longer cancelled: the report is worth having again
+                RequestEntry(2L, wantReport = true, wantAck = true),
+                RequestEntry(3L, wantReport = true, wantAck = false),
+            ),
+            wanted,
+        )
     }
 
     @Test

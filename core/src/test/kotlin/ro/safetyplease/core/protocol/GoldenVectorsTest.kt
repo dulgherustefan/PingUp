@@ -81,6 +81,19 @@ class GoldenVectorsTest {
         "incident.body.extended" to { Golden.extendedBody().toHex() },
         "incident.ack.future" to { Golden.futureAck().encode().toHex() },
         "incident.ack.assigned" to { Golden.assignedAck().encode().toHex() },
+        "incident.ack.on_scene" to { Golden.statusAck(AckStatus.ON_SCENE, 150, "Medical 1").encode().toHex() },
+        "incident.ack.handed_over" to { Golden.statusAck(AckStatus.HANDED_OVER, 180, "Medical 1").encode().toHex() },
+        "incident.ack.closed" to { Golden.statusAck(AckStatus.CLOSED_BY_CONTROL, 210, "Control").encode().toHex() },
+        "incident.ack.unfounded" to { Golden.statusAck(AckStatus.UNFOUNDED, 240, "Control").encode().toHex() },
+        "incident.ack.reopened" to { Golden.statusAck(AckStatus.REOPENED, 270, "Control", epoch = 1).encode().toHex() },
+        "incident.ack.assigned.epoch" to {
+            Golden.statusAck(AckStatus.ACKNOWLEDGED, 300, "Medical", AckFlags.ASSIGNED, epoch = 1).encode().toHex()
+        },
+        "incident.ack.unknown" to { Golden.unknownAck().encode().toHex() },
+        "incident.body.triage" to { Golden.triageBody.encode().toHex() },
+        "incident.body.staff" to { Golden.staffBody.encode().toHex() },
+        "incident.body.lost_friend" to { Golden.lostFriendBody.encode().toHex() },
+        "summary2.epochs" to { Summary2Codec.encode(Golden.summary2Epochs).toHex() },
     )
 
     @Test
@@ -193,7 +206,17 @@ class GoldenVectorsTest {
         assertTrue("the signature covers the fields 1.1 doesn't read", Golden.staff.verifyAck(future))
         val ack = IncidentAck.decode(future)!!
         assertEquals(Golden.futureAck().fields() + Golden.futureAck().extensions.toHex(), ack.fields() + ack.extensions.toHex())
-        assertFalse(AckStatus.isKnown(ack.status))
+        // written as a newer version's ACK before status 7 and the epoch had a meaning; 1.1 now reads both
+        assertEquals(AckStatus.CLOSED_BY_CONTROL, ack.status)
+        assertEquals(0xcd, ack.epoch)
+        assertTrue(ack.assigned)
+
+        val unknown = bytes("incident.ack.unknown")
+        assertTrue(Golden.staff.verifyAck(unknown))
+        val newer = IncidentAck.decode(unknown)!!
+        assertEquals(Golden.unknownAck().fields() + "abcd", newer.fields() + newer.extensions.toHex())
+        assertFalse("kept as a number, with no place in the order", AckStatus.isKnown(newer.status))
+        assertEquals(-1, AckStatus.rank(newer.status))
 
         val assigned = bytes("incident.ack.assigned")
         assertTrue(Golden.staff.verifyAck(assigned))
@@ -203,6 +226,43 @@ class GoldenVectorsTest {
         assertEquals("01", decoded.extensions.toHex())
         val packet = Packet(PacketType.INCIDENT_ACK, 7, 1L, 2L, Golden.TIME, null, false, assigned)
         assertFalse("never to a 1.0 phone", Compat10.accepts(packet))
+    }
+
+    @Test
+    fun fieldStatesEpochsTriageAndStaffReportsDecode() {
+        val statuses = mapOf(
+            "incident.ack.on_scene" to AckStatus.ON_SCENE, "incident.ack.handed_over" to AckStatus.HANDED_OVER,
+            "incident.ack.closed" to AckStatus.CLOSED_BY_CONTROL, "incident.ack.unfounded" to AckStatus.UNFOUNDED,
+            "incident.ack.reopened" to AckStatus.REOPENED, "incident.ack.assigned.epoch" to AckStatus.ACKNOWLEDGED,
+        )
+        for ((name, status) in statuses) {
+            val payload = bytes(name)
+            assertTrue(name, Golden.staff.verifyAck(payload))
+            val ack = IncidentAck.decode(payload)!!
+            assertEquals(name, status, ack.status)
+            val packet = Packet(PacketType.INCIDENT_ACK, 7, 1L, 2L, Golden.TIME, null, false, payload)
+            assertFalse("$name never goes to a 1.0 phone", Compat10.accepts(packet))
+        }
+        assertEquals("", IncidentAck.decode(bytes("incident.ack.closed"))!!.extensions.toHex())
+        val reopened = IncidentAck.decode(bytes("incident.ack.reopened"))!!
+        assertEquals("0201", reopened.extensions.toHex())
+        assertEquals(1, reopened.epoch)
+        val assignedAgain = IncidentAck.decode(bytes("incident.ack.assigned.epoch"))!!
+        assertEquals("0301", assignedAgain.extensions.toHex())
+        assertTrue(assignedAgain.assigned)
+        assertEquals(1, assignedAgain.epoch)
+
+        val triage = IncidentBody.decode(bytes("incident.body.triage"))!!
+        assertEquals(Golden.triageBody.fields(), triage.fields())
+        assertEquals(Triage(Answer.NO, Answer.UNKNOWN), triage.triage)
+        val staff = IncidentBody.decode(bytes("incident.body.staff"))!!
+        assertEquals(Golden.staffBody.fields(), staff.fields())
+        assertEquals(StaffFields(3, dangerContinues = true), staff.staff)
+        assertEquals(IncidentCategory.LOST_FRIEND, IncidentBody.decode(bytes("incident.body.lost_friend"))!!.category)
+
+        val epochs = Summary2Codec.decode(bytes("summary2.epochs"))!!
+        assertEquals(Golden.summary2Epochs, epochs)
+        assertEquals(listOf(1, 0), epochs.entries.map { it.epoch })
     }
 
     @Test
@@ -220,6 +280,10 @@ class GoldenVectorsTest {
         assertNull(Frozen10.ack(bytes("incident.ack.future")))
         assertNull(Frozen10.ack(bytes("incident.ack.assigned")))
         assertNull(Frozen10.body(bytes("incident.body.extended")))
+        for (name in listOf("on_scene", "handed_over", "closed", "unfounded", "reopened", "assigned.epoch", "unknown")) {
+            assertNull(name, Frozen10.ack(bytes("incident.ack.$name")))
+        }
+        for (name in listOf("triage", "staff", "lost_friend")) assertNull(name, Frozen10.body(bytes("incident.body.$name")))
     }
 
     /** The 1.0 phone of the interop tests writes with these, so they must still give the 1.0 bytes. */
@@ -348,6 +412,42 @@ private object Golden {
     fun assignedAck(): IncidentAck =
         staff.signAck(INCIDENT_ID, AckStatus.ACKNOWLEDGED, TIME + 90, "Medical", staffSecret, AckFlags.ASSIGNED)
 
+    /** [status] signed at TIME + [after] seconds. */
+    fun statusAck(status: Int, after: Long, team: String, flags: Int = 0, epoch: Int = 0): IncidentAck =
+        staff.signAck(INCIDENT_ID, status, TIME + after, team, staffSecret, flags, epoch)
+
+    /** A status no version has defined yet, 0x7e, with [EXTRA] as its fields. */
+    fun unknownAck(): IncidentAck {
+        val signed = IncidentAck.unsigned(INCIDENT_ID, 0x7e, TIME + 330, "Medical 1") + EXTRA
+        val signature = crypto.sign(IncidentAck.signedMessage(signed), staffSecret.sign.secretKey)
+        return IncidentAck(INCIDENT_ID, 0x7e, TIME + 330, "Medical 1", signature, EXTRA)
+    }
+
+    /** [body] with the triage answers: doesn't respond, breathing unknown. */
+    val triageBody = IncidentBody(
+        IncidentCategory.MEDICAL, Severity.URGENT, TIME, "Scena mare", 44.426765, 26.102538,
+        "Persoană căzută lângă gard", "Ana", IncidentCancel.hash(TOKEN), Triage(Answer.NO, Answer.UNKNOWN),
+    )
+
+    /** A report by the team "Securitate 1": three people, the danger goes on, the way in described. */
+    val staffBody = IncidentBody(
+        IncidentCategory.VIOLENCE, Severity.URGENT, TIME, "Poarta 2", null, null, "Acces pe la spatele scenei",
+        "Securitate 1", IncidentCancel.hash(TOKEN), staff = StaffFields(3, dangerContinues = true),
+    )
+
+    val lostFriendBody = IncidentBody(
+        IncidentCategory.LOST_FRIEND, Severity.LOW, TIME, "Scena mare", null, null, "", null, IncidentCancel.hash(TOKEN),
+    )
+
+    /** A reopened incident and a closed one. */
+    val summary2Epochs = Summary2(
+        SummaryKind.INCIDENTS,
+        listOf(
+            SummaryEntry(INCIDENT_ID.toLong(), true, AckStatus.REOPENED, epoch = 1),
+            SummaryEntry(long("0102030405060708"), false, AckStatus.CLOSED_BY_CONTROL),
+        ),
+    )
+
     private val msgId = long("0102030405060708")
     private val groupId = long("1112131415161718")
     private val otherId = long("2122232425262728")
@@ -392,7 +492,7 @@ private fun Packet.fields() = listOf(type, ttl, id, sender, timestamp, recipient
 private fun Hello.fields() = listOf(version, nodeId, flags, nickname)
 
 private fun IncidentBody.fields() =
-    listOf(category, severity, timestamp, zone, lat, lon, description, nickname, cancelHash?.toHex())
+    listOf(category, severity, timestamp, zone, lat, lon, description, nickname, cancelHash?.toHex(), triage, staff)
 
 private fun IncidentAck.fields() = listOf(incidentId.toHex(), status, timestamp, teamName, signature.toHex())
 

@@ -89,6 +89,7 @@ import ro.safetyplease.app.ui.designsystem.pressScale
 import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.rememberLocationRequest
+import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
@@ -131,7 +132,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
 
     val pins = remember(incidents.staff, settings.role, colors) {
         if (!settings.role.hasStaffKeys) emptyList()
-        else incidents.staff.filter { it.status < AckStatus.RESOLVED }.mapNotNull { incident ->
+        else incidents.staff.filter { !AckStatus.isClosed(it.status) && !Priority.isInformational(it.category) }.mapNotNull { incident ->
             incidentPoint(vm.venue, incident)?.let { MapPin(it, colors.severity(incident.severity), incident.incidentId, incident.severity) }
         }
     }

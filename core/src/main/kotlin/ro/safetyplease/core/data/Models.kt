@@ -103,6 +103,8 @@ data class MyReport(
     val anonymous: Boolean = true,
     val createdAt: Long,
     val status: Int = 0,
+    /** How many times control reopened the incident: [status] belongs to this epoch. */
+    val epoch: Int = 0,
     val teamName: String = "",
     /** The control console gave the incident to [teamName]; the team hasn't taken it itself. */
     val assigned: Boolean = false,
@@ -130,11 +132,23 @@ data class StaffIncident(
     val receivedAt: Long,
     val hops: Int,
     val status: Int = 0,
+    /** How many times control reopened the incident: [status] belongs to this epoch. */
+    val epoch: Int = 0,
     val teamName: String = "",
     /** The control console gave the incident to [teamName]; the team hasn't taken it itself. */
     val assigned: Boolean = false,
     val statusAt: Long = 0,
     val cancelHash: String = "",
+    /** The reporter cancelled, but the incident waits for an operator to confirm it or close it otherwise. */
+    val cancelRequested: Boolean = false,
+    /** Triage answers ([ro.safetyplease.core.protocol.Answer]); UNASKED outside medical reports. */
+    val responds: Int = 0,
+    val breathes: Int = 0,
+    /** Written by staff: [nickname] is then the team, and [people] and [dangerContinues] come with it. */
+    val fromStaff: Boolean = false,
+    /** How many people are hurt or involved; 0 when not given. */
+    val people: Int = 0,
+    val dangerContinues: Boolean = false,
 )
 
 @Serializable

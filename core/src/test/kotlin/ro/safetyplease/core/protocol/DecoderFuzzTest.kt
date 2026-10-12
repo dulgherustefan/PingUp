@@ -269,10 +269,12 @@ private fun Random.summary() =
 
 private fun Random.request() = List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { RequestEntry(nextLong(), nextBoolean(), nextBoolean()) }
 
-/** Mostly incidents, the only kind 1.1 reads, with statuses from newer versions too. */
+/** Mostly incidents, the only kind 1.1 reads, with statuses from newer versions and, now and then, epochs. */
 private fun Random.summary2(): Summary2 {
     if (nextInt(4) == 0) return Summary2(nextInt(256), emptyList())
-    val entries = List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { SummaryEntry(nextLong(), nextBoolean(), nextInt(0, 0x80)) }
+    val epochs = nextInt(4) == 0
+    val count = nextInt(0, (if (epochs) Limits.SUMMARY2_EPOCH_ENTRIES else Limits.SUMMARY_ENTRIES) + 1)
+    val entries = List(count) { SummaryEntry(nextLong(), nextBoolean(), nextInt(0, 0x80), if (epochs) nextInt(0, 256) else 0) }
     return Summary2(SummaryKind.INCIDENTS, entries)
 }
 
@@ -291,6 +293,8 @@ private fun Random.body(): IncidentBody {
         description = text(Limits.DESCRIPTION_BYTES),
         nickname = if (nextBoolean()) text(Limits.NICK_BYTES) else null,
         cancelHash = if (nextBoolean()) nextBytes(IncidentCancel.HASH_SIZE) else null,
+        triage = if (nextBoolean()) Triage(nextInt(0, 4), nextInt(0, 4)) else null,
+        staff = if (nextBoolean()) StaffFields(nextInt(0, 256), nextBoolean()) else null,
     )
 }
 

@@ -1,13 +1,16 @@
 package ro.safetyplease.app.ui.control
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry
 import ro.safetyplease.core.control.LogEvent
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Severity
 
@@ -32,9 +35,11 @@ class ControlLogicTest {
         state: CaseState = CaseState.OPEN,
         network: Int = AckStatus.RECEIVED,
         closedAtMin: Int? = null,
+        epoch: Int = 0,
+        cancelRequested: Boolean = false,
     ) = Case(
-        report(severity, atMin).copy(incidentId = id), state, "", false, network, "",
-        null, null, closedAtMin?.let { t0 + it * 60_000L },
+        report(severity, atMin).copy(incidentId = id), state, "", false, network, epoch, "",
+        null, null, closedAtMin?.let { t0 + it * 60_000L }, cancelRequested,
     )
 
     // --- the queue ---
@@ -65,20 +70,40 @@ class ControlLogicTest {
 
     @Test
     fun theNextStepComesFirstAndAClosedIncidentCanOnlyBeReopened() {
-        assertEquals(listOf(Action.ASSIGN, Action.TAKE, Action.RESOLVE, Action.UNFOUNDED), actions(case("a", Severity.URGENT, 0)))
-        assertEquals(Action.RESOLVE, actions(case("a", Severity.URGENT, 0, CaseState.ASSIGNED)).first())
+        assertEquals(listOf(Action.ASSIGN, Action.TAKE, Action.CLOSE, Action.UNFOUNDED), actions(case("a", Severity.URGENT, 0)))
+        assertEquals(Action.CLOSE, actions(case("a", Severity.URGENT, 0, CaseState.ASSIGNED)).first())
         assertEquals(listOf(Action.REOPEN), actions(case("a", Severity.URGENT, 0, CaseState.CLOSED)))
+        assertEquals("the epoch is one byte", emptyList<Action>(), actions(case("a", Severity.URGENT, 0, CaseState.CLOSED, epoch = 255)))
+    }
+
+    @Test
+    fun aCancelToCheckPutsItsConfirmationFirst() {
+        val requested = case("a", Severity.URGENT, 0, cancelRequested = true)
+        assertEquals(listOf(Action.CONFIRM_CANCEL, Action.ASSIGN, Action.TAKE, Action.CLOSE, Action.UNFOUNDED), actions(requested))
+        assertEquals(Action.CONFIRM_CANCEL, actions(requested.copy(state = CaseState.ASSIGNED)).first())
     }
 
     @Test
     fun decisionsGoOutOnlyWhileTheNetworkIsBehind() {
         assertEquals(AckStatus.ACKNOWLEDGED, ackFor(Action.ASSIGN, AckStatus.RECEIVED))
         assertEquals(AckStatus.ACKNOWLEDGED, ackFor(Action.TAKE, AckStatus.NONE))
+        assertEquals("after a reopen", AckStatus.ACKNOWLEDGED, ackFor(Action.ASSIGN, AckStatus.REOPENED))
         assertNull("no reassignment on the network yet", ackFor(Action.ASSIGN, AckStatus.ACKNOWLEDGED))
-        assertEquals(AckStatus.RESOLVED, ackFor(Action.RESOLVE, AckStatus.ACKNOWLEDGED))
-        assertEquals("the network only knows resolved", AckStatus.RESOLVED, ackFor(Action.UNFOUNDED, AckStatus.RECEIVED))
-        assertNull(ackFor(Action.UNFOUNDED, AckStatus.RESOLVED))
-        assertNull("a status never goes back down", ackFor(Action.REOPEN, AckStatus.RESOLVED))
+        assertNull(ackFor(Action.ASSIGN, AckStatus.ON_SCENE))
+        assertEquals(AckStatus.CLOSED_BY_CONTROL, ackFor(Action.CLOSE, AckStatus.HANDED_OVER))
+        assertEquals("control closes what a team resolved", AckStatus.CLOSED_BY_CONTROL, ackFor(Action.CLOSE, AckStatus.RESOLVED))
+        assertEquals(AckStatus.UNFOUNDED, ackFor(Action.UNFOUNDED, AckStatus.RECEIVED))
+        assertEquals(AckStatus.UNFOUNDED, ackFor(Action.UNFOUNDED, AckStatus.CLOSED_BY_CONTROL))
+        assertNull(ackFor(Action.UNFOUNDED, AckStatus.CANCELLED))
+        assertEquals(AckStatus.CANCELLED, ackFor(Action.CONFIRM_CANCEL, AckStatus.ACKNOWLEDGED))
+        assertEquals("a reopen starts the next epoch, whatever closed it", AckStatus.REOPENED, ackFor(Action.REOPEN, AckStatus.CANCELLED))
+    }
+
+    @Test
+    fun reopenedOnTheNetworkReadsAsReopened() {
+        assertTrue(case("a", Severity.URGENT, 0, network = AckStatus.REOPENED, epoch = 1).reopened)
+        assertFalse(case("a", Severity.URGENT, 0).reopened)
+        assertFalse(case("a", Severity.URGENT, 0, CaseState.CLOSED, network = AckStatus.REOPENED).reopened)
     }
 
     @Test
@@ -103,7 +128,10 @@ class ControlLogicTest {
     private val words = RadioWords(
         category = { if (it == IncidentCategory.MEDICAL) "Medical" else "Altceva" },
         urgent = "urgent", notUrgent = "neurgent", unknownPlace = "loc necunoscut",
+        triage = { r, b -> "răspunde: ${answers[r]}, respiră normal: ${answers[b]}" },
+        people = { "$it persoane" }, dangerContinues = "pericolul continuă",
     )
+    private val answers = listOf("fără răspuns", "da", "nu", "nu știu")
 
     @Test
     fun radioPhraseFollowsEthaneOrder() {
@@ -118,6 +146,18 @@ class ControlLogicTest {
         assertEquals("Medical, neurgent, Scena principală.", radioPhrase(report(Severity.MEDIUM, grid = "", description = ""), "Scena principală", words))
         assertEquals("Altceva, urgent, loc necunoscut.", radioPhrase(report(grid = "", description = "", category = IncidentCategory.OTHER), "", words))
         assertEquals("Medical, urgent, E2.", radioPhrase(report(description = "   "), "", words))
+    }
+
+    @Test
+    fun radioPhraseCarriesTriageAndWhatStaffAdded() {
+        val triaged = report().copy(responds = Answer.NO, breathes = Answer.UNKNOWN)
+        assertEquals(
+            "Medical, urgent, răspunde: nu, respiră normal: nu știu, E2, Scena principală, a leșinat lângă turnul de lumini, tricou roșu.",
+            radioPhrase(triaged, "Scena principală", words),
+        )
+        val staff = report(description = "acces pe la poarta 2", category = IncidentCategory.VIOLENCE)
+            .copy(fromStaff = true, people = 3, dangerContinues = true)
+        assertEquals("Altceva, urgent, E2, 3 persoane, pericolul continuă, acces pe la poarta 2.", radioPhrase(staff, "", words))
     }
 
     @Test

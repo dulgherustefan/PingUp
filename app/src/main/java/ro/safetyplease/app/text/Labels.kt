@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalResources
 import kotlinx.coroutines.delay
 import ro.safetyplease.app.R
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.QuickCode
 import ro.safetyplease.core.protocol.Severity
@@ -24,7 +25,8 @@ object Labels {
     fun category(category: Int): Int = when (category) {
         IncidentCategory.MEDICAL -> R.string.cat_medical
         IncidentCategory.VIOLENCE -> R.string.cat_violence
-        IncidentCategory.LOST_PERSON -> R.string.cat_lost
+        IncidentCategory.LOST_CHILD -> R.string.cat_lost_child
+        IncidentCategory.LOST_FRIEND -> R.string.cat_lost_friend
         IncidentCategory.HARASSMENT -> R.string.cat_harassment
         IncidentCategory.CROWD -> R.string.cat_crowd
         IncidentCategory.FIRE -> R.string.cat_fire
@@ -35,7 +37,8 @@ object Labels {
     fun categoryExample(category: Int): Int = when (category) {
         IncidentCategory.MEDICAL -> R.string.cat_medical_example
         IncidentCategory.VIOLENCE -> R.string.cat_violence_example
-        IncidentCategory.LOST_PERSON -> R.string.cat_lost_example
+        IncidentCategory.LOST_CHILD -> R.string.cat_lost_child_example
+        IncidentCategory.LOST_FRIEND -> R.string.cat_lost_friend_example
         IncidentCategory.HARASSMENT -> R.string.cat_harassment_example
         IncidentCategory.CROWD -> R.string.cat_crowd_example
         IncidentCategory.FIRE -> R.string.cat_fire_example
@@ -44,6 +47,14 @@ object Labels {
 
     @StringRes
     fun urgency(severity: Int): Int = if (severity == Severity.URGENT) R.string.sev_urgent else R.string.sev_normal
+
+    @StringRes
+    fun answer(answer: Int): Int = when (answer) {
+        Answer.YES -> R.string.answer_yes
+        Answer.NO -> R.string.answer_no
+        Answer.UNKNOWN -> R.string.answer_unknown
+        else -> R.string.answer_unasked
+    }
 
     @StringRes
     fun quick(code: Int): Int = when (code) {
@@ -62,6 +73,11 @@ object Labels {
         AckStatus.RECEIVED -> R.string.status_received_full
         AckStatus.ACKNOWLEDGED -> if (hasTeam) R.string.status_acknowledged else R.string.status_acknowledged_pending
         AckStatus.RESOLVED -> R.string.status_resolved
+        AckStatus.ON_SCENE -> R.string.status_on_scene
+        AckStatus.HANDED_OVER -> R.string.status_handed_over
+        AckStatus.CLOSED_BY_CONTROL -> R.string.status_closed_by_control
+        AckStatus.UNFOUNDED -> R.string.status_unfounded
+        AckStatus.REOPENED -> R.string.status_reopened
         else -> null
     }
 
@@ -69,6 +85,11 @@ object Labels {
         AckStatus.CANCELLED -> context.getString(R.string.staff_status_cancelled)
         AckStatus.RESOLVED -> context.getString(R.string.staff_status_resolved, team)
         AckStatus.ACKNOWLEDGED -> context.getString(R.string.staff_status_taken, team)
+        AckStatus.ON_SCENE -> context.getString(R.string.staff_status_on_scene, team)
+        AckStatus.HANDED_OVER -> context.getString(R.string.staff_status_handed_over, team)
+        AckStatus.CLOSED_BY_CONTROL -> context.getString(R.string.staff_status_closed)
+        AckStatus.UNFOUNDED -> context.getString(R.string.control_state_unfounded)
+        AckStatus.REOPENED -> context.getString(R.string.control_state_reopened)
         else -> context.getString(R.string.staff_status_new)
     }
 

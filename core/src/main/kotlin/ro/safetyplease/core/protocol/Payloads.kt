@@ -27,6 +27,9 @@ object Limits {
     const val GROUP_NICK_BYTES = 16
     const val GROUP_MAX_MEMBERS = 8
     const val SUMMARY_ENTRIES = 50
+
+    /** A SUMMARY2 with epochs: 2 + 47 × 10 + 1 bytes still fit in a payload. */
+    const val SUMMARY2_EPOCH_ENTRIES = 47
 }
 
 private fun WireWriter.coord(deg: Double) = i32((deg * 1e6).roundToInt())
@@ -59,15 +62,64 @@ object AckStatus {
     const val ACKNOWLEDGED = 2
     const val RESOLVED = 3
 
-    /** The author withdrew the report and staff confirmed; highest value, so it supersedes any ACK. */
+    /** The author withdrew the report and staff confirmed; highest rank, so it supersedes any ACK of its epoch. */
     const val CANCELLED = 4
 
-    /** Values above [CANCELLED] come from newer versions: kept as numbers, but they have no place in the order. */
-    fun isKnown(status: Int): Boolean = status in NONE..CANCELLED
+    /** 1.1: the team reached the person. */
+    const val ON_SCENE = 5
+
+    /** 1.1: the team handed the person over to the medical post. */
+    const val HANDED_OVER = 6
+
+    /** 1.1: the control console closed the incident. */
+    const val CLOSED_BY_CONTROL = 7
+
+    /** 1.1: the control console closed it as a false alarm. */
+    const val UNFOUNDED = 8
+
+    /** 1.1: the control console opened it again; always the first status of a new epoch. */
+    const val REOPENED = 9
+
+    /** The statuses 1.0 knows; it counts any other as malformed. */
+    val V1_0 = NONE..CANCELLED
+
+    /** The supersede order within one epoch, lowest first; 1.0's statuses keep their 1.0 order. */
+    private val ORDER = intArrayOf(
+        NONE, RECEIVED, REOPENED, ACKNOWLEDGED, ON_SCENE, HANDED_OVER, RESOLVED, CLOSED_BY_CONTROL, UNFOUNDED, CANCELLED,
+    )
+
+    /** Values above [REOPENED] come from newer versions: kept as numbers, but they have no place in the order. */
+    fun isKnown(status: Int): Boolean = status in NONE..REOPENED
+
+    /** Position in the supersede order within an epoch; -1 for a status from a newer version. */
+    fun rank(status: Int): Int = ORDER.indexOf(status)
+
+    fun isClosed(status: Int): Boolean =
+        status == RESOLVED || status == CLOSED_BY_CONTROL || status == UNFOUNDED || status == CANCELLED
+
+    /** A team has the incident and it isn't closed. */
+    fun isTaken(status: Int): Boolean = status == ACKNOWLEDGED || status == ON_SCENE || status == HANDED_OVER
+
+    /** The status a 1.0 phone gets in place of [status]: the closest of its own, or NONE if none fits (a reopen). */
+    fun legacy(status: Int): Int = when (status) {
+        ON_SCENE, HANDED_OVER -> ACKNOWLEDGED
+        CLOSED_BY_CONTROL, UNFOUNDED -> RESOLVED
+        REOPENED -> NONE
+        else -> status
+    }
+}
+
+/**
+ * The supersede order of an incident's ACKs (PROTOCOL.md, section 8): a later epoch wins, then the higher rank.
+ * Positive if the first pair comes later. Callers break ties as section 8 says.
+ */
+object AckOrder {
+    fun compare(epoch: Int, status: Int, otherEpoch: Int, otherStatus: Int): Int =
+        if (epoch != otherEpoch) epoch.compareTo(otherEpoch) else AckStatus.rank(status).compareTo(AckStatus.rank(otherStatus))
 }
 
 /** What a node has cached for an incident; [id8] is the first 8 bytes of the incidentId. */
-data class SummaryEntry(val id8: Long, val hasReport: Boolean, val ackStatus: Int)
+data class SummaryEntry(val id8: Long, val hasReport: Boolean, val ackStatus: Int, val epoch: Int = 0)
 
 data class RequestEntry(val id8: Long, val wantReport: Boolean, val wantAck: Boolean)
 
@@ -116,7 +168,7 @@ object SummaryCodec {
     fun decode(payload: ByteArray): List<SummaryEntry>? = parseOrNull {
         val r = WireReader(payload)
         val out = r.summaryEntries()
-        if (out.any { !AckStatus.isKnown(it.ackStatus) }) throw MalformedException("ack status")
+        if (out.any { it.ackStatus !in AckStatus.V1_0 }) throw MalformedException("ack status")
         r.expectEnd()
         out
     }
@@ -141,7 +193,9 @@ object SummaryKind {
 
 /**
  * SUMMARY2 starts with a [kind]. For [SummaryKind.INCIDENTS] the entries are SUMMARY's, except that a status from a
- * newer version is kept and trailing bytes are skipped. A kind this version doesn't read decodes with no entries.
+ * newer version is kept, and a flags byte may follow them: with [Summary2Codec.EPOCHS], one epoch per entry comes
+ * next. Whatever follows comes from a newer version and is skipped. A kind this version doesn't read decodes with
+ * no entries.
  */
 data class Summary2(val kind: Int, val entries: List<SummaryEntry>)
 
@@ -149,18 +203,39 @@ data class Summary2(val kind: Int, val entries: List<SummaryEntry>)
 data class Request2(val kind: Int, val entries: List<RequestEntry>)
 
 object Summary2Codec {
+    /** Bit of the flags byte after the entries: an epoch byte per entry follows, in their order. */
+    const val EPOCHS = 0x01
+
     fun encode(summary: Summary2): ByteArray {
         require(summary.kind == SummaryKind.INCIDENTS || summary.entries.isEmpty()) { "only INCIDENTS has entries" }
-        val w = WireWriter(2 + summary.entries.size * 9).u8(summary.kind)
-        if (summary.kind == SummaryKind.INCIDENTS) w.summaryEntries(summary.entries)
+        val entries = summary.entries
+        val w = WireWriter(3 + entries.size * 10).u8(summary.kind)
+        if (summary.kind == SummaryKind.INCIDENTS) {
+            w.summaryEntries(entries)
+            // without a reopened incident the bytes stay those of a SUMMARY2 without epochs
+            if (entries.any { it.epoch > 0 }) {
+                require(entries.size <= Limits.SUMMARY2_EPOCH_ENTRIES && entries.all { it.epoch <= IncidentAck.MAX_EPOCH })
+                w.u8(EPOCHS)
+                for (e in entries) w.u8(e.epoch)
+            }
+        }
         return w.toByteArray()
     }
 
     fun decode(payload: ByteArray): Summary2? = parseOrNull {
         val r = WireReader(payload)
         val kind = r.u8()
-        Summary2(kind, if (kind == SummaryKind.INCIDENTS) r.summaryEntries() else emptyList())
+        if (kind != SummaryKind.INCIDENTS) return@parseOrNull Summary2(kind, emptyList())
+        val entries = r.summaryEntries()
+        val flags = if (r.remaining > 0) r.u8() else 0
+        if (flags and EPOCHS == 0) return@parseOrNull Summary2(kind, entries)
+        if (entries.size > Limits.SUMMARY2_EPOCH_ENTRIES) throw MalformedException("too many entries for epochs")
+        Summary2(kind, entries.map { it.copy(epoch = r.u8()) })
     }
+
+    /** The entries one SUMMARY2 can carry: with epochs, each takes a byte more. */
+    fun fitting(entries: List<SummaryEntry>): List<SummaryEntry> =
+        if (entries.any { it.epoch > 0 }) entries.take(Limits.SUMMARY2_EPOCH_ENTRIES) else entries
 }
 
 object Request2Codec {
@@ -181,12 +256,17 @@ object Request2Codec {
 object IncidentCategory {
     const val MEDICAL = 1
     const val VIOLENCE = 2
-    const val LOST_PERSON = 3
+
+    /** A lost child. 1.0 called it "lost person", so a report from an older phone may be about anyone lost. */
+    const val LOST_CHILD = 3
     const val HARASSMENT = 4
     const val CROWD = 5
     const val FIRE = 6
     const val OTHER = 7
-    val all = listOf(MEDICAL, VIOLENCE, LOST_PERSON, HARASSMENT, CROWD, FIRE, OTHER)
+
+    /** 1.1: a friend lost in the crowd, for the control room only. 1.0 staff phones can't read such a report. */
+    const val LOST_FRIEND = 8
+    val all = listOf(MEDICAL, VIOLENCE, LOST_CHILD, LOST_FRIEND, HARASSMENT, CROWD, FIRE, OTHER)
 }
 
 object Severity {
@@ -195,14 +275,40 @@ object Severity {
     const val URGENT = 3
 }
 
+/** An answer to a triage question (1.1), in two bits. */
+object Answer {
+    const val UNASKED = 0
+    const val YES = 1
+    const val NO = 2
+    const val UNKNOWN = 3
+}
+
+/** The two triage questions of a medical report (1.1): does the person respond, do they breathe normally. */
+data class Triage(val responds: Int = Answer.UNASKED, val breathes: Int = Answer.UNASKED) {
+    init {
+        require(responds in Answer.UNASKED..Answer.UNKNOWN && breathes in Answer.UNASKED..Answer.UNKNOWN)
+    }
+
+    /** A "no" to either question means the person may be dying. */
+    val critical: Boolean get() = responds == Answer.NO || breathes == Answer.NO
+}
+
+/** ETHANE-lite fields of a report written by staff (1.1). [people] is 0 when not given. */
+data class StaffFields(val people: Int = 0, val dangerContinues: Boolean = false) {
+    init {
+        require(people in 0..0xFF)
+    }
+}
+
 const val INCIDENT_ID_SIZE = 16
 
 /**
  * Report content. Only ever travels sealed-box encrypted to the staff key. [cancelHash] is missing
  * from reports written before cancelling existed.
  *
- * A newer version adds fields after the cancel hash, each behind a flag bit of its own; this one ignores the flags
- * it doesn't know and everything after the fields it reads. A category it doesn't know is kept as a number.
+ * Fields after the cancel hash sit each behind a flag bit of its own: 1.1 adds [triage] and [staff]. This version
+ * ignores the flags it doesn't know and everything after the fields it reads. A category it doesn't know is kept as
+ * a number.
  */
 class IncidentBody(
     val category: Int,
@@ -214,6 +320,9 @@ class IncidentBody(
     val description: String,
     val nickname: String?,
     val cancelHash: ByteArray? = null,
+    val triage: Triage? = null,
+    /** Set by staff, whose [nickname] is then the team's name. */
+    val staff: StaffFields? = null,
 ) {
     fun encode(): ByteArray {
         val zoneBytes = zone.utf8()
@@ -224,14 +333,17 @@ class IncidentBody(
         require(cancelHash == null || cancelHash.size == IncidentCancel.HASH_SIZE)
         val hasCoords = lat != null && lon != null
         val flags = (if (hasCoords) FLAG_COORDS else 0) or (if (nickBytes != null) FLAG_NICK else 0) or
-            (if (cancelHash != null) FLAG_CANCEL else 0)
-        val w = WireWriter(32 + zoneBytes.size + descBytes.size)
+            (if (cancelHash != null) FLAG_CANCEL else 0) or (if (triage != null) FLAG_TRIAGE else 0) or
+            (if (staff != null) FLAG_STAFF else 0)
+        val w = WireWriter(36 + zoneBytes.size + descBytes.size)
         w.u8(category).u8(severity).u32(timestamp).u8(flags)
         w.u8(zoneBytes.size).bytes(zoneBytes)
         if (hasCoords) w.coord(lat!!).coord(lon!!)
         w.u16(descBytes.size).bytes(descBytes)
         if (nickBytes != null) w.u8(nickBytes.size).bytes(nickBytes)
         if (cancelHash != null) w.bytes(cancelHash)
+        if (triage != null) w.u8(triage.responds or (triage.breathes shl 2))
+        if (staff != null) w.u8(staff.people).u8(if (staff.dangerContinues) STAFF_DANGER else 0)
         return w.toByteArray()
     }
 
@@ -239,6 +351,9 @@ class IncidentBody(
         private const val FLAG_COORDS = 0x01
         private const val FLAG_NICK = 0x02
         private const val FLAG_CANCEL = 0x04
+        private const val FLAG_TRIAGE = 0x08
+        private const val FLAG_STAFF = 0x10
+        private const val STAFF_DANGER = 0x01
 
         fun decode(plain: ByteArray): IncidentBody? = parseOrNull {
             val r = WireReader(plain)
@@ -255,7 +370,10 @@ class IncidentBody(
             val description = r.string(r.u16(), Limits.DESCRIPTION_BYTES)
             val nick = if (flags and FLAG_NICK != 0) r.string(r.u8(), Limits.NICK_BYTES) else null
             val cancelHash = if (flags and FLAG_CANCEL != 0) r.bytes(IncidentCancel.HASH_SIZE) else null
-            IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash)
+            // the upper bits of these bytes belong to newer versions
+            val triage = if (flags and FLAG_TRIAGE != 0) r.u8().let { Triage(it and 0x03, (it shr 2) and 0x03) } else null
+            val staff = if (flags and FLAG_STAFF != 0) StaffFields(r.u8(), r.u8() and STAFF_DANGER != 0) else null
+            IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash, triage, staff)
         }
     }
 }
@@ -280,12 +398,16 @@ object IncidentReportCodec {
 object AckFlags {
     /** Signed by the control console in the named team's name: an assignment, not the team's own take. */
     const val ASSIGNED = 0x01
+
+    /** The epoch follows the flags byte, as one byte. */
+    const val EPOCH = 0x02
 }
 
 /**
- * A status above [AckStatus.CANCELLED] comes from a newer version and is kept as a number. [extensions] sit between
+ * A status above [AckStatus.REOPENED] comes from a newer version and is kept as a number. [extensions] sit between
  * the team name and the signature, which always takes the last 64 bytes and so covers them: the first byte holds
- * [AckFlags], and whatever follows it comes from a newer version and is kept as it came.
+ * [AckFlags], the fields its bits announce follow in bit order, and whatever comes after them is from a newer
+ * version and is kept as it came.
  */
 class IncidentAck(
     val incidentId: ByteArray,
@@ -301,15 +423,26 @@ class IncidentAck(
 
     val assigned: Boolean get() = flags and AckFlags.ASSIGNED != 0
 
+    /** How many times control reopened the incident before this ACK; 0 without the field. */
+    val epoch: Int get() = if (flags and AckFlags.EPOCH != 0 && extensions.size > 1) extensions[1].toInt() and 0xFF else 0
+
     companion object {
         const val SIGNATURE_SIZE = 64
         const val STATUS_OFFSET = INCIDENT_ID_SIZE
+        const val MAX_EPOCH = 0xFF
         private val DOMAIN = "SP-ACK-v1".utf8()
 
-        /** No byte at all without a flag, so a plain ACK keeps its 1.0 bytes and can still go to a 1.0 phone. */
-        fun extensions(flags: Int): ByteArray {
-            require(flags in 0..0xFF)
-            return if (flags == 0) ByteArray(0) else byteArrayOf(flags.toByte())
+        /**
+         * No byte at all without a flag or an epoch, so a plain ACK keeps its 1.0 bytes and can still go to a 1.0
+         * phone. [flags] are the other AckFlags; the epoch sets [AckFlags.EPOCH] itself.
+         */
+        fun extensions(flags: Int, epoch: Int = 0): ByteArray {
+            require(flags in 0..0xFF && flags and AckFlags.EPOCH == 0 && epoch in 0..MAX_EPOCH)
+            return when {
+                epoch > 0 -> byteArrayOf((flags or AckFlags.EPOCH).toByte(), epoch.toByte())
+                flags != 0 -> byteArrayOf(flags.toByte())
+                else -> ByteArray(0)
+            }
         }
 
         fun unsigned(incidentId: ByteArray, status: Int, timestamp: Long, teamName: String): ByteArray {

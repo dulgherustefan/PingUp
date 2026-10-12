@@ -8,8 +8,9 @@ import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.venue.SiteGrid
 
 /**
- * Writes the console log: every report the console opens, every ACK that becomes an incident's state on the network
- * and every decision of the operator, with its reason. Entries are only ever appended.
+ * Writes the console log: every report the console opens, every ACK that becomes an incident's state on the network,
+ * every cancel the operator has to check and every decision of the operator, with its reason. Entries are only ever
+ * appended.
  */
 class ConsoleRecorder(
     private val store: JsonStore<ConsoleLog>,
@@ -20,16 +21,25 @@ class ConsoleRecorder(
 ) {
     private val logged = store.value.entries.filter { it.event == LogEvent.REPORT }.mapTo(HashSet()) { it.incidentId }
 
+    /** Cancel requests already logged, by incident and epoch. */
+    private val requests = store.value.entries.filter { it.event == LogEvent.CANCEL_REQUEST }.mapTo(HashSet()) { it.incidentId to it.epoch }
+
     @Synchronized
-    fun sawIncidents(incidents: List<StaffIncident>) = append(incidents.filter { it.incidentId !in logged }.map { reportEntry(it, grid) })
+    fun sawIncidents(incidents: List<StaffIncident>) {
+        val now = clock.wallMs()
+        val reports = incidents.filter { it.incidentId !in logged }.map { reportEntry(it, grid) }
+        val cancels = incidents.filter { it.cancelRequested && (it.incidentId to it.epoch) !in requests }
+            .map { LogEntry(now, LogEvent.CANCEL_REQUEST, it.incidentId, epoch = it.epoch) }
+        append(reports + cancels)
+    }
 
     @Synchronized
     fun sawAck(ack: IncidentAck, own: Boolean, hops: Int) {
         val id = ack.incidentId.toHex()
         val report = if (id in logged) null else incident(id)?.let { reportEntry(it, grid) }
         val entry = LogEntry(
-            clock.wallMs(), LogEvent.ACK, id, status = ack.status, team = ack.teamName, signedAt = ack.timestamp * 1000,
-            signature = ack.signature.toHex(), own = own, hops = hops,
+            clock.wallMs(), LogEvent.ACK, id, status = ack.status, epoch = ack.epoch, team = ack.teamName,
+            signedAt = ack.timestamp * 1000, signature = ack.signature.toHex(), own = own, hops = hops,
         )
         append(listOfNotNull(report, entry))
     }
@@ -47,6 +57,7 @@ class ConsoleRecorder(
     private fun append(entries: List<LogEntry>) {
         if (entries.isEmpty()) return
         entries.filter { it.event == LogEvent.REPORT }.mapTo(logged) { it.incidentId }
+        entries.filter { it.event == LogEvent.CANCEL_REQUEST }.mapTo(requests) { it.incidentId to it.epoch }
         store.update { it.copy(entries = it.entries + entries) }
     }
 }

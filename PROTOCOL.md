@@ -2,7 +2,7 @@
 
 This document describes protocol 1.1 as implemented on `main`, and 1.0, which 1.1 phones still meet in the field. It is written for an external review and for anyone building a second implementation (an iOS reporting leaf, a hardware relay). It describes what the code does today, including the parts that are known to be weak; those are collected in section 14.
 
-1.1 keeps the 1.0 header and every 1.0 byte: a 1.0 phone and a 1.1 phone talk without either counting the other's packets as malformed. What 1.1 adds is tolerance for what newer versions will send, SUMMARY2 and REQUEST2, a reserved type for organiser announcements, a TTL table per type and a per-link limit on new reports. Where the two versions differ, the sections below say so; section 15 sums up the differences and the rules a newer version has to follow.
+1.1 keeps the 1.0 header and every 1.0 byte: a 1.0 phone and a 1.1 phone talk without either counting the other's packets as malformed. What 1.1 adds is tolerance for what newer versions will send, SUMMARY2 and REQUEST2, a reserved type for organiser announcements, a TTL table per type and a per-link limit on new reports; and, through the extension points this tolerance opens, field states and closing by the control room, reopening (the epoch), triage answers, staff reports and a separate category for a lost friend. Where the two versions differ, the sections below say so; section 15 sums up the differences and the rules a newer version has to follow.
 
 The code is the source of truth. Paths below are relative to `core/src/main/kotlin/ro/safetyplease/core/` unless they start with `app/`:
 
@@ -170,19 +170,28 @@ Rules (`MeshEngine.onHello`): each end sends HELLO first on a new link. Until th
 
 `id8` is the first 8 bytes of an `incidentId` read as `i64`. At most 451 bytes; nothing may follow the entries.
 
-- SUMMARY `state`: bit `0x80` = "I hold the report"; bits 0..6 = the ACK status I hold (0..4, section 8). Status values above 4 are rejected.
+- SUMMARY `state`: bit `0x80` = "I hold the report"; bits 0..6 = the ACK status I hold (0..4, section 8). Status values above 4 are rejected: a SUMMARY goes only to and from 1.0 peers, which get no other status.
 - REQUEST `state`: `0x80` = send me the report, `0x01` = send me the ACK. Any other bit is rejected.
 
 **SUMMARY2 and REQUEST2** (1.1, `Summary2Codec`, `Request2Codec`) start with a `kind u8`, so that store-and-forward can carry other things later (organiser announcements, replies to a reporter) without a new packet type. The rest depends on the kind:
 
 | Kind | Name | After the kind |
 |---|---|---|
-| 1 | INCIDENTS | exactly the SUMMARY or REQUEST payload above |
+| 1 | INCIDENTS | the SUMMARY or REQUEST payload above; a SUMMARY2 may add the fields below |
 | other | | not read |
 
-Unlike SUMMARY and REQUEST, they tolerate what a newer version may add: trailing bytes are skipped; a SUMMARY2 status above 4 is kept as a number, and never requested, because 1.1 doesn't store such an ACK (section 6.4); a REQUEST2 want bit other than `0x80` and `0x01` is ignored. A kind the node doesn't read is dropped as unsupported, not malformed. Entry counts above 50 and truncated entries are still malformed. The largest SUMMARY2 is 452 bytes.
+A SUMMARY2 of kind INCIDENTS may carry, after its entries:
 
-A node sends a summary after the peer's HELLO and then every 60 s on each ready link, only when it has something to list: the 50 incidents it stored most recently. A 1.1 node sends SUMMARY2 of kind INCIDENTS to a 1.1 peer and SUMMARY to a 1.0 peer, and to a 1.0 peer it lists only the packets it could hand to it (an ACK with extensions is left out, section 6.4). On a summary it requests the report if the peer holds it, neither side knows a CANCELLED ACK, and it has never seen that report; and the ACK if the peer's status is known and higher than its own. It asks a link for no more reports than that link's budget for new reports has left (section 7); the others wait for a later summary, so none crosses the link only to be dropped. It answers SUMMARY with REQUEST and SUMMARY2 with REQUEST2. On a request it sends the stored packets on that link only, as relays, and to a 1.0 peer only what 1.0 accepts.
+| Size | Field | Rule |
+|---|---|---|
+| 1 | `flags` | `0x01` EPOCHS; other bits belong to newer versions and are ignored |
+| `count` | `epoch u8` per entry, in entry order | only if `0x01`; the epoch of the ACK the entry names (section 8) |
+
+A node writes the flags byte only when one of the incidents it lists was reopened, so a summary without epochs keeps the bytes above. With epochs, an entry takes 10 bytes and a summary lists at most 47 incidents (`Limits.SUMMARY2_EPOCH_ENTRIES`, 2 + 470 + 1 = 473 bytes); the node then lists the 47 it stored most recently. EPOCHS with fewer epoch bytes than entries, or with more than 47 entries, is malformed. An entry without an epoch has epoch 0.
+
+Unlike SUMMARY and REQUEST, they tolerate what a newer version may add: bytes after the fields this version reads are skipped; a SUMMARY2 status above 9 is kept as a number, and never requested, because 1.1 doesn't store such an ACK (section 6.4); a REQUEST2 want bit other than `0x80` and `0x01` is ignored. A kind the node doesn't read is dropped as unsupported, not malformed. Entry counts above 50 and truncated entries are still malformed. The largest SUMMARY2 is 452 bytes without epochs and 473 with them.
+
+A node sends a summary after the peer's HELLO and then every 60 s on each ready link, only when it has something to list: the 50 incidents it stored most recently. A 1.1 node sends SUMMARY2 of kind INCIDENTS to a 1.1 peer and SUMMARY to a 1.0 peer, and to a 1.0 peer it lists only the packets it could hand to it (an ACK with a status 1.0 doesn't know or with extensions is left out, section 6.4). On a summary it requests the ACK if the peer's status is known and its (epoch, status) comes later in the supersede order (section 8) than its own; and the report if the peer holds it, it has never seen that report, and the later of the two ACKs isn't CANCELLED. It asks a link for no more reports than that link's budget for new reports has left (section 7); the others wait for a later summary, so none crosses the link only to be dropped. It answers SUMMARY with REQUEST and SUMMARY2 with REQUEST2. On a request it sends the stored packets on that link only, as relays, and to a 1.0 peer only what 1.0 accepts.
 
 ### 6.3 INCIDENT_REPORT (`IncidentReportCodec`, `IncidentBody`)
 
@@ -191,7 +200,7 @@ A node sends a summary after the peer's HELLO and then every 60 s on each ready 
 | 16 | `incidentId`, random |
 | rest | sealed body: `crypto_box_seal(IncidentBody)` to the staff box key, 48 bytes of overhead (section 9) |
 
-Relays cannot open the body. They check only that the payload is longer than 64 bytes (16 + 48). At most 16 + 391 + 48 = 455 bytes.
+Relays cannot open the body. They check only that the payload is longer than 64 bytes (16 + 48). At most 16 + 394 + 48 = 458 bytes.
 
 `IncidentReportCodec.incidentId` and `IncidentReportCodec.sealed` slice the payload without checking its length and throw on a payload shorter than 16 bytes. Callers must check `IncidentReportCodec.isWellFormed` first; `MeshEngine` does, before it stores, relays or delivers a report, so the app only ever sees well-formed ones.
 
@@ -199,31 +208,37 @@ Relays cannot open the body. They check only that the payload is longer than 64 
 
 | Size | Field | Rule |
 |---|---|---|
-| 1 | `category` | 1..7 |
+| 1 | `category` | 1..8 |
 | 1 | `severity` | 1..3 |
 | 4 | `timestamp` | reporter's clock |
-| 1 | `flags` | `0x01` coordinates, `0x02` nickname, `0x04` cancel hash; other bits rejected |
+| 1 | `flags` | `0x01` coordinates, `0x02` nickname, `0x04` cancel hash, `0x08` triage, `0x10` staff fields (1.1) |
 | 1 | `zoneLen` | at most 32 |
 | `zoneLen` | zone | free text, may be empty |
 | 4 + 4 | `lat i32`, `lon i32` | only if `0x01` |
 | 2 | `descLen` (`u16`) | at most 300 |
 | `descLen` | description | the app also limits it to 140 characters |
 | 1 | `nickLen` | only if `0x02`; at most 24 |
-| `nickLen` | nickname | only if `0x02`; may be empty; absent means anonymous |
+| `nickLen` | nickname | only if `0x02`; may be empty; absent means anonymous. With `0x10`, the team's name |
 | 16 | `cancelHash` | only if `0x04`; section 8 |
+| 1 | `triage` | 1.1, only if `0x08`: bits 0..1 "does the person respond", bits 2..3 "do they breathe normally"; bits 4..7 ignored |
+| 1 + 1 | `people u8`, `staffFlags u8` | 1.1, only if `0x10`: how many people (0 = not given); `staffFlags` `0x01` = the danger continues, other bits ignored |
 
-At most 391 bytes. In 1.0 nothing may follow, other flag bits are rejected and so is a category outside 1..7.
+At most 394 bytes (391 in 1.0). In 1.0 nothing may follow, flag bits above `0x04` are rejected and so is a category outside 1..7.
 
-Categories: 1 medical, 2 violence, 3 lost person, 4 harassment, 5 crowd, 6 fire, 7 other. Severity: 1 low, 2 medium, 3 urgent.
+Categories: 1 medical, 2 violence, 3 lost child, 4 harassment, 5 crowd, 6 fire, 7 other, 8 lost friend (1.1). 1.0 called 3 "lost person"; a report with 3 from an older phone may be about anyone lost, and 1.1 shows it as a lost child, which errs on the side of a search. Severity: 1 low, 2 medium, 3 urgent.
 
-1.1 lets a newer version extend the body: new fields go after the cancel hash, each behind a flag bit of its own (`0x08` and up, in bit order). A 1.1 staff phone ignores flag bits it doesn't know and everything after the fields it reads, and keeps a category it doesn't know as a number; the app shows it as "other". Category 0 and a severity outside 1..3 are still rejected. The body is sealed, so only staff phones decode it: a body a staff phone rejects is dropped silently, which is why staff phones must be updated before reporters send anything new here.
+Triage answers (`Answer`, two bits each): 0 not asked, 1 yes, 2 no, 3 don't know. The app asks both questions for a medical report and writes the byte only if at least one was answered; staff phones show "don't know" as such. The staff fields come only from a phone that holds the staff keys; its nickname field then carries the team from the staff QR. Neither is authenticated: until reports are signed (roadmap 2.18) they say what the author claims.
+
+1.1 lets a newer version extend the body: new fields go after the staff fields, each behind a flag bit of its own (`0x20` and up, in bit order). A 1.1 staff phone ignores flag bits it doesn't know and everything after the fields it reads, and keeps a category it doesn't know as a number; the app shows it as "other". Category 0 and a severity outside 1..3 are still rejected. The body is sealed, so only staff phones decode it: a body a staff phone rejects is dropped silently, which is why staff phones must be updated before reporters send anything new here.
+
+What a 1.0 phone makes of the 1.1 fields: as a relay, nothing, since the body is sealed; it stores, relays and serves these reports like any other, and never counts them as malformed. As a staff phone, it rejects a body with triage, staff fields or category 8, so it never shows that report, sends no RECEIVED for it and bans nobody: a sealed body that doesn't decode is dropped silently. The categories are numbered so this costs least: a lost child keeps code 3 and reaches 1.0 staff phones as an urgent "lost person"; only the lost friend, which is for the control room alone, takes the new code. A medical report with triage answers, or a staff report, doesn't reach a 1.0 staff phone at all: staff phones are a fleet the organiser updates together.
 
 ### 6.4 INCIDENT_ACK (`IncidentAck`)
 
 | Size | Field | Rule |
 |---|---|---|
 | 16 | `incidentId` | |
-| 1 | `status` | 1..4 |
+| 1 | `status` | 1..4 in 1.0, 1..9 in 1.1 (section 8) |
 | 4 | `timestamp` | staff phone's clock |
 | 1 | `teamLen` | at most 24 |
 | `teamLen` | team name | from the staff QR |
@@ -234,16 +249,17 @@ Categories: 1 medical, 2 violence, 3 lost person, 4 harassment, 5 crowd, 6 fire,
 
 The signature is `crypto_sign_detached` with the staff signing key over the ASCII domain `SP-ACK-v1` (9 bytes) followed by every payload byte before the signature. The verifier uses the bytes as received, not a re-encoding of the decoded fields. Every relay verifies the signature before it stores or relays an ACK.
 
-In 1.1 the signature is always the last 64 bytes, so a newer version can put fields between the team name and the signature and have them signed. 1.1 keeps them as they came (`IncidentAck.extensions`), and keeps a status above 4 as a number instead of rejecting it; status 0 is still malformed. A verified ACK with a status 1.1 doesn't know is relayed with the usual TTL, but neither stored nor handed to the app, because the supersede order (section 8) has no place for it. An ACK with a status 1.1 doesn't know, or with extensions, never goes to a 1.0 peer.
+In 1.1 the signature is always the last 64 bytes, so a newer version can put fields between the team name and the signature and have them signed. 1.1 keeps them as they came (`IncidentAck.extensions`), and keeps a status above 9 as a number instead of rejecting it; status 0 is still malformed. A verified ACK with a status 1.1 doesn't know is relayed with the usual TTL, but neither stored nor handed to the app, because the supersede order (section 8) has no place for it. An ACK with a status 1.0 doesn't know (above 4), or with extensions, never goes to a 1.0 peer.
 
-The first extension byte holds the ACK flags (`AckFlags`, 1.1):
+The first extension byte holds the ACK flags (`AckFlags`, 1.1); the fields the flags announce follow it in bit order:
 
 | Bit | Name | Meaning |
 |---|---|---|
 | `0x01` | ASSIGNED | the control console signed this ACKNOWLEDGED in the name of the team it gives the incident to (`IncidentManager.assign`); that team's phones show the incident as assigned to them. A team's own take is not an assignment |
-| `0x02`..`0x80` | | reserved; ignored |
+| `0x02` | EPOCH | an `epoch u8` follows the flags byte: how many times the control console reopened the incident (section 8). Without the flag, or with the flag and no byte, the epoch is 0 |
+| `0x04`..`0x80` | | reserved; ignored |
 
-A signer writes the byte only when a flag is set, so an ordinary ACK keeps the 1.0 layout and still reaches 1.0 phones; an ACK without extensions has no flags. Bytes after the flags byte belong to newer versions and are kept unread. The flag is under the signature, so a relay can't add or strip it. Since an ACK with extensions never goes to a 1.0 peer, 1.0 phones don't see an assignment at all: they keep the status they had until a take or a later status reaches them. SUMMARY carries only the status, so a take that replaces an assignment (section 8) spreads with the flood, not through store-and-forward.
+A signer writes the flags byte only when a flag is set or the epoch is above 0, so an ordinary ACK keeps the 1.0 layout and still reaches 1.0 phones; an ACK without extensions has no flags and epoch 0. Bytes after the fields of the flags this version knows belong to newer versions and are kept unread. The flags and the epoch are under the signature, so a relay can't add, strip or change them. Since an ACK with extensions never goes to a 1.0 peer, 1.0 phones see neither an assignment nor anything after a reopen: they keep the status they had until a take or a later status reaches them (section 8 says what they show). SUMMARY carries only the status, so a take that replaces an assignment (section 8) spreads with the flood, not through store-and-forward; SUMMARY2 carries the epoch (section 6.2).
 
 ### 6.5 INCIDENT_CANCEL (`IncidentCancel`)
 
@@ -302,7 +318,7 @@ Per-type checks, at every hop:
 | Type | Check | On failure |
 |---|---|---|
 | INCIDENT_REPORT | payload longer than 64 bytes; then stored if its `id8` is new. 1.1: at most 6 new reports a minute from one link | malformed; a known `id8` is dropped and not relayed; a new report over the limit is dropped (`REPORT_LIMIT`) |
-| INCIDENT_ACK | decodes and the signature verifies; then stored if it supersedes the stored ACK (section 8). 1.1: a status above 4 is relayed, but neither stored nor delivered | malformed; an ACK that doesn't supersede is dropped and not relayed |
+| INCIDENT_ACK | decodes and the signature verifies; then stored if it supersedes the stored ACK (section 8). 1.1: a status above 9 is relayed, but neither stored nor delivered | malformed; an ACK that doesn't supersede is dropped and not relayed |
 | INCIDENT_CANCEL | payload exactly 32 bytes; 1.1: at least 32 | malformed |
 | PRIVATE | R set, `sender ≠ 0`, E set | malformed |
 
@@ -339,11 +355,38 @@ It covers everything except `ttl`, so a node can't block a packet by sending gar
 ## 8. Incidents and the ACK chain
 
 - The reporter draws a random 16-byte `incidentId` and a random 16-byte cancel token, puts `cancelHash = SHA-256("SP-CANCEL-v1" ‖ token)`, first 16 bytes, into the body, seals the body and floods the report with `sender 0`.
-- The first staff phone that opens a report sends RECEIVED by itself, unless an ACK for it is already known. Staff then send ACKNOWLEDGED and RESOLVED by hand.
-- ACK status values: 0 NONE (only in SUMMARY), 1 RECEIVED, 2 ACKNOWLEDGED, 3 RESOLVED, 4 CANCELLED. Values above 4 are for newer versions (sections 6.4 and 15).
+- The first staff phone that opens a report sends RECEIVED by itself, unless an ACK for it is already known. Staff then send the others by hand: a team ACKNOWLEDGED (it takes the incident), ON_SCENE, HANDED_OVER and RESOLVED; the control console CLOSED_BY_CONTROL, UNFOUNDED, CANCELLED after checking a cancel, and REOPENED. Until ACKs are signed one by one (roadmap 2.18) every holder of the staff key can sign any of them; only the screens keep the console's statuses to the console.
+- ACK status values (`AckStatus`): 0 NONE (only in summaries), 1 RECEIVED, 2 ACKNOWLEDGED, 3 RESOLVED, 4 CANCELLED; in 1.1 also 5 ON_SCENE, 6 HANDED_OVER, 7 CLOSED_BY_CONTROL, 8 UNFOUNDED, 9 REOPENED. Values above 9 are for newer versions (sections 6.4 and 15). RESOLVED, CLOSED_BY_CONTROL, UNFOUNDED and CANCELLED close an incident; ACKNOWLEDGED, ON_SCENE and HANDED_OVER mean a team has it.
 - Relays track an incident by `id8` (section 7): `IncidentCache` stores one report and one ACK per `id8`, and SUMMARY and REQUEST name incidents by it. The reporter and staff phones match reports, ACKs and cancels on all 16 bytes of the `incidentId`.
-- Supersede order (`IncidentCache.isBetter`, per `id8`): a higher status wins; for equal status an ACK without the ASSIGNED flag beats one with it (1.1, section 6.4) whatever their timestamps, so a team that takes an incident has it even if the console gave it to another team first; then the older `timestamp` wins; for equal timestamps the smaller team name wins (Kotlin string order, by UTF-16 code units). The status therefore never goes down, and a RESOLVED incident cannot be reopened. Phones apply the same rule to what they show: a take replaces an assignment of the same status.
-- Cancelling: the author floods INCIDENT_CANCEL with `sender 0`, again every 60 s and after each new link, for up to 30 minutes or until the status reaches RESOLVED or CANCELLED. A staff phone that holds the report checks `SHA-256("SP-CANCEL-v1" ‖ token)[0..16] == cancelHash` and that the status is below RESOLVED, then signs a CANCELLED ACK. A cancel that arrives before its report is kept for 60 minutes (64 at most). A body without `cancelHash` cannot be cancelled.
+- Epoch (1.1): the number of times the console reopened the incident, carried in the ACK (section 6.4). REOPENED is signed with the known epoch plus one and every later ACK with that epoch, so a reopen is the first status of its epoch. At 255 the incident can't be reopened again.
+- Rank within an epoch, the one table (`AckStatus.rank`), lowest first:
+
+  | Rank | Status | Why there |
+  |---|---|---|
+  | 0 | NONE | |
+  | 1 | RECEIVED | a phone has it, no person yet |
+  | 2 | REOPENED | starts an epoch; whatever a team does next replaces it |
+  | 3 | ACKNOWLEDGED | |
+  | 4 | ON_SCENE | |
+  | 5 | HANDED_OVER | |
+  | 6 | RESOLVED | a team says it's done |
+  | 7 | CLOSED_BY_CONTROL | the console's decision comes after the team's |
+  | 8 | UNFOUNDED | a false alarm found out after a closing still says so |
+  | 9 | CANCELLED | as in 1.0, nothing in the epoch replaces it |
+
+  1.0's four keep their 1.0 order (1 < 2 < 3 < 4), so 1.0 and 1.1 relays agree on every ACK they both keep.
+- Supersede order (`AckOrder`, `IncidentCache.isBetter`, per `id8`): the later epoch wins; within an epoch the higher rank wins; for equal rank an ACK without the ASSIGNED flag beats one with it (1.1, section 6.4) whatever their timestamps, so a team that takes an incident has it even if the console gave it to another team first; then the older `timestamp` wins; for equal timestamps the smaller team name wins (Kotlin string order, by UTF-16 code units). Within an epoch the status never goes down; only a reopen brings an incident back, and no ACK of an earlier epoch closes it again, however late it comes. 1.0 compares status numbers only (section 15). Phones apply the same rule to what they show: a take replaces an assignment of the same status.
+- What a 1.0 phone shows. It never receives a status above 4 or an ACK with an epoch (section 7), so it counts nothing malformed. In epoch 0, the signer of a status 1.0 doesn't know first floods, as a separate ACK without extensions, the closest status 1.0 knows (`AckStatus.legacy`) if that beats the ACK the signer holds, and the new status `IncidentManager.ONE_ZERO_LEAD_MS` (2 s) after it, so that relays keep and pass on the first before the second replaces it:
+
+  | 1.1 status | A 1.0 phone shows |
+  |---|---|
+  | ON_SCENE, HANDED_OVER | ACKNOWLEDGED (usually it has it already from the take) |
+  | CLOSED_BY_CONTROL, UNFOUNDED | RESOLVED |
+  | REOPENED, and anything after it | what it had: 1.0 cannot go back, so a reopened incident stays closed there |
+
+  1.1 phones see the 1.0 status for those two seconds, then the new one. The 1.0 status reaches 1.0 phones with the live flood and through 1.0 relays; 1.1 relays keep only the better ACK, so they don't serve it later through store-and-forward. Behind a 1.0 relay a 1.1 phone sees only what 1.0 sees.
+- Cancelling: the author floods INCIDENT_CANCEL with `sender 0`, again every 60 s and after each new link, for up to 30 minutes or until the incident is closed. A staff phone that holds the report checks `SHA-256("SP-CANCEL-v1" ‖ token)[0..16] == cancelHash` and that the incident is open. Then it signs a CANCELLED ACK only where a wrong cancel costs little: categories crowd, other and lost friend, not urgent, never reopened (`Priority.cancelNeedsReview`, `IncidentManager.cancelIsChecked`). Everywhere else, a category it doesn't know included, a valid cancel only marks the incident "cancelled by the reporter, to check" on that phone: the alert stays, the reporter keeps the report spreading so every staff phone sees both, and the console closes it with CANCELLED or UNFOUNDED, or carries on. The mark isn't on the wire: every staff phone that holds the report checks the token itself. A 1.0 staff phone still signs CANCELLED for any valid cancel, so the check holds only where staff phones are updated together. A cancel that arrives before its report is kept for 60 minutes (64 at most). A body without `cancelHash` cannot be cancelled.
+- Severity is the reporter's: urgent for a lost child or after a "no" to a triage question, or when the reporter says so; low for a lost friend; otherwise medium. No other category is urgent by itself (`Priority.severity`). A lost friend raises no alert and is left out of the teams' list; the console shows it as information.
 - Relays can verify ACKs and nothing else about an incident.
 
 ## 9. Keys and cryptography
@@ -410,7 +453,7 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 | TTL at the origin | 7 when flooded, 1 on one link, 3 for ANNOUNCEMENT and unknown types (section 5) | `PacketType.originTtl` |
 | Fragments per packet | 2..255 (`count u8`); 19 at most in practice | `PacketCodec` |
 | Fragment sets per link, timeout | 8, 30 s | `Reassembler` |
-| SUMMARY / REQUEST entries, also SUMMARY2 / REQUEST2 | 50 | `Limits.SUMMARY_ENTRIES` |
+| SUMMARY / REQUEST entries, also SUMMARY2 / REQUEST2 | 50; 47 in a SUMMARY2 with epochs | `Limits.SUMMARY_ENTRIES`, `SUMMARY2_EPOCH_ENTRIES` |
 | Nickname | 24 B | `Limits.NICK_BYTES` |
 | Zone | 32 B | `Limits.ZONE_BYTES` |
 | Description | 300 B and 140 characters | `Limits.DESCRIPTION_BYTES`, `DESCRIPTION_CHARS` |
@@ -418,7 +461,9 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 | Chat text | 400 B | `Limits.TEXT_BYTES` |
 | Group name, group nickname | 32 B, 16 B | `Limits.GROUP_NAME_BYTES`, `GROUP_NICK_BYTES` |
 | Group size | 8, creator included | `Limits.GROUP_MAX_MEMBERS` |
-| Largest report payload | 455 B (25 B to spare) | section 6.3 |
+| Largest report payload | 458 B (22 B to spare); 455 B in 1.0 | section 6.3 |
+| Epoch (1.1) | 255 reopens of one incident | `IncidentAck.MAX_EPOCH` |
+| Own reports (local, not on the wire) | 3 in 10 minutes, 20 on a phone with the staff keys | `IncidentManager.RATE_MAX`, `STAFF_RATE_MAX` |
 | Largest TEXT payload | 458 B (22 B to spare) | section 6.6 |
 | Receive / send rate per link | 3/s burst 30; 2.8/s burst 28 | `MeshConfig` |
 | Dedup | 4,096 keys, 15 min | `DedupCache` |
@@ -432,13 +477,13 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 
 **Golden vectors.** `core/src/test/resources/golden/protocol-v1.txt` holds one line per vector, `name value`. Values are lowercase hex, except the `qr.*` vectors, which are the QR text. The comment above each vector lists its inputs, so the file can be used without reading Kotlin. It covers the derived keys and nodeIds, whole frames (with and without recipient, and three fragments), HELLO, SUMMARY, REQUEST, two report bodies, the cancel hash, a sealed report, the signed ACK bytes and the ACK, the cancel, all seven inner types, a boxed PRIVATE payload, and both QR formats.
 
-1.1 added vectors and changed none. Its encoders write `hello.v11`, `summary2`, `request2`, `frame.opaque`, `frame.opaque.relayed` and `incident.ack.assigned`, an ACKNOWLEDGED with the ASSIGNED flag (section 6.4). The others carry what a newer version may send and are built by hand: `hello.extended`, `summary2.unknown`, `incident.body.extended` and `incident.ack.future`, a signed ACK with status 7 and two bytes of extensions. 1.1 must read them; 1.0 rejects them.
+1.1 added vectors and changed none. Its encoders write `hello.v11`, `summary2`, `request2`, `frame.opaque`, `frame.opaque.relayed` and `incident.ack.assigned`, an ACKNOWLEDGED with the ASSIGNED flag (section 6.4); then, for the field states and the epoch, `incident.ack.on_scene`, `.handed_over`, `.closed`, `.unfounded`, `.reopened` (epoch 1) and `.assigned.epoch` (ASSIGNED and epoch 1), `summary2.epochs`, and the bodies `incident.body.triage`, `incident.body.staff` and `incident.body.lost_friend`. The others carry what a newer version may send and are built by hand: `hello.extended`, `summary2.unknown`, `incident.body.extended`, `incident.ack.unknown`, a signed ACK with status 0x7e and two bytes of extensions, and `incident.ack.future`, written the same way with status 7 before 1.1 gave 7 and the epoch a meaning: 1.1 now reads it as CLOSED_BY_CONTROL with the flags ASSIGNED and EPOCH and epoch 205, and still skips the flag bits it doesn't know. 1.1 must read them all; 1.0 rejects every one of them.
 
 Inputs are deterministic. Seeds are 32 consecutive byte values (`seed(0x10)` = `10 11 … 2f`): the staff keys come from `seed(0x10)` and `seed(0x30)`, alice from `seed(0x50)` and `seed(0x70)`, bob from `seed(0x90)` and `seed(0xb0)`. Ed25519 signatures are deterministic. A real sealed box uses a random ephemeral key, so the vector builds `crypto_box_seal` step by step with the ephemeral pair from `seed(0xd0)`. Implementations should check that they open it, not that they produce it. The `crypto_box` nonce is fixed to `e0 e1 … f7` by overriding lazysodium's `randomBytesBuf`, which is the only randomness `SodiumCrypto.box` takes from Java. When the file was created, the key, nodeId, hash, dedup, sealing, signature, box and QR vectors were also checked against PyNaCl 1.6.2 and Python's `hashlib`.
 
 `GoldenVectorsTest` checks every vector both ways: the encoder must produce the stored bytes, and decoding the stored bytes (opening, verifying) must give back the inputs. It also checks that the file holds exactly the vectors the test knows.
 
-**1.0 next to 1.1.** `Frozen10`, in the test sources, keeps the 1.0 decoders and encoders as they shipped. `GoldenVectorsTest` checks that its encoders still write the 1.0 vectors, that its decoders read them and the 1.1 HELLO, and that they reject what only 1.1 reads. `V10Node` is a test phone that reads and writes only through `Frozen10`, relays, stores and answers summaries as 1.0 did, and counts every packet 1.0 would have counted as malformed. `Protocol11Test` puts it next to 1.1 phones: reports, ACKs and chat in both directions, store-and-forward through SUMMARY and REQUEST, two 1.0 phones talking through a 1.1 relay, and packets only 1.1 reads crossing 1.1 phones without reaching a 1.0 one, all without a single malformed packet on either side.
+**1.0 next to 1.1.** `Frozen10`, in the test sources, keeps the 1.0 decoders and encoders as they shipped. `GoldenVectorsTest` checks that its encoders still write the 1.0 vectors, that its decoders read them and the 1.1 HELLO, and that they reject what only 1.1 reads. `V10Node` is a test phone that reads and writes only through `Frozen10`, relays, stores and answers summaries as 1.0 did, and counts every packet 1.0 would have counted as malformed. `Protocol11Test` puts it next to 1.1 phones: reports, ACKs and chat in both directions, store-and-forward through SUMMARY and REQUEST, two 1.0 phones talking through a 1.1 relay, and packets only 1.1 reads crossing 1.1 phones without reaching a 1.0 one, all without a single malformed packet on either side. `IncidentStatesTest` does the same for the incident flow: a 1.0 phone next to a 1.1 console shows the closest status it knows and keeps a reopened incident closed, and a 1.0 relay between a 1.1 reporter and a 1.1 console carries a lost friend's report and the 1.0 status of an UNFOUNDED.
 
 **Changing a vector.** Any change to these bytes, other than `dedup.private`, is a wire change. It needs a new protocol version or a compatibility plan (section 15) and a note with the reason in the project log. To regenerate after an intended change, run
 
@@ -464,16 +509,16 @@ Inputs are deterministic. Seeds are 32 consecutive byte values (`seed(0x10)` = `
 4. **Strings are not validated as UTF-8.** A malformed sequence decodes to U+FFFD, so a decoded string can re-encode to more bytes than its limit and make the encoder throw. No receiver re-encodes a received string today, so this is latent. Should decoders reject invalid UTF-8?
 5. **Coordinates are not range-checked** on decode; a body can carry a latitude of ±2147°.
 6. **The `incidentId` is not bound to the sealed body.** Anyone can wrap a captured sealed body under a new `incidentId`, and staff would see it as a new report with the same content and the same cancel hash.
-7. **One shared staff key per build, no revocation.** Every holder of the staff QR can read every report, past ones included (a sealed box has no forward secrecy), and can sign any ACK for any team; the team name is free text from the QR. An anchor's QR holds the same seeds.
+7. **One shared staff key per build, no revocation.** Every holder of the staff QR can read every report, past ones included (a sealed box has no forward secrecy), and can sign any ACK for any team, the console's statuses included: it can close, reopen or confirm a cancel as if it were the console; the team name is free text from the QR. An anchor's QR holds the same seeds.
 8. **Reports and cancels can't be checked by relays**, and relays don't enforce `sender = 0` on them. Any node can fill a neighbour's report cache (50) with sealed garbage and push real reports out.
 9. **Anonymity is partial.** The first neighbour receives `ttl 7` and knows the sender is the origin. The advertising prefix is static, so a nearby observer can follow a phone by signal strength; older builds also broadcast PENDING_INCIDENT while a report waited for an ACK, which showed who had just reported.
 10. **HELLO is not authenticated.** A node can claim another's nodeId and get it banned by sending five bad frames ("ban framing"). The STAFF and ANCHOR roles are self-declared, but connection policy prefers them.
 11. **Fragment sets are easy to disturb** for a peer on the same link: it can evict the 8 sets or reuse a `fragId` with a different header and invalidate one. It only affects that link.
-12. **480 bytes is the ceiling.** Photos and event packs need a new transfer mechanism. The report has 25 bytes to spare and TEXT 22, so a 64-byte signature on a chat message doesn't fit without shortening the text.
+12. **480 bytes is the ceiling.** Photos and event packs need a new transfer mechanism. The report has 22 bytes to spare and TEXT 22, so a 64-byte signature on a chat message doesn't fit without shortening the text.
 13. **The codec allows R on every type.** Only PRIVATE uses it. A report with R set would be stored and served by SUMMARY/REQUEST but delivered only to the named node. 1.1 still allows it; should a later version reject it?
 14. **The dedup key is truncated to 64 bits.** Collisions are negligible at 4,096 entries, but a key is not a secure identifier.
 15. **Chat messages carry no send time.** The displayed time is the arrival time, and a replay within the history is answered with a fresh DELIVERED.
-16. **Prefix collisions.** Two phones with the same 32-bit prefix look like one peer to the connection policy, and a ban on one blocks the other. About 0.3 % at 5,000 phones.
+. **1.0 phones and the field states.** A 1.0 phone gets the closest status it knows only from the live flood and from 1.0 relays (section 8): a 1.0 phone that joins later, through 1.1 phones only, keeps the status it had. A reopened incident stays closed on 1.0 phones, and a 1.0 staff phone still closes an urgent report on the reporter's cancel. Both go away only when the staff fleet runs 1.1.
 
 ## 15. Version 1.1
 
@@ -485,11 +530,12 @@ What changed from 1.0:
 | Another header version or flag | malformed | dropped as unsupported |
 | Unknown type | malformed | relayed as it is, at most 3 hops, 256 B, 12 a minute per link, never to a 1.0 peer (section 7.1) |
 | HELLO | nothing after the nickname | trailing bytes skipped |
-| ACK | status 1..4, nothing between team name and signature | any status above 0, a newer one relayed but not stored; extensions before the signature, signed and kept, starting with the ACK flags byte (ASSIGNED) |
-| Supersede order | status, then oldest, then team | status, then a take over an assignment, then oldest, then team |
-| Report body | flags `0x01`..`0x04`, categories 1..7, nothing after | unknown flags and the fields after the cancel hash skipped; unknown category kept |
+| ACK | status 1..4, nothing between team name and signature | statuses 1..9 (field states, closing by the console, reopening), a newer one relayed but not stored; extensions before the signature, signed and kept, starting with the ACK flags byte (ASSIGNED, EPOCH and the epoch) |
+| Supersede order | status, then oldest, then team | epoch, then rank (section 8), then a take over an assignment, then oldest, then team |
+| Report body | flags `0x01`..`0x04`, categories 1..7, nothing after | triage (`0x08`) and staff fields (`0x10`) after the cancel hash, category 8 (lost friend); unknown flags and the fields after those skipped; unknown category kept |
+| Cancel by the reporter | closes any open incident | closes it by itself only where a wrong cancel costs little; elsewhere staff checks it |
 | CANCEL | 32 bytes | at least 32 |
-| Store-and-forward | SUMMARY, REQUEST | SUMMARY2, REQUEST2, with a kind, between 1.1 peers; SUMMARY and REQUEST with 1.0 peers |
+| Store-and-forward | SUMMARY, REQUEST | SUMMARY2, REQUEST2, with a kind and the epochs, between 1.1 peers; SUMMARY and REQUEST with 1.0 peers |
 | Origin TTL | 7 for every flooded type | per type, 7 for every type 1.0 knows (section 5) |
 | New reports from one link | no limit | 6 a minute, and no more requested than that |
 | Reserved | | ANNOUNCEMENT `0x30`, at report priority, 4 a minute per link |
@@ -499,6 +545,6 @@ What a newer version can do without 1.1 phones dropping or banning it:
 
 - Keep the header as it is: version 1, the same flags. A frame with another version or a new header flag is dropped by 1.1 and malformed to 1.0.
 - A new flooded type takes a code from `0x10` up and must make sense within 3 hops of a 1.1 relay, in 256 bytes and at 12 a minute per link; a new type that stays on one link takes `0x06`..`0x0F`. Organiser announcements take `0x30`.
-- New fields go after the nickname in HELLO, after the flags byte in an ACK (new flags take its free bits), after the cancel hash in the report body behind a new flag bit, after the token in a CANCEL, and after the entries in a SUMMARY2 or REQUEST2 of kind INCIDENTS. Other things to store and forward go in a new SUMMARY2 kind.
-- ACK statuses above 4 cross 1.1 phones but aren't stored or shown there: a status that has to stick, such as a reopened incident, needs relays that know it.
+- New fields go after the nickname in HELLO; in an ACK, after the fields of the flags 1.1 knows, behind a new flag bit (`0x04` and up); in the report body after the staff fields, behind a new flag bit (`0x20` and up); after the token in a CANCEL; in a SUMMARY2 of kind INCIDENTS after the epochs, behind a new bit of its flags byte (`0x02` and up); and after the entries in a REQUEST2 of kind INCIDENTS. Other things to store and forward go in a new SUMMARY2 kind.
+- ACK statuses above 9 cross 1.1 phones but aren't stored or shown there: a status that has to stick needs relays that know it. A new status needs a place in the rank table that keeps the order of the old ones.
 - A peer that doesn't announce 1.1 gets only what 1.0 accepts. The next version announces itself with a bit of its own, `0x20` or above, and sends its own additions only to peers that set it.

@@ -82,6 +82,7 @@ import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.ConsoleView
+import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
@@ -214,12 +215,13 @@ internal fun caseLook(case: Case): Triple<String, ImageVector, Color> {
     val colors = AppTheme.colors
     return when (case.state) {
         CaseState.OPEN -> Triple(
-            stringResource(if (case.localOnly) R.string.control_state_reopened else R.string.control_state_open), Sym.Bell, colors.orangeInk,
+            stringResource(if (case.reopened) R.string.control_state_reopened else R.string.control_state_open), Sym.Bell, colors.orangeInk,
         )
         CaseState.ASSIGNED -> Triple(case.team, Sym.Person, colors.label)
         CaseState.CLOSED -> when {
             case.unfounded -> Triple(stringResource(R.string.control_word_unfounded), Sym.Close, colors.secondaryLabel)
             case.network == AckStatus.CANCELLED -> Triple(stringResource(R.string.status_cancelled), Sym.Close, colors.secondaryLabel)
+            case.network == AckStatus.CLOSED_BY_CONTROL -> Triple(stringResource(R.string.incident_state_closed), Sym.CheckCircle, colors.accent)
             else -> Triple(stringResource(R.string.status_resolved), Sym.CheckCircle, colors.accent)
         }
     }
@@ -273,6 +275,7 @@ private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, onC
     val place = listOf(r.grid, if (r.zone.isEmpty()) "" else venue.zoneName(r.zone)).filter { it.isNotEmpty() }
         .ifEmpty { listOf(stringResource(R.string.zone_unknown)) }
     val urgent = stringResource(R.string.sev_urgent)
+    val informational = stringResource(R.string.incident_informational).takeIf { Priority.isInformational(r.category) }
     Row(
         Modifier.fillMaxWidth().background(if (selected) colors.fill else Color.Transparent)
             .selectable(selected, role = Role.Button, onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
@@ -298,6 +301,7 @@ private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, onC
                         withStyle(SpanStyle(color = colors.redInk, fontWeight = FontWeight.SemiBold)) { append(urgent) }
                         append(" · ")
                     }
+                    if (informational != null) append("$informational · ")
                     append((place + agoText(r.reportedAt, now)).joinToString(" · "))
                 },
                 style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis,

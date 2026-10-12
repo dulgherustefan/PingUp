@@ -85,6 +85,7 @@ private fun rememberExportNames(venue: Venue): ExportNames {
             status = { res.getString(ackWord(it)) },
             state = { states[it.ordinal] },
             zone = { if (it.isEmpty()) "" else venue.zoneName(it) },
+            answer = { res.getString(Labels.answer(it)) },
         )
     }
 }

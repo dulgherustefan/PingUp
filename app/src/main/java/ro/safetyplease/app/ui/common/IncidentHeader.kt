@@ -30,7 +30,8 @@ import ro.safetyplease.core.protocol.IncidentCategory
 fun categoryIcon(category: Int): ImageVector = when (category) {
     IncidentCategory.MEDICAL -> Sym.Medical
     IncidentCategory.VIOLENCE -> Sym.Fight
-    IncidentCategory.LOST_PERSON -> Sym.PersonSearch
+    IncidentCategory.LOST_CHILD -> Sym.PersonSearch
+    IncidentCategory.LOST_FRIEND -> Sym.Group
     IncidentCategory.HARASSMENT -> Sym.NoTouch
     IncidentCategory.CROWD -> Sym.Groups
     IncidentCategory.FIRE -> Sym.Fire

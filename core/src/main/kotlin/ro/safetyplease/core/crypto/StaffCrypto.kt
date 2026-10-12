@@ -16,7 +16,7 @@ class StaffCrypto(private val crypto: Crypto, val publicKeys: StaffPublicKeys) {
     fun openReport(sealed: ByteArray, secret: StaffSecretKeys): ByteArray? =
         crypto.sealOpen(sealed, publicKeys.box, secret.box.secretKey)
 
-    /** [flags] are AckFlags bits; they travel in the ACK's extensions, under the signature. */
+    /** [flags] are AckFlags bits; they and the [epoch] travel in the ACK's extensions, under the signature. */
     fun signAck(
         incidentId: ByteArray,
         status: Int,
@@ -24,8 +24,9 @@ class StaffCrypto(private val crypto: Crypto, val publicKeys: StaffPublicKeys) {
         teamName: String,
         secret: StaffSecretKeys,
         flags: Int = 0,
+        epoch: Int = 0,
     ): IncidentAck {
-        val extensions = IncidentAck.extensions(flags)
+        val extensions = IncidentAck.extensions(flags, epoch)
         val signed = IncidentAck.unsigned(incidentId, status, timestamp, teamName) + extensions
         val signature = crypto.sign(IncidentAck.signedMessage(signed), secret.sign.secretKey)
         return IncidentAck(incidentId, status, timestamp, teamName, signature, extensions)

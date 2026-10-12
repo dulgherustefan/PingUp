@@ -85,6 +85,7 @@ class Protocol11Test {
         const val OLD = 0x7000_0000_0000_0007L
         const val OLD2 = 0x7100_0000_0000_0007L
         const val UNKNOWN = 0x55
+        const val NEWER_STATUS = 0x7e
     }
 
     private fun incidentId(n: Int) = ByteArray(INCIDENT_ID_SIZE) { (n + it).toByte() }
@@ -252,7 +253,7 @@ class Protocol11Test {
     fun ackWithANewerStatusIsRelayedButNeitherKeptNorDelivered() = runTest {
         val (hub, leaves) = star(World(this), listOf("A" to A, "C" to C))
         val (a, c) = leaves
-        a.inject(Packet(PacketType.INCIDENT_ACK, 7, 1L, A, 0L, null, false, ack(1, 9).encode()))
+        a.inject(Packet(PacketType.INCIDENT_ACK, 7, 1L, A, 0L, null, false, ack(1, NEWER_STATUS).encode()))
         a.inject(Packet(PacketType.INCIDENT_ACK, 7, 2L, A, 0L, null, false, ack(2, AckStatus.RESOLVED, byteArrayOf(1, 2)).encode()))
         a.inject(packet(PacketType.INCIDENT_CANCEL, 3, sender = 0L, size = IncidentCancel.SIZE + 4))
         advanceTimeBy(5_000)
@@ -365,7 +366,7 @@ class Protocol11Test {
         val old = olds.single()
         a.inject(packet(UNKNOWN, 1))
         a.inject(packet(PacketType.ANNOUNCEMENT, 2))
-        a.inject(Packet(PacketType.INCIDENT_ACK, 7, 3L, A, 0L, null, false, ack(1, 9).encode()))
+        a.inject(Packet(PacketType.INCIDENT_ACK, 7, 3L, A, 0L, null, false, ack(1, NEWER_STATUS).encode()))
         a.inject(Packet(PacketType.INCIDENT_ACK, 7, 4L, A, 0L, null, false, ack(2, AckStatus.RESOLVED, byteArrayOf(1)).encode()))
         a.inject(packet(PacketType.INCIDENT_CANCEL, 5, sender = 0L, size = IncidentCancel.SIZE + 4))
         advanceTimeBy(5_000)

@@ -62,9 +62,11 @@ import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.app.ui.common.categoryIcon
 import ro.safetyplease.app.ui.common.incidentPoint
+import ro.safetyplease.app.ui.common.reportFacts
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppMenu
 import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.Banner
 import ro.safetyplease.app.ui.designsystem.ConfirmDialog
 import ro.safetyplease.app.ui.designsystem.EmptyState
 import ro.safetyplease.app.ui.designsystem.GlassIconButton
@@ -90,6 +92,7 @@ import ro.safetyplease.core.control.isAssignedTo
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.DuplicateHint
+import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.incidents.StatusFilter
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Severity
@@ -102,9 +105,9 @@ import ro.safetyplease.core.protocol.Severity
 private fun statusLook(status: Int): Pair<ImageVector, Color> {
     val colors = AppTheme.colors
     return when (status) {
-        AckStatus.CANCELLED -> Sym.Close to colors.secondaryLabel
-        AckStatus.RESOLVED -> Sym.CheckCircle to colors.accent
-        AckStatus.ACKNOWLEDGED -> Sym.Check to colors.secondaryLabel
+        AckStatus.CANCELLED, AckStatus.UNFOUNDED -> Sym.Close to colors.secondaryLabel
+        AckStatus.RESOLVED, AckStatus.CLOSED_BY_CONTROL -> Sym.CheckCircle to colors.accent
+        AckStatus.ACKNOWLEDGED, AckStatus.ON_SCENE, AckStatus.HANDED_OVER -> Sym.Check to colors.secondaryLabel
         else -> Sym.Bell to colors.orangeInk
     }
 }
@@ -115,8 +118,28 @@ private fun statusWord(status: Int): Int = when (status) {
     AckStatus.CANCELLED -> R.string.status_cancelled
     AckStatus.RESOLVED -> R.string.status_resolved
     AckStatus.ACKNOWLEDGED -> R.string.incident_state_taken
+    AckStatus.ON_SCENE -> R.string.incident_state_on_scene
+    AckStatus.HANDED_OVER -> R.string.incident_state_handed_over
+    AckStatus.CLOSED_BY_CONTROL -> R.string.incident_state_closed
+    AckStatus.UNFOUNDED -> R.string.control_word_unfounded
+    AckStatus.REOPENED -> R.string.control_state_reopened
     else -> R.string.staff_status_new
 }
+
+/** The field steps after a take, one at a time; null once nothing is left but resolving it. */
+internal fun nextFieldStep(status: Int): Int? = when (status) {
+    AckStatus.ACKNOWLEDGED -> AckStatus.ON_SCENE
+    AckStatus.ON_SCENE -> AckStatus.HANDED_OVER
+    else -> null
+}
+
+/** Nobody has it and it isn't closed: a team can take it. */
+internal fun StaffIncident.isOpen(): Boolean = !AckStatus.isTaken(status) && !AckStatus.isClosed(status)
+
+@StringRes
+private fun fieldStepLabel(step: Int): Int = if (step == AckStatus.ON_SCENE) R.string.incident_on_scene else R.string.incident_handed_over
+
+private fun AppViewModel.fieldStep(incidentId: String, step: Int) = if (step == AckStatus.ON_SCENE) onScene(incidentId) else handOver(incidentId)
 
 /** Status with the team name: "Preluat de Echipa 2", or "Alocat echipei tale" when the console gave it to this team. */
 @Composable
@@ -130,20 +153,20 @@ private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier
 }
 
 /** Taken in the name of [team] or its role, by the console or by the team itself, and not closed: its work comes first. */
-internal fun StaffIncident.isMine(team: String): Boolean = status == AckStatus.ACKNOWLEDGED && isAssignedTo(teamName, team)
+internal fun StaffIncident.isMine(team: String): Boolean = AckStatus.isTaken(status) && isAssignedTo(teamName, team)
 
 /** The console gave it to [team]: "Alocat echipei tale". A team's own take is not an assignment. */
 internal fun StaffIncident.isAssignedToMe(team: String): Boolean = assigned && isMine(team)
 
 /**
- * One row per report under [filter]: those [team] has, assigned or taken, first, then unassigned urgent ones,
- * closed ones last, then severity and recency.
+ * One row per report under [filter], without what is for the control room only: those [team] has, assigned or taken,
+ * first, then unassigned urgent ones, closed ones last, then severity and recency.
  */
 internal fun incidentRows(staff: List<StaffIncident>, filter: StatusFilter, team: String = ""): List<StaffIncident> =
-    staff.filter(filter::matches).sortedWith(
+    staff.filter { filter.matches(it) && !Priority.isInformational(it.category) }.sortedWith(
         compareByDescending<StaffIncident> { it.isMine(team) }
-            .thenByDescending { it.severity == Severity.URGENT && it.status < AckStatus.ACKNOWLEDGED }
-            .thenBy { it.status >= AckStatus.RESOLVED }
+            .thenByDescending { it.severity == Severity.URGENT && it.isOpen() }
+            .thenBy { AckStatus.isClosed(it.status) }
             .thenByDescending { it.severity }
             .thenByDescending { it.reportedAt },
     )
@@ -171,7 +194,8 @@ fun IncidentsScreen(vm: AppViewModel) {
     var filter by rememberSaveable { mutableStateOf(StatusFilter.ACTIVE) }
     var confirmDismiss by remember { mutableStateOf<StaffIncident?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
-    val staff = incidents.staff
+    // a lost friend is for the control room only
+    val staff = remember(incidents.staff) { incidents.staff.filterNot { Priority.isInformational(it.category) } }
     val hints = remember(staff) { Clustering.suggestions(staff) }
     val shown = remember(staff, filter, settings.teamName) { incidentRows(staff, filter, settings.teamName) }
     // two filters: what's still open and what's closed; the team's own work, then unassigned urgent ones, come first
@@ -265,10 +289,11 @@ private fun IncidentRow(
     val colors = AppTheme.colors
     val haptics = rememberHaptics()
     var menu by remember { mutableStateOf(false) }
-    val closed = incident.status >= AckStatus.RESOLVED
-    val alarm = incident.severity == Severity.URGENT && incident.status < AckStatus.ACKNOWLEDGED
+    val closed = AckStatus.isClosed(incident.status)
+    val alarm = incident.severity == Severity.URGENT && incident.isOpen()
     val place = if (incident.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(incident.zone)
     val (statusIcon, statusColor) = if (mine) Sym.Person to colors.label else statusLook(incident.status)
+    val next = nextFieldStep(incident.status)
     // with large fonts the title and details wrap instead of losing the place
     val lines = if (largeFont()) Int.MAX_VALUE else 1
     SwipeRow(
@@ -324,19 +349,29 @@ private fun IncidentRow(
                             maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
                         )
                     }
+                    if (incident.cancelRequested && !closed) {
+                        StatusLabel(stringResource(R.string.incident_cancel_requested), Modifier.padding(top = 4.dp), icon = Sym.Info, color = colors.orangeInk)
+                    }
                     if (hint != null) StatusLabel(hintText(hint), Modifier.padding(top = 4.dp), icon = Sym.Copy)
                 }
             }
             // like the incident page: what's already done isn't offered
             AppMenu(menu, { menu = false }) {
-                if (incident.status < AckStatus.ACKNOWLEDGED) {
+                if (incident.isOpen()) {
                     MenuRow(stringResource(R.string.incident_take), {
                         menu = false
                         vm.acknowledge(incident.incidentId)
                         haptics.confirm()
                     }, icon = Sym.Check)
                 }
-                if (incident.status < AckStatus.RESOLVED) {
+                if (next != null) {
+                    MenuRow(stringResource(fieldStepLabel(next)), {
+                        menu = false
+                        vm.fieldStep(incident.incidentId, next)
+                        haptics.confirm()
+                    }, icon = Sym.Walk)
+                }
+                if (!closed) {
                     MenuRow(stringResource(R.string.incident_mark_resolved), {
                         menu = false
                         vm.resolve(incident.incidentId)
@@ -378,8 +413,8 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
     val others = incidents.staff
         .filter { it.incidentId != incidentId && hint?.incidentIds?.contains(it.incidentId) == true }
         .sortedByDescending { it.reportedAt }
-    val canTake = incident.status < AckStatus.ACKNOWLEDGED
-    val canResolve = incident.status < AckStatus.RESOLVED
+    val closed = AckStatus.isClosed(incident.status)
+    val next = nextFieldStep(incident.status)
     // the others faded in their own severity color, this report on top at full strength
     val pins = others.mapNotNull { other ->
         incidentPoint(vm.venue, other)?.let { MapPin(it, colors.severity(other.severity).copy(alpha = 0.45f), other.incidentId, other.severity) }
@@ -421,11 +456,17 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 Modifier.onSizeChanged { headerPx = it.height },
                 status = { StaffStatus(incident.status, incident.teamName, mine = incident.isAssignedToMe(settings.teamName)) },
             )
-            // one step at a time so staff can't close a case nobody took: first Take, then Mark resolved;
-            // once resolved or cancelled the button goes away and the header shows the state
+            if (incident.cancelRequested && !closed) {
+                Banner(
+                    stringResource(R.string.incident_cancel_requested), stringResource(R.string.incident_cancel_requested_text),
+                    Modifier.padding(start = Gutter, end = Gutter, bottom = 16.dp), warning = true,
+                )
+            }
+            // one step at a time so staff can't close a case nobody took: first Take, then On scene and Handed over,
+            // with Mark resolved under them; once closed the buttons go away and the header shows the state
             when {
-                incident.status == AckStatus.CANCELLED -> Unit
-                canTake -> AppButton(
+                closed -> Unit
+                incident.isOpen() -> AppButton(
                     stringResource(R.string.incident_take),
                     {
                         vm.acknowledge(incident.incidentId)
@@ -433,7 +474,25 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                     },
                     Modifier.fillMaxWidth().padding(horizontal = Gutter),
                 )
-                canResolve -> AppButton(
+                next != null -> {
+                    AppButton(
+                        stringResource(fieldStepLabel(next)),
+                        {
+                            vm.fieldStep(incident.incidentId, next)
+                            haptics.confirm()
+                        },
+                        Modifier.fillMaxWidth().padding(horizontal = Gutter),
+                    )
+                    TextLink(
+                        stringResource(R.string.incident_mark_resolved),
+                        {
+                            vm.resolve(incident.incidentId)
+                            haptics.confirm()
+                        },
+                        Modifier.fillMaxWidth().wrapContentWidth().padding(top = 4.dp),
+                    )
+                }
+                else -> AppButton(
                     stringResource(R.string.incident_mark_resolved),
                     {
                         vm.resolve(incident.incidentId)
@@ -497,6 +556,9 @@ private fun StaffReportBlock(incident: StaffIncident, team: String, onOpen: (() 
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 2.dp),
             )
+            reportFacts(incident.responds, incident.breathes, incident.fromStaff, incident.people, incident.dangerContinues)?.let {
+                Text(it, style = MaterialTheme.typography.subheadline, color = colors.label, modifier = Modifier.padding(top = 6.dp))
+            }
             if (onOpen != null) {
                 StaffStatus(incident.status, incident.teamName, Modifier.padding(top = 8.dp), mine = incident.isAssignedToMe(team))
             }

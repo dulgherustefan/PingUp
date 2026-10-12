@@ -1,5 +1,6 @@
 package ro.safetyplease.core.mesh
 
+import ro.safetyplease.core.protocol.AckOrder
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.Limits
@@ -25,6 +26,7 @@ class IncidentCache(
         var report: Stored? = null
         var ack: Stored? = null
         var ackStatus = AckStatus.NONE
+        var ackEpoch = 0
         var ackTimestamp = 0L
         var ackTeam = ""
         var ackAssigned = false
@@ -82,12 +84,16 @@ class IncidentCache(
         e.report = null
     }
 
-    /** Keeps the ACK only if it beats the known one: higher status, then a take over an assignment, then oldest, then team. */
+    /**
+     * Keeps the ACK only if it beats the known one: later epoch, higher rank, then a take over an assignment, then
+     * oldest, then team.
+     */
     fun offerAck(ack: IncidentAck, packet: Packet, nowMs: Long): Boolean {
         purge(nowMs)
         val e = entry(ack.incidentId.toLong(), nowMs)
         if (!isBetter(ack, e)) return false
         e.ackStatus = ack.status
+        e.ackEpoch = ack.epoch
         e.ackTimestamp = ack.timestamp
         e.ackTeam = ack.teamName
         e.ackAssigned = ack.assigned
@@ -96,7 +102,8 @@ class IncidentCache(
     }
 
     private fun isBetter(ack: IncidentAck, e: Entry): Boolean {
-        if (ack.status != e.ackStatus) return ack.status > e.ackStatus
+        val order = AckOrder.compare(ack.epoch, ack.status, e.ackEpoch, e.ackStatus)
+        if (order != 0) return order > 0
         // a team that took the incident has it, whatever the clocks say about the console's assignment
         if (ack.assigned != e.ackAssigned) return !ack.assigned
         if (ack.timestamp != e.ackTimestamp) return ack.timestamp < e.ackTimestamp
@@ -113,7 +120,9 @@ class IncidentCache(
                 val report = e.report?.takeIf { servable(it.packet) }
                 val ack = e.ack?.takeIf { servable(it.packet) }
                 if (report == null && ack == null) return@mapNotNull null
-                val entry = SummaryEntry(e.id8, report != null, if (ack != null) e.ackStatus else AckStatus.NONE)
+                val entry = SummaryEntry(
+                    e.id8, report != null, if (ack != null) e.ackStatus else AckStatus.NONE, if (ack != null) e.ackEpoch else 0,
+                )
                 maxOf(report?.atMs ?: 0, ack?.atMs ?: 0) to entry
             }
             .sortedByDescending { it.first }
@@ -126,11 +135,12 @@ class IncidentCache(
         purge(nowMs)
         return remote.mapNotNull { r ->
             val local = entries[r.id8]
-            // a cancelled report doesn't need to go anywhere; the ACK that closes it is enough
-            val cancelled = r.ackStatus == AckStatus.CANCELLED || local?.ackStatus == AckStatus.CANCELLED
-            val wantReport = r.hasReport && !cancelled && (local == null || !local.reportSeen)
+            val localStatus = local?.ackStatus ?: AckStatus.NONE
             // a status from a newer version wouldn't be kept, so asking for it would only repeat every summary
-            val wantAck = AckStatus.isKnown(r.ackStatus) && r.ackStatus > (local?.ackStatus ?: AckStatus.NONE)
+            val wantAck = AckStatus.isKnown(r.ackStatus) && AckOrder.compare(r.epoch, r.ackStatus, local?.ackEpoch ?: 0, localStatus) > 0
+            // a cancelled report doesn't need to go anywhere; the ACK that closes it is enough
+            val cancelled = (if (wantAck) r.ackStatus else localStatus) == AckStatus.CANCELLED
+            val wantReport = r.hasReport && !cancelled && (local == null || !local.reportSeen)
             if (wantReport || wantAck) RequestEntry(r.id8, wantReport, wantAck) else null
         }
     }

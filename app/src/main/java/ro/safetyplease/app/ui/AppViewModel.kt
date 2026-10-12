@@ -31,6 +31,8 @@ import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.ReportDraft
 import ro.safetyplease.core.incidents.StatusFilter
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.StaffFields
+import ro.safetyplease.core.protocol.Triage
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
@@ -103,8 +105,8 @@ fun currentPoint(settings: Settings, fix: GeoFix?, nowMs: Long): GeoPoint? {
 fun reportPoint(zone: String, point: GeoPoint?, venue: Venue): GeoPoint? =
     point?.takeIf { zone.isEmpty() || venue.zoneAt(it.lat, it.lon)?.id == zone }
 
-/** The report still needs help: neither resolved nor cancelled by you. */
-fun MyReport.isOpen() = status < AckStatus.RESOLVED && !cancelled
+/** The report still needs help: neither closed nor cancelled by you. */
+fun MyReport.isOpen() = !AckStatus.isClosed(status) && !cancelled
 
 /** Your reports that no longer wait for help: resolved, cancelled or being cancelled. */
 fun closedReports(mine: List<MyReport>): List<String> = mine.filterNot { it.isOpen() }.map { it.incidentId }
@@ -262,15 +264,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun rateLimitWaitMs(): Long = c.incidents.rateLimitWaitMs()
 
-    /** Id of the new report, or null if the rate limit blocked it. */
-    fun report(category: Int, severity: Int, zone: String, description: String, anonymous: Boolean): String? {
+    fun rateLimitMax(): Int = c.incidents.rateLimitMax()
+
+    /** Id of the new report, or null if the rate limit blocked it. [staff] goes only from a staff phone. */
+    fun report(
+        category: Int,
+        severity: Int,
+        zone: String,
+        description: String,
+        anonymous: Boolean,
+        triage: Triage? = null,
+        staff: StaffFields? = null,
+    ): String? {
         val point = reportPoint(zone, pointNow(), venue)
         val nickname = if (anonymous) null else c.settings.value.nickname
-        if (!c.incidents.report(ReportDraft(category, severity, zone, point?.lat, point?.lon, description, nickname))) return null
+        val draft = ReportDraft(category, severity, zone, point?.lat, point?.lon, description, nickname, triage, staff)
+        if (!c.incidents.report(draft)) return null
         return c.incidentStore.value.mine.lastOrNull()?.incidentId
     }
 
     fun acknowledge(incidentId: String) = c.incidents.acknowledge(incidentId)
+
+    fun onScene(incidentId: String) = c.incidents.onScene(incidentId)
+
+    fun handOver(incidentId: String) = c.incidents.handOver(incidentId)
 
     fun resolve(incidentId: String) = c.incidents.resolve(incidentId)
 

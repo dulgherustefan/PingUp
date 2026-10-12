@@ -15,7 +15,9 @@ import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.MeshEvent
 import ro.safetyplease.core.protocol.AckFlags
+import ro.safetyplease.core.protocol.AckOrder
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.INCIDENT_ID_SIZE
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentBody
@@ -24,6 +26,8 @@ import ro.safetyplease.core.protocol.IncidentReportCodec
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
+import ro.safetyplease.core.protocol.StaffFields
+import ro.safetyplease.core.protocol.Triage
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.toHex
@@ -37,12 +41,16 @@ class ReportDraft(
     val lon: Double?,
     val description: String,
     val nickname: String?,
+    val triage: Triage? = null,
+    /** Only a staff phone sends these; its report then carries the team's name instead of [nickname]. */
+    val staff: StaffFields? = null,
 )
 
 /**
  * Incident flow. A participant seals the report to staff and tracks the ACKs;
- * a staff phone opens it, auto-confirms receipt, and can take or resolve it.
- * The author can withdraw a report with a token only they know; staff confirms with ACK CANCELLED.
+ * a staff phone opens it, auto-confirms receipt, and moves it through the field states; the control console closes,
+ * reopens or confirms a cancel. The author can withdraw a report with a token only they know: staff confirms with
+ * ACK CANCELLED, by itself where a wrong cancel costs little and after an operator checks everywhere else.
  */
 class IncidentManager(
     private val scope: CoroutineScope,
@@ -89,13 +97,17 @@ class IncidentManager(
 
     // --- participant ---
 
+    /** Reports allowed in [RATE_WINDOW_MS]: staff, who report as their job, get more room. */
+    fun rateLimitMax(): Int = if (staffSecret() != null) STAFF_RATE_MAX else RATE_MAX
+
     /** Milliseconds until the user may report again; 0 if they can now. */
     fun rateLimitWaitMs(): Long {
         val now = clock.wallMs()
         val data = store.value
+        val max = rateLimitMax()
         val recent = (data.mine.map { it.createdAt } + data.deletedReportTimes).filter { now - it < RATE_WINDOW_MS }.sorted()
-        if (recent.size < RATE_MAX) return 0
-        return recent[recent.size - RATE_MAX] + RATE_WINDOW_MS - now
+        if (recent.size < max) return 0
+        return recent[recent.size - max] + RATE_WINDOW_MS - now
     }
 
     /** [bypassRateLimit] is only used by the demo's test incidents. */
@@ -106,10 +118,12 @@ class IncidentManager(
         val cancelToken = crypto.random(IncidentCancel.TOKEN_SIZE)
         val description = draft.description.trim().take(Limits.DESCRIPTION_CHARS).truncateUtf8(Limits.DESCRIPTION_BYTES)
         val zone = draft.zone.truncateUtf8(Limits.ZONE_BYTES)
-        val nickname = draft.nickname?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
+        // until reports are signed (2.18), the team named in the staff QR stands for who wrote it
+        val staff = draft.staff?.takeIf { staffSecret() != null }
+        val nickname = (if (staff != null) teamName() else draft.nickname)?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
         val body = IncidentBody(
             draft.category, draft.severity, now / 1000, zone, draft.lat, draft.lon, description, nickname,
-            IncidentCancel.hash(cancelToken),
+            IncidentCancel.hash(cancelToken), draft.triage, staff,
         )
         val sealed = staffCrypto.sealReport(body.encode())
         val report = MyReport(
@@ -129,12 +143,13 @@ class IncidentManager(
     }
 
     /**
-     * Withdraws one of our reports that staff hasn't resolved yet. The cancel is resent on every new neighbor
-     * and every minute until the CANCELLED ACK arrives or [CANCEL_RETRY_MS] passes.
+     * Withdraws one of our reports that staff hasn't closed yet. The cancel is resent on every new neighbor
+     * and every minute until the incident is closed or [CANCEL_RETRY_MS] passes. Where staff has to check it
+     * ([cancelIsChecked]), the report keeps spreading, so every staff phone sees both.
      */
     fun cancel(incidentId: String) {
         val report = store.value.mine.firstOrNull { it.incidentId == incidentId } ?: return
-        if (report.cancelled || report.status >= AckStatus.RESOLVED || report.cancelToken.isEmpty()) return
+        if (report.cancelled || AckStatus.isClosed(report.status) || report.cancelToken.isEmpty()) return
         val now = clock.wallMs()
         store.update { data ->
             val mine = data.mine.map { if (it.incidentId == incidentId) it.copy(cancelled = true, updatedAt = now) else it }
@@ -143,7 +158,7 @@ class IncidentManager(
         val id = incidentId.hexToBytes()
         val token = report.cancelToken.hexToBytes()
         scope.launch {
-            engine.forgetReport(id)
+            if (!cancelIsChecked(report)) engine.forgetReport(id)
             cancelling[incidentId] = Cancel(token, now)
             engine.publishCancel(id, token)
             // a staff phone never receives its own packet from the network, so it applies the cancel itself
@@ -169,7 +184,23 @@ class IncidentManager(
 
     fun acknowledge(incidentId: String) = sendAck(incidentId, AckStatus.ACKNOWLEDGED)
 
+    fun onScene(incidentId: String) = sendAck(incidentId, AckStatus.ON_SCENE)
+
+    fun handOver(incidentId: String) = sendAck(incidentId, AckStatus.HANDED_OVER)
+
     fun resolve(incidentId: String) = sendAck(incidentId, AckStatus.RESOLVED)
+
+    // --- control console; until ACKs are signed one by one (2.18), only the screens keep these to the operator ---
+
+    fun close(incidentId: String) = sendAck(incidentId, AckStatus.CLOSED_BY_CONTROL)
+
+    fun unfounded(incidentId: String) = sendAck(incidentId, AckStatus.UNFOUNDED)
+
+    /** The reporter's cancel, checked by the operator. */
+    fun confirmCancel(incidentId: String) = sendAck(incidentId, AckStatus.CANCELLED)
+
+    /** Starts the next epoch, so the incident opens again everywhere, whatever closed it. */
+    fun reopen(incidentId: String) = sendAck(incidentId, AckStatus.REOPENED)
 
     /**
      * Gives the incident to [team]: an ACKNOWLEDGED signed in that team's name and flagged as an assignment, which
@@ -192,11 +223,35 @@ class IncidentManager(
         scope.launch {
             val secret = staffSecret() ?: return@launch
             val name = (team ?: teamName()).truncateUtf8(Limits.TEAM_BYTES)
-            val now = clock.wallMs()
-            val ack = staffCrypto.signAck(incidentId.hexToBytes(), status, now / 1000, name, secret, flags)
-            publishOwn(ack)
+            val id = incidentId.hexToBytes()
+            val time = clock.wallMs() / 1000
+            val known = epochOf(incidentId)
+            val epoch = if (status == AckStatus.REOPENED) known + 1 else known
+            if (epoch > IncidentAck.MAX_EPOCH) return@launch
+            val ack = staffCrypto.signAck(id, status, time, name, secret, flags, epoch)
+            val lead = epoch == 0 && publishForOneZero(id, status, time, name, secret)
             applyAck(ack)
+            if (lead) delay(ONE_ZERO_LEAD_MS)
+            publishOwn(ack)
         }
+    }
+
+    /**
+     * 1.0 phones get neither a status they don't know nor an ACK with an epoch. In epoch 0 such a status first goes
+     * out as the closest one they know, so they show that; it leads by [ONE_ZERO_LEAD_MS], so relays keep and pass it
+     * on before the new status replaces it. False if nothing went out.
+     */
+    private fun publishForOneZero(id: ByteArray, status: Int, time: Long, team: String, secret: StaffSecretKeys): Boolean {
+        val legacy = AckStatus.legacy(status)
+        if (legacy == status || legacy == AckStatus.NONE) return false
+        return engine.publishAck(staffCrypto.signAck(id, legacy, time, team, secret)) != null
+    }
+
+    /** The incident's epoch as far as this phone knows. */
+    private fun epochOf(incidentId: String): Int {
+        val data = store.value
+        val stored = data.staff.firstOrNull { it.incidentId == incidentId }?.epoch ?: data.mine.firstOrNull { it.incidentId == incidentId }?.epoch ?: 0
+        return maxOf(stored, engine.cachedAck(incidentId.hexToBytes())?.epoch ?: 0)
     }
 
     /** Nothing goes out if a better ACK is already known. */
@@ -250,6 +305,8 @@ class IncidentManager(
             lat = body.lat, lon = body.lon, description = body.description, nickname = body.nickname,
             reportedAt = body.timestamp * 1000, receivedAt = now, hops = hops,
             cancelHash = body.cancelHash?.toHex().orEmpty(),
+            responds = body.triage?.responds ?: Answer.UNASKED, breathes = body.triage?.breathes ?: Answer.UNASKED,
+            fromStaff = body.staff != null, people = body.staff?.people ?: 0, dangerContinues = body.staff?.dangerContinues == true,
         )
         store.update { it.copy(staff = (it.staff + incident).takeLast(staffCap())) }
         engine.cachedAck(incidentId)?.let(::applyAck)
@@ -260,8 +317,8 @@ class IncidentManager(
             publishOwn(ack)
             applyAck(ack)
         }
-        val cancelled = store.value.staff.any { it.incidentId == key && it.status == AckStatus.CANCELLED }
-        if (alert && !cancelled) onStaffAlert(incident)
+        val closed = store.value.staff.any { it.incidentId == key && AckStatus.isClosed(it.status) }
+        if (alert && !closed && !Priority.isInformational(incident.category)) onStaffAlert(incident)
     }
 
     private fun onCancel(cancel: IncidentCancel) {
@@ -279,11 +336,20 @@ class IncidentManager(
         if (earlyCancels.size > MAX_EARLY_CANCELS) earlyCancels.remove(earlyCancels.keys.first())
     }
 
-    /** Only the author's token cancels, and only while the incident isn't resolved. */
+    /**
+     * Only the author's token cancels, and only while the incident is open. Where a wrong cancel could leave someone
+     * without help, it only marks the incident for an operator to check.
+     */
     private fun tryCancel(key: String, token: ByteArray, secret: StaffSecretKeys) {
         val incident = store.value.staff.firstOrNull { it.incidentId == key } ?: return
-        if (incident.cancelHash.isEmpty() || incident.status >= AckStatus.RESOLVED) return
+        if (incident.cancelHash.isEmpty() || AckStatus.isClosed(incident.status)) return
         if (!IncidentCancel.hash(token).contentEquals(incident.cancelHash.hexToBytes())) return
+        if (Priority.cancelNeedsReview(incident.category, incident.severity) || incident.epoch > 0) {
+            if (!incident.cancelRequested) {
+                store.update { data -> data.copy(staff = data.staff.map { if (it.incidentId == key) it.copy(cancelRequested = true) else it }) }
+            }
+            return
+        }
         val ack = staffCrypto.signAck(key.hexToBytes(), AckStatus.CANCELLED, clock.wallMs() / 1000, teamName(), secret)
         publishOwn(ack)
         applyAck(ack)
@@ -292,32 +358,42 @@ class IncidentManager(
     private fun applyAck(ack: IncidentAck) {
         val key = ack.incidentId.toHex()
         val now = clock.wallMs()
-        val clearsAlert = ack.status == AckStatus.CANCELLED && store.value.staff.any { it.incidentId == key && it.status < ack.status }
+        val before = store.value.staff.firstOrNull { it.incidentId == key }?.takeIf { supersedes(ack, it.status, it.epoch, it.assigned) }
         var updated: MyReport? = null
         store.update { data ->
             data.copy(
                 mine = data.mine.map {
-                    if (it.incidentId == key && supersedes(ack, it.status, it.assigned)) {
-                        it.copy(status = ack.status, teamName = ack.teamName, assigned = ack.assigned, updatedAt = now, sent = true)
-                            .also { r -> updated = r }
+                    if (it.incidentId == key && supersedes(ack, it.status, it.epoch, it.assigned)) {
+                        it.copy(
+                            status = ack.status, epoch = ack.epoch, teamName = ack.teamName, assigned = ack.assigned,
+                            updatedAt = now, sent = true,
+                        ).also { r -> updated = r }
                     } else it
                 }.withoutStaleSeals(now),
                 staff = data.staff.map {
-                    if (it.incidentId == key && supersedes(ack, it.status, it.assigned)) {
-                        it.copy(status = ack.status, teamName = ack.teamName, assigned = ack.assigned, statusAt = now)
+                    if (it.incidentId == key && supersedes(ack, it.status, it.epoch, it.assigned)) {
+                        it.copy(
+                            status = ack.status, epoch = ack.epoch, teamName = ack.teamName, assigned = ack.assigned, statusAt = now,
+                            // a reopen is a new decision; a cancel from before it is checked again only if it comes again
+                            cancelRequested = it.cancelRequested && ack.epoch == it.epoch,
+                        )
                     } else it
                 },
             )
         }
         updated?.let(onReportUpdate)
-        if (clearsAlert) onStaffAlertCleared(key)
+        if (before == null) return
+        if (ack.status in CLEARS_ALERT && before.status !in CLEARS_ALERT) onStaffAlertCleared(key)
+        if (ack.status == AckStatus.REOPENED && !Priority.isInformational(before.category)) {
+            store.value.staff.firstOrNull { it.incidentId == key }?.let(onStaffAlert)
+        }
     }
 
-    /** Until the CANCELLED ACK arrives, a cancel can be lost like any packet; every resend is a new packet. */
+    /** Until the incident is closed, a cancel can be lost like any packet; every resend is a new packet. */
     private fun retryCancels() {
         val now = clock.wallMs()
         cancelling.entries.removeAll { (id, c) ->
-            now - c.atMs >= CANCEL_RETRY_MS || engine.ackStatus(id.hexToBytes()) >= AckStatus.RESOLVED
+            now - c.atMs >= CANCEL_RETRY_MS || AckStatus.isClosed(engine.ackStatus(id.hexToBytes()))
         }
         for ((id, c) in cancelling) engine.publishCancel(id.hexToBytes(), c.token)
     }
@@ -325,8 +401,8 @@ class IncidentManager(
     /** The mesh cache doesn't survive a restart; the cancellation state does. */
     private fun resumeCancels() {
         for (r in store.value.mine.filter { it.cancelled }) {
-            engine.forgetReport(r.incidentId.hexToBytes())
-            if (r.status < AckStatus.RESOLVED) cancelling[r.incidentId] = Cancel(r.cancelToken.hexToBytes(), r.updatedAt)
+            if (!cancelIsChecked(r)) engine.forgetReport(r.incidentId.hexToBytes())
+            if (!AckStatus.isClosed(r.status)) cancelling[r.incidentId] = Cancel(r.cancelToken.hexToBytes(), r.updatedAt)
         }
     }
 
@@ -345,7 +421,13 @@ class IncidentManager(
 
     companion object {
         const val RATE_MAX = 3
+
+        /** A supervisor in a busy zone writes more than three in ten minutes; the relays' per-link limit still applies. */
+        const val STAFF_RATE_MAX = 20
         const val RATE_WINDOW_MS = 10 * 60_000L
+
+        /** How long the status a 1.0 phone can read goes out before the new one (see [publishForOneZero]). */
+        const val ONE_ZERO_LEAD_MS = 2_000L
         const val PENDING_MS = 30 * 60_000L
         const val CANCEL_RETRY_MS = 30 * 60_000L
         const val CANCEL_RETRY_INTERVAL_MS = 60_000L
@@ -358,9 +440,17 @@ class IncidentManager(
         private const val MAX_EARLY_CANCELS = 64
         private const val LINK_SETTLE_MS = 1_500L
 
-        /** A higher status, or, at the same one, a team's own take where the phone showed the console's assignment. */
-        private fun supersedes(ack: IncidentAck, status: Int, assigned: Boolean): Boolean =
-            ack.status > status || (ack.status == status && assigned && !ack.assigned)
+        /** Closed by a decision that nobody needs to go any more; a team's RESOLVED leaves the alert to them. */
+        private val CLEARS_ALERT = setOf(AckStatus.CANCELLED, AckStatus.UNFOUNDED, AckStatus.CLOSED_BY_CONTROL)
+
+        /** Later in the supersede order, or, at the same place, a team's own take where the phone showed an assignment. */
+        private fun supersedes(ack: IncidentAck, status: Int, epoch: Int, assigned: Boolean): Boolean {
+            val order = AckOrder.compare(ack.epoch, ack.status, epoch, status)
+            return order > 0 || (order == 0 && assigned && !ack.assigned)
+        }
+
+        /** The reporter's cancel waits for an operator: see [Priority.cancelNeedsReview]; after a reopen, always. */
+        fun cancelIsChecked(report: MyReport): Boolean = Priority.cancelNeedsReview(report.category, report.severity) || report.epoch > 0
 
         /** Our report that hasn't reached staff yet and wasn't withdrawn. */
         fun isPending(report: MyReport, nowMs: Long): Boolean =

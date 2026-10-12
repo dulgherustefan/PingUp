@@ -72,6 +72,30 @@ class IncidentRowsTest {
     }
 
     @Test
+    fun fieldStatesAreStillTheTeamsWorkOneStepAtATime() {
+        val onScene = incident("la-fata-locului", 0, status = AckStatus.ON_SCENE, team = "Medical 2")
+        assertTrue(onScene.isMine("Medical 2"))
+        assertFalse(onScene.isOpen())
+        assertTrue("a reopened incident waits for a team again", incident("redeschis", 1, status = AckStatus.REOPENED).isOpen())
+        assertEquals(AckStatus.ON_SCENE, nextFieldStep(AckStatus.ACKNOWLEDGED))
+        assertEquals(AckStatus.HANDED_OVER, nextFieldStep(AckStatus.ON_SCENE))
+        for (status in listOf(AckStatus.RECEIVED, AckStatus.HANDED_OVER, AckStatus.CLOSED_BY_CONTROL, AckStatus.REOPENED)) {
+            assertEquals(null, nextFieldStep(status))
+        }
+        val closedByControl = incident("inchis", 2, status = AckStatus.CLOSED_BY_CONTROL)
+        assertEquals(listOf("inchis"), incidentRows(listOf(onScene, closedByControl), StatusFilter.RESOLVED).map { it.incidentId })
+    }
+
+    @Test
+    fun aLostFriendIsNotOnTheFieldList() {
+        val rows = incidentRows(
+            listOf(incident("prieten", 0, Severity.LOW, category = IncidentCategory.LOST_FRIEND), incident("copil", 1, category = IncidentCategory.LOST_CHILD)),
+            StatusFilter.ACTIVE,
+        )
+        assertEquals(listOf("copil"), rows.map { it.incidentId })
+    }
+
+    @Test
     fun crowdReportsAreRowsOfTheirOwnToo() {
         val crowd = (0..2).map { incident("aglomeratie-$it", it, category = IncidentCategory.CROWD) } +
             incident("rezolvat", 4, category = IncidentCategory.CROWD, status = AckStatus.RESOLVED)

@@ -2,6 +2,7 @@ package ro.safetyplease.core.control
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.venue.SiteGrid
 import java.time.Instant
 import java.time.ZoneId
@@ -17,6 +18,8 @@ class ExportNames(
     val status: (Int) -> String,
     val state: (CaseState) -> String,
     val zone: (String) -> String,
+    /** A triage answer, by its [ro.safetyplease.core.protocol.Answer] code. */
+    val answer: (Int) -> String,
 )
 
 @Serializable
@@ -31,7 +34,9 @@ class IncidentSummary(
     val unfounded: Boolean,
     val localOnly: Boolean,
     val network: Int,
+    val epoch: Int,
     val networkTeam: String,
+    val cancelRequested: Boolean,
     val secondsToReceived: Long?,
     val secondsToAcknowledged: Long?,
     val secondsToClose: Long?,
@@ -57,14 +62,15 @@ class ExportDocument(
  */
 object LogExport {
     const val FORMAT = "pingup-console-log"
-    const val VERSION = 1
+    const val VERSION = 2
 
     private val codec = Json { encodeDefaults = true }
     private val iso = DateTimeFormatter.ISO_OFFSET_DATE_TIME
 
     val EVENT_COLUMNS = listOf(
         "row", "time", "event", "incident", "grid", "zone", "category", "severity", "status", "team", "signed_at",
-        "signature", "signed_here", "hops", "reported_at", "lat", "lon", "description", "reason",
+        "signature", "signed_here", "hops", "reported_at", "lat", "lon", "description", "reason", "epoch", "responds", "breathes",
+        "staff_report", "people", "danger_continues",
     )
 
     val INCIDENT_COLUMNS = listOf(
@@ -90,6 +96,12 @@ object LogExport {
                 if (report || ack) e.hops.toString() else "",
                 if (report) time(e.reportedAt, zone) else "",
                 coord(e.lat), coord(e.lon), text(e.description), text(e.reason),
+                if (ack || e.event == LogEvent.CANCEL_REQUEST) e.epoch.toString() else "",
+                if (report && e.responds != Answer.UNASKED) names.answer(e.responds) else "",
+                if (report && e.breathes != Answer.UNASKED) names.answer(e.breathes) else "",
+                if (report) flag(e.fromStaff) else "",
+                if (report && e.people > 0) e.people.toString() else "",
+                if (report && e.fromStaff) flag(e.dangerContinues) else "",
             )
         }
         return csv.toString()
@@ -123,7 +135,7 @@ object LogExport {
             FORMAT, VERSION, time(exportedAt, zone), console, venue, GridInfo(grid.columns, grid.rows, SiteGrid.CELL_METERS), entries,
             cases.sortedBy { it.report.reportedAt }.map {
                 IncidentSummary(
-                    it.incidentId, it.state, it.team, it.unfounded, it.localOnly, it.network, it.networkTeam,
+                    it.incidentId, it.state, it.team, it.unfounded, it.localOnly, it.network, it.epoch, it.networkTeam, it.cancelRequested,
                     it.secondsTo(it.receivedAt), it.secondsTo(it.acknowledgedAt), it.secondsTo(it.closedAt),
                 )
             },

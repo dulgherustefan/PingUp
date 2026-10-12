@@ -7,7 +7,7 @@ package ro.safetyplease.core.protocol
 object Compat10 {
     fun accepts(packet: Packet): Boolean = when (packet.type) {
         PacketType.INCIDENT_ACK -> IncidentAck.decode(packet.payload)
-            ?.let { AckStatus.isKnown(it.status) && it.extensions.isEmpty() } ?: false
+            ?.let { it.status in AckStatus.V1_0 && it.extensions.isEmpty() } ?: false
         PacketType.INCIDENT_CANCEL -> packet.payload.size == IncidentCancel.SIZE
         else -> packet.type in PacketType.V1_0
     }

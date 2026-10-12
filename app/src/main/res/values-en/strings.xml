@@ -186,7 +186,10 @@
     <string name="report_anonymous_on">No one sees who reported it.</string>
     <string name="report_anonymous_off">Staff see your name.</string>
     <string name="report_send">Send report</string>
-    <string name="report_rate_limited">You can send at most 3 reports in 10 minutes. Try again in %1$d min.</string>
+    <plurals name="report_rate_limited">
+        <item quantity="one">You can send at most one report in 10 minutes. Try again in %2$d min.</item>
+        <item quantity="other">You can send at most %1$d reports in 10 minutes. Try again in %2$d min.</item>
+    </plurals>
     <string name="report_mine_empty_title">No reports</string>
     <string name="report_mine_empty_text">Your reports show up here, with their status.</string>
     <string name="report_next_title">What happens next</string>
@@ -202,17 +205,43 @@
     <string name="report_help_stay">Or stay where you are, if it’s safe</string>
     <string name="report_help_stay_text">Ask the people around you for help.</string>
     <string name="report_help_call_text">If you can. You make the call yourself.</string>
+    <string name="report_help_meeting">Go to the meeting point</string>
+    <string name="report_help_info">Or to the information point</string>
+    <string name="report_help_info_text">People looking for their friends gather there too.</string>
+
+    <string name="report_triage_title">The person</string>
+    <string name="report_triage_responds">Do they respond?</string>
+    <string name="report_triage_breathes">Are they breathing normally?</string>
+    <string name="report_triage_note">A “no” sends the report as urgent. If you don’t know, say so.</string>
+    <string name="answer_yes">yes</string>
+    <string name="answer_no">no</string>
+    <string name="answer_unknown">don’t know</string>
+    <string name="answer_unasked">not answered</string>
+    <string name="report_lost_friend_note">Go to the meeting point or the information point. The report goes to the control room only, for information.</string>
+    <string name="report_lost_child_note">It goes out as urgent to the control room and the teams. Describe the child in the description.</string>
+    <string name="report_lost_friend_sent_text">The report goes to the control room, for information. Meanwhile, go to the meeting point or the information point.</string>
+    <string name="report_staff_title">Staff report</string>
+    <string name="report_staff_team">Sent in the name of %1$s.</string>
+    <string name="report_staff_people">How many people</string>
+    <string name="report_staff_people_unknown">unknown</string>
+    <string name="report_staff_fewer">Fewer people</string>
+    <string name="report_staff_more">More people</string>
+    <string name="report_staff_danger">The danger continues</string>
+    <string name="report_staff_danger_text">More people may get hurt.</string>
+    <string name="report_description_staff">Description and access: how to get there</string>
 
     <string name="cat_medical">Medical</string>
     <string name="cat_violence">Violence</string>
-    <string name="cat_lost">Missing person</string>
+    <string name="cat_lost_child">Lost child</string>
+    <string name="cat_lost_friend">Lost friend</string>
     <string name="cat_harassment">Harassment</string>
     <string name="cat_crowd">Dangerous crowding</string>
     <string name="cat_fire">Fire or smoke</string>
     <string name="cat_other">Something else</string>
     <string name="cat_medical_example">someone fainted, got hurt, or is sick from the heat</string>
     <string name="cat_violence_example">a fight, a threat with a weapon</string>
-    <string name="cat_lost_example">a child on their own, a friend who stopped answering</string>
+    <string name="cat_lost_child_example">a child on their own, a child who can’t find their parents</string>
+    <string name="cat_lost_friend_example">someone from your group stopped answering</string>
     <string name="cat_harassment_example">unwanted touching, someone following you</string>
     <string name="cat_crowd_example">a crush, people pressed against the fence</string>
     <string name="cat_fire_example">flames, a smell of smoke</string>
@@ -228,6 +257,11 @@
     <string name="status_acknowledged">Seen and taken on by %1$s</string>
     <string name="status_acknowledged_pending">Seen by staff</string>
     <string name="status_resolved">Resolved</string>
+    <string name="status_on_scene">The team is on the scene</string>
+    <string name="status_handed_over">Handed over to the first aid post</string>
+    <string name="status_closed_by_control">Closed by the control room</string>
+    <string name="status_unfounded">Closed as unfounded</string>
+    <string name="status_reopened">Reopened by staff</string>
 
     <string name="map_meeting_point">Meeting point</string>
     <string name="map_distance">%1$d m from you</string>
@@ -280,6 +314,8 @@
     <string name="incidents_empty_text">Reports show up as they arrive through the network.</string>
     <string name="incident_take">I’m on it</string>
     <string name="incident_mark_resolved">Mark resolved</string>
+    <string name="incident_on_scene">On scene</string>
+    <string name="incident_handed_over">Handed over to first aid</string>
     <string name="incident_no_description">No description</string>
     <string name="incident_reported_at">Reported at %1$s</string>
     <string name="incident_reporter">by %1$s</string>
@@ -288,6 +324,22 @@
     <string name="incident_state_taken">Taken</string>
     <string name="staff_status_taken">Taken by %1$s</string>
     <string name="staff_status_resolved">Resolved by %1$s</string>
+    <string name="staff_status_on_scene">On scene: %1$s</string>
+    <string name="staff_status_handed_over">Handed over to first aid by %1$s</string>
+    <string name="staff_status_closed">Closed by control</string>
+    <string name="incident_state_on_scene">On scene</string>
+    <string name="incident_state_handed_over">At first aid</string>
+    <string name="incident_state_closed">Closed</string>
+    <string name="incident_cancel_requested">Called off by the reporter, to check</string>
+    <string name="incident_cancel_requested_text">Only the control room can confirm the call-off. Until then the case stays open.</string>
+    <string name="incident_triage">Responds: %1$s · Breathing normally: %2$s</string>
+    <string name="incident_from_staff">Staff report</string>
+    <plurals name="incident_people">
+        <item quantity="one">one person</item>
+        <item quantity="other">%d people</item>
+    </plurals>
+    <string name="incident_danger_continues">the danger continues</string>
+    <string name="incident_informational">For information</string>
 
     <string name="me_title">Me</string>
     <string name="me_open">Your profile</string>
@@ -353,6 +405,9 @@
     <string name="report_cancelling_text">The call-off travels to staff from phone to phone.</string>
     <string name="report_cancelled">Alert called off</string>
     <string name="report_cancelled_text">Staff know that help is no longer needed.</string>
+    <string name="report_cancel_text_checked">Staff will check the call-off; a team may come anyway.</string>
+    <string name="report_cancel_checked">Call-off sent, staff will check it</string>
+    <string name="report_cancel_checked_text">Staff are checking the call-off. Until then, a team may come anyway.</string>
     <string name="report_delete">Delete from history</string>
     <string name="report_delete_title">Delete the report?</string>
     <string name="report_delete_text">It disappears only from your phone.</string>
@@ -438,36 +493,39 @@
     <string name="control_state_unfounded">Closed as unfounded</string>
     <string name="control_word_unfounded">Unfounded</string>
     <string name="control_local_only">On the console only. Phones in the field see: %1$s.</string>
-    <string name="control_unfounded_note">“Unfounded” stays in the console log; the network got “Resolved”.</string>
     <string name="control_radio_title">To read over the radio</string>
     <!-- Label of the phrase in the clipboard; some keyboards show it -->
     <string name="control_radio_clip">radio</string>
     <string name="control_radio_urgent">urgent</string>
     <string name="control_radio_not_urgent">not urgent</string>
     <string name="control_radio_no_place">location unknown</string>
+    <string name="control_radio_triage">responds: %1$s, breathing normally: %2$s</string>
     <string name="control_assign">Assign</string>
     <string name="control_reassign">Reassign</string>
-    <string name="control_resolve">Resolve</string>
+    <string name="control_close">Close</string>
     <string name="control_unfounded">Unfounded</string>
     <string name="control_reopen">Reopen</string>
-    <string name="control_actions_note">“Unfounded” and “Reopen” stay on the console until the protocol can send them. Tell the teams over the radio.</string>
+    <string name="control_confirm_cancel">Confirm call-off</string>
     <string name="control_assign_title">Assign the incident</string>
     <string name="control_assign_other">Another team or role</string>
     <string name="control_assign_taken">The network already shows: %1$s. The new assignment stays on the console; announce it over the radio.</string>
     <string name="control_reason">Reason</string>
     <string name="control_reason_optional">Reason (optional)</string>
-    <string name="control_resolve_title">Mark as resolved?</string>
-    <string name="control_resolve_text">The teams and the person who reported it see “Resolved”.</string>
+    <string name="control_close_title">Close the incident?</string>
+    <string name="control_close_text">The teams and the person who reported it see “Closed by control”.</string>
+    <string name="control_confirm_cancel_title">Confirm the call-off?</string>
+    <string name="control_confirm_cancel_text">Did you check that help is no longer needed? The teams and the person who reported it see “Called off”.</string>
     <string name="control_unfounded_title">Close as unfounded?</string>
-    <string name="control_unfounded_text">The teams and the person who reported it see “Resolved”. The reason stays in the log.</string>
+    <string name="control_unfounded_text">The teams and the person who reported it see “Closed as unfounded”. The reason stays in the log.</string>
     <string name="control_reopen_title">Reopen the incident?</string>
-    <string name="control_reopen_text">It reopens on the console only: phones in the field keep their current state.</string>
+    <string name="control_reopen_text">The teams get it again as an alert, and the person who reported it sees it reopened.</string>
     <string name="control_history">History</string>
     <string name="control_event_report">Report opened on the console</string>
     <string name="control_event_ack">%1$s · %2$s</string>
     <string name="control_event_assign">Assigned to %1$s</string>
     <string name="control_event_take">Taken by the console</string>
-    <string name="control_event_resolve">Resolved by the console</string>
+    <string name="control_event_close">Closed by the console</string>
+    <string name="control_event_cancel">Call-off confirmed by the console</string>
     <string name="control_ack_received">Received</string>
     <string name="control_signed_here">signed on the console</string>
     <string name="control_signature">signature %1$s…</string>
@@ -499,16 +557,18 @@
         <item>Stewards</item>
         <item>Fire</item>
     </string-array>
-    <!-- In the order of LogEvent: report, ACK, assign, take, resolve, unfounded, reopen, export -->
+    <!-- In the order of LogEvent: report, ACK, assign, take, close, unfounded, reopen, export, cancel request, cancel -->
     <string-array name="control_log_events">
         <item>report</item>
         <item>acknowledgement</item>
         <item>assignment</item>
         <item>take</item>
-        <item>resolution</item>
+        <item>closing</item>
         <item>unfounded</item>
         <item>reopening</item>
         <item>export</item>
+        <item>call-off request</item>
+        <item>call-off confirmed</item>
     </string-array>
     <!-- In the order of CaseState: open, assigned, closed -->
     <string-array name="control_case_states">

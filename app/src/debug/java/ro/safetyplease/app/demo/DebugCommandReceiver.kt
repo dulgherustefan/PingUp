@@ -75,12 +75,12 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 "participant"
             }
             "take", "resolve" -> {
-                val open = c.incidentStore.value.staff.lastOrNull { it.status < AckStatus.RESOLVED } ?: error("no open incident")
+                val open = c.incidentStore.value.staff.lastOrNull { !AckStatus.isClosed(it.status) } ?: error("no open incident")
                 if (cmd == "take") c.incidents.acknowledge(open.incidentId) else c.incidents.resolve(open.incidentId)
                 "$cmd ${open.incidentId.take(8)}"
             }
             "cancel" -> {
-                val open = c.incidentStore.value.mine.lastOrNull { !it.cancelled && it.status < AckStatus.RESOLVED }
+                val open = c.incidentStore.value.mine.lastOrNull { !it.cancelled && !AckStatus.isClosed(it.status) }
                     ?: error("no open report")
                 c.incidents.cancel(open.incidentId)
                 "cancel ${open.incidentId.take(8)}"

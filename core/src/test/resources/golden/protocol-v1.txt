@@ -102,12 +102,46 @@ frame.opaque.relayed 015503000123456789abcdef79388b6b02a70d4968e7780000066675747
 # incident.body with flag 0x80 from a newer version and its field, abcd, after the cancel hash.
 # 1.1 reads it as incident.body; 1.0 rejects it.
 incident.body.extended 010368e77800870a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef7abcd
-# INCIDENT_ACK from a newer version: INCIDENT_ID, status 7, TIME+120, team "Medical 1", then abcd, its extensions
-# (1.1 reads only the first byte, as ACK flags), then the Ed25519 signature with the staff sign key over "SP-ACK-v1"
-# and everything before it. 1.1 verifies and relays it but doesn't store it; 1.0 rejects it.
+# INCIDENT_ACK built as a newer version's, before status 7 and the epoch had a meaning: INCIDENT_ID, status 7,
+# TIME+120, team "Medical 1", then abcd, its extensions, then the Ed25519 signature with the staff sign key over
+# "SP-ACK-v1" and everything before it. 1.1 now reads status 7 as CLOSED_BY_CONTROL and the flags byte ab as ASSIGNED
+# and EPOCH (its other bits are ignored), so cd is the epoch, 205; incident.ack.unknown carries a status 1.1 doesn't
+# know. 1.0 rejects both.
 incident.ack.future 00112233445566778899aabbccddeeff0768e77878094d65646963616c2031abcde68c5e0146c07167cabfe91c6c86c80d24ff25703f3dd8cad1c03bdc34f419f9ab710d07386b01372cba54f9d092973bfeea19ce3884069796d89595dae7e405
 # INCIDENT_ACK with which the control console assigns the incident (1.1): INCIDENT_ID, ACKNOWLEDGED, TIME+90,
 # team "Medical", then the ACK flags byte 01 (ASSIGNED), then the Ed25519 signature with the staff sign key over
 # "SP-ACK-v1" and everything before it. 1.1 reads it as an assignment, which a team's own take replaces; it never goes
 # to a 1.0 phone, which would reject it.
 incident.ack.assigned 00112233445566778899aabbccddeeff0268e7785a074d65646963616c011dc40b5dbfcf0d34e4104e7e7161b59b46c91381bebc3b55828203b9e12eceae5528556360be878d975c922004be5a54c86b2d9f1ef87dfd9504912f65bf4906
+
+# Protocol 1.1, field states, closing by control and reopening. ACK statuses 5 ON_SCENE, 6 HANDED_OVER,
+# 7 CLOSED_BY_CONTROL, 8 UNFOUNDED, 9 REOPENED; the epoch travels after the ACK flags byte, behind flag 02 (EPOCH).
+# Each one: INCIDENT_ID, the status, TIME + n, the team, the extensions if any, then the Ed25519 signature with the
+# staff sign key over "SP-ACK-v1" and everything before it. 1.0 rejects all of them; a 1.1 node never sends them to it.
+# ON_SCENE, TIME+150, team "Medical 1", epoch 0: no extensions.
+incident.ack.on_scene 00112233445566778899aabbccddeeff0568e77896094d65646963616c2031e6409bc89520e008de4996df539613ec11e5770d5b44f40b988f9c3fbc52a0fcf58fe903262776f86d6e974d027954d02c0286f044a90666b526158cc0b74b02
+# HANDED_OVER, TIME+180, team "Medical 1".
+incident.ack.handed_over 00112233445566778899aabbccddeeff0668e778b4094d65646963616c20311b7811537c364970e1668178155488a8567f8fdcdc2f6f4f8eb6e0f0a0f100b66cd28c0bdcb182bef7490b42f110c23fb6c7d872f3d7c472e5e50be31936b703
+# CLOSED_BY_CONTROL, TIME+210, team "Control".
+incident.ack.closed 00112233445566778899aabbccddeeff0768e778d207436f6e74726f6cfe59d1b90b8935b49a0fe7c343a8f703332633ae80c469aa8174184c161c77e655926d25396c86c1f970ee6c261b0e63c25476ab668fef1484ebf75d7e650609
+# UNFOUNDED, TIME+240, team "Control".
+incident.ack.unfounded 00112233445566778899aabbccddeeff0868e778f007436f6e74726f6cf8ed78f5648c0f678acd2e2de283bcd42c7ad981b907ba21f20d409083aa8ee9cfe2ea17feeff7962e6db3d185b15b4e29d742106a4b93278dde0a134d08c90b
+# REOPENED, TIME+270, team "Control", extensions 02 01: flag EPOCH, epoch 1.
+incident.ack.reopened 00112233445566778899aabbccddeeff0968e7790e07436f6e74726f6c0201e33b16e64693524e7a232a79cbe6eedb0c4864756bdb5a09c55be25f8174b8eed69f870f67138b1a5fbda09a33b4aae5a16f2cc6d67a516dd0b5bf1f05772f0b
+# ACKNOWLEDGED, TIME+300, team "Medical", extensions 03 01: flags ASSIGNED and EPOCH, epoch 1. An assignment after a reopen.
+incident.ack.assigned.epoch 00112233445566778899aabbccddeeff0268e7792c074d65646963616c03018791090307f6f5a548ae1350695b7431c48273c605bbf340cea94d1b7eede889e1bf91b1f3f6a6635d72f02b63bc4eb7d5912d5647a076bc6a9ec322aff3f807
+# INCIDENT_ACK from a newer version: status 7e, TIME+330, team "Medical 1", then abcd, its extensions, then the
+# signature. 1.1 verifies and relays it but doesn't store it; 1.0 rejects it.
+incident.ack.unknown 00112233445566778899aabbccddeeff7e68e7794a094d65646963616c2031abcd056c5da8662425c20901ecbafd9492ea0c7e718921dae738aa948ef657c9546ba65f3ebd4adb3c2355fa7858dfaa10ebb4667542867b078d111c81971b395204
+# incident.body with flag 08 and the triage byte after the cancel hash: responds NO (2), breathes UNKNOWN (3) << 2 = 0e.
+incident.body.triage 010368e778000f0a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef70e
+# Staff report: VIOLENCE, URGENT, TIME, zone "Poarta 2", no coordinates, description "Acces pe la spatele scenei",
+# nickname "Securitate 1" (the team, from the staff QR), cancelHash = incident.cancelHash, then flag 10's two bytes:
+# people 3, flags 01 (the danger continues).
+incident.body.staff 020368e778001608506f617274612032001a4163636573207065206c612073706174656c65207363656e65690c5365637572697461746520310117b666bb268fe792c6157cd295fef70301
+# LOST_FRIEND (8), LOW, TIME, zone "Scena mare", no coordinates, no description, no nickname, cancelHash. 1.0 rejects
+# the category, so a 1.0 staff phone drops this report without a word.
+incident.body.lost_friend 080168e77800040a5363656e61206d61726500000117b666bb268fe792c6157cd295fef7
+# SUMMARY2 of kind INCIDENTS with epochs: (00112233..77, report, REOPENED), (0102030405060708, no report,
+# CLOSED_BY_CONTROL), then the flags byte 01 (EPOCHS) and one epoch per entry: 01, 00.
+summary2.epochs 0102001122334455667789010203040506070807010100

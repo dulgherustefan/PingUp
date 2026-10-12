@@ -413,7 +413,7 @@ class MeshEngine(
         val entries = cache.summary(now) { canSend(link, it) }
         if (entries.isEmpty()) return
         if (link.speaks11) {
-            sendLocal(link, PacketType.SUMMARY2, Summary2Codec.encode(Summary2(SummaryKind.INCIDENTS, entries)))
+            sendLocal(link, PacketType.SUMMARY2, Summary2Codec.encode(Summary2(SummaryKind.INCIDENTS, Summary2Codec.fitting(entries))))
         } else {
             sendLocal(link, PacketType.SUMMARY, SummaryCodec.encode(entries))
         }

@@ -61,7 +61,7 @@ class PayloadsTest {
         val bytes = Summary2Codec.encode(summary)
         assertArrayEquals("the kind, then SUMMARY's entries", byteArrayOf(1) + SummaryCodec.encode(entries), bytes)
         assertEquals(summary, Summary2Codec.decode(bytes))
-        assertEquals("trailing bytes", summary, Summary2Codec.decode(bytes + byteArrayOf(7, 7)))
+        assertEquals("trailing bytes", summary, Summary2Codec.decode(bytes + byteArrayOf(0x80.toByte(), 7)))
 
         val future = WireWriter().u8(SummaryKind.INCIDENTS).u8(1).i64(9).u8(0x80 or 9).toByteArray()
         assertEquals(listOf(SummaryEntry(9L, true, 9)), Summary2Codec.decode(future)!!.entries)
@@ -143,13 +143,122 @@ class PayloadsTest {
 
     @Test
     fun largestIncidentStillFitsSealedInOnePacket() {
-        val desc = "ș".repeat(Limits.DESCRIPTION_CHARS).truncateUtf8(Limits.DESCRIPTION_BYTES)
+        val desc = "€".repeat(Limits.DESCRIPTION_CHARS).truncateUtf8(Limits.DESCRIPTION_BYTES)
         val body = IncidentBody(
             IncidentCategory.OTHER, Severity.MEDIUM, 1L, "z".repeat(Limits.ZONE_BYTES),
             -89.999999, 179.999999, desc, "n".repeat(Limits.NICK_BYTES), ByteArray(IncidentCancel.HASH_SIZE),
+            Triage(Answer.NO, Answer.NO), StaffFields(255, dangerContinues = true),
         ).encode()
+        assertEquals(394, body.size)
         val total = INCIDENT_ID_SIZE + body.size + IncidentReportCodec.SEAL_OVERHEAD
         assertTrue("total=$total", total <= PacketCodec.MAX_PAYLOAD)
+    }
+
+    @Test
+    fun triageAndStaffFieldsFollowTheCancelHashBehindTheirFlags() {
+        val hash = IncidentCancel.hash(ByteArray(IncidentCancel.TOKEN_SIZE))
+        val plain = IncidentBody(IncidentCategory.MEDICAL, Severity.URGENT, 9L, "bar", null, null, "", null, hash)
+        val triage = Triage(Answer.YES, Answer.UNKNOWN)
+        val staff = StaffFields(4, dangerContinues = true)
+        val both = IncidentBody(IncidentCategory.MEDICAL, Severity.URGENT, 9L, "bar", null, null, "", "Medical 1", hash, triage, staff)
+        val bytes = both.encode()
+        assertEquals("flags: cancel, nickname, triage, staff", 0x04 or 0x02 or 0x08 or 0x10, bytes[6].toInt())
+        assertArrayEquals(byteArrayOf(0x0d, 4, 1), bytes.copyOfRange(bytes.size - 3, bytes.size))
+        val back = IncidentBody.decode(bytes)!!
+        assertEquals(triage, back.triage)
+        assertEquals(staff, back.staff)
+        assertEquals("Medical 1", back.nickname)
+        assertNull(IncidentBody.decode(plain.encode())!!.triage)
+        assertNull(IncidentBody.decode(plain.encode())!!.staff)
+        assertEquals(plain.encode().size + 1, IncidentBody(1, 3, 9L, "bar", null, null, "", null, hash, Triage(Answer.NO)).encode().size)
+
+        // bits a newer version may give these bytes are skipped
+        val newer = bytes.clone().also { it[it.size - 3] = 0xf6.toByte(); it[it.size - 1] = 0xff.toByte() }
+        val read = IncidentBody.decode(newer)!!
+        assertEquals(Triage(Answer.NO, Answer.YES), read.triage)
+        assertEquals(StaffFields(4, dangerContinues = true), read.staff)
+        assertNull("the staff flag without its bytes", IncidentBody.decode(bytes.copyOf(bytes.size - 1)))
+    }
+
+    @Test
+    fun theOrderOfStatusesWithinAnEpochIsOneTable() {
+        val order = listOf(
+            AckStatus.NONE, AckStatus.RECEIVED, AckStatus.REOPENED, AckStatus.ACKNOWLEDGED, AckStatus.ON_SCENE,
+            AckStatus.HANDED_OVER, AckStatus.RESOLVED, AckStatus.CLOSED_BY_CONTROL, AckStatus.UNFOUNDED, AckStatus.CANCELLED,
+        )
+        assertEquals(order.indices.toList(), order.map(AckStatus::rank))
+        assertEquals("1.0's four keep their 1.0 order", AckStatus.V1_0.toList(), AckStatus.V1_0.sortedBy(AckStatus::rank))
+        assertEquals(-1, AckStatus.rank(10))
+        assertTrue((0..9).all(AckStatus::isKnown) && !AckStatus.isKnown(10))
+        for ((later, earlier) in order.zipWithNext { a, b -> b to a }) assertTrue(AckOrder.compare(0, later, 0, earlier) > 0)
+        assertTrue("an epoch beats any status of the one before", AckOrder.compare(1, AckStatus.REOPENED, 0, AckStatus.CANCELLED) > 0)
+        assertEquals(0, AckOrder.compare(2, AckStatus.ON_SCENE, 2, AckStatus.ON_SCENE))
+
+        assertEquals(
+            listOf(AckStatus.RESOLVED, AckStatus.CLOSED_BY_CONTROL, AckStatus.UNFOUNDED, AckStatus.CANCELLED),
+            order.filter(AckStatus::isClosed),
+        )
+        assertEquals(listOf(AckStatus.ACKNOWLEDGED, AckStatus.ON_SCENE, AckStatus.HANDED_OVER), order.filter(AckStatus::isTaken))
+    }
+
+    @Test
+    fun oneZeroPhonesGetTheClosestStatusTheyKnow() {
+        assertEquals(AckStatus.ACKNOWLEDGED, AckStatus.legacy(AckStatus.ON_SCENE))
+        assertEquals(AckStatus.ACKNOWLEDGED, AckStatus.legacy(AckStatus.HANDED_OVER))
+        assertEquals(AckStatus.RESOLVED, AckStatus.legacy(AckStatus.CLOSED_BY_CONTROL))
+        assertEquals(AckStatus.RESOLVED, AckStatus.legacy(AckStatus.UNFOUNDED))
+        assertEquals("1.0 can't go back", AckStatus.NONE, AckStatus.legacy(AckStatus.REOPENED))
+        for (status in AckStatus.V1_0) assertEquals(status, AckStatus.legacy(status))
+        for (status in (AckStatus.ON_SCENE..AckStatus.REOPENED)) {
+            val legacy = AckStatus.legacy(status)
+            assertTrue("$status ranks above what 1.0 gets for it", AckStatus.rank(status) > AckStatus.rank(legacy) || legacy == AckStatus.NONE)
+        }
+    }
+
+    @Test
+    fun ackEpochFollowsTheFlagsByte() {
+        val id = ByteArray(INCIDENT_ID_SIZE) { it.toByte() }
+        val sig = ByteArray(IncidentAck.SIGNATURE_SIZE) { 7 }
+        fun ack(extensions: ByteArray) =
+            IncidentAck.decode(IncidentAck(id, AckStatus.REOPENED, 99L, "Control", sig, extensions).encode())!!
+        assertArrayEquals(byteArrayOf(0x02, 3), IncidentAck.extensions(0, epoch = 3))
+        assertArrayEquals(byteArrayOf(0x03, 1), IncidentAck.extensions(AckFlags.ASSIGNED, epoch = 1))
+        assertEquals("epoch 0 keeps the 1.0 layout", 0, IncidentAck.extensions(0, epoch = 0).size)
+        assertEquals(3, ack(IncidentAck.extensions(0, epoch = 3)).epoch)
+        val assigned = ack(IncidentAck.extensions(AckFlags.ASSIGNED, epoch = 255))
+        assertTrue(assigned.assigned)
+        assertEquals(255, assigned.epoch)
+        assertEquals(0, ack(IncidentAck.extensions(AckFlags.ASSIGNED)).epoch)
+        assertEquals("the flag without its byte", 0, ack(byteArrayOf(0x02)).epoch)
+        assertEquals("fields after the epoch are kept", 7, ack(byteArrayOf(0x82.toByte(), 7, 1, 2)).epoch)
+        assertThrows(IllegalArgumentException::class.java) { IncidentAck.extensions(AckFlags.EPOCH) }
+        assertThrows(IllegalArgumentException::class.java) { IncidentAck.extensions(0, epoch = 256) }
+    }
+
+    @Test
+    fun summary2CarriesEpochsOnlyWhenAnIncidentWasReopened() {
+        val plain = Summary2(SummaryKind.INCIDENTS, listOf(SummaryEntry(1L, true, AckStatus.CLOSED_BY_CONTROL)))
+        assertEquals("no epoch, no block", 2 + 9, Summary2Codec.encode(plain).size)
+        val reopened = Summary2(
+            SummaryKind.INCIDENTS,
+            listOf(SummaryEntry(1L, true, AckStatus.REOPENED, epoch = 2), SummaryEntry(2L, false, AckStatus.ON_SCENE)),
+        )
+        val bytes = Summary2Codec.encode(reopened)
+        assertArrayEquals(byteArrayOf(Summary2Codec.EPOCHS.toByte(), 2, 0), bytes.copyOfRange(bytes.size - 3, bytes.size))
+        assertEquals(reopened, Summary2Codec.decode(bytes))
+        assertEquals("what follows the epochs is a newer version's", reopened, Summary2Codec.decode(bytes + byteArrayOf(9, 9)))
+        assertEquals("other flag bits are skipped", plain, Summary2Codec.decode(Summary2Codec.encode(plain) + 0x80.toByte()))
+        assertNull("an epoch per entry", Summary2Codec.decode(bytes.copyOf(bytes.size - 1)))
+
+        val full = List(Limits.SUMMARY_ENTRIES) { SummaryEntry(it.toLong(), true, AckStatus.RECEIVED, epoch = if (it == 0) 1 else 0) }
+        val fitting = Summary2Codec.fitting(full)
+        assertEquals(Limits.SUMMARY2_EPOCH_ENTRIES, fitting.size)
+        assertTrue(Summary2Codec.encode(Summary2(SummaryKind.INCIDENTS, fitting)).size <= PacketCodec.MAX_PAYLOAD)
+        assertEquals("without epochs all 50 fit", full.map { it.copy(epoch = 0) }, Summary2Codec.fitting(full.map { it.copy(epoch = 0) }))
+        assertThrows(IllegalArgumentException::class.java) { Summary2Codec.encode(Summary2(SummaryKind.INCIDENTS, full)) }
+        val tooMany = Summary2Codec.encode(Summary2(SummaryKind.INCIDENTS, full.map { it.copy(epoch = 0) })) + 1 + ByteArray(50)
+        assertNull("epochs for more entries than fit in a packet", Summary2Codec.decode(tooMany))
+        assertNull("a 1.0 summary carries 1.0 statuses only", SummaryCodec.decode(SummaryCodec.encode(listOf(SummaryEntry(1L, true, AckStatus.ON_SCENE)))))
     }
 
     @Test
@@ -166,7 +275,7 @@ class PayloadsTest {
     fun incidentBodySkipsFieldsAndFlagsOfANewerVersion() {
         val hash = IncidentCancel.hash(ByteArray(IncidentCancel.TOKEN_SIZE))
         val body = IncidentBody(IncidentCategory.FIRE, Severity.URGENT, 9L, "bar", 43.95, 28.63, "fum", "Ana", hash).encode()
-        val newer = body.clone().also { it[6] = (it[6].toInt() or 0x08 or 0x80).toByte() } + byteArrayOf(4, 1, 2, 3, 4)
+        val newer = body.clone().also { it[6] = (it[6].toInt() or 0x20 or 0x80).toByte() } + byteArrayOf(4, 1, 2, 3, 4)
         val d = IncidentBody.decode(newer)!!
         assertEquals("fum", d.description)
         assertEquals("Ana", d.nickname)
@@ -211,8 +320,8 @@ class PayloadsTest {
         assertNull("status 0", IncidentAck.decode(payload.clone().also { it[IncidentAck.STATUS_OFFSET] = 0 }))
         val cancelled = payload.clone().also { it[IncidentAck.STATUS_OFFSET] = AckStatus.CANCELLED.toByte() }
         assertEquals(AckStatus.CANCELLED, IncidentAck.decode(cancelled)!!.status)
-        val newer = IncidentAck.decode(payload.clone().also { it[IncidentAck.STATUS_OFFSET] = 5 })!!
-        assertEquals("a newer status is kept as a number", 5, newer.status)
+        val newer = IncidentAck.decode(payload.clone().also { it[IncidentAck.STATUS_OFFSET] = 0x7e })!!
+        assertEquals("a newer status is kept as a number", 0x7e, newer.status)
         assertFalse(AckStatus.isKnown(newer.status))
     }
 
@@ -227,8 +336,8 @@ class PayloadsTest {
         val assigned = ack(IncidentAck.extensions(AckFlags.ASSIGNED))
         assertTrue(assigned.assigned)
         assertArrayEquals(byteArrayOf(AckFlags.ASSIGNED.toByte()), assigned.extensions)
-        val newer = ack(byteArrayOf(0x82.toByte(), 5, 6))
-        assertEquals("bits and fields of a newer version are kept", 0x82, newer.flags)
+        val newer = ack(byteArrayOf(0x84.toByte(), 5, 6))
+        assertEquals("bits and fields of a newer version are kept", 0x84, newer.flags)
         assertFalse(newer.assigned)
     }
 
@@ -255,7 +364,11 @@ class PayloadsTest {
         val sig = ByteArray(IncidentAck.SIGNATURE_SIZE)
         val ack = IncidentAck(id, AckStatus.RESOLVED, 1L, "T", sig)
         assertTrue(Compat10.accepts(packet(PacketType.INCIDENT_ACK, ack.encode())))
-        assertFalse(Compat10.accepts(packet(PacketType.INCIDENT_ACK, IncidentAck(id, 5, 1L, "T", sig).encode())))
+        for (status in AckStatus.ON_SCENE..AckStatus.REOPENED) {
+            assertFalse(Compat10.accepts(packet(PacketType.INCIDENT_ACK, IncidentAck(id, status, 1L, "T", sig).encode())))
+        }
+        val epoch = IncidentAck(id, AckStatus.RESOLVED, 1L, "T", sig, IncidentAck.extensions(0, epoch = 1))
+        assertFalse("an epoch is an extension", Compat10.accepts(packet(PacketType.INCIDENT_ACK, epoch.encode())))
         assertFalse(Compat10.accepts(packet(PacketType.INCIDENT_ACK, IncidentAck(id, 1, 1L, "T", sig, byteArrayOf(1)).encode())))
         assertTrue(Compat10.accepts(packet(PacketType.INCIDENT_CANCEL, ByteArray(IncidentCancel.SIZE))))
         assertFalse(Compat10.accepts(packet(PacketType.INCIDENT_CANCEL, ByteArray(IncidentCancel.SIZE + 1))))

@@ -98,6 +98,7 @@ import ro.safetyplease.app.ui.designsystem.GlassIconButton
 import ro.safetyplease.app.ui.designsystem.GroupDivider
 import ro.safetyplease.app.ui.designsystem.GroupRow
 import ro.safetyplease.app.ui.designsystem.Gutter
+import ro.safetyplease.app.ui.designsystem.IconBtn
 import ro.safetyplease.app.ui.designsystem.InputField
 import ro.safetyplease.app.ui.designsystem.InsetGroup
 import ro.safetyplease.app.ui.designsystem.LocalBottomClearance
@@ -121,17 +122,21 @@ import ro.safetyplease.app.ui.designsystem.title2
 import ro.safetyplease.app.ui.isOpen
 import ro.safetyplease.app.ui.rememberLocationRequest
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.incidents.IncidentManager
+import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.core.protocol.StaffFields
+import ro.safetyplease.core.protocol.Triage
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 
-/** Categories that are urgent unless the user says otherwise. */
-private fun urgentByDefault(category: Int): Boolean =
-    category == IncidentCategory.MEDICAL || category == IncidentCategory.VIOLENCE ||
-        category == IncidentCategory.FIRE || category == IncidentCategory.CROWD
+/** A lost child is always urgent and a lost friend never is, so neither offers the urgent switch. */
+private fun hasFixedUrgency(category: Int): Boolean =
+    category == IncidentCategory.LOST_CHILD || category == IncidentCategory.LOST_FRIEND
 
 /** Band where the list fades out above the floating bottom buttons. */
 private val FadeZone = 24.dp
@@ -161,13 +166,68 @@ private fun CategoryChip(icon: ImageVector, label: String, selected: Boolean, on
     }
 }
 
+/** A triage question with three big answers; tapping the chosen one again takes the answer back. */
+@Composable
+private fun TriageQuestion(question: String, answer: Int, onAnswer: (Int) -> Unit) {
+    val colors = AppTheme.colors
+    Column(Modifier.padding(start = Gutter, end = Gutter, top = 12.dp)) {
+        Text(question, style = MaterialTheme.typography.headline, color = colors.label, modifier = Modifier.padding(bottom = 8.dp))
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (option in listOf(Answer.YES, Answer.NO, Answer.UNKNOWN)) {
+                val selected = answer == option
+                val fill by animateColorAsState(if (selected) colors.selection else colors.cell, tween(Motion.QUICK), label = "answer")
+                val press = remember { MutableInteractionSource() }
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().pressScale(press, 0.97f).heightIn(min = 56.dp).clip(RoundedCornerShape(14.dp))
+                        .background(fill)
+                        .selectable(selected, interactionSource = press, indication = LocalIndication.current, role = Role.RadioButton) {
+                            onAnswer(if (selected) Answer.UNASKED else option)
+                        }
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        stringResource(Labels.answer(option)).replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.body, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (selected) colors.onSelection else colors.label, textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** How many people a staff report is about: minus, the number (or "don't know" at 0), plus. */
+@Composable
+private fun PeopleRow(people: Int, onChange: (Int) -> Unit) {
+    val colors = AppTheme.colors
+    GroupRow(
+        stringResource(R.string.report_staff_people), icon = Sym.Group,
+        trailing = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconBtn(Sym.Remove, stringResource(R.string.report_staff_fewer), { onChange((people - 1).coerceAtLeast(0)) }, tint = colors.accent)
+                Text(
+                    if (people == 0) stringResource(R.string.report_staff_people_unknown) else people.toString(),
+                    style = MaterialTheme.typography.body, color = colors.label, textAlign = TextAlign.Center,
+                    modifier = Modifier.width(64.dp),
+                )
+                IconBtn(Sym.Add, stringResource(R.string.report_staff_more), { onChange((people + 1).coerceAtMost(MAX_PEOPLE)) }, tint = colors.accent)
+            }
+        },
+    )
+}
+
+/** The most a staff report can count: one byte on the wire. */
+private const val MAX_PEOPLE = 255
+
 /** How long your unresolved report stays pinned at the top of the tab. */
 private const val ACTIVE_REPORT_MS = 2 * 60 * 60_000L
 
 /**
  * Report tab: your still-open report if there is one, then "Ce se intampla?" and a grid of categories.
  * Details appear only after a category is picked, folded into one row that shows what's set (urgent, anonymous, zone),
- * so most reports take two taps. The send button floats above the tab bar and rises above the keyboard while typing.
+ * so most reports take two taps; a medical one asks two triage questions on the same screen, and staff see the fields
+ * of a staff report unfolded. The send button floats above the tab bar and rises above the keyboard while typing.
  */
 @Composable
 fun ReportScreen(vm: AppViewModel) {
@@ -179,12 +239,18 @@ fun ReportScreen(vm: AppViewModel) {
 
     var category by rememberSaveable { mutableIntStateOf(0) }
     var urgent by rememberSaveable { mutableStateOf(false) }
-    var urgentChosen by rememberSaveable { mutableStateOf(false) }
+    var responds by rememberSaveable { mutableIntStateOf(Answer.UNASKED) }
+    var breathes by rememberSaveable { mutableIntStateOf(Answer.UNASKED) }
+    var people by rememberSaveable { mutableIntStateOf(0) }
+    var danger by rememberSaveable { mutableStateOf(false) }
     var description by rememberSaveable { mutableStateOf("") }
     var describing by remember { mutableStateOf(false) }
     var anonymous by rememberSaveable { mutableStateOf(true) }
-    // details stay folded into one summary row; whoever has more to add expands it
+    // details stay folded into one summary row; whoever has more to add expands it, and staff always see them
     var showDetails by rememberSaveable { mutableStateOf(false) }
+    val staff = settings.role.hasStaffKeys
+    val triage = Triage(responds, breathes).takeIf { category == IncidentCategory.MEDICAL && (responds != Answer.UNASKED || breathes != Answer.UNASKED) }
+    val severity = Priority.severity(category, urgent && !hasFixedUrgency(category), triage)
     var pickZone by remember { mutableStateOf(false) }
     val autoZone = position?.let { vm.venue.zoneAt(it.lat, it.lon) }
     // null while the zone follows GPS; once the user picks one, a new fix doesn't change it
@@ -265,10 +331,7 @@ fun ReportScreen(vm: AppViewModel) {
                             for (c in row) {
                                 CategoryChip(
                                     categoryIcon(c), stringResource(Labels.category(c)), selected = category == c,
-                                    onClick = {
-                                        category = if (category == c) 0 else c
-                                        if (!urgentChosen) urgent = category != 0 && urgentByDefault(category)
-                                    },
+                                    onClick = { category = if (category == c) 0 else c },
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
                             }
@@ -283,10 +346,33 @@ fun ReportScreen(vm: AppViewModel) {
                         modifier = Modifier.padding(start = Gutter, end = Gutter, top = 12.dp),
                     )
                 }
+                // the questions sit on the screen with Send, so a medical report stays two or three taps
+                if (category == IncidentCategory.MEDICAL) {
+                    SectionTitle(stringResource(R.string.report_triage_title), top = 20.dp)
+                    TriageQuestion(stringResource(R.string.report_triage_responds), responds) { responds = it }
+                    TriageQuestion(stringResource(R.string.report_triage_breathes), breathes) { breathes = it }
+                    Text(
+                        stringResource(R.string.report_triage_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                        modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp),
+                    )
+                }
+                if (category == IncidentCategory.LOST_FRIEND) {
+                    Banner(
+                        stringResource(R.string.report_help_meeting), stringResource(R.string.report_lost_friend_note),
+                        Modifier.padding(start = Gutter, end = Gutter, top = 16.dp),
+                        action = stringResource(R.string.map_meeting_point), onAction = { vm.open(Dest.Map(spot = Venue.MEETING)) },
+                    )
+                }
+                if (category == IncidentCategory.LOST_CHILD) {
+                    Banner(
+                        stringResource(R.string.sev_urgent), stringResource(R.string.report_lost_child_note),
+                        Modifier.padding(start = Gutter, end = Gutter, top = 16.dp), warning = true,
+                    )
+                }
 
-                if (category != 0 && !showDetails) {
+                if (category != 0 && !showDetails && !staff) {
                     val summary = listOf(
-                        stringResource(if (urgent) R.string.sev_urgent else R.string.sev_normal),
+                        stringResource(Labels.urgency(severity)),
                         stringResource(if (anonymous) R.string.report_anonymous else R.string.report_named),
                         if (zone.isNotEmpty()) vm.venue.zoneName(zone) else stringResource(R.string.report_zone_none),
                     ).joinToString(" · ")
@@ -297,18 +383,32 @@ fun ReportScreen(vm: AppViewModel) {
                         )
                     }
                 }
-                if (category != 0 && showDetails) {
+                if (category != 0 && (showDetails || staff)) {
+                    if (staff) {
+                        SectionTitle(stringResource(R.string.report_staff_title))
+                        InsetGroup {
+                            PeopleRow(people) { people = it }
+                            GroupDivider()
+                            SwitchRow(
+                                stringResource(R.string.report_staff_danger), danger, { danger = it },
+                                subtitle = stringResource(R.string.report_staff_danger_text), icon = Sym.Priority,
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.report_staff_team, settings.teamName), style = MaterialTheme.typography.footnote,
+                            color = colors.secondaryLabel, modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
+                        )
+                    }
                     SectionTitle(stringResource(R.string.report_details))
                     InsetGroup {
-                        SwitchRow(
-                            stringResource(R.string.report_urgent), urgent,
-                            {
-                                urgent = it
-                                urgentChosen = true
-                            },
-                            subtitle = stringResource(R.string.report_urgent_label), icon = Sym.Priority,
-                        )
-                        GroupDivider()
+                        // a "no" to a triage question already made it urgent
+                        if (!hasFixedUrgency(category) && triage?.critical != true) {
+                            SwitchRow(
+                                stringResource(R.string.report_urgent), urgent, { urgent = it },
+                                subtitle = stringResource(R.string.report_urgent_label), icon = Sym.Priority,
+                            )
+                            GroupDivider()
+                        }
                         GroupRow(
                             stringResource(R.string.report_zone),
                             subtitle = when {
@@ -320,14 +420,18 @@ fun ReportScreen(vm: AppViewModel) {
                             value = if (zone.isNotEmpty()) vm.venue.zoneName(zone) else null,
                             icon = Sym.Place, chevron = true, onClick = { pickZone = true },
                         )
-                        GroupDivider()
-                        SwitchRow(
-                            stringResource(R.string.report_anonymous), anonymous, { anonymous = it },
-                            subtitle = stringResource(if (anonymous) R.string.report_anonymous_on else R.string.report_anonymous_off), icon = Sym.Hidden,
-                        )
+                        // staff reports go in the team's name
+                        if (!staff) {
+                            GroupDivider()
+                            SwitchRow(
+                                stringResource(R.string.report_anonymous), anonymous, { anonymous = it },
+                                subtitle = stringResource(if (anonymous) R.string.report_anonymous_on else R.string.report_anonymous_off), icon = Sym.Hidden,
+                            )
+                        }
                     }
                     InputField(
-                        description, { description = it.take(Limits.DESCRIPTION_CHARS) }, stringResource(R.string.report_description),
+                        description, { description = it.take(Limits.DESCRIPTION_CHARS) },
+                        stringResource(if (staff) R.string.report_description_staff else R.string.report_description),
                         Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 20.dp)
                             .onFocusChanged { describing = it.hasFocus },
                         maxLines = 4,
@@ -351,22 +455,27 @@ fun ReportScreen(vm: AppViewModel) {
             }
             if (waitMs > 0) {
                 StatusLabel(
-                    stringResource(R.string.report_rate_limited, (waitMs / 60_000 + 1).toInt()), Modifier.padding(bottom = 8.dp),
+                    pluralStringResource(R.plurals.report_rate_limited, vm.rateLimitMax(), vm.rateLimitMax(), (waitMs / 60_000 + 1).toInt()),
+                    Modifier.padding(bottom = 8.dp),
                     icon = Sym.Info, color = colors.redInk,
                 )
             }
             AppButton(
                 stringResource(R.string.report_send),
                 {
-                    val id = vm.report(category, if (urgent) Severity.URGENT else Severity.MEDIUM, zone, description, anonymous)
+                    val fields = if (staff) StaffFields(people, danger) else null
+                    val id = vm.report(category, severity, zone, description, anonymous, triage, fields)
                     if (id != null) {
                         if (autoZone == null) vm.setManualZone(zone)
                         haptics.confirm()
                         picked = null
                         category = 0
                         description = ""
-                        urgentChosen = false
                         urgent = false
+                        responds = Answer.UNASKED
+                        breathes = Answer.UNASKED
+                        people = 0
+                        danger = false
                         showDetails = false
                         vm.open(Dest.ReportSent(id))
                     }
@@ -451,11 +560,15 @@ private fun FloatingFooter(
     }
 }
 
-/** Report step in a list row; a cancelled alert just says so, an urgent one nobody confirmed in time says that. */
+/**
+ * Report step in a list row; a cancelled alert just says so, or that staff checks the cancel; an urgent one nobody
+ * confirmed in time says that.
+ */
 @Composable
 private fun stepText(report: MyReport, now: Long): String = when {
     report.status == AckStatus.CANCELLED -> stringResource(R.string.report_cancelled)
-    report.cancelled -> stringResource(R.string.report_cancelling)
+    report.cancelled && !AckStatus.isClosed(report.status) ->
+        stringResource(if (IncidentManager.cancelIsChecked(report)) R.string.report_cancel_checked else R.string.report_cancelling)
     report.needsEscalation(now) -> stringResource(R.string.report_escalate_title)
     else -> stepName(reportStep(report), report)
 }
@@ -558,13 +671,16 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
             leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
         ) { padding ->
             Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = padding.calculateTopPadding(), bottom = footer + 8.dp)) {
-                val withdrawn = report.cancelled || report.status == AckStatus.CANCELLED
+                // where staff checks the cancel, help may still come, so the path to staff stays on screen
+                val checking = report.cancelled && IncidentManager.cancelIsChecked(report) && !AckStatus.isClosed(report.status)
+                val withdrawn = report.status == AckStatus.CANCELLED || (report.cancelled && !checking)
                 val waiting = reportStep(report) == 0 && !withdrawn
+                val lostFriend = report.category == IncidentCategory.LOST_FRIEND
                 IncidentHeader(
                     report.category, report.severity == Severity.URGENT && !withdrawn, reportSubtitle(vm, report),
                     status = {
-                        if (withdrawn) {
-                            StatusLabel(stepText(report, now), icon = Sym.Close, color = colors.secondaryLabel)
+                        if (withdrawn || checking) {
+                            StatusLabel(stepText(report, now), icon = if (checking) Sym.Info else Sym.Close, color = colors.secondaryLabel)
                         }
                     },
                 )
@@ -572,8 +688,10 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
                     stringResource(
                         when {
                             report.status == AckStatus.CANCELLED -> R.string.report_cancelled_text
-                            report.cancelled -> R.string.report_cancelling_text
+                            checking -> R.string.report_cancel_checked_text
+                            report.cancelled && !AckStatus.isClosed(report.status) -> R.string.report_cancelling_text
                             waiting -> R.string.report_waiting_text
+                            lostFriend -> R.string.report_lost_friend_sent_text
                             else -> R.string.report_next_text
                         },
                     ),
@@ -586,7 +704,9 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
                         Modifier.padding(start = Gutter, end = Gutter, top = 20.dp), warning = true,
                     )
                 }
-                if (waiting || escalated) {
+                if (lostFriend && !withdrawn) {
+                    MeetingSteps(vm, helpOrigin(position, report, settings.manualZone, vm.venue))
+                } else if (waiting || escalated) {
                     // staying put contradicts the escalation, which sends you to a steward
                     HelpSteps(vm, helpOrigin(position, report, settings.manualZone, vm.venue), stay = !escalated)
                 }
@@ -680,12 +800,32 @@ private fun HelpSteps(vm: AppViewModel, origin: GeoPoint?, stay: Boolean) {
     }
 }
 
-/** Asked before cancelling an alert: staff will learn that help is no longer needed. */
+/** A friend lost in the crowd: the meeting point, with the way there, and the information point. */
+@Composable
+private fun MeetingSteps(vm: AppViewModel, origin: GeoPoint?) {
+    val meeting = vm.venue.nearest(Venue.MEETING, origin)
+    SectionTitle(stringResource(R.string.report_help_title))
+    InsetGroup {
+        if (meeting != null) {
+            GroupRow(
+                stringResource(R.string.report_help_meeting), subtitle = routeText(origin, meeting.point),
+                icon = Sym.Walk, chevron = true, onClick = { vm.open(Dest.Map(spot = Venue.MEETING)) },
+            )
+            GroupDivider()
+        }
+        GroupRow(stringResource(R.string.report_help_info), subtitle = stringResource(R.string.report_help_info_text), icon = Sym.Info)
+    }
+}
+
+/** Asked before cancelling an alert: staff will learn that help is no longer needed, or check it first. */
 @Composable
 private fun CancelReportDialog(vm: AppViewModel, incidentId: String, onDismiss: () -> Unit) {
     val haptics = rememberHaptics()
+    val incidents by vm.incidents.collectAsStateWithLifecycle()
+    val checked = incidents.mine.firstOrNull { it.incidentId == incidentId }?.let(IncidentManager::cancelIsChecked) == true
     ConfirmDialog(
-        stringResource(R.string.report_cancel_title), stringResource(R.string.report_cancel_text),
+        stringResource(R.string.report_cancel_title),
+        stringResource(if (checked) R.string.report_cancel_text_checked else R.string.report_cancel_text),
         onDismiss = onDismiss, confirmLabel = stringResource(R.string.report_cancel_confirm), destructive = true,
     ) {
         vm.cancelReport(incidentId)
