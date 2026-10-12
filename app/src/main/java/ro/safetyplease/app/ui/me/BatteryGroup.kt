@@ -13,6 +13,7 @@ import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.LowBatteryBanner
 import ro.safetyplease.app.ui.common.chargerText
+import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.app.ui.designsystem.GroupDivider
 import ro.safetyplease.app.ui.designsystem.GroupRow
 import ro.safetyplease.app.ui.designsystem.Gutter
@@ -32,7 +33,8 @@ fun BatteryGroup(vm: AppViewModel) {
     val battery by vm.c.battery.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
-    val origin = position ?: vm.venue.zone(settings.manualZone)?.center
+    // away from the venue the way to a charger would run to hundreds of km
+    val origin = helpOrigin(position, null, settings.manualZone, vm.venue)
     val charger = chargerText(vm.venue, origin)
     val profile = stringResource(
         when (battery.profile) {

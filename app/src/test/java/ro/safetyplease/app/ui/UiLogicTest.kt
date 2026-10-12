@@ -8,6 +8,8 @@ import org.junit.Test
 import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.ui.common.Nearby
+import ro.safetyplease.app.ui.common.helpOrigin
+import ro.safetyplease.app.ui.common.onSite
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.data.StaffIncident
@@ -39,6 +41,21 @@ class UiLogicTest {
 
     private val t0 = 1_000_000L
     private val fix = GeoFix(inA.lat, inA.lon, 5f, t0)
+
+    // --- distances ---
+
+    @Test
+    fun distancesAreMeasuredOnlyFromInsideTheVenue() {
+        assertEquals(inA, onSite(inA, venue))
+        assertNull("at home, far from the venue", onSite(GeoPoint(44.43, 26.10), venue))
+        assertNull(onSite(null, venue))
+    }
+
+    @Test
+    fun awayFromTheVenueTheWayToHelpStartsFromTheZonePickedByHand() {
+        assertEquals(venue.zone("b")!!.center, helpOrigin(GeoPoint(44.43, 26.10), null, "b", venue))
+        assertEquals(inA, helpOrigin(inA, null, "b", venue))
+    }
 
     // --- zone picked by hand ---
 

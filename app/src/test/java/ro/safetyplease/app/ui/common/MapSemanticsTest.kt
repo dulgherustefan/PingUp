@@ -85,6 +85,12 @@ class MapSemanticsTest {
     }
 
     @Test
+    fun fromAwayNoPlaceSaysHowFar() {
+        val home = GeoPoint(44.43, 26.10)
+        assertEquals(listOf("Scena mare, scenă", "Camping", "Parcare, zonă"), nodes(position = home).take(3).map { it.description })
+    }
+
+    @Test
     fun aStepDoesNotChangeWhatIsRead() {
         val before = nodes(position = GeoPoint(44.0005, 28.0005))[4].description
         val oneMeterNorth = nodes(position = GeoPoint(44.000509, 28.0005))[4].description

@@ -70,6 +70,7 @@ import ro.safetyplease.app.ui.common.MapReserve
 import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.app.ui.common.incidentPoint
+import ro.safetyplease.app.ui.common.onSite
 import ro.safetyplease.app.ui.common.routeText
 import ro.safetyplease.app.ui.common.spotColor
 import ro.safetyplease.app.ui.common.typeGlyph
@@ -137,7 +138,8 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val autoZone = here?.let { vm.venue.zoneAt(it.lat, it.lon) }
     val manualZone = settings.manualZone
     val myZoneId = autoZone?.id ?: manualZone
-    val origin = here ?: vm.venue.zone(manualZone)?.center
+    // away from the venue, distances would run to hundreds of km
+    val origin = onSite(here, vm.venue) ?: vm.venue.zone(manualZone)?.center
     val spot = if (focus == MapFocus.SPOT) vm.venue.nearest(spotType, origin) else null
     val requestLocation = rememberLocationRequest(vm)
     val listState = rememberLazyListState()
@@ -535,10 +537,11 @@ fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
     val zoneName = vm.venue.zoneName(pin.zone)
     val index = vm.venue.zones.indexOfFirst { it.id == pin.zone }
     val camera = remember { MapCamera() }
+    val near = onSite(here, vm.venue)
     val detail = when {
         point == null -> stringResource(R.string.map_no_position)
         !vm.venue.bounds.contains(point.lat, point.lon) -> stringResource(R.string.map_pin_outside)
-        here != null -> stringResource(R.string.map_distance, distanceMeters(here, point)).replaceFirstChar { it.titlecase() }
+        near != null -> stringResource(R.string.map_distance, distanceMeters(near, point)).replaceFirstChar { it.titlecase() }
         else -> null
     }
 

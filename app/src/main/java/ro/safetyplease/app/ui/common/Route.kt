@@ -21,13 +21,16 @@ fun routeText(origin: GeoPoint?, to: GeoPoint): String {
     }
 }
 
+/** Where you are, for distances and routes: only inside the venue's bounds, since from home they'd read hundreds of km. */
+fun onSite(position: GeoPoint?, venue: Venue): GeoPoint? = position?.takeIf { venue.bounds.contains(it.lat, it.lon) }
+
 /**
- * Where the way to help is measured from: your position now, else where [report] was sent from, else the zone
- * you picked by hand. Null if we know none of them.
+ * Where the way to help is measured from: your position now if you're at the event, else where [report] was sent from,
+ * else the zone you picked by hand. Null if we know none of them.
  */
 fun helpOrigin(position: GeoPoint?, report: MyReport?, manualZone: String, venue: Venue): GeoPoint? {
     val lat = report?.lat
     val lon = report?.lon
     val reported = if (lat != null && lon != null) GeoPoint(lat, lon) else null
-    return position ?: reported ?: report?.let { venue.zone(it.zone) }?.center ?: venue.zone(manualZone)?.center
+    return onSite(position, venue) ?: reported ?: report?.let { venue.zone(it.zone) }?.center ?: venue.zone(manualZone)?.center
 }

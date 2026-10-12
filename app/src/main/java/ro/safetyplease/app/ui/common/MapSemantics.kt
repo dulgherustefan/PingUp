@@ -53,11 +53,11 @@ internal class MapNode(val description: String, val point: GeoPoint, val zone: Z
 /**
  * What the map says to TalkBack: every zone first, then the useful points, the meeting point and the [pins].
  * Each says its name, its type unless the name already says it, then "aici ești" for your zone or the distance and
- * direction from [position] when it's known.
+ * direction from [position] when it's known and inside the venue.
  */
 internal fun mapNodes(venue: Venue, words: MapWords, position: GeoPoint?, myZone: String, pins: List<MapPin>): List<MapNode> {
     // rounded so TalkBack doesn't re-announce a place for every meter you walk
-    fun route(to: GeoPoint) = position?.let { words.route(roundToFive(distanceMeters(it, to)), words.directions[compassSector(it, to)]) }
+    fun route(to: GeoPoint) = onSite(position, venue)?.let { words.route(roundToFive(distanceMeters(it, to)), words.directions[compassSector(it, to)]) }
 
     val zones = venue.zones.map { zone ->
         val mine = zone.id == myZone || (position != null && pointInPolygon(position.lat, position.lon, zone.polygon))
