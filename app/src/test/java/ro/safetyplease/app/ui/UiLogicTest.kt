@@ -17,9 +17,11 @@ import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.mesh.SeenPeer
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 
@@ -66,24 +68,55 @@ class UiLogicTest {
         assertEquals(inB, currentPoint(simulated, null, t0))
     }
 
-    // --- report coordinates ---
+    // --- friend's zone coordinates ---
 
     @Test
-    fun coordinatesMatchingTheChosenZoneAreKept() {
-        assertEquals(inA, reportPoint("a", inA, venue))
+    fun chatCoordinatesMatchingTheZoneAreKept() {
+        assertEquals(inA, chatPoint("a", inA, venue))
+        assertEquals(outside, chatPoint("", outside, venue))
     }
 
     @Test
-    fun coordinatesContradictingTheChosenZoneAreDropped() {
-        assertNull("the user picked B but stands in A", reportPoint("b", inA, venue))
-        assertNull("zone picked, position outside every zone", reportPoint("a", outside, venue))
+    fun chatCoordinatesContradictingTheZoneAreDropped() {
+        assertNull("the user picked B but stands in A", chatPoint("b", inA, venue))
+        assertNull(chatPoint("a", null, venue))
+    }
+
+    // --- where a report is written from ---
+
+    private val landmarks = venue.copy(
+        pois = listOf(Poi("wc", 0.5, 0.5005, "Toalete", number = 4), Poi("water", 0.5, 0.5002, "Apă"), Poi("exit", 0.5, 0.6, "Poarta", number = 1)),
+    )
+
+    @Test
+    fun reportCarriesThePositionWhateverZoneWasPicked() {
+        val spot = reportSpot(Settings(manualZone = "b"), fix, t0, landmarks)!!
+        assertEquals(inA, spot.point)
+        assertEquals(5, spot.accuracyM)
+        assertEquals(4, spot.landmark?.number)
+        assertEquals(LocationFields(5, 4), spot.fields)
     }
 
     @Test
-    fun withoutAZoneThePositionGoesAsItIs() {
-        assertEquals(inA, reportPoint("", inA, venue))
-        assertEquals(outside, reportPoint("", outside, venue))
-        assertNull(reportPoint("a", null, venue))
+    fun reportUsesOnlyAFixFromTheLastTwoMinutes() {
+        assertEquals(inA, reportSpot(Settings(), fix, t0 + GeoFix.FRESH_MS - 1, venue)?.point)
+        assertNull(reportSpot(Settings(), fix, t0 + GeoFix.FRESH_MS, venue))
+        assertNull(reportSpot(Settings(), null, t0, venue))
+    }
+
+    @Test
+    fun simulatedPositionHasNoAccuracy() {
+        val spot = reportSpot(Settings(simLat = inB.lat, simLon = inB.lon), fix, t0, venue)!!
+        assertEquals(inB, spot.point)
+        assertEquals(0, spot.accuracyM)
+        assertNull("nothing to add to the coordinates", spot.fields)
+    }
+
+    @Test
+    fun accuracyIsRoundedUpAndCapped() {
+        assertEquals(13, reportSpot(Settings(), fix.copy(accuracyM = 12.2f), t0, venue)!!.accuracyM)
+        assertEquals(LocationFields.MAX_ACCURACY_M, reportSpot(Settings(), fix.copy(accuracyM = 900f), t0, venue)!!.accuracyM)
+        assertEquals(0, reportSpot(Settings(), fix.copy(accuracyM = 0f), t0, venue)!!.accuracyM)
     }
 
     // --- who is nearby ---

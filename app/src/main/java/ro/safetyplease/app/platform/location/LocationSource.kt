@@ -11,15 +11,20 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
+/** [accuracyM] is the radius Android gives the fix, in metres; 0 when it gives none. */
 data class GeoFix(val lat: Double, val lon: Double, val accuracyM: Float, val timeMs: Long) {
     fun isFresh(nowMs: Long) = nowMs - timeMs < FRESH_MS
 
     companion object {
+        /** An older fix is no longer where the person is: a report would send a team to the wrong place. */
         const val FRESH_MS = 2 * 60_000L
     }
 }
 
-/** Position from GPS_PROVIDER, without Play Services or network. Without A-GPS the first fix can take a while. */
+/**
+ * Position from GPS_PROVIDER, without Play Services or network. Without A-GPS the first fix can take a while, so
+ * [start] takes the last one Android has while it's still fresh.
+ */
 class LocationSource(private val context: Context) {
     private val manager: LocationManager? = context.getSystemService(LocationManager::class.java)
     private val _fix = MutableStateFlow<GeoFix?>(null)
@@ -33,12 +38,13 @@ class LocationSource(private val context: Context) {
     fun hasPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
+    /** The phone's location setting: with it off there is no fix, whatever the permission. */
+    fun isGpsOn(): Boolean = runCatching { manager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true }.getOrDefault(false)
+
     @SuppressLint("MissingPermission")
     fun start() {
         val manager = manager ?: return
-        if (listening || !hasPermission()) return
-        val available = runCatching { manager.isProviderEnabled(LocationManager.GPS_PROVIDER) }.getOrDefault(false)
-        if (!available) return
+        if (listening || !hasPermission() || !isGpsOn()) return
         runCatching {
             manager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2_000L, 0f, listener, Looper.getMainLooper())
             listening = true

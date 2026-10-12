@@ -159,9 +159,9 @@ class PayloadsTest {
         val body = IncidentBody(
             IncidentCategory.OTHER, Severity.MEDIUM, 1L, "z".repeat(Limits.ZONE_BYTES),
             -89.999999, 179.999999, desc, "n".repeat(Limits.NICK_BYTES), ByteArray(IncidentCancel.HASH_SIZE),
-            Triage(Answer.NO, Answer.NO), StaffFields(255, dangerContinues = true),
+            Triage(Answer.NO, Answer.NO), StaffFields(255, dangerContinues = true), LocationFields(255, 255),
         ).encode()
-        assertEquals(394, body.size)
+        assertEquals(396, body.size)
         val total = INCIDENT_ID_SIZE + body.size + IncidentReportCodec.SEAL_OVERHEAD
         assertTrue("total=$total", total <= PacketCodec.MAX_PAYLOAD)
     }
@@ -287,7 +287,7 @@ class PayloadsTest {
     fun incidentBodySkipsFieldsAndFlagsOfANewerVersion() {
         val hash = IncidentCancel.hash(ByteArray(IncidentCancel.TOKEN_SIZE))
         val body = IncidentBody(IncidentCategory.FIRE, Severity.URGENT, 9L, "bar", 43.95, 28.63, "fum", "Ana", hash).encode()
-        val newer = body.clone().also { it[6] = (it[6].toInt() or 0x20 or 0x80).toByte() } + byteArrayOf(4, 1, 2, 3, 4)
+        val newer = body.clone().also { it[6] = (it[6].toInt() or 0x40 or 0x80).toByte() } + byteArrayOf(4, 1, 2, 3, 4)
         val d = IncidentBody.decode(newer)!!
         assertEquals("fum", d.description)
         assertEquals("Ana", d.nickname)

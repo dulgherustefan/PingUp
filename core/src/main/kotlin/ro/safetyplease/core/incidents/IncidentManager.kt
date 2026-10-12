@@ -24,6 +24,7 @@ import ro.safetyplease.core.protocol.IncidentBody
 import ro.safetyplease.core.protocol.IncidentCancel
 import ro.safetyplease.core.protocol.IncidentReportCodec
 import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.StaffFields
@@ -44,6 +45,9 @@ class ReportDraft(
     val triage: Triage? = null,
     /** Only a staff phone sends these; its report then carries the team's name instead of [nickname]. */
     val staff: StaffFields? = null,
+    /** "Cum te recunoaștem?", sent on the first line of the description ([Recognition]). */
+    val recognition: String = "",
+    val location: LocationFields? = null,
 )
 
 /**
@@ -116,14 +120,15 @@ class IncidentManager(
         val now = clock.wallMs()
         val incidentId = crypto.random(INCIDENT_ID_SIZE)
         val cancelToken = crypto.random(IncidentCancel.TOKEN_SIZE)
-        val description = draft.description.trim().take(Limits.DESCRIPTION_CHARS).truncateUtf8(Limits.DESCRIPTION_BYTES)
+        val description = Recognition.join(draft.recognition, draft.description.trim().take(Limits.DESCRIPTION_CHARS))
+            .truncateUtf8(Limits.DESCRIPTION_BYTES)
         val zone = draft.zone.truncateUtf8(Limits.ZONE_BYTES)
         // until reports are signed (2.18), the team named in the staff QR stands for who wrote it
         val staff = draft.staff?.takeIf { staffSecret() != null }
         val nickname = (if (staff != null) teamName() else draft.nickname)?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
         val body = IncidentBody(
             draft.category, draft.severity, now / 1000, zone, draft.lat, draft.lon, description, nickname,
-            IncidentCancel.hash(cancelToken), draft.triage, staff,
+            IncidentCancel.hash(cancelToken), draft.triage, staff, draft.location,
         )
         val sealed = staffCrypto.sealReport(body.encode())
         val report = MyReport(
@@ -310,6 +315,7 @@ class IncidentManager(
             cancelHash = body.cancelHash?.toHex().orEmpty(),
             responds = body.triage?.responds ?: Answer.UNASKED, breathes = body.triage?.breathes ?: Answer.UNASKED,
             fromStaff = body.staff != null, people = body.staff?.people ?: 0, dangerContinues = body.staff?.dangerContinues == true,
+            accuracyM = body.location?.accuracyM ?: 0, landmark = body.location?.landmark ?: 0,
         )
         store.update { it.copy(staff = (it.staff + incident).takeLast(staffCap())) }
         // a reopen that came before the report raises no alert of its own: the one below does, once, if [alert]

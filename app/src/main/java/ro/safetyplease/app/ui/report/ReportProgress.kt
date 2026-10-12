@@ -2,8 +2,11 @@ package ro.safetyplease.app.ui.report
 
 import androidx.annotation.StringRes
 import ro.safetyplease.app.R
+import ro.safetyplease.app.ui.isOpen
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.Severity
 
 /** Venue place type of first aid, as in venue.json. */
 internal const val MEDICAL = "medical"
@@ -42,3 +45,10 @@ fun stepLabel(step: Int, report: MyReport): Int = when (step) {
 /** What the current step adds under its label: at RECEIVED, that no person has confirmed yet. */
 @StringRes
 fun stepNote(step: Int): Int? = if (step == 2) R.string.status_received_note else null
+
+/**
+ * A team will come to the reporter, who should stay put and be easy to spot: an open medical or urgent report. Not once
+ * an urgent one is [escalated], since then the reporter goes to find a steward.
+ */
+fun staysPut(report: MyReport, escalated: Boolean): Boolean =
+    !escalated && report.isOpen() && (report.category == IncidentCategory.MEDICAL || report.severity == Severity.URGENT)

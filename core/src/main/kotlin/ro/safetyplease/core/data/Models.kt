@@ -153,6 +153,10 @@ data class StaffIncident(
     /** How many people are hurt or involved; 0 when not given. */
     val people: Int = 0,
     val dangerContinues: Boolean = false,
+    /** How far off [lat] and [lon] may be, in metres; 0 when unknown. */
+    val accuracyM: Int = 0,
+    /** Number of the landmark nearest to the reporter, on the site plan; 0 for none. */
+    val landmark: Int = 0,
 )
 
 @Serializable

@@ -14,6 +14,9 @@
     <string name="send">Send</string>
     <string name="close">Close</string>
     <string name="zone_unknown">Unknown zone</string>
+    <!-- Where a team finds the reporter: "D4, near Camping toilets (±12 m)" -->
+    <string name="place_near">near %1$s</string>
+    <string name="place_accuracy">±%1$d m</string>
 
     <string name="tab_messages">Messages</string>
     <string name="tab_report">Report</string>
@@ -181,6 +184,15 @@
     <string name="report_zone_manual">We don’t have your location. Choose the zone if you know it.</string>
     <string name="report_zone_outside">You’re outside the zones on the map. We’ll send your location with the report.</string>
     <string name="report_use_location">Use my location</string>
+    <string name="report_location">Your location</string>
+    <string name="report_location_gps">GPS position</string>
+    <string name="report_location_searching">Looking for a GPS signal. It’s quicker under the open sky.</string>
+    <string name="report_location_missing">Tap to allow location. Without it, the team looks for you by zone.</string>
+    <string name="report_location_blocked">Allow location in settings. Without it, the team looks for you by zone.</string>
+    <string name="report_location_gps_off">The phone’s location is off. Tap to turn it on.</string>
+    <string name="report_location_note">Only staff see your location, so the team can reach you.</string>
+    <string name="report_recognition">How will we recognise you?</string>
+    <string name="report_recognition_hint">For example: red shirt, yellow flag, phone torch raised.</string>
     <string name="report_description">Short description</string>
     <string name="report_anonymous">Anonymous</string>
     <string name="report_anonymous_on">No one sees who reported it.</string>
@@ -208,6 +220,11 @@
     <string name="report_help_meeting">Go to the meeting point</string>
     <string name="report_help_info">Or to the information point</string>
     <string name="report_help_info_text">People looking for their friends gather there too.</string>
+    <string name="report_stay_title">Stay where you are</string>
+    <string name="report_stay_text">When you hear someone coming, raise your phone’s torch.</string>
+    <string name="torch_on">Turn on the torch</string>
+    <string name="torch_off">Turn off the torch</string>
+    <string name="torch_failed">The torch won’t turn on right now. Try again, or use quick settings.</string>
 
     <string name="report_triage_title">The person</string>
     <string name="report_triage_responds">Do they respond?</string>
@@ -344,6 +361,7 @@
         <item quantity="other">%d people</item>
     </plurals>
     <string name="incident_danger_continues">the danger continues</string>
+    <string name="incident_recognition">How to spot them: %1$s</string>
     <string name="incident_informational">For information</string>
 
     <string name="me_title">Me</string>
@@ -512,6 +530,7 @@
     <string name="control_radio_not_urgent">not urgent</string>
     <string name="control_radio_no_place">location unknown</string>
     <string name="control_radio_triage">responds: %1$s, breathing normally: %2$s</string>
+    <string name="control_radio_recognition">reporter with %1$s</string>
     <string name="control_assign">Assign</string>
     <string name="control_reassign">Reassign</string>
     <string name="control_close">Close</string>

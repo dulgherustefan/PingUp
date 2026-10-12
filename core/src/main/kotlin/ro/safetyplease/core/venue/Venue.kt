@@ -22,9 +22,13 @@ data class Zone(val id: String, val name: String, val color: String, val polygon
         get() = GeoPoint(polygon.map { it.lat }.average(), polygon.map { it.lon }.average())
 }
 
-/** A useful point on the map: exit, wc, water, info, charge, dea (a defibrillator). */
+/**
+ * A useful point on the map: exit, wc, water, info, charge, dea (a defibrillator). With a [number], 1 to 255, it is a
+ * landmark of the site plan: a report names the one nearest to the reporter by it, so the number must not change
+ * during an event.
+ */
 @Serializable
-data class Poi(val type: String, val lat: Double, val lon: Double, val name: String = "") {
+data class Poi(val type: String, val lat: Double, val lon: Double, val name: String = "", val number: Int = 0) {
     val point: GeoPoint get() = GeoPoint(lat, lon)
 }
 
@@ -59,11 +63,25 @@ data class Venue(
     fun nearest(type: String, from: GeoPoint?): Spot? =
         spots(type).let { all -> if (from == null) all.firstOrNull() else all.minByOrNull { distanceMeters(from, it.point) } }
 
+    fun landmark(number: Int): Poi? = if (number in LANDMARK_NUMBERS) pois.firstOrNull { it.number == number } else null
+
+    /** The landmark a team would walk to: the nearest numbered point, if one is within [LANDMARK_METERS]. */
+    fun nearestLandmark(from: GeoPoint): Poi? = pois.filter { it.number in LANDMARK_NUMBERS }
+        .map { it to distanceMeters(from, it.point) }
+        .filter { it.second <= LANDMARK_METERS }
+        .minByOrNull { it.second }?.first
+
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
 
         const val MEETING = "meeting"
         const val DEA = "dea"
+
+        /** Farther than this, "near" would send a team to the wrong place. */
+        const val LANDMARK_METERS = 100
+
+        /** One byte in a report; 0 means none. */
+        val LANDMARK_NUMBERS = 1..255
 
         fun parse(text: String): Venue = json.decodeFromString(serializer(), text)
     }

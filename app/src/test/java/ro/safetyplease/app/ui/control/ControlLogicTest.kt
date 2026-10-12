@@ -9,6 +9,7 @@ import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry
 import ro.safetyplease.core.control.LogEvent
+import ro.safetyplease.core.incidents.Recognition
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentCategory
@@ -130,6 +131,7 @@ class ControlLogicTest {
         urgent = "urgent", notUrgent = "neurgent", unknownPlace = "loc necunoscut",
         triage = { r, b -> "răspunde: ${answers[r]}, respiră normal: ${answers[b]}" },
         people = { "$it persoane" }, dangerContinues = "pericolul continuă",
+        near = { "lângă $it" }, recognition = { "raportor cu $it" },
     )
     private val answers = listOf("fără răspuns", "da", "nu", "nu știu")
 
@@ -137,15 +139,15 @@ class ControlLogicTest {
     fun radioPhraseFollowsEthaneOrder() {
         assertEquals(
             "Medical, urgent, E2, Scena principală, a leșinat lângă turnul de lumini, tricou roșu.",
-            radioPhrase(report(), "Scena principală", words),
+            radioPhrase(report(), "Scena principală", "", words),
         )
     }
 
     @Test
     fun radioPhraseLeavesOutWhatTheReportDoesNotSay() {
-        assertEquals("Medical, neurgent, Scena principală.", radioPhrase(report(Severity.MEDIUM, grid = "", description = ""), "Scena principală", words))
-        assertEquals("Altceva, urgent, loc necunoscut.", radioPhrase(report(grid = "", description = "", category = IncidentCategory.OTHER), "", words))
-        assertEquals("Medical, urgent, E2.", radioPhrase(report(description = "   "), "", words))
+        assertEquals("Medical, neurgent, Scena principală.", radioPhrase(report(Severity.MEDIUM, grid = "", description = ""), "Scena principală", "", words))
+        assertEquals("Altceva, urgent, loc necunoscut.", radioPhrase(report(grid = "", description = "", category = IncidentCategory.OTHER), "", "", words))
+        assertEquals("Medical, urgent, E2.", radioPhrase(report(description = "   "), "", "", words))
     }
 
     @Test
@@ -153,11 +155,11 @@ class ControlLogicTest {
         val triaged = report().copy(responds = Answer.NO, breathes = Answer.UNKNOWN)
         assertEquals(
             "Medical, urgent, răspunde: nu, respiră normal: nu știu, E2, Scena principală, a leșinat lângă turnul de lumini, tricou roșu.",
-            radioPhrase(triaged, "Scena principală", words),
+            radioPhrase(triaged, "Scena principală", "", words),
         )
         val staff = report(description = "acces pe la poarta 2", category = IncidentCategory.VIOLENCE)
             .copy(fromStaff = true, people = 3, dangerContinues = true)
-        assertEquals("Altceva, urgent, E2, 3 persoane, pericolul continuă, acces pe la poarta 2.", radioPhrase(staff, "", words))
+        assertEquals("Altceva, urgent, E2, 3 persoane, pericolul continuă, acces pe la poarta 2.", radioPhrase(staff, "", "", words))
     }
 
     @Test
@@ -172,6 +174,16 @@ class ControlLogicTest {
     @Test
     fun radioPhraseReadsTheDescriptionAsOneLine() {
         val messy = report(description = "  cade mereu\n\nlângă   bar!!  ")
-        assertEquals("Medical, urgent, E2, Baruri, cade mereu lângă bar.", radioPhrase(messy, "Baruri", words))
+        assertEquals("Medical, urgent, E2, Baruri, cade mereu lângă bar.", radioPhrase(messy, "Baruri", "", words))
+    }
+
+    @Test
+    fun radioPhraseNamesTheLandmarkAndHowToSpotTheReporter() {
+        val described = report(description = Recognition.join("tricou roșu", "a leșinat"))
+        assertEquals(
+            "Medical, urgent, E2 lângă Toalete camping, Scena principală, raportor cu tricou roșu, a leșinat.",
+            radioPhrase(described, "Scena principală", "Toalete camping", words),
+        )
+        assertEquals("Medical, urgent, lângă Toalete camping.", radioPhrase(report(grid = "", description = ""), "", "Toalete camping", words))
     }
 }

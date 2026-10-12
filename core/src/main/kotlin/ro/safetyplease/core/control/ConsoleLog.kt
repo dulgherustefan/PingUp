@@ -79,6 +79,10 @@ data class LogEntry(
     val fromStaff: Boolean = false,
     val people: Int = 0,
     val dangerContinues: Boolean = false,
+    /** How far off the reported position may be, in metres; 0 when unknown. */
+    val accuracyM: Int = 0,
+    /** Number of the landmark nearest to the reporter, on the site plan; 0 for none. */
+    val landmark: Int = 0,
 )
 
 @Serializable
@@ -100,6 +104,7 @@ fun reportEntry(incident: StaffIncident, grid: SiteGrid, at: Long = incident.rec
         team = if (incident.fromStaff) incident.nickname.orEmpty() else "",
         responds = incident.responds, breathes = incident.breathes,
         fromStaff = incident.fromStaff, people = incident.people, dangerContinues = incident.dangerContinues,
+        accuracyM = incident.accuracyM, landmark = incident.landmark,
     )
 }
 

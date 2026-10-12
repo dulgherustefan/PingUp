@@ -84,6 +84,7 @@ import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.ConsoleView
 import ro.safetyplease.core.incidents.AlertPlanner
 import ro.safetyplease.core.incidents.Priority
+import ro.safetyplease.core.incidents.Recognition
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
@@ -322,8 +323,10 @@ private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, onC
                 },
                 style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            if (r.description.isNotEmpty()) {
-                Text(r.description, style = MaterialTheme.typography.footnote, color = colors.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // the reporter's words first; a recognition hint alone shows as it came
+            val said = Recognition.split(r.description).second.ifEmpty { r.description }
+            if (said.isNotEmpty()) {
+                Text(said, style = MaterialTheme.typography.footnote, color = colors.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

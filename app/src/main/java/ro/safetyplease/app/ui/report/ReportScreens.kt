@@ -1,5 +1,8 @@
 package ro.safetyplease.app.ui.report
 
+import android.content.Intent
+import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -38,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -58,6 +62,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -67,11 +72,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.ESCALATE_AFTER_MS
+import ro.safetyplease.app.platform.torch.Torch
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.escalationAt
@@ -79,12 +86,14 @@ import ro.safetyplease.app.text.needsEscalation
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
+import ro.safetyplease.app.ui.ReportSpot
 import ro.safetyplease.app.ui.common.CategoryCircle
 import ro.safetyplease.app.ui.common.IncidentHeader
 import ro.safetyplease.app.ui.common.MapGlyph
 import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.categoryIcon
 import ro.safetyplease.app.ui.common.helpOrigin
+import ro.safetyplease.app.ui.common.placeLine
 import ro.safetyplease.app.ui.common.routeText
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppDialog
@@ -124,6 +133,7 @@ import ro.safetyplease.app.ui.rememberLocationRequest
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.Priority
+import ro.safetyplease.core.incidents.Recognition
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentCategory
@@ -233,9 +243,19 @@ private const val ACTIVE_REPORT_MS = 2 * 60 * 60_000L
 fun ReportScreen(vm: AppViewModel) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
+    val spot by vm.spot.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
     val colors = AppTheme.colors
+
+    // the first fix can take a while, so GPS starts as soon as the screen shows; coming back from a permission dialog
+    // or the settings, the location row checks again what it can offer
+    var locationCheck by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) {
+        vm.c.location.start()
+        locationCheck++
+        onPauseOrDispose { }
+    }
 
     var category by rememberSaveable { mutableIntStateOf(0) }
     var urgent by rememberSaveable { mutableStateOf(false) }
@@ -244,6 +264,7 @@ fun ReportScreen(vm: AppViewModel) {
     var people by rememberSaveable { mutableIntStateOf(0) }
     var danger by rememberSaveable { mutableStateOf(false) }
     var description by rememberSaveable { mutableStateOf("") }
+    var recognition by rememberSaveable { mutableStateOf("") }
     var describing by remember { mutableStateOf(false) }
     var anonymous by rememberSaveable { mutableStateOf(true) }
     // details stay folded into one summary row; whoever has more to add expands it, and staff always see them
@@ -264,7 +285,8 @@ fun ReportScreen(vm: AppViewModel) {
             delay(value % 60_000 + 1)
         }
     }
-    val requestLocation = rememberLocationRequest(vm)
+    val requestLocation = rememberLocationRequest(vm) { locationCheck++ }
+    val recognisable = !staff && category != 0 && category != IncidentCategory.LOST_FRIEND
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     val more by remember { derivedStateOf { scroll.canScrollForward } }
@@ -331,7 +353,15 @@ fun ReportScreen(vm: AppViewModel) {
                             for (c in row) {
                                 CategoryChip(
                                     categoryIcon(c), stringResource(Labels.category(c)), selected = category == c,
-                                    onClick = { category = if (category == c) 0 else c },
+                                    onClick = {
+                                        category = if (category == c) 0 else c
+                                        // a report carries the exact location, so starting one is when to ask for it, once
+                                        val ask = !vm.locationAskedForReport && !vm.locationBlocked && !vm.c.location.hasPermission()
+                                        if (category != 0 && ask) {
+                                            vm.locationAskedForReport = true
+                                            requestLocation()
+                                        }
+                                    },
                                     modifier = Modifier.weight(1f).fillMaxHeight(),
                                 )
                             }
@@ -367,6 +397,20 @@ fun ReportScreen(vm: AppViewModel) {
                     Banner(
                         stringResource(R.string.sev_urgent), stringResource(R.string.report_lost_child_note),
                         Modifier.padding(start = Gutter, end = Gutter, top = 16.dp), warning = true,
+                    )
+                }
+                if (category != 0) {
+                    InsetGroup(Modifier.padding(top = 20.dp)) { LocationRow(vm, spot, locationCheck, requestLocation) }
+                    Text(
+                        stringResource(R.string.report_location_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                        modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
+                    )
+                }
+                if (recognisable) {
+                    InputField(
+                        recognition, { recognition = it.take(Recognition.MAX_CHARS) }, stringResource(R.string.report_recognition),
+                        Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 16.dp).onFocusChanged { describing = it.hasFocus },
+                        supporting = stringResource(R.string.report_recognition_hint), background = colors.cell,
                     )
                 }
 
@@ -464,13 +508,14 @@ fun ReportScreen(vm: AppViewModel) {
                 stringResource(R.string.report_send),
                 {
                     val fields = if (staff) StaffFields(people, danger) else null
-                    val id = vm.report(category, severity, zone, description, anonymous, triage, fields)
+                    val id = vm.report(category, severity, zone, description, anonymous, triage, fields, if (recognisable) recognition else "")
                     if (id != null) {
                         if (autoZone == null) vm.setManualZone(zone)
                         haptics.confirm()
                         picked = null
                         category = 0
                         description = ""
+                        recognition = ""
                         urgent = false
                         responds = Answer.UNASKED
                         breathes = Answer.UNASKED
@@ -530,6 +575,36 @@ private fun ZoneOption(name: String, selected: Boolean, onClick: () -> Unit) {
         Text(name, style = MaterialTheme.typography.body, color = colors.label, modifier = Modifier.weight(1f))
         if (selected) Icon(Sym.Check, null, Modifier.size(20.dp), tint = colors.accent)
     }
+}
+
+/**
+ * What the report will say of where you are: the zone, the nearest landmark and how precise the fix is; else why it
+ * can't say, and a tap that fixes it. [check] changes when the permission or the phone's setting may have changed.
+ */
+@Composable
+private fun LocationRow(vm: AppViewModel, spot: ReportSpot?, check: Int, onAllow: () -> Unit) {
+    val context = LocalContext.current
+    val res = LocalResources.current
+    val permitted = remember(check) { vm.c.location.hasPermission() }
+    val gpsOn = remember(check) { vm.c.location.isGpsOn() }
+    val row: Pair<String, (() -> Unit)?> = when {
+        spot != null -> {
+            val zone = vm.venue.zoneAt(spot.point.lat, spot.point.lon)?.name.orEmpty()
+            val landmark = spot.landmark?.name.orEmpty()
+            val where = zone.ifEmpty { if (landmark.isEmpty()) res.getString(R.string.report_location_gps) else "" }
+            val line = placeLine(
+                where, landmark, spot.accuracyM, { res.getString(R.string.place_near, it) }, { res.getString(R.string.place_accuracy, it) },
+            )
+            line.replaceFirstChar { it.uppercase() } to null
+        }
+        !permitted -> stringResource(if (vm.locationBlocked) R.string.report_location_blocked else R.string.report_location_missing) to onAllow
+        !gpsOn -> stringResource(R.string.report_location_gps_off) to { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+        else -> stringResource(R.string.report_location_searching) to null
+    }
+    val (subtitle, onClick) = row
+    GroupRow(
+        stringResource(R.string.report_location), subtitle = subtitle, icon = Sym.MyLocation, chevron = onClick != null, onClick = onClick,
+    )
 }
 
 /**
@@ -704,11 +779,13 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
                         Modifier.padding(start = Gutter, end = Gutter, top = 20.dp), warning = true,
                     )
                 }
+                val stayPut = staysPut(report, escalated)
+                if (stayPut) StayPutBanner(Modifier.padding(start = Gutter, end = Gutter, top = 20.dp))
                 if (lostFriend && !withdrawn) {
                     MeetingSteps(vm, helpOrigin(position, report, settings.manualZone, vm.venue))
                 } else if (waiting || escalated) {
-                    // staying put contradicts the escalation, which sends you to a steward
-                    HelpSteps(vm, helpOrigin(position, report, settings.manualZone, vm.venue), stay = !escalated)
+                    // staying put contradicts the escalation, which sends you to a steward; the banner may say it already
+                    HelpSteps(vm, helpOrigin(position, report, settings.manualZone, vm.venue), stay = !escalated && !stayPut)
                 }
                 // the path to staff no longer matters for a cancelled alert
                 if (!withdrawn) {
@@ -755,6 +832,23 @@ private fun rememberEscalated(report: MyReport): Boolean {
         }
     }
     return escalated
+}
+
+/** Stay where the team will look for you, with the phone's torch to be seen; the torch goes out with the banner. */
+@Composable
+private fun StayPutBanner(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val torch = remember(context) { Torch(context.applicationContext) }
+    val lit by torch.on.collectAsStateWithLifecycle()
+    DisposableEffect(torch) {
+        torch.watch()
+        onDispose { torch.release() }
+    }
+    Banner(
+        stringResource(R.string.report_stay_title), stringResource(R.string.report_stay_text), modifier,
+        action = if (torch.available) stringResource(if (lit) R.string.torch_off else R.string.torch_on) else null,
+        onAction = { if (!torch.set(!lit)) Toast.makeText(context, R.string.torch_failed, Toast.LENGTH_LONG).show() },
+    )
 }
 
 /**

@@ -50,6 +50,7 @@ import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.hopsText
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.common.CategoryCircle
+import ro.safetyplease.app.ui.common.placeText
 import ro.safetyplease.app.ui.common.reportFacts
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppDialog
@@ -71,6 +72,7 @@ import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry
 import ro.safetyplease.core.control.LogEvent
 import ro.safetyplease.core.incidents.Priority
+import ro.safetyplease.core.incidents.Recognition
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.util.truncateUtf8
@@ -106,7 +108,8 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
     var dialog by remember { mutableStateOf<Action?>(null) }
     val r = case.report
     val zoneName = if (r.zone.isEmpty()) "" else vm.venue.zoneName(r.zone)
-    val phrase = radioPhrase(r, zoneName, rememberRadioWords())
+    val phrase = radioPhrase(r, zoneName, vm.venue.landmark(r.landmark)?.name.orEmpty(), rememberRadioWords())
+    val (hint, said) = Recognition.split(r.description)
     var copied by remember(phrase) { mutableStateOf(false) }
     val clipLabel = stringResource(R.string.control_radio_clip)
     val history = remember(entries, case.incidentId) { entries.filter { it.incidentId == case.incidentId } }
@@ -120,7 +123,8 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
             Column(Modifier.weight(1f)) {
                 Text(stringResource(Labels.category(r.category)), style = MaterialTheme.typography.title3)
                 Text(
-                    listOf(r.grid, zoneName, agoText(r.reportedAt, now), hopsText(r.hops)).filter { it.isNotEmpty() }.joinToString(" · "),
+                    listOf(placeText(r.grid, r.landmark, r.accuracyM, vm.venue), zoneName, agoText(r.reportedAt, now), hopsText(r.hops))
+                        .filter { it.isNotEmpty() }.joinToString(" · "),
                     style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
                 )
             }
@@ -175,9 +179,16 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
             }
         }
 
+        if (hint.isNotEmpty()) {
+            Text(
+                stringResource(R.string.incident_recognition, hint), style = MaterialTheme.typography.body, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 20.dp),
+            )
+        }
         Text(
-            r.description.ifEmpty { stringResource(R.string.incident_no_description) }, style = MaterialTheme.typography.body,
-            color = if (r.description.isEmpty()) colors.secondaryLabel else colors.label, modifier = Modifier.padding(top = 20.dp),
+            said.ifEmpty { stringResource(R.string.incident_no_description) }, style = MaterialTheme.typography.body,
+            color = if (said.isEmpty()) colors.secondaryLabel else colors.label,
+            modifier = Modifier.padding(top = if (hint.isEmpty()) 20.dp else 4.dp),
         )
         Text(
             listOf(
@@ -257,6 +268,8 @@ private fun rememberRadioWords(): RadioWords {
             },
             people = { res.getQuantityString(R.plurals.incident_people, it, it) },
             dangerContinues = res.getString(R.string.incident_danger_continues),
+            near = { res.getString(R.string.place_near, it) },
+            recognition = { res.getString(R.string.control_radio_recognition, it) },
         )
     }
 }

@@ -95,6 +95,7 @@ class GoldenVectorsTest {
         "incident.body.lost_friend" to { Golden.lostFriendBody.encode().toHex() },
         "summary2.epochs" to { Summary2Codec.encode(Golden.summary2Epochs).toHex() },
         "hello.prefix" to { Golden.helloPrefix.encode().toHex() },
+        "incident.body.location" to { Golden.locationBody.encode().toHex() },
     )
 
     @Test
@@ -264,6 +265,9 @@ class GoldenVectorsTest {
         assertEquals(Golden.staffBody.fields(), staff.fields())
         assertEquals(StaffFields(3, dangerContinues = true), staff.staff)
         assertEquals(IncidentCategory.LOST_FRIEND, IncidentBody.decode(bytes("incident.body.lost_friend"))!!.category)
+        val location = IncidentBody.decode(bytes("incident.body.location"))!!
+        assertEquals(Golden.locationBody.fields(), location.fields())
+        assertEquals(LocationFields(accuracyM = 12, landmark = 4), location.location)
 
         val epochs = Summary2Codec.decode(bytes("summary2.epochs"))!!
         assertEquals(Golden.summary2Epochs, epochs)
@@ -289,7 +293,7 @@ class GoldenVectorsTest {
         for (name in listOf("on_scene", "handed_over", "closed", "unfounded", "reopened", "assigned.epoch", "unknown")) {
             assertNull(name, Frozen10.ack(bytes("incident.ack.$name")))
         }
-        for (name in listOf("triage", "staff", "lost_friend")) assertNull(name, Frozen10.body(bytes("incident.body.$name")))
+        for (name in listOf("triage", "staff", "lost_friend", "location")) assertNull(name, Frozen10.body(bytes("incident.body.$name")))
     }
 
     /** The 1.0 phone of the interop tests writes with these, so they must still give the 1.0 bytes. */
@@ -446,6 +450,13 @@ private object Golden {
         "Securitate 1", IncidentCancel.hash(TOKEN), staff = StaffFields(3, dangerContinues = true),
     )
 
+    /** [triageBody] with the fix's accuracy, 12 m, and landmark 4 of the site plan. */
+    val locationBody = IncidentBody(
+        IncidentCategory.MEDICAL, Severity.URGENT, TIME, "Scena mare", 44.426765, 26.102538,
+        "Persoană căzută lângă gard", "Ana", IncidentCancel.hash(TOKEN), Triage(Answer.NO, Answer.UNKNOWN),
+        location = LocationFields(accuracyM = 12, landmark = 4),
+    )
+
     val lostFriendBody = IncidentBody(
         IncidentCategory.LOST_FRIEND, Severity.LOW, TIME, "Scena mare", null, null, "", null, IncidentCancel.hash(TOKEN),
     )
@@ -503,7 +514,7 @@ private fun Packet.fields() = listOf(type, ttl, id, sender, timestamp, recipient
 private fun Hello.fields() = listOf(version, nodeId, flags, nickname, prefix)
 
 private fun IncidentBody.fields() =
-    listOf(category, severity, timestamp, zone, lat, lon, description, nickname, cancelHash?.toHex(), triage, staff)
+    listOf(category, severity, timestamp, zone, lat, lon, description, nickname, cancelHash?.toHex(), triage, staff, location)
 
 private fun IncidentAck.fields() = listOf(incidentId.toHex(), status, timestamp, teamName, signature.toHex())
 

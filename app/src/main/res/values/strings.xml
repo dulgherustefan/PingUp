@@ -14,6 +14,9 @@
     <string name="send">Trimite</string>
     <string name="close">Închide</string>
     <string name="zone_unknown">Zonă necunoscută</string>
+    <!-- Where a team finds the reporter: "D4, lângă Toalete camping (±12 m)" -->
+    <string name="place_near">lângă %1$s</string>
+    <string name="place_accuracy">±%1$d m</string>
 
     <string name="tab_messages">Mesaje</string>
     <string name="tab_report">Raportează</string>
@@ -189,6 +192,15 @@
     <string name="report_zone_manual">Nu avem poziția ta. Alege zona dacă o știi.</string>
     <string name="report_zone_outside">Ești în afara zonelor de pe hartă. Trimitem poziția cu raportul.</string>
     <string name="report_use_location">Folosește locația mea</string>
+    <string name="report_location">Locația ta</string>
+    <string name="report_location_gps">Poziția din GPS</string>
+    <string name="report_location_searching">Caut semnalul GPS. Sub cerul liber merge mai repede.</string>
+    <string name="report_location_missing">Atinge ca să permiți locația. Fără ea, echipa te caută după zonă.</string>
+    <string name="report_location_blocked">Permite locația din setări. Fără ea, echipa te caută după zonă.</string>
+    <string name="report_location_gps_off">Locația telefonului e oprită. Atinge ca s-o pornești.</string>
+    <string name="report_location_note">Locația o vede doar staff-ul, ca echipa să ajungă la tine.</string>
+    <string name="report_recognition">Cum te recunoaștem?</string>
+    <string name="report_recognition_hint">De exemplu: tricou roșu, steag galben, lanterna ridicată.</string>
     <string name="report_description">Descriere scurtă</string>
     <string name="report_anonymous">Anonim</string>
     <string name="report_anonymous_on">Nimeni nu vede cine a raportat.</string>
@@ -217,6 +229,11 @@
     <string name="report_help_meeting">Mergi la punctul de întâlnire</string>
     <string name="report_help_info">Sau la punctul de informații</string>
     <string name="report_help_info_text">Acolo se strâng și cei care își caută prietenii.</string>
+    <string name="report_stay_title">Rămâi pe loc</string>
+    <string name="report_stay_text">Când auzi pe cineva, ridică lanterna telefonului.</string>
+    <string name="torch_on">Aprinde lanterna</string>
+    <string name="torch_off">Stinge lanterna</string>
+    <string name="torch_failed">Lanterna nu pornește acum. Încearcă din nou sau din setările rapide.</string>
 
     <string name="report_triage_title">Persoana</string>
     <string name="report_triage_responds">Răspunde?</string>
@@ -354,6 +371,7 @@
         <item quantity="other">%d de persoane</item>
     </plurals>
     <string name="incident_danger_continues">pericolul continuă</string>
+    <string name="incident_recognition">Semn de recunoaștere: %1$s</string>
     <string name="incident_informational">Informativ</string>
 
     <string name="me_title">Eu</string>
@@ -528,6 +546,7 @@
     <string name="control_radio_not_urgent">neurgent</string>
     <string name="control_radio_no_place">loc necunoscut</string>
     <string name="control_radio_triage">răspunde: %1$s, respiră normal: %2$s</string>
+    <string name="control_radio_recognition">raportor cu %1$s</string>
     <string name="control_assign">Alocă</string>
     <string name="control_reassign">Realocă</string>
     <string name="control_close">Închide</string>

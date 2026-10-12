@@ -31,9 +31,11 @@ import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.ReportDraft
 import ro.safetyplease.core.incidents.StatusFilter
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.StaffFields
 import ro.safetyplease.core.protocol.Triage
 import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 
@@ -101,9 +103,27 @@ fun currentPoint(settings: Settings, fix: GeoFix?, nowMs: Long): GeoPoint? {
     }
 }
 
-/** Coordinates are sent only if they agree with the chosen zone; otherwise the staff map pin would contradict it. */
-fun reportPoint(zone: String, point: GeoPoint?, venue: Venue): GeoPoint? =
+/** A friend gets coordinates only if they agree with the zone sent with them; otherwise their map pin would contradict it. */
+fun chatPoint(zone: String, point: GeoPoint?, venue: Venue): GeoPoint? =
     point?.takeIf { zone.isEmpty() || venue.zoneAt(it.lat, it.lon)?.id == zone }
+
+/** Where a report is written from: the position, how far off it may be in metres (0 when unknown), the nearest landmark. */
+data class ReportSpot(val point: GeoPoint, val accuracyM: Int, val landmark: Poi?) {
+    /** What the report carries besides the coordinates; null when that is nothing. */
+    val fields: LocationFields?
+        get() = LocationFields(accuracyM, landmark?.number ?: 0).takeIf { accuracyM > 0 || landmark != null }
+}
+
+/**
+ * A report goes with the position whenever there is one, whatever zone was picked: a zone isn't a place a team can walk
+ * to. A simulated position has no accuracy.
+ */
+fun reportSpot(settings: Settings, fix: GeoFix?, nowMs: Long, venue: Venue): ReportSpot? {
+    val point = currentPoint(settings, fix, nowMs) ?: return null
+    val simulated = settings.simLat != null && settings.simLon != null
+    val accuracy = if (simulated || fix == null) 0 else LocationFields.accuracyM(fix.accuracyM.toDouble())
+    return ReportSpot(point, accuracy, venue.nearestLandmark(point))
+}
 
 /** The report still needs help: neither closed nor cancelled by you. */
 fun MyReport.isOpen() = !AckStatus.isClosed(status) && !cancelled
@@ -141,12 +161,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         currentPoint(s, fix, c.clock.wallMs())
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /** What a report sent now would say of where you are, for the report screen; [report] reads it again at send time. */
+    val spot: StateFlow<ReportSpot?> = combine(c.settings.state, c.location.fix, ticker) { s, fix, _ ->
+        reportSpot(s, fix, c.clock.wallMs(), venue)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), spotNow())
+
     var tab by mutableStateOf(Tab.MESSAGES)
     val stack = mutableStateListOf<Dest>()
 
     /** Access denied for good: Android no longer shows the dialog, so the buttons open the app settings. */
     var radioAccessBlocked by mutableStateOf(false)
     var locationBlocked by mutableStateOf(false)
+
+    /** The report screen asked for location once since the app started; after that only its button asks. */
+    var locationAskedForReport = false
 
     /**
      * Test tools (demo mode, simulated location, technical ID) unlock after 7 taps on Version, like Android's
@@ -177,6 +205,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // --- zone ---
 
     fun pointNow(): GeoPoint? = currentPoint(c.settings.value, c.location.fix.value, c.clock.wallMs())
+
+    private fun spotNow(): ReportSpot? = reportSpot(c.settings.value, c.location.fix.value, c.clock.wallMs(), venue)
 
     fun autoZone(): Zone? = pointNow()?.let { venue.zoneAt(it.lat, it.lon) }
 
@@ -234,7 +264,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** False if we know neither zone nor position: the user has to pick a zone on the map first. */
     fun sendMyZone(conversation: String): Boolean {
         val zone = currentZoneId()
-        val point = reportPoint(zone, pointNow(), venue)
+        val point = chatPoint(zone, pointNow(), venue)
         if (zone.isEmpty() && point == null) return false
         c.chat.sendZone(conversation, zone, point?.lat, point?.lon)
         return true
@@ -268,7 +298,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun rateLimitMax(): Int = c.incidents.rateLimitMax()
 
-    /** Id of the new report, or null if the rate limit blocked it. [staff] goes only from a staff phone. */
+    /**
+     * Id of the new report, or null if the rate limit blocked it. [staff] goes only from a staff phone; [recognition]
+     * is how a team tells you apart.
+     */
     fun report(
         category: Int,
         severity: Int,
@@ -277,10 +310,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         anonymous: Boolean,
         triage: Triage? = null,
         staff: StaffFields? = null,
+        recognition: String = "",
     ): String? {
-        val point = reportPoint(zone, pointNow(), venue)
+        val spot = spotNow()
         val nickname = if (anonymous) null else c.settings.value.nickname
-        val draft = ReportDraft(category, severity, zone, point?.lat, point?.lon, description, nickname, triage, staff)
+        val draft = ReportDraft(
+            category, severity, zone, spot?.point?.lat, spot?.point?.lon, description, nickname, triage, staff, recognition, spot?.fields,
+        )
         if (!c.incidents.report(draft)) return null
         return c.incidentStore.value.mine.lastOrNull()?.incidentId
     }

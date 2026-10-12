@@ -62,6 +62,7 @@ import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.app.ui.common.categoryIcon
 import ro.safetyplease.app.ui.common.incidentPoint
+import ro.safetyplease.app.ui.common.placeText
 import ro.safetyplease.app.ui.common.reportFacts
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppMenu
@@ -93,6 +94,7 @@ import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.DuplicateHint
 import ro.safetyplease.core.incidents.Priority
+import ro.safetyplease.core.incidents.Recognition
 import ro.safetyplease.core.incidents.Routing
 import ro.safetyplease.core.incidents.StaffProfile
 import ro.safetyplease.core.incidents.StatusFilter
@@ -539,12 +541,12 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 pins = pins,
                 highlightZone = incident.zone,
             )
-            InsetGroup(Modifier.padding(top = 20.dp)) { StaffReportBlock(incident, settings.teamName) }
+            InsetGroup(Modifier.padding(top = 20.dp)) { StaffReportBlock(incident, settings.teamName, incidentPlace(vm, incident)) }
             if (hint != null && others.isNotEmpty()) {
                 SectionTitle(stringResource(if (hint.sameEvent) R.string.incident_maybe_same else R.string.incident_same_zone_title))
                 InsetGroup {
                     others.forEachIndexed { index, other ->
-                        StaffReportBlock(other, settings.teamName) { vm.open(Dest.Incident(other.incidentId)) }
+                        StaffReportBlock(other, settings.teamName, incidentPlace(vm, other)) { vm.open(Dest.Incident(other.incidentId)) }
                         if (index < others.lastIndex) GroupDivider(start = Gutter)
                     }
                 }
@@ -558,14 +560,24 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
     }
 }
 
+/** Grid square, nearest landmark and accuracy of a report, as the console shows them. */
+@Composable
+private fun incidentPlace(vm: AppViewModel, incident: StaffIncident): String {
+    val lat = incident.lat
+    val lon = incident.lon
+    val square = if (lat != null && lon != null) vm.c.grid.cellAt(lat, lon).orEmpty() else ""
+    return placeText(square, incident.landmark, incident.accuracyM, vm.venue)
+}
+
 /**
- * One report: what the person wrote, when and from whom.
+ * One report: where exactly and how to recognise the reporter, what the person wrote, when and from whom.
  * With [onOpen] it's another incident: it shows its own state, since the header speaks for this one, and opens on tap.
  */
 @Composable
-private fun StaffReportBlock(incident: StaffIncident, team: String, onOpen: (() -> Unit)? = null) {
+private fun StaffReportBlock(incident: StaffIncident, team: String, place: String, onOpen: (() -> Unit)? = null) {
     val colors = AppTheme.colors
-    val empty = incident.description.isEmpty()
+    val (recognition, said) = Recognition.split(incident.description)
+    val empty = said.isEmpty()
     Row(
         Modifier.fillMaxWidth()
             .then(if (onOpen != null) Modifier.clickable(role = Role.Button, onClick = onOpen) else Modifier)
@@ -573,8 +585,15 @@ private fun StaffReportBlock(incident: StaffIncident, team: String, onOpen: (() 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
+            if (place.isNotEmpty()) StatusLabel(place, Modifier.padding(bottom = 6.dp), icon = Sym.Place, color = colors.label)
+            if (recognition.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.incident_recognition, recognition), style = MaterialTheme.typography.body,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
             Text(
-                if (empty) stringResource(R.string.incident_no_description) else incident.description,
+                if (empty) stringResource(R.string.incident_no_description) else said,
                 style = MaterialTheme.typography.body, color = if (empty) colors.secondaryLabel else colors.label,
                 fontWeight = if (incident.severity == Severity.URGENT) FontWeight.Medium else null,
                 maxLines = 6, overflow = TextOverflow.Ellipsis,

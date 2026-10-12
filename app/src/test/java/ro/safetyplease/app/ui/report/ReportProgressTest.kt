@@ -184,4 +184,14 @@ class ReportProgressTest {
         assertEquals("no report: the zone picked by hand", camping.center, helpOrigin(null, null, "camping", venue))
         assertEquals(here, helpOrigin(here, null, "camping", venue))
     }
+
+    @Test
+    fun anOpenMedicalOrUrgentReportStaysPut() {
+        assertTrue(staysPut(report(), escalated = false))
+        assertTrue(staysPut(report().copy(severity = Severity.MEDIUM), escalated = false))
+        assertFalse("then the reporter goes to a steward", staysPut(report(), escalated = true))
+        assertFalse(staysPut(report(cancelled = true), escalated = false))
+        assertFalse(staysPut(report(status = AckStatus.RESOLVED), escalated = false))
+        assertFalse(staysPut(report(severity = Severity.MEDIUM).copy(category = IncidentCategory.CROWD), escalated = false))
+    }
 }

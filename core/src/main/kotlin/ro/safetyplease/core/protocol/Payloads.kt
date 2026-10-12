@@ -2,6 +2,7 @@ package ro.safetyplease.core.protocol
 
 import ro.safetyplease.core.util.sha256
 import ro.safetyplease.core.util.utf8
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 object NodeFlags {
@@ -312,15 +313,34 @@ data class StaffFields(val people: Int = 0, val dangerContinues: Boolean = false
     }
 }
 
+/**
+ * What leads a team to the reporter beyond the coordinates (1.1): how far off the fix may be, in metres, and the number
+ * of the nearest landmark on the site plan. 0 means unknown for either.
+ */
+data class LocationFields(val accuracyM: Int = 0, val landmark: Int = 0) {
+    init {
+        require(accuracyM in 0..MAX_ACCURACY_M && landmark in 0..0xFF)
+    }
+
+    companion object {
+        /** Stands for this far or worse. */
+        const val MAX_ACCURACY_M = 0xFF
+
+        /** Rounded up, so the shown radius is never smaller than the measured one; 0 when the fix has no accuracy. */
+        fun accuracyM(meters: Double): Int =
+            if (meters.isNaN() || meters <= 0.0) 0 else ceil(meters.coerceAtMost(MAX_ACCURACY_M.toDouble())).toInt()
+    }
+}
+
 const val INCIDENT_ID_SIZE = 16
 
 /**
  * Report content. Only ever travels sealed-box encrypted to the staff key. [cancelHash] is missing
  * from reports written before cancelling existed.
  *
- * Fields after the cancel hash sit each behind a flag bit of its own: 1.1 adds [triage] and [staff]. This version
- * ignores the flags it doesn't know and everything after the fields it reads. A category it doesn't know is kept as
- * a number.
+ * Fields after the cancel hash sit each behind a flag bit of its own: 1.1 adds [triage], [staff] and [location]. This
+ * version ignores the flags it doesn't know and everything after the fields it reads. A category it doesn't know is
+ * kept as a number.
  */
 class IncidentBody(
     val category: Int,
@@ -335,6 +355,7 @@ class IncidentBody(
     val triage: Triage? = null,
     /** Set by staff, whose [nickname] is then the team's name. */
     val staff: StaffFields? = null,
+    val location: LocationFields? = null,
 ) {
     fun encode(): ByteArray {
         val zoneBytes = zone.utf8()
@@ -346,8 +367,8 @@ class IncidentBody(
         val hasCoords = lat != null && lon != null
         val flags = (if (hasCoords) FLAG_COORDS else 0) or (if (nickBytes != null) FLAG_NICK else 0) or
             (if (cancelHash != null) FLAG_CANCEL else 0) or (if (triage != null) FLAG_TRIAGE else 0) or
-            (if (staff != null) FLAG_STAFF else 0)
-        val w = WireWriter(36 + zoneBytes.size + descBytes.size)
+            (if (staff != null) FLAG_STAFF else 0) or (if (location != null) FLAG_LOCATION else 0)
+        val w = WireWriter(38 + zoneBytes.size + descBytes.size)
         w.u8(category).u8(severity).u32(timestamp).u8(flags)
         w.u8(zoneBytes.size).bytes(zoneBytes)
         if (hasCoords) w.coord(lat!!).coord(lon!!)
@@ -356,6 +377,7 @@ class IncidentBody(
         if (cancelHash != null) w.bytes(cancelHash)
         if (triage != null) w.u8(triage.responds or (triage.breathes shl 2))
         if (staff != null) w.u8(staff.people).u8(if (staff.dangerContinues) STAFF_DANGER else 0)
+        if (location != null) w.u8(location.accuracyM).u8(location.landmark)
         return w.toByteArray()
     }
 
@@ -365,6 +387,7 @@ class IncidentBody(
         private const val FLAG_CANCEL = 0x04
         private const val FLAG_TRIAGE = 0x08
         private const val FLAG_STAFF = 0x10
+        private const val FLAG_LOCATION = 0x20
         private const val STAFF_DANGER = 0x01
 
         fun decode(plain: ByteArray): IncidentBody? = parseOrNull {
@@ -385,7 +408,8 @@ class IncidentBody(
             // the upper bits of these bytes belong to newer versions
             val triage = if (flags and FLAG_TRIAGE != 0) r.u8().let { Triage(it and 0x03, (it shr 2) and 0x03) } else null
             val staff = if (flags and FLAG_STAFF != 0) StaffFields(r.u8(), r.u8() and STAFF_DANGER != 0) else null
-            IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash, triage, staff)
+            val location = if (flags and FLAG_LOCATION != 0) LocationFields(r.u8(), r.u8()) else null
+            IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash, triage, staff, location)
         }
     }
 }
