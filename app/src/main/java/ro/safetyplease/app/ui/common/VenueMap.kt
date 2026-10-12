@@ -228,6 +228,7 @@ private fun rememberGlyphs(): Map<String, Painter> = GlyphTypes.associateWith { 
  * what's in them (stage and crowd, tents, trees, stalls), their icon and name, the useful points, a compass and a scale bar.
  * You are the pulsing dot labeled "Tu"; [target] is where you're heading, joined to you by a dotted route.
  * With [camera] the map zooms with two fingers, a double tap and the buttons. [compact] is the message bubble variant.
+ * [reserved] are the corners the overlay's controls cover: no name or scale bar is drawn under them.
  * [grid] draws the site plan's squares, lettered along the top and numbered down the left side.
  */
 @Composable
@@ -247,6 +248,7 @@ fun VenueMap(
     targetColor: Color = AppTheme.colors.accent,
     grid: SiteGrid? = null,
     aspect: Float = venueAspect(venue),
+    reserved: List<MapReserve> = emptyList(),
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val colors = AppTheme.colors
@@ -443,12 +445,35 @@ fun VenueMap(
 
             spots.forEachIndexed { i, o -> markerDot(o, 7.dp.toPx(), pins[i].color) }
 
-            // each zone's icon and name: stacked, side by side or just the icon, depending on the room;
-            // the target doesn't move them, its ring goes around the zone's own icon
-            val marks = listOfNotNull(marker, meeting) + spots
+            val compass = Offset(size.width - 22.dp.toPx(), 22.dp.toPx())
+            val compassRadius = 13.dp.toPx()
+
+            val steps = intArrayOf(5, 10, 20, 25, 50, 100, 200, 250, 500)
+            val meters = steps.firstOrNull { it * meter >= 44.dp.toPx() } ?: steps.last()
+            val barLength = meters * meter
+            val scaleText = measurer.measure(resources.getString(R.string.map_meters, meters), smallStyle.copy(color = colors.label))
+            val tick = 5.dp.toPx()
+            val textRise = 7.dp.toPx() + scaleText.size.height
+            val barWidth = max(barLength, scaleText.size.width + 2.dp.toPx())
+            val compassBox = Rect(compass - Offset(compassRadius + 4.dp.toPx(), compassRadius + 4.dp.toPx()), Size(2 * compassRadius + 8.dp.toPx(), 2 * compassRadius + 8.dp.toPx()))
+            val corners = reserved.map { cornerRect(it.corner, size, it.width.toPx(), it.height.toPx()) } + compassBox
+            // the scale bar takes the first corner no control covers; its line is 3 dp thick and hangs below the baseline
+            val bar = firstFree(
+                listOf(MapCorner.BottomStart, MapCorner.BottomEnd, MapCorner.TopStart)
+                    .map { cornerRect(it, size, barWidth, textRise + 3.dp.toPx(), 16.dp.toPx(), 11.dp.toPx()) },
+                corners,
+            )
+
+            // each zone's icon and name: stacked, side by side or just the icon, depending on the room; names never end
+            // under a control, the scale bar or a marker, and never leave their zone or the screen. The target doesn't
+            // move them, its ring goes around the zone's own icon
+            val avoid = corners + bar.inflate(3.dp.toPx()) +
+                listOfNotNull(marker?.let { Rect(it.x - 22.dp.toPx(), it.y - 48.dp.toPx(), it.x + 22.dp.toPx(), it.y + 16.dp.toPx()) }) +
+                (listOfNotNull(meeting) + spots).map { Rect(it.x - 12.dp.toPx(), it.y - 12.dp.toPx(), it.x + 12.dp.toPx(), it.y + 12.dp.toPx()) }
+            val screen = Rect(Offset.Zero, size)
             venue.zones.forEachIndexed { index, zone ->
                 val solid = colors.zoneSolid(zoneTone(venue, index), zone.id)
-                val box = zonePaths[index].getBounds()
+                val box = zonePaths[index].getBounds().intersect(screen)
                 val room = Size(box.width - 8.dp.toPx(), box.height - 6.dp.toPx())
                 if (room.width < 12.dp.toPx() || room.height < 12.dp.toPx()) return@forEachIndexed
                 val glyph = glyphs[zone.type]
@@ -457,38 +482,47 @@ fun VenueMap(
                 val gap = if (glyph != null) 3.dp.toPx() else 0f
                 val ink = if (colors.dark) colors.label else solid
                 val style = labelStyle.copy(color = ink)
-                val stacked = measurer.measure(zone.name, style, TextOverflow.Ellipsis, maxLines = 2, constraints = Constraints(maxWidth = room.width.toInt()))
-                val beside = measurer.measure(
-                    zone.name, style.copy(textAlign = TextAlign.Start), TextOverflow.Ellipsis, maxLines = 2,
-                    constraints = Constraints(maxWidth = max(1f, room.width - d - gap).toInt()),
+                fun name(width: Float, align: TextAlign) = measurer.measure(
+                    zone.name, style.copy(textAlign = align), TextOverflow.Ellipsis, maxLines = 2,
+                    constraints = Constraints(maxWidth = max(1f, width).toInt()),
                 )
-                var center = at(zone.center)
-                val stackH = d + gap + stacked.size.height
-                // next to a marker the group goes below it or above the "Tu" bubble; if neither fits, only the marker stays
-                val crowded = marks.firstOrNull { abs(it.x - center.x) < box.width / 2 && it.y > box.top && it.y < box.bottom && abs(it.y - center.y) < 48.dp.toPx() }
-                if (crowded != null) {
-                    val below = crowded.y + 16.dp.toPx()
-                    val above = crowded.y - 48.dp.toPx() - stackH
-                    center = when {
-                        below + stackH <= box.bottom - 3.dp.toPx() -> Offset(center.x, below + stackH / 2)
-                        above >= box.top + 3.dp.toPx() -> Offset(center.x, above + stackH / 2)
-                        else -> return@forEachIndexed
-                    }
+                val stacked = name(room.width, TextAlign.Center)
+                val beside = name(room.width - d - gap, TextAlign.Start)
+                fun measured(l: TextLayoutResult) = MeasuredName(
+                    l.size.width.toFloat(), l.size.height.toFloat(),
+                    !l.hasVisualOverflow && !breaksWord(zone.name, List(l.lineCount) { l.getLineEnd(it) }),
+                )
+                var mode = chooseZoneLabel(room.width, room.height, d, gap, ZoneLabelMinWidth.toPx(), measured(stacked), measured(beside))
+                if (mode == ZoneLabelMode.None) return@forEachIndexed
+                fun groupOf(m: ZoneLabelMode) = when (m) {
+                    ZoneLabelMode.Stacked -> Size(max(d, stacked.size.width.toFloat()), d + gap + stacked.size.height)
+                    ZoneLabelMode.Beside -> Size(d + gap + beside.size.width, max(d, beside.size.height.toFloat()))
+                    ZoneLabelMode.IconOnly -> Size(d, d)
+                    ZoneLabelMode.TextOnly -> Size(stacked.size.width.toFloat(), stacked.size.height.toFloat())
+                    ZoneLabelMode.None -> Size.Zero
                 }
-                when {
-                    !stacked.hasVisualOverflow && stackH <= room.height -> {
-                        val y = (center.y - stackH / 2).coerceIn(box.top + 3.dp.toPx(), box.bottom - 3.dp.toPx() - stackH)
-                        if (glyph != null) badge(Offset(center.x, y + r), r, solid, glyph, ring = 1.5.dp.toPx())
-                        haloText(stacked, Offset(center.x - stacked.size.width / 2f, y + d + gap), ink, paint.halo)
+                val within = Rect(box.left + 4.dp.toPx(), box.top + 3.dp.toPx(), box.right - 4.dp.toPx(), box.bottom - 3.dp.toPx())
+                val center = at(zone.center)
+                fun spot(m: ZoneLabelMode) = groupOf(m).let { g -> placeClear(g, center - Offset(g.width / 2, g.height / 2), within, avoid) }
+                var origin = spot(mode)
+                if (origin == null && mode != ZoneLabelMode.IconOnly && glyph != null) {
+                    mode = ZoneLabelMode.IconOnly
+                    origin = spot(mode)
+                }
+                if (origin == null) return@forEachIndexed
+                val group = groupOf(mode)
+                when (mode) {
+                    ZoneLabelMode.Stacked -> {
+                        badge(Offset(origin.x + group.width / 2, origin.y + r), r, solid, glyph, ring = 1.5.dp.toPx())
+                        haloText(stacked, Offset(origin.x + (group.width - stacked.size.width) / 2f, origin.y + d + gap), ink, paint.halo)
                     }
-                    glyph != null && !beside.hasVisualOverflow && max(d, beside.size.height.toFloat()) <= room.height -> {
-                        val w = d + gap + beside.size.width
-                        val x = (center.x - w / 2).coerceIn(box.left + 4.dp.toPx(), box.right - 4.dp.toPx() - w)
-                        badge(Offset(x + r, center.y), r, solid, glyph, ring = 1.5.dp.toPx())
-                        haloText(beside, Offset(x + d + gap, center.y - beside.size.height / 2f), ink, paint.halo)
+                    ZoneLabelMode.Beside -> {
+                        badge(Offset(origin.x + r, origin.y + group.height / 2), r, solid, glyph, ring = 1.5.dp.toPx())
+                        haloText(beside, Offset(origin.x + d + gap, origin.y + (group.height - beside.size.height) / 2f), ink, paint.halo)
                     }
-                    glyph != null -> badge(center, r, solid, glyph, ring = 1.5.dp.toPx())
-                    stacked.size.height <= room.height -> haloText(stacked, Offset(center.x - stacked.size.width / 2f, center.y - stacked.size.height / 2f), ink, paint.halo)
+                    ZoneLabelMode.IconOnly -> badge(Offset(origin.x + r, origin.y + r), r, solid, glyph, ring = 1.5.dp.toPx())
+                    ZoneLabelMode.TextOnly -> haloText(stacked, origin, ink, paint.halo)
+                    ZoneLabelMode.None -> Unit
                 }
             }
 
@@ -533,9 +567,9 @@ fun VenueMap(
                 }
             }
 
-            // compass top right, scale bar bottom left
-            val c = Offset(size.width - 22.dp.toPx(), 22.dp.toPx())
-            val cr = 13.dp.toPx()
+            // compass top right, scale bar in the corner chosen above
+            val c = compass
+            val cr = compassRadius
             drawCircle(MarkerShadow, cr + 1.dp.toPx(), c + Offset(0f, 1.dp.toPx()))
             drawCircle(colors.cell, cr, c)
             val needle = Path().apply {
@@ -548,17 +582,13 @@ fun VenueMap(
             val n = measurer.measure(north, smallStyle.copy(color = colors.label))
             drawText(n, topLeft = Offset(c.x - n.size.width / 2f, c.y - n.size.height / 2f + 2.dp.toPx()))
 
-            val steps = intArrayOf(5, 10, 20, 25, 50, 100, 200, 250, 500)
-            val meters = steps.firstOrNull { it * meter >= 44.dp.toPx() } ?: steps.last()
-            val len = meters * meter
-            val x0 = 16.dp.toPx()
-            val y0 = size.height - 14.dp.toPx()
+            val x0 = bar.left
+            val y0 = bar.top + textRise
             for ((color, width) in listOf(paint.halo to 5.dp.toPx(), colors.label to 2.dp.toPx())) {
-                drawLine(color, Offset(x0, y0), Offset(x0 + len, y0), width, StrokeCap.Round)
-                drawLine(color, Offset(x0, y0 - 5.dp.toPx()), Offset(x0, y0), width, StrokeCap.Round)
-                drawLine(color, Offset(x0 + len, y0 - 5.dp.toPx()), Offset(x0 + len, y0), width, StrokeCap.Round)
+                drawLine(color, Offset(x0, y0), Offset(x0 + barLength, y0), width, StrokeCap.Round)
+                drawLine(color, Offset(x0, y0 - tick), Offset(x0, y0), width, StrokeCap.Round)
+                drawLine(color, Offset(x0 + barLength, y0 - tick), Offset(x0 + barLength, y0), width, StrokeCap.Round)
             }
-            val scaleText = measurer.measure(resources.getString(R.string.map_meters, meters), smallStyle.copy(color = colors.label))
             haloText(scaleText, Offset(x0 + 2.dp.toPx(), y0 - 7.dp.toPx() - scaleText.size.height), colors.label, paint.halo)
         }
         if (!compact) {

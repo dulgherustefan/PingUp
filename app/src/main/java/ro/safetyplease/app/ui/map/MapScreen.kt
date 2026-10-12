@@ -58,8 +58,10 @@ import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.MapCamera
+import ro.safetyplease.app.ui.common.MapCorner
 import ro.safetyplease.app.ui.common.MapGlyph
 import ro.safetyplease.app.ui.common.MapPin
+import ro.safetyplease.app.ui.common.MapReserve
 import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.app.ui.common.incidentPoint
@@ -205,6 +207,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     targetColor = spotColor(colors, spotType),
                     // taller than the site: room for the top label and the buttons without covering the zones
                     aspect = venueAspect(vm.venue) * 0.8f,
+                    reserved = listOf(MapReserve(MapCorner.BottomEnd, ControlsReserveWidth, ControlsReserveHeight)),
                 ) {
                     val whereText = when {
                         autoZone != null -> stringResource(R.string.map_here_at, autoZone.name)
@@ -376,6 +379,10 @@ private fun WherePill(text: String, known: Boolean, modifier: Modifier, onClick:
         )
     }
 }
+
+/** The zoom and locate buttons with their 10 dp margin and a little air: the map draws no name under them. */
+private val ControlsReserveWidth = 38.dp + 20.dp
+private val ControlsReserveHeight = 38.dp * 3 + 1.dp + 8.dp + 20.dp
 
 @Composable
 private fun MapControls(modifier: Modifier, onZoomIn: () -> Unit, onZoomOut: () -> Unit, onLocate: () -> Unit) {
