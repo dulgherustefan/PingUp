@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -68,6 +69,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -177,10 +179,17 @@ private fun CategoryChip(icon: ImageVector, label: String, selected: Boolean, on
         Spacer(Modifier.width(10.dp))
         Text(
             label, style = MaterialTheme.typography.subheadline, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            color = ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            color = ink, maxLines = 3, overflow = TextOverflow.Ellipsis,
         )
     }
 }
+
+/** Two columns while every word of every label fits on one line of a button; otherwise one. */
+internal fun categoryColumns(widestWordPx: Int, roomPerColumnPx: Int): Int = if (widestWordPx <= roomPerColumnPx) 2 else 1
+
+/** What a category button takes besides its label: padding, icon and the space after it. */
+private val ChipChrome = 12.dp * 2 + 20.dp + 10.dp
+private val ChipGap = 8.dp
 
 /** A triage question with three big answers; tapping the chosen one again takes the answer back. */
 @Composable
@@ -358,27 +367,38 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     stringResource(R.string.report_title), style = MaterialTheme.typography.title2, color = colors.label,
                     modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 14.dp),
                 )
-                // two columns of low buttons with the icon on the left: they read as a list of options
-                Column(Modifier.padding(horizontal = Gutter), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IncidentCategory.all.chunked(2).forEach { row ->
-                        // buttons in a row take the height of the one whose label wraps to two lines
-                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for (c in row) {
-                                CategoryChip(
-                                    categoryIcon(c), stringResource(Labels.category(c)), selected = category == c,
-                                    onClick = {
-                                        category = if (category == c) 0 else c
-                                        // a report carries the exact location, so starting one is when to ask for it, once
-                                        val ask = !vm.locationAskedForReport && !vm.locationBlocked && !vm.c.location.hasPermission()
-                                        if (category != 0 && ask) {
-                                            vm.locationAskedForReport = true
-                                            requestLocation()
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                                )
+                // two columns of low buttons with the icon on the left: they read as a list of options.
+                // With large text a word could break mid-way ("Aglomerat-ie"), so then it's one column.
+                val labels = IncidentCategory.all.map { stringResource(Labels.category(it)) }
+                val measurer = rememberTextMeasurer()
+                val chipStyle = MaterialTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold)
+                BoxWithConstraints(Modifier.padding(horizontal = Gutter)) {
+                    val density = LocalDensity.current
+                    val widest = remember(labels, chipStyle, density) {
+                        labels.flatMap { it.split(' ') }.maxOf { measurer.measure(it, chipStyle).size.width }
+                    }
+                    val columns = categoryColumns(widest, with(density) { ((maxWidth - ChipGap) / 2 - ChipChrome).roundToPx() })
+                    Column(verticalArrangement = Arrangement.spacedBy(ChipGap)) {
+                        IncidentCategory.all.chunked(columns).forEach { row ->
+                            // buttons in a row take the height of the one whose label wraps to two lines
+                            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(ChipGap)) {
+                                for (c in row) {
+                                    CategoryChip(
+                                        categoryIcon(c), stringResource(Labels.category(c)), selected = category == c,
+                                        onClick = {
+                                            category = if (category == c) 0 else c
+                                            // a report carries the exact location, so starting one is when to ask for it, once
+                                            val ask = !vm.locationAskedForReport && !vm.locationBlocked && !vm.c.location.hasPermission()
+                                            if (category != 0 && ask) {
+                                                vm.locationAskedForReport = true
+                                                requestLocation()
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    )
+                                }
+                                if (row.size < columns) Spacer(Modifier.weight(1f))
                             }
-                            if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
                 }
