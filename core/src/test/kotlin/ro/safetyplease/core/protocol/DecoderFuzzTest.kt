@@ -25,8 +25,9 @@ import kotlin.random.Random
 /**
  * Random and mutated bytes for everything that parses input from the network or a QR code. The contract
  * (PROTOCOL.md, sections 1 and 13): a decoder returns a value or null and never throws; the Reassembler returns
- * Complete, Pending or Invalid and keeps at most 8 sets. A successful decode re-encodes to the same bytes,
- * unless a string held invalid UTF-8 and came back with U+FFFD in it.
+ * Complete, Pending or Invalid and keeps at most 8 sets. A successful decode re-encodes to the same bytes, unless
+ * a string held invalid UTF-8 and came back with U+FFFD in it, or the decoder skips what a newer version may add:
+ * then decoding its own encoding must give the same bytes again.
  */
 class DecoderFuzzTest {
     private val random = Random(20_261_012)
@@ -37,17 +38,24 @@ class DecoderFuzzTest {
         val encode: (T) -> ByteArray,
         val decode: (ByteArray) -> T?,
         val strings: (T) -> List<String> = { emptyList() },
+        val tolerant: Boolean = false,
     )
 
     private val codecs = listOf(
-        Codec("hello", { hello() }, Hello::encode, { Hello.decode(it) }, { listOfNotNull(it.nickname) }),
+        Codec("hello", { hello() }, Hello::encode, { Hello.decode(it) }, { listOfNotNull(it.nickname) }, tolerant = true),
         Codec("summary", { summary() }, SummaryCodec::encode, SummaryCodec::decode),
         Codec("request", { request() }, RequestCodec::encode, RequestCodec::decode),
-        Codec("body", { body() }, IncidentBody::encode, { IncidentBody.decode(it) }) {
-            listOfNotNull(it.zone, it.description, it.nickname)
-        },
+        Codec("summary2", { summary2() }, Summary2Codec::encode, Summary2Codec::decode, tolerant = true),
+        Codec("request2", { request2() }, Request2Codec::encode, Request2Codec::decode, tolerant = true),
+        Codec(
+            "body", { body() }, IncidentBody::encode, { IncidentBody.decode(it) },
+            strings = { listOfNotNull(it.zone, it.description, it.nickname) }, tolerant = true,
+        ),
         Codec("ack", { ack() }, IncidentAck::encode, { IncidentAck.decode(it) }, { listOf(it.teamName) }),
-        Codec("cancel", { IncidentCancel(nextBytes(16), nextBytes(16)) }, IncidentCancel::encode, { IncidentCancel.decode(it) }),
+        Codec(
+            "cancel", { IncidentCancel(nextBytes(16), nextBytes(16)) }, IncidentCancel::encode, { IncidentCancel.decode(it) },
+            tolerant = true,
+        ),
         Codec("inner", { inner() }, InnerCodec::encode, InnerCodec::decode, ::stringsOf),
     )
 
@@ -85,7 +93,12 @@ class DecoderFuzzTest {
             val input = if (round % 10 == 0) valid else random.mutate(valid)
             val value = bounded(codec.name, input) { codec.decode(input) } ?: return@repeat
             if (codec.strings(value).any { '\uFFFD' in it }) return@repeat
-            assertArrayEquals("${codec.name} is not canonical", input, codec.encode(value))
+            val bytes = codec.encode(value)
+            if (codec.tolerant) {
+                assertArrayEquals("${codec.name} doesn't read back what it writes", bytes, codec.encode(codec.decode(bytes)!!))
+            } else {
+                assertArrayEquals("${codec.name} is not canonical", input, bytes)
+            }
         }
     }
 
@@ -214,9 +227,11 @@ class DecoderFuzzTest {
     }
 }
 
+/** Every known type, the reserved one and a few from a newer version, link-local or not. */
 private val TYPES = intArrayOf(
-    PacketType.HELLO, PacketType.SUMMARY, PacketType.REQUEST, PacketType.INCIDENT_REPORT,
-    PacketType.INCIDENT_ACK, PacketType.INCIDENT_CANCEL, PacketType.PRIVATE, PacketType.TEST,
+    PacketType.HELLO, PacketType.SUMMARY, PacketType.REQUEST, PacketType.SUMMARY2, PacketType.REQUEST2,
+    PacketType.INCIDENT_REPORT, PacketType.INCIDENT_ACK, PacketType.INCIDENT_CANCEL, PacketType.PRIVATE,
+    PacketType.ANNOUNCEMENT, PacketType.TEST, 0x06, 0x55, 0xff,
 )
 
 private val BOUNDARY = intArrayOf(0x00, 0x01, 0x02, 0x7f, 0x80, 0xfe, 0xff)
@@ -254,6 +269,16 @@ private fun Random.summary() =
 
 private fun Random.request() = List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { RequestEntry(nextLong(), nextBoolean(), nextBoolean()) }
 
+/** Mostly incidents, the only kind 1.1 reads, with statuses from newer versions too. */
+private fun Random.summary2(): Summary2 {
+    if (nextInt(4) == 0) return Summary2(nextInt(256), emptyList())
+    val entries = List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { SummaryEntry(nextLong(), nextBoolean(), nextInt(0, 0x80)) }
+    return Summary2(SummaryKind.INCIDENTS, entries)
+}
+
+private fun Random.request2(): Request2 =
+    if (nextInt(4) == 0) Request2(nextInt(256), emptyList()) else Request2(SummaryKind.INCIDENTS, request())
+
 private fun Random.body(): IncidentBody {
     val coords = nextBoolean()
     return IncidentBody(
@@ -269,9 +294,14 @@ private fun Random.body(): IncidentBody {
     )
 }
 
-private fun Random.ack() = IncidentAck(
-    nextBytes(16), nextInt(AckStatus.RECEIVED, AckStatus.CANCELLED + 1), nextLong(0, 1L shl 32), text(Limits.TEAM_BYTES), nextBytes(64),
-)
+/** Known statuses and, now and then, a newer version's status and fields. */
+private fun Random.ack(): IncidentAck {
+    val newer = nextInt(4) == 0
+    return IncidentAck(
+        nextBytes(16), if (newer) nextInt(1, 256) else nextInt(AckStatus.RECEIVED, AckStatus.CANCELLED + 1),
+        nextLong(0, 1L shl 32), text(Limits.TEAM_BYTES), nextBytes(64), if (newer) nextBytes(nextInt(0, 40)) else ByteArray(0),
+    )
+}
 
 private fun Random.inner(): Inner {
     val msgId = nextLong()

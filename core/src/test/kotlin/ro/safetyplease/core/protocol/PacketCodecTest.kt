@@ -2,6 +2,7 @@ package ro.safetyplease.core.protocol
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -73,17 +74,56 @@ class PacketCodecTest {
     @Test
     fun rejectsMalformedFrames() {
         val good = PacketCodec.encode(packet())
-        assertNull(PacketCodec.decode(ByteArray(0)))
-        assertNull(PacketCodec.decode(good.copyOf(25)))
-        assertNull("version", PacketCodec.decode(good.clone().also { it[0] = 2 }))
-        assertNull("unknown type", PacketCodec.decode(good.clone().also { it[1] = 0x55 }))
-        assertNull("ttl 0", PacketCodec.decode(good.clone().also { it[2] = 0 }))
-        assertNull("ttl 8", PacketCodec.decode(good.clone().also { it[2] = 8 }))
-        assertNull("reserved flags", PacketCodec.decode(good.clone().also { it[3] = 0x10 }))
-        assertNull("length too small", PacketCodec.decode(good.clone().also { it[25] = 2 }))
-        assertNull("length too large", PacketCodec.decode(good.clone().also { it[25] = 9 }))
-        assertNull("trailing bytes", PacketCodec.decode(good + 0))
-        assertNull("over the limit", PacketCodec.decode(good.clone().also { it[24] = 0x7f }))
+        val malformed = listOf(
+            ByteArray(0), good.copyOf(25), good.clone().also { it[2] = 0 }, good.clone().also { it[2] = 8 },
+            good.clone().also { it[25] = 2 }, good.clone().also { it[25] = 9 }, good + 0, good.clone().also { it[24] = 0x7f },
+        )
+        for (bytes in malformed) {
+            assertNull(PacketCodec.decode(bytes))
+            assertFalse("only malformed", PacketCodec.isForeign(bytes))
+        }
+    }
+
+    @Test
+    fun framesFromANewerVersionAreForeignNotMalformed() {
+        val good = PacketCodec.encode(packet())
+        assertFalse(PacketCodec.isForeign(good))
+        for (bytes in listOf(good.clone().also { it[0] = 2 }, good.clone().also { it[3] = 0x14 }, byteArrayOf(9, 9, 9))) {
+            assertNull(PacketCodec.decode(bytes))
+            assertTrue(PacketCodec.isForeign(bytes))
+        }
+        assertFalse("too short to carry flags", PacketCodec.isForeign(byteArrayOf(1, 0x20, 7)))
+    }
+
+    @Test
+    fun anyTypeDecodes() {
+        val unknown = PacketCodec.decode(PacketCodec.encode(packet(type = 0x55)))!!.packet
+        assertEquals(0x55, unknown.type)
+        assertFalse(PacketType.isKnown(0x55))
+        assertFalse(PacketType.isKnown(PacketType.ANNOUNCEMENT))
+        assertTrue(PacketType.isKnown(PacketType.SUMMARY2))
+        assertEquals("0x55", PacketType.name(0x55))
+    }
+
+    @Test
+    fun typesBelowSixteenNeverLeaveTheLink() {
+        for (type in listOf(PacketType.HELLO, PacketType.SUMMARY, PacketType.REQUEST, PacketType.SUMMARY2, PacketType.REQUEST2, 0x00, 0x0F)) {
+            assertTrue(PacketType.isLinkLocal(type))
+        }
+        for (type in listOf(PacketType.INCIDENT_REPORT, PacketType.PRIVATE, PacketType.ANNOUNCEMENT, PacketType.TEST, 0x10, 0xFF)) {
+            assertFalse(PacketType.isLinkLocal(type))
+        }
+    }
+
+    /** The table in PROTOCOL.md, section 5. */
+    @Test
+    fun originTtlByType() {
+        val table = mapOf(
+            PacketType.HELLO to 1, PacketType.SUMMARY to 1, PacketType.REQUEST to 1, PacketType.SUMMARY2 to 1, PacketType.REQUEST2 to 1,
+            PacketType.INCIDENT_REPORT to 7, PacketType.INCIDENT_ACK to 7, PacketType.INCIDENT_CANCEL to 7,
+            PacketType.PRIVATE to 7, PacketType.ANNOUNCEMENT to 3, PacketType.TEST to 7, 0x55 to 3, 0x06 to 1,
+        )
+        for ((type, ttl) in table) assertEquals(PacketType.name(type), ttl, PacketType.originTtl(type))
     }
 
     @Test
@@ -151,10 +191,14 @@ class PacketCodecTest {
     }
 
     @Test
-    fun hopsCountLinksTraversed() {
+    fun hopsCountLinksTraversedFromTheTypesStart() {
         assertEquals(1, packet(ttl = 7).hops)
         assertEquals(3, packet(ttl = 5).hops)
         assertEquals(7, packet(ttl = 1).hops)
+        val announcement = PacketType.ANNOUNCEMENT
+        assertEquals(1, packet(ttl = 3, type = announcement).hops)
+        assertEquals(3, packet(ttl = 1, type = announcement).hops)
+        assertEquals("above the type's start, counted from 7", 2, packet(ttl = 6, type = announcement).hops)
     }
 
     @Test

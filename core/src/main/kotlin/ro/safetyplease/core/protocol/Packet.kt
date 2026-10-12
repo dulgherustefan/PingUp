@@ -7,26 +7,65 @@ object PacketType {
     const val HELLO = 0x01
     const val SUMMARY = 0x02
     const val REQUEST = 0x03
+    const val SUMMARY2 = 0x04
+    const val REQUEST2 = 0x05
     const val INCIDENT_REPORT = 0x10
     const val INCIDENT_ACK = 0x11
     const val INCIDENT_CANCEL = 0x12
     const val PRIVATE = 0x20
+
+    /** Reserved for signed organiser announcements. Nothing sends it yet; 1.1 relays it like an unknown type. */
+    const val ANNOUNCEMENT = 0x30
     const val TEST = 0x7F
+
+    /** The types 1.0 reads. It counts any other as malformed, so a 1.1 node never sends one to a 1.0 peer. */
+    val V1_0 = setOf(HELLO, SUMMARY, REQUEST, INCIDENT_REPORT, INCIDENT_ACK, INCIDENT_CANCEL, PRIVATE, TEST)
+
+    private val known = V1_0 + setOf(SUMMARY2, REQUEST2)
+
+    /**
+     * Chat keeps the reach it had in 1.0 until it also gets a smaller fan-out: in ScaleTest's walking crowd of 200,
+     * with a TTL of 6, friends three radio ranges apart no longer get each other's messages.
+     */
+    const val CHAT_TTL = PacketCodec.MAX_TTL
+
+    /** Types this version doesn't read, the reserved one included, start at this TTL and are never relayed above it. */
+    const val OPAQUE_MAX_TTL = 3
+    const val OPAQUE_MAX_PAYLOAD = 256
 
     fun name(type: Int): String = when (type) {
         HELLO -> "HELLO"
         SUMMARY -> "SUMMARY"
         REQUEST -> "REQUEST"
+        SUMMARY2 -> "SUMMARY2"
+        REQUEST2 -> "REQUEST2"
         INCIDENT_REPORT -> "INCIDENT"
         INCIDENT_ACK -> "ACK"
         INCIDENT_CANCEL -> "CANCEL"
         PRIVATE -> "PRIVATE"
+        ANNOUNCEMENT -> "ANNOUNCE"
         TEST -> "TEST"
         else -> "0x%02x".format(type)
     }
 
-    /** Packets that never leave the link they were sent on. */
-    fun isLinkLocal(type: Int): Boolean = type == HELLO || type == SUMMARY || type == REQUEST
+    /** Types this version reads; the others are relayed opaquely. */
+    fun isKnown(type: Int): Boolean = type in known
+
+    /** 0x00 to 0x0F never leave the link they were sent on, including the ones this version doesn't know. */
+    fun isLinkLocal(type: Int): Boolean = type and 0xF0 == 0
+
+    /** The TTL a packet starts with (PROTOCOL.md, section 5). Incidents keep the 7 every flooded type had in 1.0. */
+    fun originTtl(type: Int): Int = when (type) {
+        HELLO, SUMMARY, REQUEST, SUMMARY2, REQUEST2 -> 1
+        INCIDENT_REPORT, INCIDENT_ACK, INCIDENT_CANCEL -> PacketCodec.MAX_TTL
+        PRIVATE -> CHAT_TTL
+        ANNOUNCEMENT -> OPAQUE_MAX_TTL
+        TEST -> PacketCodec.MAX_TTL
+        else -> if (isLinkLocal(type)) 1 else OPAQUE_MAX_TTL
+    }
+
+    /** Announcements will carry up to about 400 B, so the reserved type gets the whole payload. */
+    fun opaqueMaxPayload(type: Int): Int = if (type == ANNOUNCEMENT) PacketCodec.MAX_PAYLOAD else OPAQUE_MAX_PAYLOAD
 }
 
 class Packet(
@@ -42,10 +81,15 @@ class Packet(
     fun withTtl(newTtl: Int) = Packet(type, newTtl, id, sender, timestamp, recipient, encrypted, payload)
 
     /**
-     * Links traversed so far. The origin sends with ttl 7, so a direct neighbor receives ttl 7 and sees 1 hop;
-     * the chain A-B-C-D gives 3 at D.
+     * Links traversed so far: a direct neighbor sees 1, the chain A-B-C-D gives 3 at D. Counted from the type's
+     * [PacketType.originTtl], or from 7 when the TTL is higher than that, as from a 1.0 sender, which started every
+     * type at 7.
      */
-    val hops: Int get() = PacketCodec.MAX_TTL - ttl + 1
+    val hops: Int
+        get() {
+            val start = PacketType.originTtl(type).let { if (ttl > it) PacketCodec.MAX_TTL else it }
+            return start - ttl + 1
+        }
 
     /**
      * The dedup key covers everything that doesn't change in transit, not just [id]. Otherwise a malicious node
@@ -69,6 +113,7 @@ class FragmentInfo(val fragId: Int, val index: Int, val count: Int)
 class Frame(val packet: Packet, val fragment: FragmentInfo?)
 
 object PacketCodec {
+    /** Header version. 1.1 keeps the 1.0 header and announces itself with [NodeFlags.PROTOCOL_1_1]. */
     const val VERSION = 1
     const val HEADER_SIZE = 26
     const val RECIPIENT_SIZE = 8
@@ -83,12 +128,6 @@ object PacketCodec {
     const val FLAG_FRAGMENT = 0x02
     const val FLAG_ENCRYPTED = 0x04
     private const val KNOWN_FLAGS = FLAG_RECIPIENT or FLAG_FRAGMENT or FLAG_ENCRYPTED
-
-    private val knownTypes = setOf(
-        PacketType.HELLO, PacketType.SUMMARY, PacketType.REQUEST,
-        PacketType.INCIDENT_REPORT, PacketType.INCIDENT_ACK, PacketType.INCIDENT_CANCEL,
-        PacketType.PRIVATE, PacketType.TEST,
-    )
 
     fun encodedSize(p: Packet): Int =
         HEADER_SIZE + (if (p.recipient != null) RECIPIENT_SIZE else 0) + p.payload.size
@@ -127,13 +166,15 @@ object PacketCodec {
         return w.toByteArray()
     }
 
-    /** Returns null for any frame that breaks the format; nothing invalid gets further. */
+    /**
+     * Returns null for any frame that breaks the format; nothing invalid gets further. Any type decodes: what to do
+     * with one this version doesn't read is up to the receiver.
+     */
     fun decode(bytes: ByteArray): Frame? = parseOrNull {
         if (bytes.size < HEADER_SIZE) throw MalformedException("short header")
         val r = WireReader(bytes)
         if (r.u8() != VERSION) throw MalformedException("version")
         val type = r.u8()
-        if (type !in knownTypes) throw MalformedException("type")
         val ttl = r.u8()
         if (ttl < 1 || ttl > MAX_TTL) throw MalformedException("ttl")
         val flags = r.u8()
@@ -154,5 +195,15 @@ object PacketCodec {
         if (r.remaining != length) throw MalformedException("length mismatch")
         val payload = r.bytes(length)
         Frame(Packet(type, ttl, id, sender, timestamp, recipient, flags and FLAG_ENCRYPTED != 0, payload), frag)
+    }
+
+    /**
+     * A frame a newer version may have written: another header version, or a header flag this one doesn't know.
+     * Its layout can't be trusted, so it is dropped, but it isn't malformed.
+     */
+    fun isForeign(bytes: ByteArray): Boolean {
+        if (bytes.isEmpty()) return false
+        if (bytes[0].toInt() and 0xff != VERSION) return true
+        return bytes.size >= 4 && bytes[3].toInt() and 0xff and KNOWN_FLAGS.inv() != 0
     }
 }

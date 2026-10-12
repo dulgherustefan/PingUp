@@ -23,10 +23,17 @@ class PayloadsTest {
     @Test
     fun helloRejectsGarbage() {
         assertNull(Hello.decode(ByteArray(3)))
-        assertNull(Hello.decode(Hello(1, 5L, 0, "x").encode() + 1))
         assertNull("nodeId 0", Hello.decode(Hello(1, 0L, 0, null).encode()))
         val longNick = WireWriter().u8(1).i64(5).u8(0).u8(40).bytes(ByteArray(40)).toByteArray()
         assertNull(Hello.decode(longNick))
+    }
+
+    @Test
+    fun helloSkipsWhatANewerVersionAppends() {
+        val h = Hello.decode(Hello(1, 5L, NodeFlags.PROTOCOL_1_1, "x").encode() + byteArrayOf(1, 2, 3))!!
+        assertEquals(5L, h.nodeId)
+        assertEquals(NodeFlags.PROTOCOL_1_1, h.flags)
+        assertEquals("x", h.nickname)
     }
 
     @Test
@@ -44,6 +51,38 @@ class PayloadsTest {
     fun fullSummaryFitsInOnePacket() {
         val entries = List(Limits.SUMMARY_ENTRIES) { SummaryEntry(it.toLong(), true, AckStatus.RECEIVED) }
         assertTrue(SummaryCodec.encode(entries).size <= PacketCodec.MAX_PAYLOAD)
+    }
+
+    @Test
+    fun summary2CarriesAKindAndToleratesWhatItDoesNotKnow() {
+        val entries = listOf(SummaryEntry(1L, true, AckStatus.NONE), SummaryEntry(-5L, false, AckStatus.CANCELLED))
+        val summary = Summary2(SummaryKind.INCIDENTS, entries)
+        val bytes = Summary2Codec.encode(summary)
+        assertArrayEquals("the kind, then SUMMARY's entries", byteArrayOf(1) + SummaryCodec.encode(entries), bytes)
+        assertEquals(summary, Summary2Codec.decode(bytes))
+        assertEquals("trailing bytes", summary, Summary2Codec.decode(bytes + byteArrayOf(7, 7)))
+
+        val future = WireWriter().u8(SummaryKind.INCIDENTS).u8(1).i64(9).u8(0x80 or 9).toByteArray()
+        assertEquals(listOf(SummaryEntry(9L, true, 9)), Summary2Codec.decode(future)!!.entries)
+        assertNull("1.0 SUMMARY stays strict", SummaryCodec.decode(future.copyOfRange(1, future.size)))
+
+        assertEquals(Summary2(0x42, emptyList()), Summary2Codec.decode(byteArrayOf(0x42, 1, 2, 3)))
+        assertNull(Summary2Codec.decode(ByteArray(0)))
+        assertNull("truncated entries", Summary2Codec.decode(bytes.copyOf(bytes.size - 1)))
+        assertNull(Summary2Codec.decode(byteArrayOf(1, 60)))
+    }
+
+    @Test
+    fun request2IgnoresWantBitsItDoesNotKnow() {
+        val entries = listOf(RequestEntry(1L, true, false), RequestEntry(2L, false, true))
+        val request = Request2(SummaryKind.INCIDENTS, entries)
+        val bytes = Request2Codec.encode(request)
+        assertArrayEquals(byteArrayOf(1) + RequestCodec.encode(entries), bytes)
+        assertEquals(request, Request2Codec.decode(bytes))
+        val future = WireWriter().u8(SummaryKind.INCIDENTS).u8(1).i64(3).u8(0x80 or 0x02).toByteArray()
+        assertEquals(listOf(RequestEntry(3L, true, false)), Request2Codec.decode(future)!!.entries)
+        assertNull("1.0 REQUEST stays strict", RequestCodec.decode(future.copyOfRange(1, future.size)))
+        assertEquals(Request2(9, emptyList()), Request2Codec.decode(byteArrayOf(9)))
     }
 
     @Test
@@ -113,12 +152,26 @@ class PayloadsTest {
     @Test
     fun incidentBodyRejectsInvalidValues() {
         val good = IncidentBody(IncidentCategory.MEDICAL, Severity.LOW, 1L, "a", null, null, "x", null).encode()
-        assertNull(IncidentBody.decode(good.clone().also { it[0] = 99 }))
+        assertNull(IncidentBody.decode(good.clone().also { it[0] = 0 }))
         assertNull(IncidentBody.decode(good.clone().also { it[1] = 0 }))
+        assertNull(IncidentBody.decode(good.clone().also { it[1] = 4 }))
         assertNull(IncidentBody.decode(good.copyOf(good.size - 1)))
-        assertNull(IncidentBody.decode(good + 0))
-        assertNull("unknown flag", IncidentBody.decode(good.clone().also { it[6] = 0x08 }))
         assertNull("cancel flag without hash", IncidentBody.decode(good.clone().also { it[6] = 0x04 }))
+    }
+
+    @Test
+    fun incidentBodySkipsFieldsAndFlagsOfANewerVersion() {
+        val hash = IncidentCancel.hash(ByteArray(IncidentCancel.TOKEN_SIZE))
+        val body = IncidentBody(IncidentCategory.FIRE, Severity.URGENT, 9L, "bar", 43.95, 28.63, "fum", "Ana", hash).encode()
+        val newer = body.clone().also { it[6] = (it[6].toInt() or 0x08 or 0x80).toByte() } + byteArrayOf(4, 1, 2, 3, 4)
+        val d = IncidentBody.decode(newer)!!
+        assertEquals("fum", d.description)
+        assertEquals("Ana", d.nickname)
+        assertArrayEquals(hash, d.cancelHash)
+        assertArrayEquals("the fields it knows, as they were", body, d.encode())
+
+        val unknownCategory = IncidentBody.decode(body.clone().also { it[0] = 42 })!!
+        assertEquals(42, unknownCategory.category)
     }
 
     @Test
@@ -131,7 +184,7 @@ class PayloadsTest {
         assertArrayEquals(id, back.incidentId)
         assertArrayEquals(token, back.token)
         assertNull(IncidentCancel.decode(payload.copyOf(31)))
-        assertNull(IncidentCancel.decode(payload + 0))
+        assertArrayEquals("a newer version's trailing bytes are skipped", token, IncidentCancel.decode(payload + 0)!!.token)
 
         assertArrayEquals(sha256("SP-CANCEL-v1".utf8() + token).copyOf(16), IncidentCancel.hash(token))
         assertFalse(IncidentCancel.hash(token).contentEquals(IncidentCancel.hash(ByteArray(IncidentCancel.TOKEN_SIZE))))
@@ -155,7 +208,44 @@ class PayloadsTest {
         assertNull("status 0", IncidentAck.decode(payload.clone().also { it[IncidentAck.STATUS_OFFSET] = 0 }))
         val cancelled = payload.clone().also { it[IncidentAck.STATUS_OFFSET] = AckStatus.CANCELLED.toByte() }
         assertEquals(AckStatus.CANCELLED, IncidentAck.decode(cancelled)!!.status)
-        assertNull("status 5", IncidentAck.decode(payload.clone().also { it[IncidentAck.STATUS_OFFSET] = 5 }))
+        val newer = IncidentAck.decode(payload.clone().also { it[IncidentAck.STATUS_OFFSET] = 5 })!!
+        assertEquals("a newer status is kept as a number", 5, newer.status)
+        assertFalse(AckStatus.isKnown(newer.status))
+    }
+
+    @Test
+    fun ackKeepsANewerVersionsFieldsBeforeTheSignature() {
+        val id = ByteArray(INCIDENT_ID_SIZE) { it.toByte() }
+        val sig = ByteArray(IncidentAck.SIGNATURE_SIZE) { 7 }
+        val extensions = byteArrayOf(9, 8, 7)
+        val payload = IncidentAck(id, AckStatus.RESOLVED, 99L, "Echipa 2", sig, extensions).encode()
+        assertArrayEquals(IncidentAck.unsigned(id, AckStatus.RESOLVED, 99L, "Echipa 2") + extensions + sig, payload)
+        val ack = IncidentAck.decode(payload)!!
+        assertArrayEquals(extensions, ack.extensions)
+        assertArrayEquals(sig, ack.signature)
+        assertEquals("Echipa 2", ack.teamName)
+        assertArrayEquals("the signature covers them", payload.copyOf(payload.size - sig.size), IncidentAck.unsignedPart(payload))
+        assertArrayEquals(payload, ack.encode())
+        assertNull("no room for the signature", IncidentAck.decode(payload.copyOf(payload.size - sig.size - 1)))
+    }
+
+    @Test
+    fun onlyWhatOneZeroReadsGoesToAOneZeroPeer() {
+        fun packet(type: Int, payload: ByteArray) = Packet(type, 7, 1L, 2L, 3L, null, false, payload)
+        val id = ByteArray(INCIDENT_ID_SIZE)
+        val sig = ByteArray(IncidentAck.SIGNATURE_SIZE)
+        val ack = IncidentAck(id, AckStatus.RESOLVED, 1L, "T", sig)
+        assertTrue(Compat10.accepts(packet(PacketType.INCIDENT_ACK, ack.encode())))
+        assertFalse(Compat10.accepts(packet(PacketType.INCIDENT_ACK, IncidentAck(id, 5, 1L, "T", sig).encode())))
+        assertFalse(Compat10.accepts(packet(PacketType.INCIDENT_ACK, IncidentAck(id, 1, 1L, "T", sig, byteArrayOf(1)).encode())))
+        assertTrue(Compat10.accepts(packet(PacketType.INCIDENT_CANCEL, ByteArray(IncidentCancel.SIZE))))
+        assertFalse(Compat10.accepts(packet(PacketType.INCIDENT_CANCEL, ByteArray(IncidentCancel.SIZE + 1))))
+        for (type in PacketType.V1_0 - setOf(PacketType.INCIDENT_ACK, PacketType.INCIDENT_CANCEL)) {
+            assertTrue(Compat10.accepts(packet(type, ByteArray(80))))
+        }
+        for (type in listOf(PacketType.SUMMARY2, PacketType.REQUEST2, PacketType.ANNOUNCEMENT, 0x55)) {
+            assertFalse(Compat10.accepts(packet(type, ByteArray(80))))
+        }
     }
 
     @Test

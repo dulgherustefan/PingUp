@@ -68,6 +68,11 @@ class IncidentCache(
             ?.report = null
     }
 
+    fun hasSeenReport(incidentId: ByteArray, nowMs: Long): Boolean {
+        purge(nowMs)
+        return entries[incidentId.toLong()]?.reportSeen == true
+    }
+
     /** Stops serving the report but keeps the trace, so it isn't requested or accepted again. */
     fun forgetReport(incidentId: ByteArray, nowMs: Long) {
         purge(nowMs)
@@ -96,13 +101,20 @@ class IncidentCache(
 
     fun ackStatus(incidentId: ByteArray): Int = entries[incidentId.toLong()]?.ackStatus ?: AckStatus.NONE
 
-    fun summary(nowMs: Long): List<SummaryEntry> {
+    /** The incidents stored most recently, listing only the packets [servable] lets us hand to this neighbor. */
+    fun summary(nowMs: Long, servable: (Packet) -> Boolean = { true }): List<SummaryEntry> {
         purge(nowMs)
         return entries.values
-            .filter { it.report != null || it.ack != null }
-            .sortedByDescending { maxOf(it.report?.atMs ?: 0, it.ack?.atMs ?: 0) }
+            .mapNotNull { e ->
+                val report = e.report?.takeIf { servable(it.packet) }
+                val ack = e.ack?.takeIf { servable(it.packet) }
+                if (report == null && ack == null) return@mapNotNull null
+                val entry = SummaryEntry(e.id8, report != null, if (ack != null) e.ackStatus else AckStatus.NONE)
+                maxOf(report?.atMs ?: 0, ack?.atMs ?: 0) to entry
+            }
+            .sortedByDescending { it.first }
             .take(Limits.SUMMARY_ENTRIES)
-            .map { SummaryEntry(it.id8, it.report != null, if (it.ack != null) it.ackStatus else AckStatus.NONE) }
+            .map { it.second }
     }
 
     /** What's worth requesting from a peer that announced [remote]. */
@@ -113,7 +125,8 @@ class IncidentCache(
             // a cancelled report doesn't need to go anywhere; the ACK that closes it is enough
             val cancelled = r.ackStatus == AckStatus.CANCELLED || local?.ackStatus == AckStatus.CANCELLED
             val wantReport = r.hasReport && !cancelled && (local == null || !local.reportSeen)
-            val wantAck = r.ackStatus > (local?.ackStatus ?: AckStatus.NONE)
+            // a status from a newer version wouldn't be kept, so asking for it would only repeat every summary
+            val wantAck = AckStatus.isKnown(r.ackStatus) && r.ackStatus > (local?.ackStatus ?: AckStatus.NONE)
             if (wantReport || wantAck) RequestEntry(r.id8, wantReport, wantAck) else null
         }
     }

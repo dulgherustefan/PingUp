@@ -16,6 +16,7 @@ import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
+import ro.safetyplease.core.protocol.RequestEntry
 import ro.safetyplease.core.protocol.SummaryEntry
 
 class MeshPartsTest {
@@ -74,6 +75,18 @@ class MeshPartsTest {
     }
 
     @Test
+    fun newerTypesGoLastExceptAnnouncementsWhichGoWithReports() {
+        val q = SendQueue()
+        q.offer(Outbound(packet(0x55, 1), true))
+        q.offer(Outbound(packet(PacketType.PRIVATE, 2), true))
+        q.offer(Outbound(packet(PacketType.SUMMARY2, 3), true))
+        q.offer(Outbound(packet(PacketType.INCIDENT_ACK, 4), true))
+        q.offer(Outbound(packet(PacketType.ANNOUNCEMENT, 5), true))
+        q.offer(Outbound(packet(PacketType.REQUEST2, 6), true))
+        assertEquals(listOf(5L, 4L, 3L, 6L, 2L, 1L), List(6) { q.poll()!!.packet.id })
+    }
+
+    @Test
     fun fullQueueSacrificesChatForIncidents() {
         val q = SendQueue(capacity = 3)
         repeat(3) { q.offer(Outbound(packet(PacketType.PRIVATE, it.toLong()), true)) }
@@ -122,6 +135,19 @@ class MeshPartsTest {
         runCurrent()
         assertTrue(woke)
         job.cancel()
+    }
+
+    // --- window limit ---
+
+    @Test
+    fun windowLimitAllowsSoManyPerWindow() {
+        val w = WindowLimit(limit = 6, windowMs = 60_000)
+        repeat(6) { assertTrue(w.tryAdd(it * 1_000L)) }
+        assertTrue(w.isFull(30_000))
+        assertFalse(w.tryAdd(59_999))
+        assertTrue("the first one left the window", w.tryAdd(60_000))
+        assertFalse(w.tryAdd(60_500))
+        assertFalse("a refusal doesn't count", w.isFull(61_000))
     }
 
     // --- store-and-forward ---
@@ -178,6 +204,33 @@ class MeshPartsTest {
         val better = c.missing(listOf(SummaryEntry(1L, true, AckStatus.ACKNOWLEDGED)), 0).single()
         assertFalse(better.wantReport)
         assertTrue(better.wantAck)
+    }
+
+    @Test
+    fun aStatusFromANewerVersionIsNotRequested() {
+        val c = IncidentCache()
+        val wanted = c.missing(listOf(SummaryEntry(1L, true, 9), SummaryEntry(2L, false, 9)), 0)
+        assertEquals(listOf(RequestEntry(1L, wantReport = true, wantAck = false)), wanted)
+    }
+
+    @Test
+    fun summaryListsOnlyWhatTheNeighborCanTake() {
+        val c = IncidentCache()
+        c.offerReport(id(1), packet(PacketType.INCIDENT_REPORT, 1), 0)
+        c.offerAck(ack(1, AckStatus.RESOLVED), packet(PacketType.INCIDENT_ACK, 2), 0)
+        c.offerAck(ack(2, AckStatus.RECEIVED), packet(PacketType.INCIDENT_ACK, 3), 0)
+        val noAcks = c.summary(0) { it.type != PacketType.INCIDENT_ACK }
+        assertEquals(listOf(SummaryEntry(1L, true, AckStatus.NONE)), noAcks)
+        assertEquals(2, c.summary(0).size)
+    }
+
+    @Test
+    fun knowsWhichReportsItHasSeen() {
+        val c = IncidentCache()
+        assertFalse(c.hasSeenReport(id(1), 0))
+        c.offerReport(id(1), packet(PacketType.INCIDENT_REPORT), 0)
+        c.forgetReport(id(1), 0)
+        assertTrue("a forgotten report is still seen", c.hasSeenReport(id(1), 10))
     }
 
     @Test

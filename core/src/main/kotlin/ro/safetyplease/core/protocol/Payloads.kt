@@ -11,6 +11,9 @@ object NodeFlags {
     /** Set by older versions while their report was pending. No longer sent or read; kept so the bit isn't reused. */
     const val PENDING_INCIDENT = 0x04
     const val ACCEPTS_CONNECTIONS = 0x08
+
+    /** Speaks protocol 1.1: tolerates what it doesn't know and reads SUMMARY2 and REQUEST2. */
+    const val PROTOCOL_1_1 = 0x10
 }
 
 object Limits {
@@ -37,13 +40,13 @@ class Hello(val version: Int, val nodeId: Long, val flags: Int, val nickname: St
     }
 
     companion object {
+        /** Anything after the nickname comes from a newer version and is skipped. */
         fun decode(payload: ByteArray): Hello? = parseOrNull {
             val r = WireReader(payload)
             val version = r.u8()
             val nodeId = r.i64()
             val flags = r.u8()
             val nick = r.string(r.u8(), Limits.NICK_BYTES)
-            r.expectEnd()
             if (nodeId == 0L) throw MalformedException("anonymous hello")
             Hello(version, nodeId, flags, nick.ifEmpty { null })
         }
@@ -58,64 +61,118 @@ object AckStatus {
 
     /** The author withdrew the report and staff confirmed; highest value, so it supersedes any ACK. */
     const val CANCELLED = 4
+
+    /** Values above [CANCELLED] come from newer versions: kept as numbers, but they have no place in the order. */
+    fun isKnown(status: Int): Boolean = status in NONE..CANCELLED
 }
 
 /** What a node has cached for an incident; [id8] is the first 8 bytes of the incidentId. */
 data class SummaryEntry(val id8: Long, val hasReport: Boolean, val ackStatus: Int)
 
-object SummaryCodec {
-    private const val REPORT_BIT = 0x80
+data class RequestEntry(val id8: Long, val wantReport: Boolean, val wantAck: Boolean)
 
-    fun encode(entries: List<SummaryEntry>): ByteArray {
-        require(entries.size <= Limits.SUMMARY_ENTRIES)
-        val w = WireWriter(1 + entries.size * 9).u8(entries.size)
-        for (e in entries) w.i64(e.id8).u8((if (e.hasReport) REPORT_BIT else 0) or e.ackStatus)
-        return w.toByteArray()
+private const val REPORT_BIT = 0x80
+private const val ACK_BIT = 0x01
+
+private fun WireWriter.summaryEntries(entries: List<SummaryEntry>) = apply {
+    require(entries.size <= Limits.SUMMARY_ENTRIES)
+    u8(entries.size)
+    for (e in entries) i64(e.id8).u8((if (e.hasReport) REPORT_BIT else 0) or e.ackStatus)
+}
+
+private fun WireReader.summaryEntries(): List<SummaryEntry> {
+    val count = u8()
+    if (count > Limits.SUMMARY_ENTRIES) throw MalformedException("summary too long")
+    return List(count) {
+        val id8 = i64()
+        val state = u8()
+        SummaryEntry(id8, state and REPORT_BIT != 0, state and REPORT_BIT.inv())
     }
+}
+
+private fun WireWriter.requestEntries(entries: List<RequestEntry>) = apply {
+    require(entries.size <= Limits.SUMMARY_ENTRIES)
+    u8(entries.size)
+    for (e in entries) i64(e.id8).u8((if (e.wantReport) REPORT_BIT else 0) or (if (e.wantAck) ACK_BIT else 0))
+}
+
+/** With [strict], as in 1.0, a want bit other than report and ACK is malformed; otherwise it is ignored. */
+private fun WireReader.requestEntries(strict: Boolean): List<RequestEntry> {
+    val count = u8()
+    if (count > Limits.SUMMARY_ENTRIES) throw MalformedException("request too long")
+    return List(count) {
+        val id8 = i64()
+        val want = u8()
+        if (strict && want and (REPORT_BIT or ACK_BIT).inv() != 0) throw MalformedException("want bits")
+        RequestEntry(id8, want and REPORT_BIT != 0, want and ACK_BIT != 0)
+    }
+}
+
+/** The 1.0 summary, still what a 1.0 peer gets: nothing unknown may be in it. */
+object SummaryCodec {
+    fun encode(entries: List<SummaryEntry>): ByteArray =
+        WireWriter(1 + entries.size * 9).summaryEntries(entries).toByteArray()
 
     fun decode(payload: ByteArray): List<SummaryEntry>? = parseOrNull {
         val r = WireReader(payload)
-        val count = r.u8()
-        if (count > Limits.SUMMARY_ENTRIES) throw MalformedException("summary too long")
-        val out = List(count) {
-            val id8 = r.i64()
-            val state = r.u8()
-            val status = state and REPORT_BIT.inv()
-            if (status > AckStatus.CANCELLED) throw MalformedException("ack status")
-            SummaryEntry(id8, state and REPORT_BIT != 0, status)
-        }
+        val out = r.summaryEntries()
+        if (out.any { !AckStatus.isKnown(it.ackStatus) }) throw MalformedException("ack status")
         r.expectEnd()
         out
     }
 }
 
-data class RequestEntry(val id8: Long, val wantReport: Boolean, val wantAck: Boolean)
-
 object RequestCodec {
-    private const val REPORT_BIT = 0x80
-    private const val ACK_BIT = 0x01
-
-    fun encode(entries: List<RequestEntry>): ByteArray {
-        require(entries.size <= Limits.SUMMARY_ENTRIES)
-        val w = WireWriter(1 + entries.size * 9).u8(entries.size)
-        for (e in entries) {
-            w.i64(e.id8).u8((if (e.wantReport) REPORT_BIT else 0) or (if (e.wantAck) ACK_BIT else 0))
-        }
-        return w.toByteArray()
-    }
+    fun encode(entries: List<RequestEntry>): ByteArray =
+        WireWriter(1 + entries.size * 9).requestEntries(entries).toByteArray()
 
     fun decode(payload: ByteArray): List<RequestEntry>? = parseOrNull {
         val r = WireReader(payload)
-        val count = r.u8()
-        if (count > Limits.SUMMARY_ENTRIES) throw MalformedException("request too long")
-        val out = List(count) {
-            val id8 = r.i64()
-            val want = r.u8()
-            if (want and (REPORT_BIT or ACK_BIT).inv() != 0) throw MalformedException("want bits")
-            RequestEntry(id8, want and REPORT_BIT != 0, want and ACK_BIT != 0)
-        }
+        val out = r.requestEntries(strict = true)
         r.expectEnd()
         out
+    }
+}
+
+/** What a SUMMARY2 or REQUEST2 lists, so store-and-forward can carry new kinds without a new packet type. */
+object SummaryKind {
+    const val INCIDENTS = 1
+}
+
+/**
+ * SUMMARY2 starts with a [kind]. For [SummaryKind.INCIDENTS] the entries are SUMMARY's, except that a status from a
+ * newer version is kept and trailing bytes are skipped. A kind this version doesn't read decodes with no entries.
+ */
+data class Summary2(val kind: Int, val entries: List<SummaryEntry>)
+
+/** REQUEST2 answers a SUMMARY2 of the same kind; want bits from a newer version are ignored. */
+data class Request2(val kind: Int, val entries: List<RequestEntry>)
+
+object Summary2Codec {
+    fun encode(summary: Summary2): ByteArray {
+        val w = WireWriter(2 + summary.entries.size * 9).u8(summary.kind)
+        if (summary.kind == SummaryKind.INCIDENTS) w.summaryEntries(summary.entries)
+        return w.toByteArray()
+    }
+
+    fun decode(payload: ByteArray): Summary2? = parseOrNull {
+        val r = WireReader(payload)
+        val kind = r.u8()
+        Summary2(kind, if (kind == SummaryKind.INCIDENTS) r.summaryEntries() else emptyList())
+    }
+}
+
+object Request2Codec {
+    fun encode(request: Request2): ByteArray {
+        val w = WireWriter(2 + request.entries.size * 9).u8(request.kind)
+        if (request.kind == SummaryKind.INCIDENTS) w.requestEntries(request.entries)
+        return w.toByteArray()
+    }
+
+    fun decode(payload: ByteArray): Request2? = parseOrNull {
+        val r = WireReader(payload)
+        val kind = r.u8()
+        Request2(kind, if (kind == SummaryKind.INCIDENTS) r.requestEntries(strict = false) else emptyList())
     }
 }
 
@@ -141,6 +198,9 @@ const val INCIDENT_ID_SIZE = 16
 /**
  * Report content. Only ever travels sealed-box encrypted to the staff key. [cancelHash] is missing
  * from reports written before cancelling existed.
+ *
+ * A newer version adds fields after the cancel hash, each behind a flag bit of its own; this one ignores the flags
+ * it doesn't know and everything after the fields it reads. A category it doesn't know is kept as a number.
  */
 class IncidentBody(
     val category: Int,
@@ -181,12 +241,11 @@ class IncidentBody(
         fun decode(plain: ByteArray): IncidentBody? = parseOrNull {
             val r = WireReader(plain)
             val category = r.u8()
-            if (category !in IncidentCategory.all) throw MalformedException("category")
+            if (category == 0) throw MalformedException("category")
             val severity = r.u8()
             if (severity < Severity.LOW || severity > Severity.URGENT) throw MalformedException("severity")
             val timestamp = r.u32()
             val flags = r.u8()
-            if (flags and (FLAG_COORDS or FLAG_NICK or FLAG_CANCEL).inv() != 0) throw MalformedException("flags")
             val zone = r.string(r.u8(), Limits.ZONE_BYTES)
             val hasCoords = flags and FLAG_COORDS != 0
             val lat = if (hasCoords) r.coord() else null
@@ -194,7 +253,6 @@ class IncidentBody(
             val description = r.string(r.u16(), Limits.DESCRIPTION_BYTES)
             val nick = if (flags and FLAG_NICK != 0) r.string(r.u8(), Limits.NICK_BYTES) else null
             val cancelHash = if (flags and FLAG_CANCEL != 0) r.bytes(IncidentCancel.HASH_SIZE) else null
-            r.expectEnd()
             IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash)
         }
     }
@@ -216,14 +274,20 @@ object IncidentReportCodec {
     fun sealed(payload: ByteArray): ByteArray = payload.copyOfRange(INCIDENT_ID_SIZE, payload.size)
 }
 
+/**
+ * A status above [AckStatus.CANCELLED] comes from a newer version and is kept as a number. So are [extensions]:
+ * fields a newer version puts between the team name and the signature. The signature always takes the last
+ * 64 bytes, so it covers them.
+ */
 class IncidentAck(
     val incidentId: ByteArray,
     val status: Int,
     val timestamp: Long,
     val teamName: String,
     val signature: ByteArray,
+    val extensions: ByteArray = ByteArray(0),
 ) {
-    fun encode(): ByteArray = unsigned(incidentId, status, timestamp, teamName) + signature
+    fun encode(): ByteArray = unsigned(incidentId, status, timestamp, teamName) + extensions + signature
 
     companion object {
         const val SIGNATURE_SIZE = 64
@@ -244,12 +308,12 @@ class IncidentAck(
             val r = WireReader(payload)
             val id = r.bytes(INCIDENT_ID_SIZE)
             val status = r.u8()
-            if (status < AckStatus.RECEIVED || status > AckStatus.CANCELLED) throw MalformedException("status")
+            if (status == AckStatus.NONE) throw MalformedException("status")
             val timestamp = r.u32()
             val team = r.string(r.u8(), Limits.TEAM_BYTES)
+            val extensions = r.bytes(r.remaining - SIGNATURE_SIZE)
             val signature = r.bytes(SIGNATURE_SIZE)
-            r.expectEnd()
-            IncidentAck(id, status, timestamp, team, signature)
+            IncidentAck(id, status, timestamp, team, signature, extensions)
         }
 
         fun unsignedPart(payload: ByteArray): ByteArray = payload.copyOfRange(0, payload.size - SIGNATURE_SIZE)
@@ -258,7 +322,8 @@ class IncidentAck(
 
 /**
  * INCIDENT_CANCEL payload, anonymous like the report. The sealed report body holds only the token's hash,
- * so only the author can cancel; staff confirms with a CANCELLED ACK.
+ * so only the author can cancel; staff confirms with a CANCELLED ACK. Bytes after the token come from a newer
+ * version and are skipped.
  */
 class IncidentCancel(val incidentId: ByteArray, val token: ByteArray) {
     fun encode(): ByteArray {
@@ -278,7 +343,6 @@ class IncidentCancel(val incidentId: ByteArray, val token: ByteArray) {
             val r = WireReader(payload)
             val id = r.bytes(INCIDENT_ID_SIZE)
             val token = r.bytes(TOKEN_SIZE)
-            r.expectEnd()
             IncidentCancel(id, token)
         }
     }

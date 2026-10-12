@@ -371,7 +371,7 @@ class MeshEngineTest {
         assertEquals(1, d.ofType(PacketType.INCIDENT_REPORT).size)
         assertEquals(1, atD.cachedReports)
         assertTrue(atD.readyLinks >= 1)
-        assertTrue((atD.counters.receivedByType[PacketType.SUMMARY] ?: 0) >= 1)
+        assertTrue((atD.counters.receivedByType[PacketType.SUMMARY2] ?: 0) >= 1)
         for (state in listOf(a, b, c, d).map { it.engine.state.value }) {
             assertEquals(state.counters.drops.values.sum(), state.dropped)
         }
@@ -386,7 +386,8 @@ class MeshEngineTest {
         advanceTimeBy(5_000)
         assertEquals(1, b.readyLinks)
         val link = a.radio.links.keys.single()
-        repeat(5) { a.radio.inject(link, byteArrayOf(9, 9, 9)) }
+        // version 1 and cut short: garbage with another version byte would be a newer version's frame
+        repeat(5) { a.radio.inject(link, byteArrayOf(1, 9, 9)) }
         advanceTimeBy(2_000)
         assertEquals(0, b.readyLinks)
         advanceTimeBy(8 * 60_000L)
@@ -480,11 +481,12 @@ class MeshEngineTest {
         val b = world.node("B", B)
         world.net.start()
         runCurrent()
-        assertEquals(NodeFlags.ACCEPTS_CONNECTIONS, a.radio.flags)
+        val always = NodeFlags.PROTOCOL_1_1
+        assertEquals(always or NodeFlags.ACCEPTS_CONNECTIONS, a.radio.flags)
         a.engine.setRole(staff = true, anchor = false)
-        assertEquals(NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, a.radio.flags)
+        assertEquals(always or NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, a.radio.flags)
         advanceTimeBy(5_000)
-        assertEquals(NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, b.engine.state.value.links.single().flags)
+        assertEquals(always or NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, b.engine.state.value.links.single().flags)
     }
 
     @Test

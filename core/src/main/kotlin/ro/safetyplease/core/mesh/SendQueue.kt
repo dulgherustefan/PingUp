@@ -49,12 +49,15 @@ class SendQueue(private val capacity: Int = 128, private val onFull: () -> Unit 
     companion object {
         private const val LEVELS = 6
 
-        /** SUMMARY and REQUEST carry store-and-forward, so chat load must not push them out. */
+        /**
+         * SUMMARY and REQUEST carry store-and-forward, so chat load must not push them out. Types this version only
+         * relays go last, except the one reserved for organiser announcements, which goes with reports.
+         */
         fun priorityOf(type: Int): Int = when (type) {
             PacketType.HELLO -> 0
-            PacketType.INCIDENT_REPORT -> 1
+            PacketType.INCIDENT_REPORT, PacketType.ANNOUNCEMENT -> 1
             PacketType.INCIDENT_ACK, PacketType.INCIDENT_CANCEL -> 2
-            PacketType.SUMMARY, PacketType.REQUEST -> 3
+            PacketType.SUMMARY, PacketType.REQUEST, PacketType.SUMMARY2, PacketType.REQUEST2 -> 3
             PacketType.PRIVATE -> 4
             else -> 5
         }

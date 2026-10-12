@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Compat10
 import ro.safetyplease.core.protocol.Hello
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentCancel
@@ -19,8 +21,15 @@ import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketCodec
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.Reassembler
+import ro.safetyplease.core.protocol.Request2
+import ro.safetyplease.core.protocol.Request2Codec
 import ro.safetyplease.core.protocol.RequestCodec
+import ro.safetyplease.core.protocol.RequestEntry
+import ro.safetyplease.core.protocol.Summary2
+import ro.safetyplease.core.protocol.Summary2Codec
 import ro.safetyplease.core.protocol.SummaryCodec
+import ro.safetyplease.core.protocol.SummaryEntry
+import ro.safetyplease.core.protocol.SummaryKind
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.nodePrefix
 import ro.safetyplease.core.util.shortHex
@@ -50,6 +59,13 @@ data class MeshConfig(
     val txPerSecond: Double = 2.8,
     val retentionMs: Long = 30 * 60_000L,
     val anchorRetentionMs: Long = 60 * 60_000L,
+    /**
+     * New incident reports accepted from one link in a minute. Reports are anonymous, so the limit can't follow the
+     * sender; this one slows a neighbor that fills the cache with fakes, far above what people report.
+     */
+    val reportsPerMinute: Int = 6,
+    /** Packets of types this version doesn't read, relayed from one link in a minute. */
+    val opaquePerMinute: Int = 12,
     /** Nickname is included in HELLO only in debug builds, for the demo peer list. */
     val nicknameInHello: Boolean = false,
     val allowTestPackets: Boolean = false,
@@ -89,6 +105,13 @@ enum class DropReason(val label: String) {
     BEFORE_HELLO("before HELLO"),
     IGNORED("ignorat"),
     TEST("test"),
+
+    /** A frame, a packet type or a summary kind from a newer version that this one can't use. */
+    UNSUPPORTED("unsupported"),
+    REPORT_LIMIT("report limit"),
+
+    /** A type this version only relays, over its size limit or over the link's budget for such types. */
+    OPAQUE_LIMIT("opaque limit"),
 }
 
 /** Totals since the engine was created, for the field measurement export. */
@@ -167,9 +190,14 @@ class MeshEngine(
         val rx = TokenBucket(config.rxBurst, config.rxPerSecond, upAtMs)
         val tx = TokenBucket(config.txBurst, config.txPerSecond, upAtMs)
         val malformedAt = ArrayDeque<Long>()
+        val newReports = WindowLimit(config.reportsPerMinute, 60_000)
+        val opaque = WindowLimit(config.opaquePerMinute, 60_000)
 
         val ready: Boolean get() = peerId != 0L && !muted && !closing
         val label: String get() = if (peerId != 0L) peerId.shortHex() else address.takeLast(5)
+
+        /** The peer announced 1.1 in its HELLO; a 1.0 peer gets only what 1.0 reads. */
+        val speaks11: Boolean get() = peerFlags and NodeFlags.PROTOCOL_1_1 != 0
     }
 
     private val myPrefix = nodeId.nodePrefix()
@@ -334,7 +362,7 @@ class MeshEngine(
         do id = random.nextLong() while (id == 0L)
         val packet = Packet(
             type = type,
-            ttl = PacketCodec.MAX_TTL,
+            ttl = PacketType.originTtl(type),
             id = id,
             sender = if (anonymous) 0L else nodeId,
             timestamp = clock.wallMs() / 1000,
@@ -349,14 +377,18 @@ class MeshEngine(
     private fun flood(packet: Packet, except: Set<Int> = emptySet(), own: Boolean): Int {
         var count = 0
         for (link in links.values) {
-            if (!link.ready || link.id in except) continue
+            if (!link.ready || link.id in except || !canSend(link, packet)) continue
             if (link.queue.offer(Outbound(packet, own))) count++ else drop(packet, link, DropReason.QUEUE_FULL)
         }
         return count
     }
 
+    /** Nothing goes to a 1.0 peer that it would count as malformed. */
+    private fun canSend(link: Link, packet: Packet): Boolean = link.speaks11 || Compat10.accepts(packet)
+
     private fun sendLocal(link: Link, type: Int, payload: ByteArray) {
-        val packet = Packet(type, 1, random.nextLong(), nodeId, clock.wallMs() / 1000, null, false, payload)
+        val ttl = PacketType.originTtl(type)
+        val packet = Packet(type, ttl, random.nextLong(), nodeId, clock.wallMs() / 1000, null, false, payload)
         link.queue.offer(Outbound(packet, own = true))
     }
 
@@ -365,11 +397,17 @@ class MeshEngine(
         sendLocal(link, PacketType.HELLO, Hello(PacketCodec.VERSION, nodeId, currentFlags(), nick).encode())
     }
 
+    /** SUMMARY2 to a 1.1 peer, the 1.0 SUMMARY to the others. */
     private fun sendSummary(link: Link) {
         val now = clock.monoMs()
         link.summaryAtMs = now
-        val entries = cache.summary(now)
-        if (entries.isNotEmpty()) sendLocal(link, PacketType.SUMMARY, SummaryCodec.encode(entries))
+        val entries = cache.summary(now) { canSend(link, it) }
+        if (entries.isEmpty()) return
+        if (link.speaks11) {
+            sendLocal(link, PacketType.SUMMARY2, Summary2Codec.encode(Summary2(SummaryKind.INCIDENTS, entries)))
+        } else {
+            sendLocal(link, PacketType.SUMMARY, SummaryCodec.encode(entries))
+        }
     }
 
     private fun startPump(link: Link) {
@@ -494,7 +532,8 @@ class MeshEngine(
         val link = links[linkId] ?: return
         if (link.closing) return
         val now = clock.monoMs()
-        val frame = PacketCodec.decode(bytes) ?: return malformed(link, "invalid frame")
+        val frame = PacketCodec.decode(bytes)
+            ?: return if (PacketCodec.isForeign(bytes)) unsupported(link) else malformed(link, "invalid frame")
         val packet = when (val result = link.reassembler.accept(frame, now)) {
             is Reassembler.Result.Complete -> result.packet
             Reassembler.Result.Pending -> return
@@ -511,9 +550,9 @@ class MeshEngine(
         if (link.muted) return drop(packet, link, DropReason.IGNORED)
 
         when (packet.type) {
-            PacketType.SUMMARY -> onSummary(link, packet)
-            PacketType.REQUEST -> onRequest(link, packet)
-            else -> onMeshPacket(link, packet, now)
+            PacketType.SUMMARY, PacketType.SUMMARY2 -> onSummary(link, packet)
+            PacketType.REQUEST, PacketType.REQUEST2 -> onRequest(link, packet)
+            else -> if (PacketType.isKnown(packet.type)) onMeshPacket(link, packet, now) else onOpaque(link, packet, now)
         }
     }
 
@@ -526,7 +565,7 @@ class MeshEngine(
 
     private fun onHello(link: Link, packet: Packet) {
         val hello = Hello.decode(packet.payload)
-        if (hello == null || hello.version != PacketCodec.VERSION || hello.nodeId != packet.sender) {
+        if (hello == null || hello.version < PacketCodec.VERSION || hello.nodeId != packet.sender) {
             return malformed(link, "HELLO invalid")
         }
         val now = clock.monoMs()
@@ -571,15 +610,36 @@ class MeshEngine(
         return if (olderPreferred && !newerPreferred) newer else older
     }
 
+    /** A SUMMARY is answered with a REQUEST, a SUMMARY2 with a REQUEST2 of the same kind. */
     private fun onSummary(link: Link, packet: Packet) {
-        val entries = SummaryCodec.decode(packet.payload) ?: return malformed(link, "invalid SUMMARY")
+        val entries: List<SummaryEntry> = if (packet.type == PacketType.SUMMARY) {
+            SummaryCodec.decode(packet.payload) ?: return malformed(link, "invalid SUMMARY")
+        } else {
+            val summary = Summary2Codec.decode(packet.payload) ?: return malformed(link, "invalid SUMMARY2")
+            if (summary.kind != SummaryKind.INCIDENTS) return drop(packet, link, DropReason.UNSUPPORTED)
+            summary.entries
+        }
         log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${entries.size} entries")
         val wanted = cache.missing(entries, clock.monoMs())
-        if (wanted.isNotEmpty()) sendLocal(link, PacketType.REQUEST, RequestCodec.encode(wanted))
+        if (wanted.isNotEmpty()) sendRequest(link, packet.type, wanted)
+    }
+
+    private fun sendRequest(link: Link, summaryType: Int, wanted: List<RequestEntry>) {
+        if (summaryType == PacketType.SUMMARY) {
+            sendLocal(link, PacketType.REQUEST, RequestCodec.encode(wanted))
+        } else {
+            sendLocal(link, PacketType.REQUEST2, Request2Codec.encode(Request2(SummaryKind.INCIDENTS, wanted)))
+        }
     }
 
     private fun onRequest(link: Link, packet: Packet) {
-        val entries = RequestCodec.decode(packet.payload) ?: return malformed(link, "invalid REQUEST")
+        val entries: List<RequestEntry> = if (packet.type == PacketType.REQUEST) {
+            RequestCodec.decode(packet.payload) ?: return malformed(link, "invalid REQUEST")
+        } else {
+            val request = Request2Codec.decode(packet.payload) ?: return malformed(link, "invalid REQUEST2")
+            if (request.kind != SummaryKind.INCIDENTS) return drop(packet, link, DropReason.UNSUPPORTED)
+            request.entries
+        }
         log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${entries.size} entries")
         for (e in entries) {
             if (e.wantReport) cache.report(e.id8)?.let { serve(link, it) }
@@ -588,10 +648,12 @@ class MeshEngine(
     }
 
     private fun serve(link: Link, packet: Packet) {
-        if (link.queue.offer(Outbound(packet, own = false))) storeAndForwardCount++
+        if (canSend(link, packet) && link.queue.offer(Outbound(packet, own = false))) storeAndForwardCount++
     }
 
     private fun onMeshPacket(link: Link, packet: Packet, now: Long) {
+        // before dedup, so the same report can still come later, through this link or another
+        if (isReportOverLimit(link, packet, now)) return drop(packet, link, DropReason.REPORT_LIMIT)
         dedup.add(packet.dedupKey, now)
         // what we keep for store-and-forward is relayed with one hop less
         val forwardable = packet.withTtl(maxOf(packet.ttl - 1, 1))
@@ -600,14 +662,17 @@ class MeshEngine(
                 if (!IncidentReportCodec.isWellFormed(packet.payload)) return malformed(link, "invalid report")
                 val incidentId = IncidentReportCodec.incidentId(packet.payload)
                 if (!cache.offerReport(incidentId, forwardable, now, packet.hops)) return drop(packet, link, DropReason.KNOWN_INCIDENT)
+                link.newReports.tryAdd(now)
             }
             PacketType.INCIDENT_ACK -> {
                 val ack = IncidentAck.decode(packet.payload) ?: return malformed(link, "ACK invalid")
                 if (!verifyAck(packet.payload)) return malformed(link, "ACK with invalid signature")
+                // a status from a newer version has no place in the supersede order: relayed, neither kept nor delivered
+                if (!AckStatus.isKnown(ack.status)) return relayOnward(link, packet)
                 if (!cache.offerAck(ack, forwardable, now)) return drop(packet, link, DropReason.STALE_ACK)
             }
             PacketType.INCIDENT_CANCEL -> {
-                if (packet.payload.size != IncidentCancel.SIZE) return malformed(link, "invalid CANCEL")
+                if (packet.payload.size < IncidentCancel.SIZE) return malformed(link, "invalid CANCEL")
             }
             PacketType.PRIVATE -> {
                 if (packet.recipient == null || packet.sender == 0L || !packet.encrypted) {
@@ -622,8 +687,30 @@ class MeshEngine(
             log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "hops=${packet.hops}")
             _events.tryEmit(MeshEvent.Received(packet, link.peerId))
         }
-        if (!mine && packet.ttl > 1) relay(packet.withTtl(packet.ttl - 1), link)
+        relayOnward(link, packet)
         publishState()
+    }
+
+    /** Only a report that would be stored counts against the limit; copies and known incidents don't. */
+    private fun isReportOverLimit(link: Link, packet: Packet, now: Long): Boolean =
+        packet.type == PacketType.INCIDENT_REPORT && IncidentReportCodec.isWellFormed(packet.payload) &&
+            !cache.hasSeenReport(IncidentReportCodec.incidentId(packet.payload), now) && link.newReports.isFull(now)
+
+    /** A type from a newer version: relayed as it is, but not far, not large and not often, and never to a 1.0 peer. */
+    private fun onOpaque(link: Link, packet: Packet, now: Long) {
+        if (PacketType.isLinkLocal(packet.type) || packet.recipient == nodeId || packet.ttl <= 1) {
+            return drop(packet, link, DropReason.UNSUPPORTED)
+        }
+        if (packet.payload.size > PacketType.opaqueMaxPayload(packet.type) || !link.opaque.tryAdd(now)) {
+            return drop(packet, link, DropReason.OPAQUE_LIMIT)
+        }
+        dedup.add(packet.dedupKey, now)
+        relay(packet.withTtl(minOf(packet.ttl - 1, PacketType.OPAQUE_MAX_TTL)), link)
+        publishState()
+    }
+
+    private fun relayOnward(from: Link, packet: Packet) {
+        if (packet.recipient != nodeId && packet.ttl > 1) relay(packet.withTtl(packet.ttl - 1), from)
     }
 
     private fun relay(packet: Packet, from: Link) {
@@ -642,6 +729,11 @@ class MeshEngine(
     private fun drop(packet: Packet, link: Link, reason: DropReason) {
         drops.bump(reason)
         log.packet(clock.wallMs(), LogKind.DROP, packet, link.label, reason.label)
+    }
+
+    private fun unsupported(link: Link) {
+        drops.bump(DropReason.UNSUPPORTED)
+        log.link(clock.wallMs(), link.label, "frame from a newer version")
     }
 
     private fun malformed(link: Link, reason: String) {
@@ -735,7 +827,7 @@ class MeshEngine(
      * so the reporter isn't a beacon.
      */
     private fun currentFlags(): Int {
-        var flags = roleFlags
+        var flags = roleFlags or NodeFlags.PROTOCOL_1_1
         if (links.values.count { !it.outgoing && !it.closing } < limits.maxIn) {
             flags = flags or NodeFlags.ACCEPTS_CONNECTIONS
         }

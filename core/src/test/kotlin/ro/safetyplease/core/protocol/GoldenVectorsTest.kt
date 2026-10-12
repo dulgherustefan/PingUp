@@ -4,6 +4,7 @@ import com.goterl.lazysodium.LazySodiumJava
 import com.goterl.lazysodium.SodiumJava
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -22,9 +23,10 @@ import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.toLong
 
 /**
- * Golden vectors for wire format v1 (PROTOCOL.md, section 13). The bytes live in
+ * Golden vectors for wire format v1, versions 1.0 and 1.1 (PROTOCOL.md, section 13). The bytes live in
  * src/test/resources/golden/protocol-v1.txt; the inputs are built here from fixed seeds. Every vector is checked
- * both ways: the encoder must produce the stored bytes and the decoder must give back the inputs.
+ * both ways: the encoder must produce the stored bytes and the decoder must give back the inputs. The 1.1 vectors
+ * that carry what a newer version may add are built by hand, since no encoder writes them.
  */
 class GoldenVectorsTest {
     private val vectors = Golden.vectors
@@ -69,6 +71,15 @@ class GoldenVectorsTest {
         "private.box" to { Golden.boxed().toHex() },
         "qr.friend" to { QrCodes.encodeFriend(Golden.friendCard) },
         "qr.staff" to { QrCodes.encodeStaff(Golden.staffCard) },
+        "hello.v11" to { Golden.hello11.encode().toHex() },
+        "hello.extended" to { (Golden.hello.encode() + Golden.EXTRA).toHex() },
+        "summary2" to { Summary2Codec.encode(Golden.summary2).toHex() },
+        "summary2.unknown" to { Golden.UNKNOWN_KIND_SUMMARY.toHex() },
+        "request2" to { Request2Codec.encode(Golden.request2).toHex() },
+        "frame.opaque" to { PacketCodec.encode(Golden.opaquePacket).toHex() },
+        "frame.opaque.relayed" to { PacketCodec.encode(Golden.opaquePacket.withTtl(PacketType.OPAQUE_MAX_TTL)).toHex() },
+        "incident.body.extended" to { Golden.extendedBody().toHex() },
+        "incident.ack.future" to { Golden.futureAck().encode().toHex() },
     )
 
     @Test
@@ -160,6 +171,67 @@ class GoldenVectorsTest {
     }
 
     @Test
+    fun version11VectorsDecode() {
+        val hello11 = Hello.decode(bytes("hello.v11"))!!
+        assertEquals(Golden.hello11.fields(), hello11.fields())
+        assertEquals(NodeFlags.PROTOCOL_1_1, hello11.flags and NodeFlags.PROTOCOL_1_1)
+        assertEquals(Golden.hello.fields(), Hello.decode(bytes("hello.extended"))!!.fields())
+        assertEquals(Golden.summary2, Summary2Codec.decode(bytes("summary2")))
+        assertEquals(Summary2(0x7e, emptyList()), Summary2Codec.decode(bytes("summary2.unknown")))
+        assertEquals(Golden.request2, Request2Codec.decode(bytes("request2")))
+
+        val opaque = PacketCodec.decode(bytes("frame.opaque"))!!.packet
+        assertEquals(Golden.opaquePacket.fields(), opaque.fields())
+        val relayed = PacketCodec.decode(bytes("frame.opaque.relayed"))!!.packet
+        assertEquals(PacketType.OPAQUE_MAX_TTL, relayed.ttl)
+        assertEquals("only the ttl changes", opaque.dedupKey, relayed.dedupKey)
+
+        assertEquals(Golden.body.fields(), IncidentBody.decode(bytes("incident.body.extended"))!!.fields())
+
+        val future = bytes("incident.ack.future")
+        assertTrue("the signature covers the fields 1.1 doesn't read", Golden.staff.verifyAck(future))
+        val ack = IncidentAck.decode(future)!!
+        assertEquals(Golden.futureAck().fields() + Golden.futureAck().extensions.toHex(), ack.fields() + ack.extensions.toHex())
+        assertFalse(AckStatus.isKnown(ack.status))
+    }
+
+    @Test
+    fun version10ReadsWhatItDidAndRejectsOnlyWhatOneOneKeepsFromIt() {
+        for (name in listOf("frame.test", "frame.private", "frame.fragment.0")) assertNotNull(name, Frozen10.frame(bytes(name)))
+        assertNotNull(Frozen10.hello(bytes("hello")))
+        assertNotNull("a 1.1 HELLO is a valid 1.0 HELLO", Frozen10.hello(bytes("hello.v11")))
+        assertNotNull(Frozen10.summary(bytes("summary")))
+        assertNotNull(Frozen10.request(bytes("request")))
+        assertNotNull(Frozen10.ack(bytes("incident.ack")))
+        assertNotNull(Frozen10.body(bytes("incident.body")))
+
+        assertNull(Frozen10.hello(bytes("hello.extended")))
+        assertNull(Frozen10.frame(bytes("frame.opaque")))
+        assertNull(Frozen10.ack(bytes("incident.ack.future")))
+        assertNull(Frozen10.body(bytes("incident.body.extended")))
+    }
+
+    /** The 1.0 phone of the interop tests writes with these, so they must still give the 1.0 bytes. */
+    @Test
+    fun version10EncodersWriteTheOneZeroVectors() {
+        val fragments = Frozen10.encodeFrames(Golden.fragmented, PacketCodec.MIN_FRAME, Golden.FRAG_ID)
+        val frozen = mapOf(
+            "frame.test" to Frozen10.encodeFrames(Golden.testPacket, maxFrame = 514, fragId = 0).single(),
+            "frame.private" to Frozen10.encodeFrames(Golden.privatePacket, maxFrame = 514, fragId = 0).single(),
+            "frame.fragment.0" to fragments[0],
+            "frame.fragment.1" to fragments[1],
+            "frame.fragment.2" to fragments[2],
+            "hello" to Frozen10.encodeHello(Golden.hello.nodeId, Golden.hello.flags, null),
+            "hello.nick" to Frozen10.encodeHello(Golden.helloNick.nodeId, Golden.helloNick.flags, "Ana"),
+            "summary" to Frozen10.encodeSummary(Golden.summary),
+            "request" to Frozen10.encodeRequest(Golden.request),
+            "incident.ack" to Frozen10.encodeAck(Golden.ack()),
+        )
+        assertEquals(3, fragments.size)
+        for ((name, bytes) in frozen) assertEquals(name, vectors[name], bytes.toHex())
+    }
+
+    @Test
     fun qrCodesDecode() {
         val friend = QrCodes.decodeFriend(vectors.getValue("qr.friend"))!!
         assertEquals(Golden.friendCard.fields(), friend.fields())
@@ -206,6 +278,13 @@ private object Golden {
 
     val hello = Hello(PacketCodec.VERSION, alice.nodeId, NodeFlags.STAFF or NodeFlags.ACCEPTS_CONNECTIONS, null)
     val helloNick = Hello(PacketCodec.VERSION, alice.nodeId, NodeFlags.PENDING_INCIDENT, "Ana")
+    val hello11 = Hello(
+        PacketCodec.VERSION, alice.nodeId, NodeFlags.STAFF or NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.PROTOCOL_1_1, null,
+    )
+
+    /** Bytes a newer version appends to a payload. */
+    val EXTRA = "abcd".hexToBytes()
+    val UNKNOWN_KIND_SUMMARY = "7e010203".hexToBytes()
 
     val summary = listOf(
         SummaryEntry(INCIDENT_ID.toLong(), true, AckStatus.NONE),
@@ -217,12 +296,17 @@ private object Golden {
         RequestEntry(long("0102030405060708"), false, true),
         RequestEntry(long("fffffffffffffffe"), true, true),
     )
+    val summary2 = Summary2(SummaryKind.INCIDENTS, summary)
+    val request2 = Request2(SummaryKind.INCIDENTS, request)
 
     val body = IncidentBody(
         IncidentCategory.MEDICAL, Severity.URGENT, TIME, "Scena mare", 44.426765, 26.102538,
         "Persoană căzută lângă gard", "Ana", IncidentCancel.hash(TOKEN),
     )
     val minimalBody = IncidentBody(IncidentCategory.CROWD, Severity.LOW, TIME, "", null, null, "", null)
+
+    /** [body] with flag 0x80 from a newer version, and that version's field after the cancel hash. */
+    fun extendedBody(): ByteArray = body.encode().also { it[6] = (it[6].toInt() or 0x80).toByte() } + EXTRA
 
     /** crypto_box_seal with a fixed ephemeral key (seed d0..ef), built step by step as libsodium does. */
     fun report(): ByteArray {
@@ -241,6 +325,13 @@ private object Golden {
     fun unsignedAck(): ByteArray = IncidentAck.unsigned(INCIDENT_ID, AckStatus.ACKNOWLEDGED, TIME + 60, "Medical 1")
 
     fun ack(): IncidentAck = staff.signAck(INCIDENT_ID, AckStatus.ACKNOWLEDGED, TIME + 60, "Medical 1", staffSecret)
+
+    /** Status 7 and two bytes of fields from a newer version, signed with the staff key like any ACK. */
+    fun futureAck(): IncidentAck {
+        val signed = IncidentAck.unsigned(INCIDENT_ID, 7, TIME + 120, "Medical 1") + EXTRA
+        val signature = crypto.sign(IncidentAck.signedMessage(signed), staffSecret.sign.secretKey)
+        return IncidentAck(INCIDENT_ID, 7, TIME + 120, "Medical 1", signature, EXTRA)
+    }
 
     private val msgId = long("0102030405060708")
     private val groupId = long("1112131415161718")
@@ -268,6 +359,7 @@ private object Golden {
         PacketType.TEST, 7, long("0123456789abcdef"), long("f0e1d2c3b4a59687"), TIME, null, false, "ping".toByteArray(),
     )
     val privatePacket = Packet(PacketType.PRIVATE, 5, long("0123456789abcdef"), alice.nodeId, TIME, bob.nodeId, true, boxed())
+    val opaquePacket = Packet(0x55, 7, long("0123456789abcdef"), alice.nodeId, TIME, null, false, "future".toByteArray())
 
     /** 60 bytes with a recipient at the smallest frame (64): chunks of 26, 26 and 8. */
     val fragmented = Packet(
