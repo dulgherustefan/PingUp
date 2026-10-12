@@ -1,5 +1,6 @@
 package ro.safetyplease.core.mesh
 
+import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.protocol.AckOrder
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.HeldEntry
@@ -20,7 +21,7 @@ import ro.safetyplease.core.util.toLong
 /**
  * Store-and-forward for incidents, ACKs, the console's responses to reporters and the reporters' updates. Keeps
  * packets for [retentionMs] after receipt, then only a trace of the incident so the node doesn't request and relay it
- * forever.
+ * forever. The console's notices are kept apart, the latest of each topic, until they expire.
  */
 class IncidentCache(
     var retentionMs: Long = 30 * 60_000L,
@@ -28,13 +29,18 @@ class IncidentCache(
     private val traceMs: Long = 6 * 60 * 60_000L,
     private val maxTraces: Int = 2048,
     private val maxUpdates: Int = 50,
+    private val maxNotices: Int = 16,
 ) {
     private class Stored(val packet: Packet, val atMs: Long, val hops: Int = 0)
 
-    /** The latest packet of one kind; [version] is a response's timestamp or an update's sequence number, 0 for none. */
+    /**
+     * The latest packet of one kind; [version] is a response's timestamp or an update's or a notice's sequence number,
+     * 0 for none. A notice is kept until [untilMs], when it expires.
+     */
     private class Kept {
         var stored: Stored? = null
         var version = 0L
+        var untilMs = Long.MAX_VALUE
     }
 
     private class Entry(val id8: Long) {
@@ -61,6 +67,9 @@ class IncidentCache(
     }
 
     private val entries = LinkedHashMap<Long, Entry>()
+
+    /** By topic; the sequence number stays after the notice expires, so an older one isn't taken again. */
+    private val notices = HashMap<Long, Kept>()
 
     val reportCount: Int get() = entries.values.count { it.report != null }
 
@@ -160,23 +169,47 @@ class IncidentCache(
         return true
     }
 
-    /** The responses or updates ([kind]) stored most recently, as many as one SUMMARY2 lists. */
+    /**
+     * Keeps the notice if its sequence number is the highest seen for its topic and it hasn't expired by [wallMs].
+     * Notices are signed by a control shift, so they aren't many; past [maxNotices] the one kept longest goes.
+     */
+    fun offerNotice(notice: Notice, packet: Packet, nowMs: Long, wallMs: Long): Boolean {
+        purge(nowMs)
+        val untilMs = nowMs + (notice.validUntil * 1000 - wallMs)
+        if (untilMs <= nowMs) return false
+        val kept = notices.getOrPut(notice.topic.toLong()) { Kept() }
+        if (notice.seq <= kept.version) return false
+        kept.version = notice.seq
+        kept.stored = Stored(packet, nowMs)
+        kept.untilMs = untilMs
+        if (notices.values.count { it.stored != null } > maxNotices) {
+            notices.values.filter { it.stored != null }.minByOrNull { it.stored!!.atMs }?.stored = null
+        }
+        return true
+    }
+
+    /** What one kind holds, by id8 (by topic for notices). */
+    private fun slots(kind: Int): Map<Long, Kept> =
+        if (kind == SummaryKind.NOTICES) notices else entries.mapValues { (_, e) -> e.kept(kind) }
+
+    /** The responses, updates or notices ([kind]) stored most recently, as many as one SUMMARY2 lists. */
     fun held(kind: Int, nowMs: Long, servable: (Packet) -> Boolean = { true }): List<HeldEntry> {
         purge(nowMs)
-        return entries.values
-            .mapNotNull { e -> e.kept(kind).takeIf { k -> k.stored?.packet?.let(servable) == true }?.let { e.id8 to it } }
+        return slots(kind).entries
+            .filter { (_, k) -> k.stored?.packet?.let(servable) == true }
             .sortedByDescending { (_, k) -> k.stored!!.atMs }
             .take(Summary2Codec.maxHeld(kind))
             .map { (id8, k) -> HeldEntry(id8, k.version) }
     }
 
-    /** The id8s of the responses or updates ([kind]) a peer holds a later one of. */
+    /** The id8s of the responses, updates or notices ([kind]) a peer holds a later one of. */
     fun missing(kind: Int, remote: List<HeldEntry>, nowMs: Long): List<Long> {
         purge(nowMs)
-        return remote.filter { it.version > (entries[it.id8]?.kept(kind)?.version ?: 0) }.map { it.id8 }.take(Limits.SUMMARY_ENTRIES)
+        val local = slots(kind)
+        return remote.filter { it.version > (local[it.id8]?.version ?: 0) }.map { it.id8 }.take(Limits.SUMMARY_ENTRIES)
     }
 
-    fun kept(kind: Int, id8: Long): Packet? = entries[id8]?.kept(kind)?.stored?.packet
+    fun kept(kind: Int, id8: Long): Packet? = slots(kind)[id8]?.stored?.packet
 
     /** The incidents stored most recently, listing only the packets [servable] lets us hand to this neighbor. */
     fun summary(nowMs: Long, servable: (Packet) -> Boolean = { true }): List<SummaryEntry> {
@@ -218,7 +251,10 @@ class IncidentCache(
 
     fun ack(id8: Long): Packet? = entries[id8]?.ack?.packet
 
-    fun clear() = entries.clear()
+    fun clear() {
+        entries.clear()
+        notices.clear()
+    }
 
     fun snapshot(nowMs: Long, wallMs: Long): CachedIncidents {
         fun wall(atMs: Long) = wallMs - (nowMs - atMs)
@@ -229,17 +265,18 @@ class IncidentCache(
                 e.ackStatus, e.ackEpoch, e.ackTimestamp, e.ackTeam, e.ackAssigned, wall(e.touchedMs),
                 saved(e.response.stored), e.response.version, saved(e.update.stored), e.update.version,
             )
-        })
+        }, notices.map { (topic, k) -> CachedNotice(topic, saved(k.stored), k.version, if (k.stored != null) wall(k.untilMs) else 0) })
     }
 
     /**
      * Takes back what [snapshot] saved, aged by the wall clock. Packets older than [maxAgeMs], the longest any role
      * keeps them, are dropped, and so is a packet that doesn't decode; the role's own retention applies from then on.
+     * A notice is kept until it expires, however old.
      */
     fun restore(saved: CachedIncidents, nowMs: Long, wallMs: Long, maxAgeMs: Long) {
         fun at(wall: Long) = nowMs - maxOf(wallMs - wall, 0)
-        fun stored(p: CachedPacket?, type: Int): Stored? {
-            if (p == null || wallMs - p.at > maxAgeMs) return null
+        fun stored(p: CachedPacket?, type: Int, maxAge: Long = Long.MAX_VALUE): Stored? {
+            if (p == null || wallMs - p.at > maxAge) return null
             val packet = runCatching { PacketCodec.decode(p.frame.hexToBytes()) }.getOrNull()
                 ?.takeIf { it.fragment == null && it.packet.type == type }?.packet ?: return null
             return Stored(packet, at(p.at), p.hops)
@@ -247,10 +284,10 @@ class IncidentCache(
         entries.clear()
         for (c in saved.incidents) {
             val e = Entry(c.id8)
-            e.report = stored(c.report, PacketType.INCIDENT_REPORT)
-            e.ack = stored(c.ack, PacketType.INCIDENT_ACK)
-            e.response.stored = stored(c.response, PacketType.INCIDENT_RESPONSE)
-            e.update.stored = stored(c.update, PacketType.INCIDENT_UPDATE)
+            e.report = stored(c.report, PacketType.INCIDENT_REPORT, maxAgeMs)
+            e.ack = stored(c.ack, PacketType.INCIDENT_ACK, maxAgeMs)
+            e.response.stored = stored(c.response, PacketType.INCIDENT_RESPONSE, maxAgeMs)
+            e.update.stored = stored(c.update, PacketType.INCIDENT_UPDATE, maxAgeMs)
             if (e.empty && wallMs - c.touchedAt > traceMs) continue
             e.reportSeen = c.reportSeen
             e.own = c.own
@@ -264,6 +301,16 @@ class IncidentCache(
             e.touchedMs = at(c.touchedAt)
             entries[c.id8] = e
         }
+        notices.clear()
+        for (n in saved.notices) {
+            val k = Kept()
+            k.version = n.version
+            if (n.until > wallMs) {
+                k.stored = stored(n.notice, PacketType.ANNOUNCEMENT)
+                k.untilMs = nowMs + (n.until - wallMs)
+            }
+            notices[n.topic] = k
+        }
     }
 
     private fun purge(nowMs: Long) {
@@ -275,6 +322,7 @@ class IncidentCache(
             for (k in listOf(e.response, e.update)) k.stored?.let { s -> if (nowMs - s.atMs > retentionMs) k.stored = null }
             if (e.empty && nowMs - e.touchedMs > traceMs) it.remove()
         }
+        for (k in notices.values) if (k.stored != null && nowMs >= k.untilMs) k.stored = null
         if (entries.size > maxTraces) {
             val excess = entries.size - maxTraces
             val victims = entries.values.filter { it.empty }.sortedBy { it.touchedMs }.take(excess)

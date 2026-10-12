@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
  * carrying. Times are on the wall clock, which survives a reboot; the monotonic one doesn't.
  */
 @Serializable
-data class CachedIncidents(val incidents: List<CachedIncident> = emptyList())
+data class CachedIncidents(val incidents: List<CachedIncident> = emptyList(), val notices: List<CachedNotice> = emptyList())
 
 @Serializable
 data class CachedIncident(
@@ -33,3 +33,7 @@ data class CachedIncident(
 /** [frame] is the packet as it goes on the wire, unfragmented, in hex. */
 @Serializable
 data class CachedPacket(val frame: String, val at: Long, val hops: Int = 0)
+
+/** The latest notice of a [topic], kept until [until] (wall clock, ms); [version] is its sequence number, kept after it expires. */
+@Serializable
+data class CachedNotice(val topic: Long, val notice: CachedPacket? = null, val version: Long = 0, val until: Long = 0)

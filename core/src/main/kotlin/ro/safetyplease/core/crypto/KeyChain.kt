@@ -1,5 +1,6 @@
 package ro.safetyplease.core.crypto
 
+import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.mesh.MeshTrust
 import ro.safetyplease.core.mesh.Verdict
 import ro.safetyplease.core.protocol.AckStatus
@@ -123,11 +124,39 @@ class KeyChain(
         return if (cert.role != CertRole.CONTROL || late) Verdict.REFUSED else Verdict.VALID
     }
 
-    /** A revocation signed by the root, the organiser or the event; other kinds are this version's to relay only. */
-    override fun checkAnnouncement(payload: ByteArray): Verdict {
+    /**
+     * A revocation signed by the root, the organiser or the event, or a notice signed under a control shift; other
+     * kinds are this version's to relay only.
+     */
+    override fun checkAnnouncement(payload: ByteArray): Verdict = when (payload.firstOrNull()?.toInt()) {
+        Revocation.KIND -> checkRevocation(payload)
+        Notice.KIND -> checkNotice(payload)
+        else -> Verdict.REFUSED
+    }
+
+    private fun checkRevocation(payload: ByteArray): Verdict {
         val revocation = Revocation.decode(payload) ?: return Verdict.REFUSED
         val key = signerKey(revocation.signer) ?: return Verdict.REFUSED
         return if (crypto.verify(revocation.signature, Revocation.signedMessage(payload), key)) Verdict.VALID else Verdict.INVALID
+    }
+
+    /**
+     * Only a control shift signs a notice, within its shift; it holds at most [Notice.MAX_VALID_S] from its issue.
+     * Whether it is still in force, and newer than the one kept, is the cache's to decide.
+     */
+    private fun checkNotice(payload: ByteArray): Verdict {
+        val notice = Notice.decode(payload) ?: return Verdict.INVALID
+        val cert = notice.certificate
+        val now = nowSec()
+        when (status(cert, now)) {
+            CertStatus.VALID -> Unit
+            CertStatus.FORGED -> return Verdict.INVALID
+            else -> return Verdict.REFUSED
+        }
+        if (!crypto.verify(notice.signature, Notice.signedMessage(payload), cert.key)) return Verdict.INVALID
+        val late = notice.issued > now + SKEW_S || notice.issued < cert.validFrom - SKEW_S
+        val span = notice.validUntil - notice.issued
+        return if (cert.role != CertRole.CONTROL || late || span !in 1..Notice.MAX_VALID_S) Verdict.REFUSED else Verdict.VALID
     }
 
     private fun signerKey(id: Long): ByteArray? {
@@ -144,8 +173,9 @@ class KeyChain(
     /** Applies a valid revocation; the ids it newly revokes, or null if it isn't one. */
     @Synchronized
     fun revoke(payload: ByteArray): List<Long>? {
-        if (checkAnnouncement(payload) != Verdict.VALID) return null
-        val fresh = Revocation.decode(payload)!!.ids.filter { it !in revoked }
+        val revocation = Revocation.decode(payload) ?: return null
+        if (checkRevocation(payload) != Verdict.VALID) return null
+        val fresh = revocation.ids.filter { it !in revoked }
         if (fresh.isNotEmpty()) revoked = revoked + fresh
         return fresh
     }

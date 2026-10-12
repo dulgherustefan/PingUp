@@ -11,7 +11,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeLevel
+import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.crypto.CertRole
+import ro.safetyplease.core.crypto.Credential
 import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.FriendCard
@@ -143,6 +147,10 @@ class GoldenVectorsTest {
         "summary2.updates" to { Summary2Codec.encode(Golden.summary2Updates).toHex() },
         "request2.responses" to { Request2Codec.encode(Golden.request2Responses).toHex() },
         "request2.updates" to { Request2Codec.encode(Golden.request2Updates).toHex() },
+        "announcement.notice" to { Golden.notice().encode().toHex() },
+        "announcement.notice.cancel" to { Golden.noticeCancel().encode().toHex() },
+        "summary2.notices" to { Summary2Codec.encode(Golden.summary2Notices).toHex() },
+        "request2.notices" to { Request2Codec.encode(Golden.request2Notices).toHex() },
     )
 
     @Test
@@ -472,6 +480,36 @@ class GoldenVectorsTest {
     }
 
     @Test
+    fun noticesDecodeAndVerify() {
+        val chain = Golden.chain()
+        val payload = bytes("announcement.notice")
+        assertEquals(Verdict.VALID, chain.checkAnnouncement(payload))
+        val notice = Notice.decode(payload)!!
+        assertEquals(
+            listOf(NoticeTopic.ALERT, NoticeLevel.PAUSE, 0, 1L, Golden.TIME + 60, Golden.TIME + 3660, 3, "Scena mare", listOf("15:30")),
+            listOf(notice.topic, notice.level, notice.flags, notice.seq, notice.issued, notice.validUntil, notice.template, notice.zone, notice.params),
+        )
+        assertEquals(Golden.controlCert.fields(), notice.certificate.fields())
+        assertArrayEquals("re-encodes", payload, notice.encode())
+        val tampered = payload.clone().also { it[5] = (it[5] + 1).toByte() }
+        assertEquals(Verdict.INVALID, chain.checkAnnouncement(tampered))
+        assertNull("not a revocation", chain.revoke(payload))
+
+        val cancel = Notice.decode(bytes("announcement.notice.cancel"))!!
+        assertTrue(cancel.cancelled)
+        assertEquals(listOf(2L, 0, emptyList<String>()), listOf(cancel.seq, cancel.template, cancel.params))
+        assertEquals(Verdict.VALID, chain.checkAnnouncement(bytes("announcement.notice.cancel")))
+
+        val byATeam = Golden.notice(Credential(Golden.staffCert, Golden.shift)).encode()
+        assertEquals("only a control shift sends notices", Verdict.REFUSED, chain.checkAnnouncement(byATeam))
+        val frame = Packet(PacketType.ANNOUNCEMENT, 7, Golden.long("0123456789abcdef"), Golden.long("0102030405060708"), Golden.TIME, null, false, payload)
+        assertFalse("never to a 1.0 phone", Compat10.accepts(frame))
+
+        assertEquals(Golden.summary2Notices, Summary2Codec.decode(bytes("summary2.notices")))
+        assertEquals(Golden.request2Notices, Request2Codec.decode(bytes("request2.notices")))
+    }
+
+    @Test
     fun qrCodesDecode() {
         val friend = QrCodes.decodeFriend(vectors.getValue("qr.friend"))!!
         assertEquals(Golden.friendCard.fields(), friend.fields())
@@ -748,6 +786,19 @@ private object Golden {
     )
     val request2Responses = Request2(SummaryKind.RESPONSES, emptyList(), listOf(INCIDENT_ID.toLong()))
     val request2Updates = Request2(SummaryKind.UPDATES, emptyList(), listOf(INCIDENT_ID.toLong(), long("0102030405060708")))
+
+    /** A pause on "Scena mare" from TIME + 60 for an hour: template 3 with "15:30", sequence 1, under [controlCert]. */
+    fun notice(signer: Credential = Credential(controlCert, control)): Notice = Notice.sign(
+        crypto, signer, NoticeTopic.ALERT, NoticeLevel.PAUSE, 1, TIME + 60, TIME + 3660, 3, "Scena mare", listOf("15:30"),
+    )
+
+    /** The same pause withdrawn at TIME + 120: sequence 2, no template. */
+    fun noticeCancel(): Notice = Notice.sign(
+        crypto, Credential(controlCert, control), NoticeTopic.ALERT, NoticeLevel.PAUSE, 2, TIME + 120, TIME + 3660, 0, flags = Notice.CANCEL,
+    )
+
+    val summary2Notices = Summary2(SummaryKind.NOTICES, emptyList(), listOf(HeldEntry(1, 2), HeldEntry(2, 5)))
+    val request2Notices = Request2(SummaryKind.NOTICES, emptyList(), listOf(1L, 2L))
 
     val shiftCard = ShiftCard(staffCert, seed(0x80), reportCert, seed(0xc0), null, "")
 

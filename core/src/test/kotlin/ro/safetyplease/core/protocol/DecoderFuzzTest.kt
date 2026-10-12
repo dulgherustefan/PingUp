@@ -8,8 +8,10 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.Certificate
+import ro.safetyplease.core.crypto.Credential
 import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.Identity
 import ro.safetyplease.core.crypto.KeyChain
@@ -76,6 +78,7 @@ class DecoderFuzzTest {
         ),
         Codec("response body", { ResponseBody(nextInt(1, 256), nextInt(0, 256)) }, ResponseBody::encode, { ResponseBody.decode(it) }, tolerant = true),
         Codec("update body", { updateBody() }, UpdateBody::encode, { UpdateBody.decode(it) }, { listOfNotNull(it.zone) }, tolerant = true),
+        Codec("notice", { notice() }, Notice::encode, { Notice.decode(it) }, { listOf(it.zone, it.certificate.name) + it.params }, tolerant = true),
     )
 
     @Test(timeout = 10_000)
@@ -239,6 +242,7 @@ class DecoderFuzzTest {
         val shift = Certificate.issue(crypto, CertRole.CONTROL, shiftKey.publicKey, 0, 0xFFFFFFFFL, "Control", event)
         val certAck = staff.signAck(random.nextBytes(16), AckStatus.RESOLVED, 1L, "Control", StaffSecretKeys(null, shiftKey, shift)).encode()
         val revocation = Revocation.sign(crypto, event, 1L, listOf(shift.id)).encode()
+        val notice = Notice.sign(crypto, Credential(shift, shiftKey), 1, 2, 1, 0, 3600, 3, "Bar", listOf("15:30")).encode()
         repeat(CRYPTO_ROUNDS) {
             val s = random.mutate(sealed)
             if (!s.contentEquals(sealed)) assertNull(bounded("sealed", s) { staff.openReport(s, secret) })
@@ -248,6 +252,8 @@ class DecoderFuzzTest {
             if (!c.contentEquals(certAck)) assertFalse(bounded("certified ack", c) { chain.checkAck(c) == Verdict.VALID })
             val r = random.mutate(revocation)
             if (!r.contentEquals(revocation)) assertFalse(bounded("revocation", r) { chain.checkAnnouncement(r) == Verdict.VALID })
+            val n = random.mutate(notice)
+            if (!n.contentEquals(notice)) assertFalse(bounded("notice", n) { chain.checkAnnouncement(n) == Verdict.VALID })
             val b = random.mutate(boxed)
             if (!b.contentEquals(boxed)) assertNull(bounded("box", b) { crypto.boxOpen(b, alice.box.publicKey, bob.box.secretKey) })
         }
@@ -333,8 +339,8 @@ private fun Random.request() = List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { Re
 private fun Random.summary2(): Summary2 {
     if (nextInt(4) == 0) return Summary2(nextInt(256), emptyList())
     if (nextInt(4) == 0) {
-        val kind = if (nextBoolean()) SummaryKind.RESPONSES else SummaryKind.UPDATES
-        val max = if (kind == SummaryKind.RESPONSES) 1L shl 32 else 256L
+        val kind = listOf(SummaryKind.RESPONSES, SummaryKind.UPDATES, SummaryKind.NOTICES).random(this)
+        val max = if (SummaryKind.hasLongVersion(kind)) 1L shl 32 else 256L
         return Summary2(kind, emptyList(), List(nextInt(0, Summary2Codec.maxHeld(kind) + 1)) { HeldEntry(nextLong(), nextLong(0, max)) })
     }
     val epochs = nextInt(4) == 0
@@ -345,9 +351,18 @@ private fun Random.summary2(): Summary2 {
 
 private fun Random.request2(): Request2 = when (nextInt(4)) {
     0 -> Request2(nextInt(256), emptyList())
-    1 -> Request2(if (nextBoolean()) SummaryKind.RESPONSES else SummaryKind.UPDATES, emptyList(), List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { nextLong() })
+    1 -> Request2(
+        listOf(SummaryKind.RESPONSES, SummaryKind.UPDATES, SummaryKind.NOTICES).random(this), emptyList(),
+        List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { nextLong() },
+    )
     else -> Request2(SummaryKind.INCIDENTS, request())
 }
+
+private fun Random.notice() = Notice(
+    nextInt(1, 256), nextInt(256), nextInt(256), nextLong(0, 1L shl 32), nextLong(0, 1L shl 32), nextLong(0, 1L shl 32), nextInt(256),
+    text(Limits.ZONE_BYTES), List(nextInt(0, Notice.MAX_PARAMS + 1)) { text(Notice.PARAM_BYTES) }, certificate(), nextBytes(64),
+    if (nextInt(4) == 0) nextBytes(nextInt(0, 20)) else ByteArray(0),
+)
 
 private fun Random.response() = IncidentResponse(
     nextBytes(16), nextLong(0, 1L shl 32), nextBytes(nextInt(IncidentReportCodec.SEAL_OVERHEAD + 1, 256)),

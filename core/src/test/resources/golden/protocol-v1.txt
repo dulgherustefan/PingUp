@@ -234,3 +234,16 @@ summary2.updates 0302001122334455667701010203040506070803
 # REQUEST2 kind 2 for 0011223344556677, and kind 3 for 0011223344556677 and 0102030405060708.
 request2.responses 02010011223344556677
 request2.updates 030200112233445566770102030405060708
+
+# 1.1, notices from the control console (PROTOCOL.md, sections 6.2 and 6.8).
+# ANNOUNCEMENT kind 2 (notice): topic 1 (alert), level 2 (pause), flags 0, sequence 1, issued TIME + 60, valid until
+# TIME + 3660, template 3, zone "Scena mare", one parameter "15:30", cert.control, then the shift key's signature over
+# "SP-ANN-v1" || everything before it.
+announcement.notice 020102000000000168e7783c68e7864c030a5363656e61206d617265010531353a333001034fd099ccd47d7893dfe9ec24414ecb0d9b5420232aad30d91c465be33cbe65c468e7780068e820c068894d58f18f2c3407436f6e74726f6c14edbe900a36dfdd0d610987b4cbc7fa627e2a155f6b0328b588d9efbb75ad27bcbe9d401395b6961c2444ca29dff8eef56ff53cb5e277a846a57dcba3a1730fbdcb2326979a205eb318d36ce14d2c262c44896829e799ef04381b510951f28d88be5dc01c9870ac8a97dbffae1ad6a2bc4bd425c306f41171f3d72bb1240702
+# The same pause withdrawn: flags 01 (CANCEL), sequence 2, issued TIME + 120, valid until TIME + 3660, template 0, no
+# zone, no parameters, cert.control and its signature.
+announcement.notice.cancel 020102010000000268e7787868e7864c00000001034fd099ccd47d7893dfe9ec24414ecb0d9b5420232aad30d91c465be33cbe65c468e7780068e820c068894d58f18f2c3407436f6e74726f6c14edbe900a36dfdd0d610987b4cbc7fa627e2a155f6b0328b588d9efbb75ad27bcbe9d401395b6961c2444ca29dff8eef56ff53cb5e277a846a57dcba3a1730f9c22720a98e3c0225d31b23deb5e2ed5fbca4e799ad86fda5a132ea26b04b3bb4969593f9dce08768c22d5b308179a174ca7fd89e8fb5ce01c98333c00f72603
+# SUMMARY2 kind 4 (NOTICES): topic 1 at sequence 2, topic 2 at sequence 5, each key an i64 and the sequence a u32.
+summary2.notices 0402000000000000000100000002000000000000000200000005
+# REQUEST2 kind 4 for topics 1 and 2.
+request2.notices 040200000000000000010000000000000002

@@ -1,5 +1,6 @@
 package ro.safetyplease.core.control
 
+import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.protocol.IncidentAck
@@ -53,6 +54,19 @@ class ConsoleRecorder(
 
     @Synchronized
     fun exported() = append(listOf(LogEntry(clock.wallMs(), LogEvent.EXPORT)))
+
+    /** A notice this console sent ([own]) or heard from another, with its text as the console read it. */
+    @Synchronized
+    fun notice(notice: Notice, text: String, own: Boolean) = append(
+        listOf(
+            LogEntry(
+                clock.wallMs(), if (notice.cancelled) LogEvent.NOTICE_CANCEL else LogEvent.NOTICE, zone = notice.zone,
+                description = text, team = notice.certificate.name, signedAt = notice.issued * 1000,
+                signature = notice.signature.toHex(), own = own, topic = notice.topic, level = notice.level,
+                template = notice.template, seq = notice.seq, validUntil = notice.validUntil * 1000,
+            ),
+        ),
+    )
 
     private fun append(entries: List<LogEntry>) {
         if (entries.isEmpty()) return

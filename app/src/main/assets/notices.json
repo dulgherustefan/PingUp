@@ -1,0 +1,125 @@
+[
+  {
+    "id": 1, "topic": "alert", "level": 1,
+    "text": {
+      "ro": "Informare de la organizatori: {1}",
+      "en": "Information from the organisers: {1}"
+    },
+    "params": [{"ro": "Mesajul", "en": "Message"}]
+  },
+  {
+    "id": 2, "topic": "alert", "level": 1,
+    "text": {
+      "ro": "Vine vânt puternic. Fixează-ți cortul și stai departe de scene, stâlpi și structuri înalte.",
+      "en": "Strong wind is coming. Secure your tent and keep away from stages, poles and tall structures."
+    }
+  },
+  {
+    "id": 3, "topic": "alert", "level": 2,
+    "text": {
+      "ro": "Programul e oprit din cauza vremii. Rămâi pe loc sau mergi la cel mai apropiat adăpost și urmează staff-ul. Revenim la {1}.",
+      "en": "The show is paused because of the weather. Stay where you are or go to the nearest shelter and follow the staff. Next update at {1}."
+    },
+    "params": [{"ro": "Ora următoarei actualizări", "en": "Time of the next update"}]
+  },
+  {
+    "id": 4, "topic": "alert", "level": 2,
+    "text": {
+      "ro": "Programul de pe {1} e oprit. Rămâi unde ești, nu împinge spre scenă și urmează staff-ul.",
+      "en": "The show on {1} is paused. Stay where you are, don't push towards the stage and follow the staff."
+    },
+    "params": [{"ro": "Scena", "en": "Stage"}]
+  },
+  {
+    "id": 5, "topic": "alert", "level": 3,
+    "text": {
+      "ro": "Evacuare. Ieși calm spre {1}. Nu alerga, nu te întoarce după lucruri, ajută-i pe cei de lângă tine și urmează staff-ul.",
+      "en": "Evacuation. Walk calmly to {1}. Don't run, don't go back for your things, help those around you and follow the staff."
+    },
+    "params": [{"ro": "Ieșirea", "en": "Exit"}]
+  },
+  {
+    "id": 6, "topic": "alert", "level": 3,
+    "text": {
+      "ro": "Evacuare din zona {1}. Ieși calm spre {2} și urmează staff-ul. Restul festivalului rămâne deschis.",
+      "en": "Evacuation of {1}. Walk calmly to {2} and follow the staff. The rest of the festival stays open."
+    },
+    "params": [{"ro": "Zona", "en": "Area"}, {"ro": "Ieșirea", "en": "Exit"}]
+  },
+  {
+    "id": 10, "topic": "heat", "level": 1,
+    "text": {
+      "ro": "E cald. Bea apă des și stai la umbră când poți.",
+      "en": "It's hot. Drink water often and stay in the shade when you can."
+    }
+  },
+  {
+    "id": 11, "topic": "heat", "level": 2,
+    "text": {
+      "ro": "Foarte cald. Bea un pahar de apă în fiecare oră, poartă ceva pe cap și stai la umbră între 12 și 17.",
+      "en": "Very hot. Drink a glass of water every hour, cover your head and stay in the shade between 12 and 5 pm."
+    }
+  },
+  {
+    "id": 12, "topic": "heat", "level": 3,
+    "text": {
+      "ro": "Caniculă. Evită soarele între 12 și 17 și bea apă chiar dacă nu ți-e sete. Dacă cineva amețește, du-l la umbră și cheamă staff-ul.",
+      "en": "Heatwave. Avoid the sun between 12 and 5 pm and drink water even if you aren't thirsty. If someone feels dizzy, take them to the shade and call the staff."
+    }
+  },
+  {
+    "id": 13, "topic": "heat", "level": 4,
+    "text": {
+      "ro": "Căldură extremă. Stai la umbră, bea apă constant și verifică-ți prietenii. La amețeală, greață sau confuzie, raportează imediat din aplicație.",
+      "en": "Extreme heat. Stay in the shade, keep drinking water and check on your friends. If someone is dizzy, sick or confused, report it in the app straight away."
+    }
+  },
+  {
+    "id": 20, "topic": "schedule", "level": 1,
+    "text": {
+      "ro": "Schimbare de program: {1} începe la {2}.",
+      "en": "Schedule change: {1} starts at {2}."
+    },
+    "params": [{"ro": "Artistul sau scena", "en": "Artist or stage"}, {"ro": "Ora", "en": "Time"}]
+  },
+  {
+    "id": 21, "topic": "schedule", "level": 1,
+    "text": {
+      "ro": "Schimbare de program: {1} se mută pe {2}, la {3}.",
+      "en": "Schedule change: {1} moves to {2}, at {3}."
+    },
+    "params": [{"ro": "Artistul", "en": "Artist"}, {"ro": "Scena", "en": "Stage"}, {"ro": "Ora", "en": "Time"}]
+  },
+  {
+    "id": 22, "topic": "schedule", "level": 1,
+    "text": {
+      "ro": "Schimbare de program: {1} nu mai are loc.",
+      "en": "Schedule change: {1} is cancelled."
+    },
+    "params": [{"ro": "Artistul sau scena", "en": "Artist or stage"}]
+  },
+  {
+    "id": 30, "topic": "transport", "level": 1,
+    "text": {
+      "ro": "Ultima cursă spre {1} pleacă la {2} din {3}.",
+      "en": "The last ride to {1} leaves at {2} from {3}."
+    },
+    "params": [{"ro": "Destinația", "en": "Destination"}, {"ro": "Ora", "en": "Time"}, {"ro": "Stația", "en": "Stop"}]
+  },
+  {
+    "id": 31, "topic": "transport", "level": 1,
+    "text": {
+      "ro": "Transportul spre {1} are întârziere. Următoarea cursă: {2}.",
+      "en": "Transport to {1} is delayed. Next ride: {2}."
+    },
+    "params": [{"ro": "Destinația", "en": "Destination"}, {"ro": "Ora", "en": "Time"}]
+  },
+  {
+    "id": 32, "topic": "transport", "level": 1,
+    "text": {
+      "ro": "Stația {1} e închisă. Folosește {2}.",
+      "en": "The {1} stop is closed. Use {2} instead."
+    },
+    "params": [{"ro": "Stația închisă", "en": "Closed stop"}, {"ro": "Stația de folosit", "en": "Stop to use"}]
+  }
+]

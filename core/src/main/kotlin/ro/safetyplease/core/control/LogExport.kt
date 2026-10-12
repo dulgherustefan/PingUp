@@ -83,16 +83,17 @@ object LogExport {
         entries.forEachIndexed { index, e ->
             val report = e.event == LogEvent.REPORT
             val ack = e.event == LogEvent.ACK
+            val notice = e.event == LogEvent.NOTICE || e.event == LogEvent.NOTICE_CANCEL
             csv.row(
                 (index + 1).toString(), time(e.at, zone), names.event(e.event), e.incidentId, e.grid,
-                if (report) text(names.zone(e.zone)) else "",
+                if (report || notice) text(names.zone(e.zone)) else "",
                 if (report) names.category(e.category) else "",
                 if (report) names.severity(e.severity) else "",
                 if (ack) names.status(e.status) else "",
                 text(e.team),
-                if (ack) time(e.signedAt, zone) else "",
+                if (ack || notice) time(e.signedAt, zone) else "",
                 e.signature,
-                if (ack) flag(e.own) else "",
+                if (ack || notice) flag(e.own) else "",
                 if (report || ack) e.hops.toString() else "",
                 if (report) time(e.reportedAt, zone) else "",
                 coord(e.lat), coord(e.lon), text(e.description), text(e.reason),

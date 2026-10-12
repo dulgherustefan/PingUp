@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
+import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.Certificate
@@ -33,7 +34,8 @@ enum class PackStatus { VALID, MALFORMED, TAMPERED, WRONG_CHAIN, REVOKED, NOT_YE
 /**
  * A signed event pack (PROTOCOL.md, section 16): the venue, the first-aid sheets and the event's keys, signed by the
  * organiser whose certificate the Ping Up root signed. [box] and [sign] replace the build's shared keys; an exercise
- * pack always carries its own. [hash] is SHA-256 over the signed body, what the gate QR names.
+ * pack always carries its own. [hash] is SHA-256 over the signed body, what the gate QR names. [notices] are the texts
+ * the console's notices name; null without them, when the app's own are used.
  */
 class EventPack(
     val id: String,
@@ -51,6 +53,7 @@ class EventPack(
     val gridMeters: Int,
     val firstAid: Map<String, String>,
     val hash: ByteArray,
+    val notices: NoticeTemplates? = null,
 ) {
     val exercise: Boolean get() = kind == EventKind.EXERCISE
 
@@ -148,9 +151,10 @@ object EventPacks {
         val grid = (o["grid"] as? JsonObject)?.int("cellMeters") ?: SiteGrid.CELL_METERS
         if (grid !in 10..500) return null
         val firstAid = (o["firstAid"] as? JsonObject)?.mapValues { (_, v) -> (v as? JsonPrimitive)?.contentOrNull ?: return null }.orEmpty()
+        val notices = o["notices"]?.let { NoticeTemplates.parse(it) ?: return null }
         return EventPack(
             id, version, kind, o.string("name").orEmpty(), from, until, organiser, event, reportKeys,
-            box.takeIf { it.isNotEmpty() }, sign.takeIf { it.isNotEmpty() }, venue, grid, firstAid, hashOf(body),
+            box.takeIf { it.isNotEmpty() }, sign.takeIf { it.isNotEmpty() }, venue, grid, firstAid, hashOf(body), notices,
         )
     }
 

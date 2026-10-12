@@ -103,7 +103,7 @@ object ConsoleView {
                 }
                 LogEvent.REOPEN -> move(CaseState.OPEN, "", e.at)
                 LogEvent.CANCEL_REQUEST -> if (e.epoch == epoch) cancelRequested = true
-                LogEvent.REPORT, LogEvent.EXPORT -> Unit
+                LogEvent.REPORT, LogEvent.EXPORT, LogEvent.NOTICE, LogEvent.NOTICE_CANCEL -> Unit
             }
         }
 

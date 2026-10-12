@@ -33,6 +33,12 @@ enum class LogEvent {
 
     /** The operator checked the reporter's cancel and confirmed it. */
     CANCEL,
+
+    /** A notice to every phone, sent here or by another console; the incident fields stay empty. */
+    NOTICE,
+
+    /** A notice withdrawn. */
+    NOTICE_CANCEL,
     ;
 
     companion object {
@@ -83,6 +89,12 @@ data class LogEntry(
     val accuracyM: Int = 0,
     /** Number of the landmark nearest to the reporter, on the site plan; 0 for none. */
     val landmark: Int = 0,
+    /** A notice's topic, level, template and sequence number, and when it stops holding (ms); its text is the description. */
+    val topic: Int = 0,
+    val level: Int = 0,
+    val template: Int = 0,
+    val seq: Long = 0,
+    val validUntil: Long = 0,
 )
 
 @Serializable

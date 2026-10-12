@@ -51,7 +51,7 @@ object Limits {
     /** A SUMMARY2 with epochs: 2 + 47 × 10 + 1 bytes still fit in a payload. */
     const val SUMMARY2_EPOCH_ENTRIES = 47
 
-    /** A SUMMARY2 of responses: 2 + 39 × 12 bytes. */
+    /** A SUMMARY2 of responses or notices: 2 + 39 × 12 bytes. */
     const val SUMMARY2_RESPONSE_ENTRIES = 39
 }
 
@@ -261,28 +261,35 @@ object SummaryKind {
     /** The reporter's latest update of each incident ([IncidentUpdateCodec]). */
     const val UPDATES = 3
 
+    /** The latest notice of each topic ([ro.safetyplease.core.announce.Notice]), to peers that set HELLO_AUTH. */
+    const val NOTICES = 4
+
     /** Kinds that list [HeldEntry]s and are requested by id8. */
-    fun isHeld(kind: Int): Boolean = kind == RESPONSES || kind == UPDATES
+    fun isHeld(kind: Int): Boolean = kind == RESPONSES || kind == UPDATES || kind == NOTICES
+
+    /** Kinds whose [HeldEntry.version] is a `u32`; an update's is a `u8`. */
+    fun hasLongVersion(kind: Int): Boolean = kind == RESPONSES || kind == NOTICES
 }
 
 /**
- * What a node holds of [SummaryKind.RESPONSES] or [SummaryKind.UPDATES] for an incident: [version] is the response's
- * timestamp or the update's sequence number, so that only a later one is asked for.
+ * What a node holds of [SummaryKind.RESPONSES] or [SummaryKind.UPDATES] for an incident, or of [SummaryKind.NOTICES]
+ * for a topic (the topic as [id8]): [version] is the response's timestamp or the update's or the notice's sequence
+ * number, so that only a later one is asked for.
  */
 data class HeldEntry(val id8: Long, val version: Long)
 
 /**
  * SUMMARY2 starts with a [kind]. For [SummaryKind.INCIDENTS] the entries are SUMMARY's, except that a status from a
  * newer version is kept, and a flags byte may follow them: with [Summary2Codec.EPOCHS], one epoch per entry comes
- * next. RESPONSES and UPDATES list [held] instead: a count, then per entry the id8 and the timestamp (`u32`) or the
- * sequence number (`u8`). Whatever follows comes from a newer version and is skipped. A kind this version doesn't
+ * next. RESPONSES, UPDATES and NOTICES list [held] instead: a count, then per entry the id8 and the timestamp (`u32`),
+ * the update's sequence number (`u8`) or the notice's (`u32`). Whatever follows comes from a newer version and is skipped. A kind this version doesn't
  * read decodes with no entries.
  */
 data class Summary2(val kind: Int, val entries: List<SummaryEntry>, val held: List<HeldEntry> = emptyList())
 
 /**
- * REQUEST2 answers a SUMMARY2 of the same kind; want bits from a newer version are ignored. RESPONSES and UPDATES
- * ask for [ids]: a count, then the id8 of each.
+ * REQUEST2 answers a SUMMARY2 of the same kind; want bits from a newer version are ignored. RESPONSES, UPDATES and
+ * NOTICES ask for [ids]: a count, then the id8 of each.
  */
 data class Request2(val kind: Int, val entries: List<RequestEntry>, val ids: List<Long> = emptyList())
 
@@ -292,7 +299,7 @@ object Summary2Codec {
 
     fun encode(summary: Summary2): ByteArray {
         require(summary.kind == SummaryKind.INCIDENTS || summary.entries.isEmpty()) { "only INCIDENTS has entries" }
-        require(SummaryKind.isHeld(summary.kind) || summary.held.isEmpty()) { "only RESPONSES and UPDATES hold" }
+        require(SummaryKind.isHeld(summary.kind) || summary.held.isEmpty()) { "only RESPONSES, UPDATES and NOTICES hold" }
         val entries = summary.entries
         val w = WireWriter(3 + entries.size * 10 + summary.held.size * 12).u8(summary.kind)
         if (SummaryKind.isHeld(summary.kind)) {
@@ -300,7 +307,7 @@ object Summary2Codec {
             w.u8(summary.held.size)
             for (h in summary.held) {
                 w.i64(h.id8)
-                if (summary.kind == SummaryKind.RESPONSES) w.u32(h.version) else w.u8(h.version.toInt())
+                if (SummaryKind.hasLongVersion(summary.kind)) w.u32(h.version) else w.u8(h.version.toInt())
             }
         }
         if (summary.kind == SummaryKind.INCIDENTS) {
@@ -321,7 +328,7 @@ object Summary2Codec {
         if (SummaryKind.isHeld(kind)) {
             val count = r.u8()
             if (count > maxHeld(kind)) throw MalformedException("summary too long")
-            val held = List(count) { HeldEntry(r.i64(), if (kind == SummaryKind.RESPONSES) r.u32() else r.u8().toLong()) }
+            val held = List(count) { HeldEntry(r.i64(), if (SummaryKind.hasLongVersion(kind)) r.u32() else r.u8().toLong()) }
             return@parseOrNull Summary2(kind, emptyList(), held)
         }
         if (kind != SummaryKind.INCIDENTS) return@parseOrNull Summary2(kind, emptyList())
@@ -337,13 +344,13 @@ object Summary2Codec {
         if (entries.any { it.epoch > 0 }) entries.take(Limits.SUMMARY2_EPOCH_ENTRIES) else entries
 
     /** How many [HeldEntry]s one SUMMARY2 of [kind] can carry. */
-    fun maxHeld(kind: Int): Int = if (kind == SummaryKind.RESPONSES) Limits.SUMMARY2_RESPONSE_ENTRIES else Limits.SUMMARY_ENTRIES
+    fun maxHeld(kind: Int): Int = if (SummaryKind.hasLongVersion(kind)) Limits.SUMMARY2_RESPONSE_ENTRIES else Limits.SUMMARY_ENTRIES
 }
 
 object Request2Codec {
     fun encode(request: Request2): ByteArray {
         require(request.kind == SummaryKind.INCIDENTS || request.entries.isEmpty()) { "only INCIDENTS has entries" }
-        require(SummaryKind.isHeld(request.kind) || request.ids.isEmpty()) { "only RESPONSES and UPDATES ask by id" }
+        require(SummaryKind.isHeld(request.kind) || request.ids.isEmpty()) { "only RESPONSES, UPDATES and NOTICES ask by id" }
         val w = WireWriter(2 + request.entries.size * 9 + request.ids.size * 8).u8(request.kind)
         if (request.kind == SummaryKind.INCIDENTS) w.requestEntries(request.entries)
         if (SummaryKind.isHeld(request.kind)) {

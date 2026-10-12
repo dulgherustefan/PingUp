@@ -2,6 +2,8 @@ package ro.safetyplease.core
 
 import kotlinx.coroutines.test.TestScope
 import kotlinx.serialization.builtins.ListSerializer
+import ro.safetyplease.core.announce.NoticeBoard
+import ro.safetyplease.core.announce.Notices
 import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.Certificate
@@ -149,10 +151,18 @@ class TestPhone(
         resends = { false },
     )
 
+    /** The console's notices; a phone with a control shift signs them, one that [resendsNotices] sends them again. */
+    var resendsNotices = false
+    val notices = Notices(
+        bg, engine, keyChain, testCrypto, clock, JsonStore(File(dir, "$name-notices.json"), NoticeBoard.serializer(), NoticeBoard(), bg),
+        resends = { resendsNotices },
+    )
+
     init {
         chat.start()
         incidents.start()
         revocations.start()
+        notices.start()
         engine.start()
     }
 

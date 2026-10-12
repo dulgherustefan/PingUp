@@ -38,6 +38,8 @@ data class Settings(
     val networkLog: Boolean = false,
     /** Friends may learn this phone's zone, when it changes and when they ask. */
     val shareZone: Boolean = true,
+    /** A participant opted in to the organiser's notices; staff always gets them. */
+    val notices: Boolean = false,
 )
 
 @Serializable

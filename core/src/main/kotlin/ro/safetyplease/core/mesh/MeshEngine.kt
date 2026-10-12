@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.crypto.ReservedNames
@@ -122,7 +123,7 @@ enum class DropReason(val label: String) {
     DUPLICATE("duplicat"),
     KNOWN_INCIDENT("known incident"),
 
-    /** An ACK or a response that doesn't supersede the one kept. */
+    /** An ACK, a response or a notice that doesn't supersede the one kept, or a notice that expired. */
     STALE_ACK("stale ACK"),
     QUEUE_FULL("queue full"),
     RATE_LIMIT("rate limit"),
@@ -139,7 +140,7 @@ enum class DropReason(val label: String) {
 
     /**
      * An ACK or a response whose certificate this phone doesn't trust now: another event, revoked, out of its shift,
-     * not its role.
+     * not its role; or an announcement whose signature doesn't verify.
      */
     UNTRUSTED("untrusted"),
 
@@ -473,6 +474,18 @@ class MeshEngine(
         return packet
     }
 
+    /**
+     * A notice of the console's, kept for store-and-forward until it expires; null if one of its topic with a later
+     * sequence number is known, or it has expired.
+     */
+    fun publishNotice(notice: Notice): Packet? {
+        val packet = newPacket(PacketType.ANNOUNCEMENT, notice.encode(), null, encrypted = false, anonymous = false)
+        if (!cache.offerNotice(notice, packet, clock.monoMs(), clock.wallMs())) return null
+        saveCache()
+        flood(packet, own = true)
+        return packet
+    }
+
     /** The latest update this phone holds for the incident, as it came. */
     fun cachedUpdate(incidentId: ByteArray): Packet? = cache.kept(SummaryKind.UPDATES, incidentId.toLong())
 
@@ -561,7 +574,7 @@ class MeshEngine(
 
     /**
      * SUMMARY2 to a 1.1 peer, the 1.0 SUMMARY to the others. A 1.1 peer also gets a SUMMARY2 of responses and one of
-     * updates, each only when there is something to list.
+     * updates, and one that set HELLO_AUTH one of notices, each only when there is something to list.
      */
     private fun sendSummary(link: Link) {
         val now = clock.monoMs()
@@ -574,7 +587,9 @@ class MeshEngine(
         if (entries.isNotEmpty()) {
             sendLocal(link, PacketType.SUMMARY2, Summary2Codec.encode(Summary2(SummaryKind.INCIDENTS, Summary2Codec.fitting(entries))))
         }
-        for (kind in listOf(SummaryKind.RESPONSES, SummaryKind.UPDATES)) {
+        // a peer that can't check a notice would only relay it as a type it doesn't read
+        val kinds = if (link.readsAuth) HELD_KINDS + SummaryKind.NOTICES else HELD_KINDS
+        for (kind in kinds) {
             val held = cache.held(kind, now) { canSend(link, it) }
             if (held.isNotEmpty()) sendLocal(link, PacketType.SUMMARY2, Summary2Codec.encode(Summary2(kind, emptyList(), held)))
         }
@@ -839,12 +854,16 @@ class MeshEngine(
         if (wanted.isNotEmpty()) sendRequest(link, packet.type, wanted)
     }
 
-    /** Responses and updates later than ours are asked for by id8; updates within the link's budget for new ones. */
+    /**
+     * Responses, updates and notices later than ours are asked for by id8; updates and notices within the link's
+     * budget for them.
+     */
     private fun onHeld(link: Link, packet: Packet, summary: Summary2) {
         log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${summary.held.size} entries")
         val now = clock.monoMs()
         var wanted = cache.missing(summary.kind, summary.held, now)
         if (summary.kind == SummaryKind.UPDATES) wanted = wanted.take(link.newUpdates.remaining(now))
+        if (summary.kind == SummaryKind.NOTICES) wanted = wanted.take(link.announcements.remaining(now))
         if (wanted.isNotEmpty()) sendLocal(link, PacketType.REQUEST2, Request2Codec.encode(Request2(summary.kind, emptyList(), wanted)))
     }
 
@@ -937,6 +956,14 @@ class MeshEngine(
                 if (!cache.offerResponse(response, forwardable, now)) return drop(packet, link, DropReason.STALE_ACK)
                 saveCache()
             }
+            // a revocation goes on as it is; a notice only if it is its topic's latest and still holds
+            PacketType.ANNOUNCEMENT -> {
+                val notice = Notice.decode(packet.payload)
+                if (notice != null) {
+                    if (!cache.offerNotice(notice, forwardable, now, clock.wallMs())) return drop(packet, link, DropReason.STALE_ACK)
+                    saveCache()
+                }
+            }
             // relays can't check an update, so an older one still goes on live; only the latest is kept
             PacketType.INCIDENT_UPDATE -> {
                 if (!IncidentUpdateCodec.isWellFormed(packet.payload)) return malformed(link, "invalid UPDATE")
@@ -971,10 +998,19 @@ class MeshEngine(
 
     /**
      * One [trust] verifies is delivered and relayed like an incident, within the link's announcement budget, since a
-     * signed payload can still be sent again under new packet ids. Any other goes on as a type this version only relays.
+     * signed payload can still be sent again under new packet ids. A forgery of a kind this version reads goes no
+     * further, without a malformed mark: an older relay may have passed it on in good faith. Any other goes on as a
+     * type this version only relays.
      */
     private fun onAnnouncement(link: Link, packet: Packet, now: Long) {
-        if (trust.checkAnnouncement(packet.payload) != Verdict.VALID) return onOpaque(link, packet, now)
+        when (trust.checkAnnouncement(packet.payload)) {
+            Verdict.VALID -> Unit
+            Verdict.REFUSED -> return onOpaque(link, packet, now)
+            Verdict.INVALID -> {
+                dedup.add(packet.dedupKey, now)
+                return drop(packet, link, DropReason.UNTRUSTED)
+            }
+        }
         if (!link.announcements.tryAdd(now)) return drop(packet, link, DropReason.OPAQUE_LIMIT)
         onMeshPacket(link, packet, now)
     }
@@ -1253,6 +1289,7 @@ class MeshEngine(
          */
         const val LEAVES = false
 
-
+        /** What a 1.1 peer gets summaries of besides incidents. */
+        private val HELD_KINDS = listOf(SummaryKind.RESPONSES, SummaryKind.UPDATES)
     }
 }
