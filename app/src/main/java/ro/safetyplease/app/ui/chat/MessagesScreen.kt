@@ -124,6 +124,7 @@ fun messageStateLabel(status: MsgStatus): Int = when (status) {
 private fun NetworkDot(links: Int, gate: RadioGate) {
     val colors = AppTheme.colors
     val target = when {
+        gate.meshOff -> colors.tertiaryLabel
         !gate.hasAccess || !gate.bluetoothOn -> colors.red
         links > 0 -> colors.brand
         else -> colors.tertiaryLabel

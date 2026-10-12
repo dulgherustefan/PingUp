@@ -80,6 +80,13 @@
     <string name="report_wait_access">Raportul nu poate pleca fără acces la Bluetooth.</string>
     <string name="report_wait_bluetooth">Raportul pleacă imediat ce îl pornești.</string>
     <string name="report_wait_location">Pe acest Android, raportul pleacă doar cu locația pornită.</string>
+    <string name="mesh_off_title">Rețeaua e oprită</string>
+    <string name="mesh_off_text">Nu primești mesaje și nu poți trimite rapoarte.</string>
+    <string name="report_wait_mesh_off">Raportul pleacă după ce pornești rețeaua.</string>
+    <string name="mesh_switch">Rețeaua Ping Up</string>
+    <string name="mesh_switch_on">Pornită. Primești mesaje și le duci mai departe pentru alții.</string>
+    <string name="mesh_switch_off">Oprită. Nu primești mesaje, iar rapoartele nu pleacă.</string>
+    <string name="notif_mesh_stop">Oprește rețeaua</string>
 
     <string name="onboarding_welcome">Mesaje fără semnal</string>
     <string name="onboarding_intro">Scrii prietenilor și chemi ajutor chiar când rețeaua cade. Mesajele sar din telefon în telefon, prin Bluetooth.</string>

@@ -44,12 +44,16 @@ class RadioGate(
     val accessBlocked: Boolean,
     val requestAccess: () -> Unit,
     val enableBluetooth: () -> Unit,
+    /** The user turned the network off; [turnOn] starts it again. */
+    val meshOff: Boolean = false,
+    val turnOn: () -> Unit = {},
 )
 
 /** What stops the phone from sending anything, the most basic missing piece first. */
-enum class RadioProblem { ACCESS, BLUETOOTH, LOCATION }
+enum class RadioProblem { OFF, ACCESS, BLUETOOTH, LOCATION }
 
 fun RadioGate.problem(): RadioProblem? = when {
+    meshOff -> RadioProblem.OFF
     !hasAccess -> RadioProblem.ACCESS
     !bluetoothOn -> RadioProblem.BLUETOOTH
     locationOff -> RadioProblem.LOCATION
@@ -64,6 +68,11 @@ fun RadioGate.problem(): RadioProblem? = when {
 fun RadioProblemBanner(gate: RadioGate, modifier: Modifier = Modifier, forReport: Boolean = false) {
     val context = LocalContext.current
     when (gate.problem()) {
+        RadioProblem.OFF -> Banner(
+            stringResource(R.string.mesh_off_title),
+            stringResource(if (forReport) R.string.report_wait_mesh_off else R.string.mesh_off_text), modifier, warning = true,
+            action = stringResource(R.string.status_bt_enable), onAction = gate.turnOn,
+        )
         RadioProblem.ACCESS -> Banner(
             stringResource(R.string.problem_access_title),
             stringResource(if (forReport) R.string.report_wait_access else R.string.problem_access_text), modifier, warning = true,
@@ -92,6 +101,7 @@ fun RadioProblemBanner(gate: RadioGate, modifier: Modifier = Modifier, forReport
 @Composable
 fun networkText(links: Int, gate: RadioGate): String {
     return when {
+        gate.meshOff -> stringResource(R.string.mesh_off_title)
         !gate.hasAccess -> stringResource(R.string.status_no_access)
         !gate.bluetoothOn -> stringResource(R.string.status_bt_off)
         links == 0 -> stringResource(R.string.net_none)

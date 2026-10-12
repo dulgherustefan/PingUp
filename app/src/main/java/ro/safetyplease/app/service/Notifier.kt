@@ -119,10 +119,15 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             .setOnlyAlertOnce(true)
             .setContentIntent(open(MainActivity.OPEN_HOME, RequestCodes.OPEN_HOME))
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-        // an anchor only relays; its screen has no report tab
+        // an anchor only relays; its screen has no report tab, and nobody passing by should be able to switch it off
         if (!anchor) {
             val report = open(MainActivity.OPEN_REPORT, RequestCodes.REPORT_ACTION)
             builder.addAction(R.drawable.ic_report, context.getString(R.string.action_report), report)
+            val stop = PendingIntent.getService(
+                context, RequestCodes.STOP_MESH, Intent(context, MeshService::class.java).setAction(MeshService.ACTION_STOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            builder.addAction(0, context.getString(R.string.notif_mesh_stop), stop)
         }
         return builder.build()
     }

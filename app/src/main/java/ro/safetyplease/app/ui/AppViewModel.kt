@@ -20,6 +20,7 @@ import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.platform.location.GeoFix
+import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.QrCodes
@@ -298,6 +299,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissBatteryHint() = c.settings.update { it.copy(batteryHintDismissed = true) }
+
+    /** Off stops the service right away; on only saves the choice, the caller starts the mesh. */
+    fun setMeshEnabled(on: Boolean) {
+        c.settings.update { it.copy(meshEnabled = on) }
+        if (!on) MeshService.stop(getApplication())
+    }
 
     fun setNetworkLog(on: Boolean) = c.settings.update { it.copy(networkLog = on) }
 

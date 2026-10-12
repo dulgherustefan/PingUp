@@ -51,9 +51,12 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
-    /** Start only with permissions granted; otherwise Android 14+ won't let the service go foreground. */
+    /**
+     * Start only with permissions granted; otherwise Android 14+ won't let the service go foreground.
+     * A network the user turned off stays off.
+     */
     private fun startMesh() {
-        if (!vm.c.radio.hasPermissions()) return
+        if (!vm.c.radio.hasPermissions() || !vm.settings.value.meshEnabled) return
         if (MeshService.running) vm.retryRadio() else MeshService.start(this)
         vm.c.location.start()
     }

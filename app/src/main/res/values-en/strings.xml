@@ -74,6 +74,13 @@
     <string name="report_wait_access">The report can’t leave without Bluetooth access.</string>
     <string name="report_wait_bluetooth">The report leaves as soon as you turn it on.</string>
     <string name="report_wait_location">On this Android version, the report leaves only with location on.</string>
+    <string name="mesh_off_title">The network is off</string>
+    <string name="mesh_off_text">You don’t get messages and can’t send reports.</string>
+    <string name="report_wait_mesh_off">The report leaves once you turn the network on.</string>
+    <string name="mesh_switch">Ping Up network</string>
+    <string name="mesh_switch_on">On. You get messages and pass them on for others.</string>
+    <string name="mesh_switch_off">Off. You don’t get messages, and reports don’t leave.</string>
+    <string name="notif_mesh_stop">Turn off network</string>
 
     <string name="onboarding_welcome">Messages without signal</string>
     <string name="onboarding_intro">Text your friends and call for help even when the network goes down. Messages hop from phone to phone over Bluetooth.</string>

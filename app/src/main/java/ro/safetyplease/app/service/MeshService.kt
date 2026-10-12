@@ -141,7 +141,15 @@ class MeshService : Service() {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            container.settings.update { it.copy(meshEnabled = false) }
+            setWanted(this, false)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         if (running) {
@@ -154,6 +162,8 @@ class MeshService : Service() {
     }
 
     companion object {
+        /** From the notification's button: turns the network off until the user turns it back on. */
+        const val ACTION_STOP = "ro.safetyplease.app.STOP_MESH"
         private const val PREFS = "mesh_service"
         private const val KEY_WANTED = "wanted"
 

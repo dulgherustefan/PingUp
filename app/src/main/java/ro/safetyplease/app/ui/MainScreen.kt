@@ -168,6 +168,7 @@ fun openAppSettings(context: Context) {
 @Composable
 fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> Unit): RadioGate {
     val context = LocalContext.current
+    val settings by vm.settings.collectAsStateWithLifecycle()
     val activity = LocalActivity.current
     var tick by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) {
@@ -197,6 +198,11 @@ fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> U
         hasAccess, bluetoothOn, locationOff, blocked,
         requestAccess = { if (blocked) openAppSettings(context) else permissionLauncher.launch(startPermissions()) },
         enableBluetooth = { enableLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)) },
+        meshOff = !settings.meshEnabled,
+        turnOn = {
+            vm.setMeshEnabled(true)
+            onStartMesh()
+        },
     )
 }
 

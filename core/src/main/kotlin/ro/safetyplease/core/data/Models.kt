@@ -40,6 +40,8 @@ data class Settings(
     val shareZone: Boolean = true,
     /** A participant opted in to the organiser's notices; staff always gets them. */
     val notices: Boolean = false,
+    /** Turned off from the app or the notification; stays off until turned back on. */
+    val meshEnabled: Boolean = true,
 )
 
 @Serializable

@@ -125,6 +125,17 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
             Column(Modifier.fillMaxWidth().padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 InsetGroup {
+                    SwitchRow(
+                        stringResource(R.string.mesh_switch), settings.meshEnabled,
+                        onCheckedChange = { on ->
+                            vm.setMeshEnabled(on)
+                            if (on) onStartMesh()
+                        },
+                        subtitle = stringResource(if (settings.meshEnabled) R.string.mesh_switch_on else R.string.mesh_switch_off),
+                        icon = Sym.Bluetooth,
+                    )
+                }
+                InsetGroup {
                     if (settings.role == AppRole.PARTICIPANT) {
                         GroupRow(stringResource(R.string.me_staff_code), icon = Sym.QrScan, chevron = true, onClick = { vm.open(Dest.AddFriend) })
                     } else {
