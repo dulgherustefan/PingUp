@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ro.safetyplease.app.AppLocale
 import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.AppViewModel
@@ -58,8 +59,8 @@ import ro.safetyplease.core.venue.Venue
 /** Headings and loose text start where the text inside the cards starts. */
 private val TextInset = Gutter * 2
 
-/** Sheets that mention it send someone for a defibrillator, so they get a shortcut to the nearest one. */
-private const val DEA_WORD = "DEA"
+/** Sheets that mention one send someone for a defibrillator, so they get a shortcut to the nearest one. */
+private val DefibrillatorWords = listOf("DEA", "AED")
 
 /**
  * First aid, offline: the sheets for whoever is next to the patient, then the nearest defibrillator and 112.
@@ -127,7 +128,7 @@ fun FirstAidSheetScreen(vm: AppViewModel, id: String) {
                 modifier = Modifier.padding(start = TextInset, end = TextInset, top = 12.dp),
             )
         }
-        HelpGroup(vm, dea = sheet.mentions(DEA_WORD))
+        HelpGroup(vm, dea = DefibrillatorWords.any(sheet::mentions))
     }
 }
 
@@ -145,10 +146,12 @@ private fun FirstAidScaffold(vm: AppViewModel, content: @Composable () -> Unit) 
 
 @Composable
 private fun rememberSheets(vm: AppViewModel): List<FirstAidSheet> {
-    val assets = LocalContext.current.assets
+    val context = LocalContext.current
     // the event pack's sheets, approved by its medical lead, replace the ones the app ships
     val pack = vm.c.event?.firstAid.orEmpty()
-    return remember(assets) { if (pack.isEmpty()) loadSheets(assets) else readSheets(pack.keys.toList(), pack::getValue) }
+    return remember(context) {
+        if (pack.isEmpty()) loadSheets(context.assets, AppLocale.language(context)) else readSheets(pack.keys.toList(), pack::getValue)
+    }
 }
 
 /** Shown on every sheet the event's medical lead has not approved yet. */

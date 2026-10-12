@@ -24,20 +24,24 @@ data class FirstAidSheet(val id: String, val title: String, val blocks: List<She
     fun mentions(word: String): Boolean = blocks.any { word in it.text }
 }
 
-private const val DIR = "firstaid"
 private const val EXTENSION = ".md"
-private const val APPROVAL = "Aprobat:"
+private val Approvals = listOf("Aprobat:", "Approved:")
 private val StepLine = Regex("""(\d+)\.\s+(.+)""")
 
-/** The sheets in assets/firstaid, in file-name order. */
-fun loadSheets(assets: AssetManager): List<FirstAidSheet> =
-    readSheets(assets.list(DIR).orEmpty().toList()) { name -> assets.open("$DIR/$name").bufferedReader().use { it.readText() } }
+/** English has its own copy of the sheets, with the same file names; every other language reads the Romanian originals. */
+fun sheetDirectory(language: String): String = if (language == "en") "firstaid-en" else "firstaid"
+
+/** The sheets of [language], in file-name order. */
+fun loadSheets(assets: AssetManager, language: String): List<FirstAidSheet> {
+    val dir = sheetDirectory(language)
+    return readSheets(assets.list(dir).orEmpty().toList()) { name -> assets.open("$dir/$name").bufferedReader().use { it.readText() } }
+}
 
 fun readSheets(names: List<String>, read: (String) -> String): List<FirstAidSheet> =
     names.filter { it.endsWith(EXTENSION) }.sorted().map { parseSheet(it.removeSuffix(EXTENSION), read(it)) }
 
 /**
- * A small Markdown subset: "# " starts the title, "1. " a step, "! " a warning and "Aprobat: " the approval line;
+ * A small Markdown subset: "# " starts the title, "1. " a step, "! " a warning and "Aprobat: " ("Approved: " in English) the approval line;
  * any other line is text. A line right under a block continues it; an empty line ends it.
  */
 fun parseSheet(id: String, text: String): FirstAidSheet {
@@ -54,8 +58,8 @@ fun parseSheet(id: String, text: String): FirstAidSheet {
                 title = line.removePrefix("# ").trim()
                 false
             }
-            line.startsWith(APPROVAL) -> {
-                approval = line.removePrefix(APPROVAL).trim().ifEmpty { null }
+            Approvals.any(line::startsWith) -> {
+                approval = line.substringAfter(':').trim().ifEmpty { null }
                 false
             }
             step != null -> blocks.add(SheetBlock.Step(step.groupValues[1].toInt(), step.groupValues[2]))

@@ -67,19 +67,52 @@ class FirstAidSheetsTest {
         assertEquals(listOf("A", "B"), sheets.map { it.title })
     }
 
+    private fun bundled(language: String): List<FirstAidSheet> {
+        val dir = File("src/main/assets/${sheetDirectory(language)}")
+        return readSheets(dir.list().orEmpty().toList()) { File(dir, it).readText() }
+    }
+
     @Test
     fun bundledSheetsAreFourNumberedDraftsAndOnlyCprSendsForADefibrillator() {
-        val dir = File("src/main/assets/firstaid")
-        val sheets = readSheets(dir.list().orEmpty().toList()) { File(dir, it).readText() }
-        assertEquals(listOf("01-nu-respira", "02-inconstient-respira", "03-caldura", "04-sangerare"), sheets.map { it.id })
-        for (sheet in sheets) {
-            assertTrue(sheet.id, sheet.title.isNotEmpty() && sheet.summary.isNotEmpty())
-            val steps = sheet.blocks.filterIsInstance<SheetBlock.Step>()
-            assertEquals(sheet.id, (1..steps.size).toList(), steps.map { it.number })
-            assertTrue(sheet.id, steps.size in 4..8)
-            assertTrue("not approved by a medical lead yet: ${sheet.id}", sheet.draft)
-            assertFalse("cedilla instead of comma below: ${sheet.id}", sheet.blocks.any { it.text.contains(Regex("[şţŞŢ]")) })
+        for ((language, word) in mapOf("ro" to "DEA", "en" to "AED")) {
+            val sheets = bundled(language)
+            assertEquals(language, listOf("01-nu-respira", "02-inconstient-respira", "03-caldura", "04-sangerare"), sheets.map { it.id })
+            for (sheet in sheets) {
+                assertTrue(sheet.id, sheet.title.isNotEmpty() && sheet.summary.isNotEmpty())
+                val steps = sheet.blocks.filterIsInstance<SheetBlock.Step>()
+                assertEquals(sheet.id, (1..steps.size).toList(), steps.map { it.number })
+                assertTrue(sheet.id, steps.size in 4..8)
+                assertTrue("not approved by a medical lead yet: ${sheet.id}", sheet.draft)
+                assertFalse("cedilla instead of comma below: ${sheet.id}", sheet.blocks.any { it.text.contains(Regex("[şţŞŢ]")) })
+            }
+            assertEquals(language, listOf("01-nu-respira"), sheets.filter { it.mentions(word) }.map { it.id })
         }
-        assertEquals(listOf("01-nu-respira"), sheets.filter { it.mentions("DEA") }.map { it.id })
+    }
+
+    @Test
+    fun englishCopiesFollowTheRomanianOnesStepForStep() {
+        for ((ro, en) in bundled("ro").zip(bundled("en"))) {
+            assertEquals(ro.id, en.id)
+            assertEquals(ro.id, ro.blocks.map { it::class }, en.blocks.map { it::class })
+            assertEquals(ro.id, ro.approval == null, en.approval == null)
+        }
+        val titles = bundled("en").map { it.title }
+        for (sheet in bundled("en")) {
+            for (quoted in Regex("\"([^\"]+)\"").findAll(sheet.blocks.joinToString(" ") { it.text }).map { it.groupValues[1] }) {
+                assertTrue("${sheet.id} points to a sheet that does not exist: $quoted", quoted in titles || quoted == "AED")
+            }
+        }
+    }
+
+    @Test
+    fun englishApprovalLineApprovesToo() {
+        assertEquals("Dr. Ana Pop, 12.06.2027", parseSheet("a", "$sample\n\nApproved: Dr. Ana Pop, 12.06.2027").approval)
+    }
+
+    @Test
+    fun englishPhonesReadTheEnglishCopies() {
+        assertEquals("firstaid-en", sheetDirectory("en"))
+        assertEquals("firstaid", sheetDirectory("ro"))
+        assertEquals("firstaid", sheetDirectory("de"))
     }
 }
