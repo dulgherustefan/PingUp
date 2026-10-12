@@ -36,6 +36,13 @@ class KeyVault(context: Context) {
         File(dir, name).delete()
     }
 
+    fun exists(name: String): Boolean = File(dir, name).exists()
+
+    /** Keeps a secret that can no longer be decrypted as `name.bad`, so it isn't overwritten. */
+    fun setAside(name: String) {
+        File(dir, name).renameTo(File(dir, "$name.bad"))
+    }
+
     private fun key(): SecretKey {
         val store = KeyStore.getInstance(PROVIDER).apply { load(null) }
         (store.getKey(ALIAS, null) as? SecretKey)?.let { return it }

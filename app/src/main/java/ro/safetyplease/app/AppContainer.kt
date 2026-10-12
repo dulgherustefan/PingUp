@@ -122,6 +122,7 @@ class AppContainer(private val app: Application) {
 
     val crypto: Crypto = SodiumCrypto(LazySodiumAndroid(SodiumAndroid()))
     private val vault = KeyVault(app)
+    private var identityLost = false
     val identity: Identity = loadIdentity()
 
     private val dataDir = File(app.filesDir, "data")
@@ -300,6 +301,7 @@ class AppContainer(private val app: Application) {
     val verified: Boolean get() = keyChain.credential?.let { keyChain.status(it.certificate) == CertStatus.VALID } == true
 
     init {
+        if (identityLost) settings.update { it.copy(identityReplaced = true) }
         meshScope.launch {
             engine.start()
             chat.start()
@@ -562,6 +564,11 @@ class AppContainer(private val app: Application) {
 
     private fun loadIdentity(): Identity {
         vault.load(VAULT_IDENTITY)?.let { bytes -> Identity.import(bytes)?.let { return it } }
+        // a file we can't decrypt means the old identity is gone (its Keystore key was lost): keep it and say so
+        if (vault.exists(VAULT_IDENTITY)) {
+            vault.setAside(VAULT_IDENTITY)
+            identityLost = true
+        }
         return Identity.generate(crypto).also { vault.save(VAULT_IDENTITY, it.export()) }
     }
 

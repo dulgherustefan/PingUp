@@ -190,6 +190,15 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             // room under the last row so the bottom button doesn't cover it
             val listPadding = if (rows.isEmpty()) padding else PaddingValues(top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 72.dp)
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = listPadding) {
+                if (settings.identityReplaced) {
+                    item(key = "identity") {
+                        Banner(
+                            stringResource(R.string.identity_new_title), stringResource(R.string.identity_new_text),
+                            Modifier.padding(horizontal = Gutter, vertical = 6.dp), warning = true,
+                            dismiss = stringResource(R.string.problem_dismiss), onDismiss = { vm.dismissIdentityNotice() },
+                        )
+                    }
+                }
                 item(key = "problem") { NetworkProblem(vm, nearby.radio, gate, settings.batteryHintDismissed, Modifier.padding(horizontal = Gutter, vertical = 6.dp)) }
                 when {
                     rows.isEmpty() -> item(key = "empty") {

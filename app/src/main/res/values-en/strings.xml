@@ -71,6 +71,8 @@
     <string name="problem_battery_text">Take the app out of battery saving so messages arrive with the screen off too.</string>
     <string name="problem_battery_action">Allow background use</string>
     <string name="problem_dismiss">Got it</string>
+    <string name="identity_new_title">You have a new identity</string>
+    <string name="identity_new_text">This phone couldn’t read its encryption key any more. Friends can’t text you until you scan their code again.</string>
     <string name="report_wait_access">The report can’t leave without Bluetooth access.</string>
     <string name="report_wait_bluetooth">The report leaves as soon as you turn it on.</string>
     <string name="report_wait_location">On this Android version, the report leaves only with location on.</string>

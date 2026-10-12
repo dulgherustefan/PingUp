@@ -309,6 +309,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun dismissBatteryHint() = c.settings.update { it.copy(batteryHintDismissed = true) }
 
+    fun dismissIdentityNotice() = c.settings.update { it.copy(identityReplaced = false) }
+
     /** Off stops the service right away; on only saves the choice, the caller starts the mesh. */
     fun setMeshEnabled(on: Boolean) {
         c.settings.update { it.copy(meshEnabled = on) }

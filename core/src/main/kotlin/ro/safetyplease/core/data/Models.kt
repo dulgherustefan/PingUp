@@ -44,6 +44,8 @@ data class Settings(
     val notices: Boolean = false,
     /** Turned off from the app or the notification; stays off until turned back on. */
     val meshEnabled: Boolean = true,
+    /** The stored identity couldn't be read, so a new one was made; shown once, until dismissed. */
+    val identityReplaced: Boolean = false,
 )
 
 @Serializable

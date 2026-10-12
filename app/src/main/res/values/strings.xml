@@ -77,6 +77,8 @@
     <string name="problem_battery_text">Scoate aplicația din economisirea bateriei, ca mesajele să ajungă și cu ecranul stins.</string>
     <string name="problem_battery_action">Permite rularea în fundal</string>
     <string name="problem_dismiss">Am înțeles</string>
+    <string name="identity_new_title">Ai primit o identitate nouă</string>
+    <string name="identity_new_text">Telefonul nu și-a mai putut citi cheia de criptare. Prietenii nu-ți mai pot scrie până nu le scanezi din nou codul.</string>
     <string name="report_wait_access">Raportul nu poate pleca fără acces la Bluetooth.</string>
     <string name="report_wait_bluetooth">Raportul pleacă imediat ce îl pornești.</string>
     <string name="report_wait_location">Pe acest Android, raportul pleacă doar cu locația pornită.</string>
