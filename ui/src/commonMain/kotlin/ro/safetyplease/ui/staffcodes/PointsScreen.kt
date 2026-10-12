@@ -1,13 +1,5 @@
-package ro.safetyplease.app.ui.staffcodes
+package ro.safetyplease.ui.staffcodes
 
-import ro.safetyplease.ui.resources.staff_points_other
-import ro.safetyplease.ui.resources.staff_points_team
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.back
-import ro.safetyplease.ui.resources.staff_points_intro
-import ro.safetyplease.ui.resources.staff_points_sent
-import ro.safetyplease.ui.resources.staff_points_title
-import ro.safetyplease.ui.resources.staff_points_wait
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,21 +26,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
-import ro.safetyplease.ui.text.rememberNow
-import ro.safetyplease.app.ui.common.pointLevelColor
-import ro.safetyplease.app.ui.common.pointLevelLabel
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.control.SentPoint
 import ro.safetyplease.core.protocol.PointLevel
 import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.common.pointLevelColor
+import ro.safetyplease.ui.common.pointLevelLabel
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.GlassIconButton
 import ro.safetyplease.ui.designsystem.Gutter
@@ -60,6 +51,15 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.staff_points_intro
+import ro.safetyplease.ui.resources.staff_points_other
+import ro.safetyplease.ui.resources.staff_points_sent
+import ro.safetyplease.ui.resources.staff_points_team
+import ro.safetyplease.ui.resources.staff_points_title
+import ro.safetyplease.ui.resources.staff_points_wait
+import ro.safetyplease.ui.text.rememberNow
 
 /**
  * A staff phone's points of the site, its team's first, each with its three levels: one tap sends the status to the

@@ -1,9 +1,5 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.map_directions
-import ro.safetyplease.ui.resources.map_route
-import ro.safetyplease.ui.resources.map_route_unknown
 import androidx.compose.runtime.Composable
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
@@ -12,6 +8,10 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.compassSector
 import ro.safetyplease.core.venue.distanceMeters
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.map_directions
+import ro.safetyplease.ui.resources.map_route
+import ro.safetyplease.ui.resources.map_route_unknown
 
 /** "120 m spre nord" from [origin] to [to]; without an origin, a hint to share where you are. */
 @Composable

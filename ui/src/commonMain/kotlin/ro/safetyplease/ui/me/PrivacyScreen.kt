@@ -1,30 +1,5 @@
-package ro.safetyplease.app.ui.me
+package ro.safetyplease.ui.me
 
-import ro.safetyplease.ui.resources.privacy_camera_text
-import ro.safetyplease.ui.resources.privacy_camera_title
-import ro.safetyplease.ui.resources.privacy_contact_text
-import ro.safetyplease.ui.resources.privacy_contact_title
-import ro.safetyplease.ui.resources.privacy_delete_text
-import ro.safetyplease.ui.resources.privacy_delete_title
-import ro.safetyplease.ui.resources.privacy_internet_text
-import ro.safetyplease.ui.resources.privacy_internet_title
-import ro.safetyplease.ui.resources.privacy_kept_text
-import ro.safetyplease.ui.resources.privacy_kept_title
-import ro.safetyplease.ui.resources.privacy_location_text
-import ro.safetyplease.ui.resources.privacy_location_title
-import ro.safetyplease.ui.resources.privacy_metrics_text
-import ro.safetyplease.ui.resources.privacy_metrics_title
-import ro.safetyplease.ui.resources.privacy_never_text
-import ro.safetyplease.ui.resources.privacy_never_title
-import ro.safetyplease.ui.resources.privacy_sent_text
-import ro.safetyplease.ui.resources.privacy_sent_title
-import ro.safetyplease.ui.resources.privacy_staff_text
-import ro.safetyplease.ui.resources.privacy_staff_title
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.back
-import ro.safetyplease.ui.resources.privacy_intro
-import ro.safetyplease.ui.resources.privacy_title
-import ro.safetyplease.ui.resources.privacy_updated
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -37,8 +12,8 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.GlassIconButton
@@ -48,6 +23,31 @@ import ro.safetyplease.ui.designsystem.SectionTitle
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.body
 import ro.safetyplease.ui.designsystem.footnote
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.privacy_camera_text
+import ro.safetyplease.ui.resources.privacy_camera_title
+import ro.safetyplease.ui.resources.privacy_contact_text
+import ro.safetyplease.ui.resources.privacy_contact_title
+import ro.safetyplease.ui.resources.privacy_delete_text
+import ro.safetyplease.ui.resources.privacy_delete_title
+import ro.safetyplease.ui.resources.privacy_internet_text
+import ro.safetyplease.ui.resources.privacy_internet_title
+import ro.safetyplease.ui.resources.privacy_intro
+import ro.safetyplease.ui.resources.privacy_kept_text
+import ro.safetyplease.ui.resources.privacy_kept_title
+import ro.safetyplease.ui.resources.privacy_location_text
+import ro.safetyplease.ui.resources.privacy_location_title
+import ro.safetyplease.ui.resources.privacy_metrics_text
+import ro.safetyplease.ui.resources.privacy_metrics_title
+import ro.safetyplease.ui.resources.privacy_never_text
+import ro.safetyplease.ui.resources.privacy_never_title
+import ro.safetyplease.ui.resources.privacy_sent_text
+import ro.safetyplease.ui.resources.privacy_sent_title
+import ro.safetyplease.ui.resources.privacy_staff_text
+import ro.safetyplease.ui.resources.privacy_staff_title
+import ro.safetyplease.ui.resources.privacy_title
+import ro.safetyplease.ui.resources.privacy_updated
 
 /** What each privacy section is about, in reading order; the same text is in PRIVACY.md. */
 private val sections = listOf(

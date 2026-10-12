@@ -1,7 +1,5 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.sev_urgent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,11 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.ui.text.Labels
+import org.jetbrains.compose.resources.stringResource
+import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.IconCircle
@@ -26,7 +24,9 @@ import ro.safetyplease.ui.designsystem.StatusLabel
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
-import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.sev_urgent
+import ro.safetyplease.ui.text.Labels
 
 fun categoryIcon(category: Int): ImageVector = when (category) {
     IncidentCategory.MEDICAL -> Sym.Medical

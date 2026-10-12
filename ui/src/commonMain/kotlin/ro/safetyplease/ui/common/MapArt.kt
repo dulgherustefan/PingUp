@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathFillType
@@ -6,9 +6,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
+import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.designsystem.AppColors
 import ro.safetyplease.ui.designsystem.MEDICAL_ZONE
-import ro.safetyplease.core.venue.Venue
 
 /** Map icons: filled, on a 24 grid, so they read white on small colored circles. */
 object MapGlyph {

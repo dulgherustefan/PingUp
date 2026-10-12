@@ -1,9 +1,24 @@
-package ro.safetyplease.app.ui.me
+package ro.safetyplease.ui.me
 
-import ro.safetyplease.ui.resources.autonomy_profile_anchor
-import ro.safetyplease.ui.resources.autonomy_profile_economy
-import ro.safetyplease.ui.resources.autonomy_profile_leaf
-import ro.safetyplease.ui.resources.autonomy_profile_staff
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.jetbrains.compose.resources.stringResource
+import ro.safetyplease.core.mesh.PowerProfile
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.common.LowBatteryBanner
+import ro.safetyplease.ui.common.chargerText
+import ro.safetyplease.ui.common.helpOrigin
+import ro.safetyplease.ui.designsystem.GroupDivider
+import ro.safetyplease.ui.designsystem.GroupRow
+import ro.safetyplease.ui.designsystem.Gutter
+import ro.safetyplease.ui.designsystem.InsetGroup
+import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.autonomy_charger
 import ro.safetyplease.ui.resources.autonomy_charging
@@ -16,25 +31,10 @@ import ro.safetyplease.ui.resources.autonomy_left_text
 import ro.safetyplease.ui.resources.autonomy_level
 import ro.safetyplease.ui.resources.autonomy_minutes
 import ro.safetyplease.ui.resources.autonomy_over_day
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.ui.common.LowBatteryBanner
-import ro.safetyplease.app.ui.common.chargerText
-import ro.safetyplease.app.ui.common.helpOrigin
-import ro.safetyplease.core.mesh.PowerProfile
-import ro.safetyplease.ui.AppViewModel
-import ro.safetyplease.ui.Dest
-import ro.safetyplease.ui.designsystem.GroupDivider
-import ro.safetyplease.ui.designsystem.GroupRow
-import ro.safetyplease.ui.designsystem.Gutter
-import ro.safetyplease.ui.designsystem.InsetGroup
-import ro.safetyplease.ui.designsystem.Sym
+import ro.safetyplease.ui.resources.autonomy_profile_anchor
+import ro.safetyplease.ui.resources.autonomy_profile_economy
+import ro.safetyplease.ui.resources.autonomy_profile_leaf
+import ro.safetyplease.ui.resources.autonomy_profile_staff
 
 private const val MINUTES_IN_HOUR = 60
 private const val MAX_HOURS = 24

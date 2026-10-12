@@ -5,7 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.incidents.ESCALATE_AFTER_MS
 import ro.safetyplease.core.incidents.EscalationReminder
@@ -20,6 +19,12 @@ import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
+import ro.safetyplease.ui.common.helpOrigin
+import ro.safetyplease.ui.report.MEDICAL
+import ro.safetyplease.ui.report.reportStep
+import ro.safetyplease.ui.report.staysPut
+import ro.safetyplease.ui.report.stepLabel
+import ro.safetyplease.ui.report.stepNote
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.status_acknowledged
 import ro.safetyplease.ui.resources.status_acknowledged_pending

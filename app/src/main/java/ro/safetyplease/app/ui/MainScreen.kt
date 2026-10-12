@@ -1,14 +1,5 @@
 package ro.safetyplease.app.ui
 
-import ro.safetyplease.app.text.text
-import ro.safetyplease.ui.resources.location_precise_needed
-import ro.safetyplease.ui.resources.map_title
-import ro.safetyplease.ui.resources.tab_incidents
-import ro.safetyplease.ui.resources.tab_messages
-import ro.safetyplease.ui.resources.tab_report
-import org.jetbrains.compose.resources.StringResource
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.tab_unread
 import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
@@ -78,8 +69,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import org.jetbrains.compose.resources.pluralStringResource
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -91,11 +80,13 @@ import androidx.core.app.ActivityCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.app.demo.Demo
-import ro.safetyplease.ui.text.rememberNow
+import ro.safetyplease.app.text.text
 import ro.safetyplease.app.ui.chat.ConversationScreen
 import ro.safetyplease.app.ui.chat.MessagesScreen
-import ro.safetyplease.app.ui.common.ExerciseBanner
 import ro.safetyplease.app.ui.common.RadioGate
 import ro.safetyplease.app.ui.control.ControlScreen
 import ro.safetyplease.app.ui.control.ControlWindow
@@ -110,7 +101,6 @@ import ro.safetyplease.app.ui.map.PinScreen
 import ro.safetyplease.app.ui.me.AnchorScreen
 import ro.safetyplease.app.ui.me.EventScreen
 import ro.safetyplease.app.ui.me.MeScreen
-import ro.safetyplease.app.ui.me.PrivacyScreen
 import ro.safetyplease.app.ui.notices.NoticeAlert
 import ro.safetyplease.app.ui.notices.NoticeBands
 import ro.safetyplease.app.ui.notices.shownNotices
@@ -123,8 +113,6 @@ import ro.safetyplease.app.ui.report.MyReportsScreen
 import ro.safetyplease.app.ui.report.ReportScreen
 import ro.safetyplease.app.ui.report.ReportSentScreen
 import ro.safetyplease.app.ui.safety.DiscreetScreen
-import ro.safetyplease.app.ui.staffcodes.PointsScreen
-import ro.safetyplease.app.ui.staffcodes.StaffCodesScreen
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
@@ -132,6 +120,7 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.Tab
+import ro.safetyplease.ui.common.ExerciseBanner
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Backdrop
 import ro.safetyplease.ui.designsystem.FullScreen
@@ -146,7 +135,18 @@ import ro.safetyplease.ui.designsystem.backdropSource
 import ro.safetyplease.ui.designsystem.glass
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.rememberBackdrop
+import ro.safetyplease.ui.me.PrivacyScreen
 import ro.safetyplease.ui.push
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.location_precise_needed
+import ro.safetyplease.ui.resources.map_title
+import ro.safetyplease.ui.resources.tab_incidents
+import ro.safetyplease.ui.resources.tab_messages
+import ro.safetyplease.ui.resources.tab_report
+import ro.safetyplease.ui.resources.tab_unread
+import ro.safetyplease.ui.staffcodes.PointsScreen
+import ro.safetyplease.ui.staffcodes.StaffCodesScreen
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.core.data.Role as AppRole
 
 /** The mesh can't start without these. */

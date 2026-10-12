@@ -1,6 +1,11 @@
-package ro.safetyplease.app.ui.report
+package ro.safetyplease.ui.report
 
 import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.ui.isOpen
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.status_acknowledged
 import ro.safetyplease.ui.resources.status_acknowledged_pending
@@ -14,14 +19,9 @@ import ro.safetyplease.ui.resources.status_resolved
 import ro.safetyplease.ui.resources.status_sending
 import ro.safetyplease.ui.resources.status_unfounded
 import ro.safetyplease.ui.resources.status_waiting_link
-import ro.safetyplease.core.data.MyReport
-import ro.safetyplease.core.protocol.AckStatus
-import ro.safetyplease.core.protocol.IncidentCategory
-import ro.safetyplease.core.protocol.Severity
-import ro.safetyplease.ui.isOpen
 
 /** Venue place type of first aid, as in venue.json. */
-internal const val MEDICAL = "medical"
+const val MEDICAL = "medical"
 
 /** How far the report got, from 0 (waiting for a phone) to 4 (closed). A reopened incident is back with staff. */
 fun reportStep(report: MyReport): Int = when {

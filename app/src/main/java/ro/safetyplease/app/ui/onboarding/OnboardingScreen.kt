@@ -1,26 +1,5 @@
 package ro.safetyplease.app.ui.onboarding
 
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.back
-import ro.safetyplease.ui.resources.name_hint
-import ro.safetyplease.ui.resources.name_label
-import ro.safetyplease.ui.resources.name_placeholder
-import ro.safetyplease.ui.resources.name_reserved
-import ro.safetyplease.ui.resources.next
-import ro.safetyplease.ui.resources.onboarding_intro
-import ro.safetyplease.ui.resources.onboarding_later
-import ro.safetyplease.ui.resources.onboarding_not_112
-import ro.safetyplease.ui.resources.onboarding_not_now
-import ro.safetyplease.ui.resources.onboarding_permissions
-import ro.safetyplease.ui.resources.onboarding_permissions_text
-import ro.safetyplease.ui.resources.onboarding_start
-import ro.safetyplease.ui.resources.onboarding_welcome
-import ro.safetyplease.ui.resources.perm_bluetooth_text
-import ro.safetyplease.ui.resources.perm_bluetooth_title
-import ro.safetyplease.ui.resources.perm_location_text
-import ro.safetyplease.ui.resources.perm_location_title
-import ro.safetyplease.ui.resources.perm_notifications_text
-import ro.safetyplease.ui.resources.perm_notifications_title
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -67,14 +46,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.ui.common.MAX_NAME
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.app.ui.startPermissions
 import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.common.MAX_NAME
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppLogo
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -94,6 +73,27 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.largeTitle
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.push
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.name_hint
+import ro.safetyplease.ui.resources.name_label
+import ro.safetyplease.ui.resources.name_placeholder
+import ro.safetyplease.ui.resources.name_reserved
+import ro.safetyplease.ui.resources.next
+import ro.safetyplease.ui.resources.onboarding_intro
+import ro.safetyplease.ui.resources.onboarding_later
+import ro.safetyplease.ui.resources.onboarding_not_112
+import ro.safetyplease.ui.resources.onboarding_not_now
+import ro.safetyplease.ui.resources.onboarding_permissions
+import ro.safetyplease.ui.resources.onboarding_permissions_text
+import ro.safetyplease.ui.resources.onboarding_start
+import ro.safetyplease.ui.resources.onboarding_welcome
+import ro.safetyplease.ui.resources.perm_bluetooth_text
+import ro.safetyplease.ui.resources.perm_bluetooth_title
+import ro.safetyplease.ui.resources.perm_location_text
+import ro.safetyplease.ui.resources.perm_location_title
+import ro.safetyplease.ui.resources.perm_notifications_text
+import ro.safetyplease.ui.resources.perm_notifications_title
 
 /** Onboarding page margin, wider than list margins. */
 private val PageGutter = 24.dp

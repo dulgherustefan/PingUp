@@ -1,11 +1,5 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.me_open
-import ro.safetyplease.ui.resources.presence_near
-import ro.safetyplease.ui.resources.presence_never
-import ro.safetyplease.ui.resources.presence_seen
-import ro.safetyplease.ui.resources.presence_zone
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -16,11 +10,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import ro.safetyplease.ui.text.agoText
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.common.Nearby
@@ -28,6 +21,13 @@ import ro.safetyplease.ui.designsystem.Avatar
 import ro.safetyplease.ui.designsystem.GlassSize
 import ro.safetyplease.ui.designsystem.TouchTarget
 import ro.safetyplease.ui.designsystem.pressScale
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.me_open
+import ro.safetyplease.ui.resources.presence_near
+import ro.safetyplease.ui.resources.presence_never
+import ro.safetyplease.ui.resources.presence_seen
+import ro.safetyplease.ui.resources.presence_zone
+import ro.safetyplease.ui.text.agoText
 
 @Composable
 fun presenceText(friend: Friend, nearby: Nearby, now: Long): String = when {

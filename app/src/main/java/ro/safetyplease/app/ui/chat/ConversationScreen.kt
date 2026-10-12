@@ -1,23 +1,5 @@
 package ro.safetyplease.app.ui.chat
 
-import ro.safetyplease.ui.text.dayLabel
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.back
-import ro.safetyplease.ui.resources.chat_empty_text
-import ro.safetyplease.ui.resources.chat_hint
-import ro.safetyplease.ui.resources.chat_quick
-import ro.safetyplease.ui.resources.chat_send_zone
-import ro.safetyplease.ui.resources.group_members
-import ro.safetyplease.ui.resources.more_options
-import ro.safetyplease.ui.resources.msg_copy
-import ro.safetyplease.ui.resources.msg_delete
-import ro.safetyplease.ui.resources.msg_failed
-import ro.safetyplease.ui.resources.msg_group_delivered
-import ro.safetyplease.ui.resources.msg_queued
-import ro.safetyplease.ui.resources.msg_resend
-import ro.safetyplease.ui.resources.open_profile
-import ro.safetyplease.ui.resources.open_zone
-import ro.safetyplease.ui.resources.send
 import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.activity.compose.BackHandler
@@ -101,8 +83,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
-import org.jetbrains.compose.resources.pluralStringResource
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -116,12 +96,10 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.ui.text.Labels
-import ro.safetyplease.ui.text.hopsText
-import ro.safetyplease.ui.text.rememberNow
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.app.ui.common.MapPin
 import ro.safetyplease.app.ui.common.VenueMap
-import ro.safetyplease.app.ui.common.presenceText
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.Friend
@@ -133,6 +111,7 @@ import ro.safetyplease.core.protocol.QuickCode
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.common.presenceText
 import ro.safetyplease.ui.designsystem.ActionTile
 import ro.safetyplease.ui.designsystem.AppMenu
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -161,6 +140,27 @@ import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.screenBackground
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.chat_empty_text
+import ro.safetyplease.ui.resources.chat_hint
+import ro.safetyplease.ui.resources.chat_quick
+import ro.safetyplease.ui.resources.chat_send_zone
+import ro.safetyplease.ui.resources.group_members
+import ro.safetyplease.ui.resources.more_options
+import ro.safetyplease.ui.resources.msg_copy
+import ro.safetyplease.ui.resources.msg_delete
+import ro.safetyplease.ui.resources.msg_failed
+import ro.safetyplease.ui.resources.msg_group_delivered
+import ro.safetyplease.ui.resources.msg_queued
+import ro.safetyplease.ui.resources.msg_resend
+import ro.safetyplease.ui.resources.open_profile
+import ro.safetyplease.ui.resources.open_zone
+import ro.safetyplease.ui.resources.send
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.dayLabel
+import ro.safetyplease.ui.text.hopsText
+import ro.safetyplease.ui.text.rememberNow
 import kotlin.math.max
 
 /** Messages from the same person closer than this form one run of grouped bubbles. */

@@ -50,13 +50,13 @@ import ro.safetyplease.app.platform.power.BatteryExemption
 import ro.safetyplease.app.text.quantityText
 import ro.safetyplease.app.text.text
 import ro.safetyplease.app.ui.common.BigCodeDialog
-import ro.safetyplease.app.ui.common.MAX_NAME
 import ro.safetyplease.app.ui.common.QrBadge
 import ro.safetyplease.app.ui.common.networkText
 import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.common.MAX_NAME
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ConfirmDialog
@@ -74,6 +74,7 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title1
+import ro.safetyplease.ui.me.BatteryGroup
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.anchor_cached
 import ro.safetyplease.ui.resources.anchor_peers

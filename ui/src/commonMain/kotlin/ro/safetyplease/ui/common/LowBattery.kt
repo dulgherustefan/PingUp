@@ -1,13 +1,5 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.low_battery_charger
-import ro.safetyplease.ui.resources.low_battery_show
-import ro.safetyplease.ui.resources.low_battery_text
-import ro.safetyplease.ui.resources.low_battery_text_only
-import ro.safetyplease.ui.resources.low_battery_title
-import ro.safetyplease.ui.resources.map_quick_charge
-import ro.safetyplease.ui.resources.map_text_only
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -20,16 +12,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.ui.designsystem.AppTheme
-import ro.safetyplease.ui.designsystem.Banner
-import ro.safetyplease.ui.designsystem.subheadline
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.mesh.BatteryState
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.Banner
+import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.low_battery_charger
+import ro.safetyplease.ui.resources.low_battery_show
+import ro.safetyplease.ui.resources.low_battery_text
+import ro.safetyplease.ui.resources.low_battery_text_only
+import ro.safetyplease.ui.resources.low_battery_title
+import ro.safetyplease.ui.resources.map_quick_charge
+import ro.safetyplease.ui.resources.map_text_only
 
 /** The nearest place to charge the phone, as the line a banner or a row shows; null if the venue has none. */
 @Composable

@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.control
+package ro.safetyplease.ui.control
 
 import ro.safetyplease.core.control.LogEntry
 import ro.safetyplease.core.incidents.Recognition
@@ -6,7 +6,7 @@ import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.Severity
 
 /** The words of the radio phrase, from strings.xml. */
-internal class RadioWords(
+class RadioWords(
     val category: (Int) -> String,
     val urgent: String,
     val notUrgent: String,
@@ -30,7 +30,7 @@ private val Spaces = Regex("\\s+")
  * "Medical, urgent, răspunde: nu, respiră normal: nu știu, E2 lângă Toalete camping, Scena principală, raportor cu
  * tricou roșu, a leșinat lângă turnul de lumini."
  */
-internal fun radioPhrase(report: LogEntry, zoneName: String, landmark: String, words: RadioWords): String {
+fun radioPhrase(report: LogEntry, zoneName: String, landmark: String, words: RadioWords): String {
     val spot = listOf(report.grid, if (landmark.isBlank()) "" else words.near(landmark)).filter { it.isNotBlank() }.joinToString(" ")
     val place = listOf(spot, zoneName).filter { it.isNotBlank() }.joinToString(", ").ifEmpty { words.unknownPlace }
     val (hint, text) = Recognition.split(report.description)

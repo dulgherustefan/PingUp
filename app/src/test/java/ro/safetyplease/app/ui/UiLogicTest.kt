@@ -6,8 +6,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.app.MainActivity
-import ro.safetyplease.app.ui.common.helpOrigin
-import ro.safetyplease.app.ui.common.onSite
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.data.StaffIncident
@@ -31,6 +29,8 @@ import ro.safetyplease.ui.chatPoint
 import ro.safetyplease.ui.closedIncidents
 import ro.safetyplease.ui.closedReports
 import ro.safetyplease.ui.common.Nearby
+import ro.safetyplease.ui.common.helpOrigin
+import ro.safetyplease.ui.common.onSite
 import ro.safetyplease.ui.currentPoint
 import ro.safetyplease.ui.isOpen
 import ro.safetyplease.ui.landing

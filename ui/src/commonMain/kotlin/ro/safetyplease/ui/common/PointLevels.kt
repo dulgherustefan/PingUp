@@ -1,14 +1,14 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.core.protocol.PointLevel
+import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.point_level_busy
 import ro.safetyplease.ui.resources.point_level_closed
 import ro.safetyplease.ui.resources.point_level_free
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-import ro.safetyplease.ui.designsystem.AppTheme
-import ro.safetyplease.core.protocol.PointLevel
 
 /** The words of a point's status level, as staff send it and the console shows it. */
 fun pointLevelLabel(level: Int): StringResource = when (level) {

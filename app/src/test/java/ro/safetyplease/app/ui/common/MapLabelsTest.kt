@@ -9,6 +9,14 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ro.safetyplease.ui.common.MapCorner
+import ro.safetyplease.ui.common.MeasuredName
+import ro.safetyplease.ui.common.ZoneLabelMode
+import ro.safetyplease.ui.common.breaksWord
+import ro.safetyplease.ui.common.chooseZoneLabel
+import ro.safetyplease.ui.common.cornerRect
+import ro.safetyplease.ui.common.firstFree
+import ro.safetyplease.ui.common.placeClear
 
 class MapLabelsTest {
     private val clean = MeasuredName(40f, 28f, true)

@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -7,19 +7,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /** How a zone shows its name on the map: icon over name, icon beside name, just the icon, just the name, or nothing. */
-internal enum class ZoneLabelMode { Stacked, Beside, IconOnly, TextOnly, None }
+enum class ZoneLabelMode { Stacked, Beside, IconOnly, TextOnly, None }
 
 /** A zone name as measured for the room it has: its size, and whether it fit whole, with no ellipsis and no word cut in two. */
-internal class MeasuredName(val width: Float, val height: Float, val clean: Boolean)
+class MeasuredName(val width: Float, val height: Float, val clean: Boolean)
 
 /** Below this much room a zone gets only its icon: a name squeezed into a narrow zone wraps badly and reads worse than none. */
-internal val ZoneLabelMinWidth: Dp = 44.dp
+val ZoneLabelMinWidth: Dp = 44.dp
 
 /**
  * Picks what a zone shows for [roomWidth] by [roomHeight]; [icon] is the badge's diameter (0 without one) and [gap] the
  * space between it and the name. A name that doesn't fit whole is never shown cut: the zone falls back to its icon.
  */
-internal fun chooseZoneLabel(
+fun chooseZoneLabel(
     roomWidth: Float,
     roomHeight: Float,
     icon: Float,
@@ -40,14 +40,14 @@ internal fun chooseZoneLabel(
 }
 
 /** True when a line of the wrapped [text] ends inside a word; [lineEnds] are the end offsets of its lines. */
-internal fun breaksWord(text: String, lineEnds: List<Int>): Boolean =
+fun breaksWord(text: String, lineEnds: List<Int>): Boolean =
     lineEnds.dropLast(1).any { end -> end in 1 until text.length && !text[end - 1].isWhitespace() && !text[end].isWhitespace() && text[end - 1] != '-' }
 
 /**
  * Where a block of [size] goes: as close to [preferred] as it can, inside [within] and clear of every rectangle in [avoid];
  * null if there is no such place.
  */
-internal fun placeClear(size: Size, preferred: Offset, within: Rect, avoid: List<Rect>): Offset? {
+fun placeClear(size: Size, preferred: Offset, within: Rect, avoid: List<Rect>): Offset? {
     if (size.width > within.width || size.height > within.height) return null
     fun fit(o: Offset) = Offset(o.x.coerceIn(within.left, within.right - size.width), o.y.coerceIn(within.top, within.bottom - size.height))
     fun clear(o: Offset) = avoid.none { Rect(o, size).overlaps(it) }
@@ -72,12 +72,12 @@ enum class MapCorner(val atEnd: Boolean, val atBottom: Boolean) {
 class MapReserve(val corner: MapCorner, val width: Dp, val height: Dp)
 
 /** The rectangle of [width] by [height] in [corner] of a [canvas], [marginX] and [marginY] in from the edges. */
-internal fun cornerRect(corner: MapCorner, canvas: Size, width: Float, height: Float, marginX: Float = 0f, marginY: Float = 0f): Rect {
+fun cornerRect(corner: MapCorner, canvas: Size, width: Float, height: Float, marginX: Float = 0f, marginY: Float = 0f): Rect {
     val left = if (corner.atEnd) canvas.width - marginX - width else marginX
     val top = if (corner.atBottom) canvas.height - marginY - height else marginY
     return Rect(left, top, left + width, top + height)
 }
 
 /** The first of [candidates] that overlaps none of [avoid]; the first one if all do. */
-internal fun firstFree(candidates: List<Rect>, avoid: List<Rect>): Rect =
+fun firstFree(candidates: List<Rect>, avoid: List<Rect>): Rect =
     candidates.firstOrNull { c -> avoid.none { c.overlaps(it) } } ?: candidates.first()

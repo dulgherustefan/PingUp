@@ -1,7 +1,21 @@
 package ro.safetyplease.app.ui.control
 
+import android.content.res.Resources
 import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.app.text.quantityText
+import ro.safetyplease.app.text.text
 import ro.safetyplease.app.text.textArray
+import ro.safetyplease.core.incidents.Routing
+import ro.safetyplease.core.report.Durations
+import ro.safetyplease.core.report.EditionReport
+import ro.safetyplease.core.report.EditionReports
+import ro.safetyplease.core.report.Limit
+import ro.safetyplease.core.report.LimitKind
+import ro.safetyplease.core.report.Part
+import ro.safetyplease.core.report.ReportExport
+import ro.safetyplease.core.report.ReportNames
+import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.control.reopened
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.date_pattern_full
 import ro.safetyplease.ui.resources.date_pattern_recent
@@ -60,20 +74,7 @@ import ro.safetyplease.ui.resources.edition_widened_all
 import ro.safetyplease.ui.resources.edition_widened_role
 import ro.safetyplease.ui.resources.edition_window
 import ro.safetyplease.ui.resources.edition_window_value
-import ro.safetyplease.app.text.text
-import ro.safetyplease.app.text.quantityText
-import android.content.res.Resources
 import ro.safetyplease.ui.text.Labels
-import ro.safetyplease.core.incidents.Routing
-import ro.safetyplease.core.report.Durations
-import ro.safetyplease.core.report.EditionReport
-import ro.safetyplease.core.report.EditionReports
-import ro.safetyplease.core.report.Limit
-import ro.safetyplease.core.report.LimitKind
-import ro.safetyplease.core.report.Part
-import ro.safetyplease.core.report.ReportExport
-import ro.safetyplease.core.report.ReportNames
-import ro.safetyplease.core.venue.Venue
 import java.text.SimpleDateFormat
 import java.util.Date
 

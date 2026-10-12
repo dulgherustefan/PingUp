@@ -1,15 +1,15 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
+import androidx.compose.runtime.Composable
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
+import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.incident_danger_continues
 import ro.safetyplease.ui.resources.incident_from_staff
 import ro.safetyplease.ui.resources.incident_people
 import ro.safetyplease.ui.resources.incident_triage
-import androidx.compose.runtime.Composable
-import org.jetbrains.compose.resources.pluralStringResource
-import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.ui.text.Labels
-import ro.safetyplease.core.protocol.Answer
 
 /**
  * What a report says beyond its words, in one line: the triage answers as given, "don't know" included, and for a

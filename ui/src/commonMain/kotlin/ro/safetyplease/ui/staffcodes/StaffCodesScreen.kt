@@ -1,23 +1,5 @@
-package ro.safetyplease.app.ui.staffcodes
+package ro.safetyplease.ui.staffcodes
 
-import ro.safetyplease.ui.resources.staff_code_handed_over
-import ro.safetyplease.ui.resources.staff_code_on_scene
-import org.jetbrains.compose.resources.StringResource
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.back
-import ro.safetyplease.ui.resources.cancel
-import ro.safetyplease.ui.resources.report_rate_limited
-import ro.safetyplease.ui.resources.staff_code_danger
-import ro.safetyplease.ui.resources.staff_code_medic
-import ro.safetyplease.ui.resources.staff_code_reinforcements
-import ro.safetyplease.ui.resources.staff_codes_intro
-import ro.safetyplease.ui.resources.staff_codes_moved
-import ro.safetyplease.ui.resources.staff_codes_none
-import ro.safetyplease.ui.resources.staff_codes_nothing
-import ro.safetyplease.ui.resources.staff_codes_sent
-import ro.safetyplease.ui.resources.staff_codes_state_title
-import ro.safetyplease.ui.resources.staff_codes_title
-import ro.safetyplease.ui.resources.staff_points_open
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,16 +30,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import org.jetbrains.compose.resources.pluralStringResource
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
-import ro.safetyplease.ui.text.Labels
-import ro.safetyplease.ui.text.rememberNow
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.incidents.StaffCode
 import ro.safetyplease.core.incidents.StaffCodes
@@ -76,6 +57,25 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.cancel
+import ro.safetyplease.ui.resources.report_rate_limited
+import ro.safetyplease.ui.resources.staff_code_danger
+import ro.safetyplease.ui.resources.staff_code_handed_over
+import ro.safetyplease.ui.resources.staff_code_medic
+import ro.safetyplease.ui.resources.staff_code_on_scene
+import ro.safetyplease.ui.resources.staff_code_reinforcements
+import ro.safetyplease.ui.resources.staff_codes_intro
+import ro.safetyplease.ui.resources.staff_codes_moved
+import ro.safetyplease.ui.resources.staff_codes_none
+import ro.safetyplease.ui.resources.staff_codes_nothing
+import ro.safetyplease.ui.resources.staff_codes_sent
+import ro.safetyplease.ui.resources.staff_codes_state_title
+import ro.safetyplease.ui.resources.staff_codes_title
+import ro.safetyplease.ui.resources.staff_points_open
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.rememberNow
 
 /**
  * The field phone's quick codes: big buttons, one tap each, nothing typed. The first three go out as staff reports with

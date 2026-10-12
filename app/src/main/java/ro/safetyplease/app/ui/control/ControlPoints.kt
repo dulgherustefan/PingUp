@@ -1,19 +1,5 @@
 package ro.safetyplease.app.ui.control
 
-import org.jetbrains.compose.resources.StringResource
-import ro.safetyplease.ui.resources.control_cell_fails
-import ro.safetyplease.ui.resources.control_cell_no_network
-import ro.safetyplease.ui.resources.control_cell_unknown
-import ro.safetyplease.ui.resources.control_cell_works
-import ro.safetyplease.ui.resources.control_layer_cellular
-import ro.safetyplease.ui.resources.control_layer_incidents
-import ro.safetyplease.ui.resources.control_layer_mesh
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.control_points_age
-import ro.safetyplease.ui.resources.control_points_empty
-import ro.safetyplease.ui.resources.control_points_none
-import ro.safetyplease.ui.resources.control_points_stale
-import ro.safetyplease.ui.resources.control_points_title
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,23 +20,37 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.ui.common.pointLevelColor
-import ro.safetyplease.app.ui.common.pointLevelLabel
-import ro.safetyplease.ui.designsystem.AppColors
-import ro.safetyplease.ui.designsystem.AppTheme
-import ro.safetyplease.ui.designsystem.footnote
-import ro.safetyplease.ui.designsystem.headline
-import ro.safetyplease.ui.designsystem.subheadline
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.control.CellData
 import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.control.PointReport
 import ro.safetyplease.core.control.SquareCoverage
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.common.pointLevelColor
+import ro.safetyplease.ui.common.pointLevelLabel
+import ro.safetyplease.ui.designsystem.AppColors
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.footnote
+import ro.safetyplease.ui.designsystem.headline
+import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.control_cell_fails
+import ro.safetyplease.ui.resources.control_cell_no_network
+import ro.safetyplease.ui.resources.control_cell_unknown
+import ro.safetyplease.ui.resources.control_cell_works
+import ro.safetyplease.ui.resources.control_layer_cellular
+import ro.safetyplease.ui.resources.control_layer_incidents
+import ro.safetyplease.ui.resources.control_layer_mesh
+import ro.safetyplease.ui.resources.control_points_age
+import ro.safetyplease.ui.resources.control_points_empty
+import ro.safetyplease.ui.resources.control_points_none
+import ro.safetyplease.ui.resources.control_points_stale
+import ro.safetyplease.ui.resources.control_points_title
 
 /** What the console's map shows over the site grid besides the points. */
 internal enum class MapLayer(val label: StringResource) {
