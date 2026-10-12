@@ -92,6 +92,9 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var confirmLeave by remember { mutableStateOf(false) }
     var bigCode by remember { mutableStateOf(false) }
     var confirmMetrics by remember { mutableStateOf(false) }
+    var gnss by remember { mutableStateOf(false) }
+    val online by vm.c.gnssPrewarm.online.collectAsStateWithLifecycle()
+    val searching by vm.c.location.searching.collectAsStateWithLifecycle()
     var versionTaps by remember { mutableIntStateOf(0) }
     val haptics = rememberHaptics()
     val scroll = rememberScrollState()
@@ -141,6 +144,17 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
                 BatteryGroup(vm)
 
+                // offline the first fix needs the orbit data the chip downloads while there is internet
+                if (online || searching) {
+                    InsetGroup {
+                        if (searching) {
+                            GroupRow(stringResource(R.string.gnss_searching), subtitle = stringResource(R.string.gnss_searching_text), icon = Sym.Place)
+                        } else {
+                            GroupRow(stringResource(R.string.gnss_prewarm), subtitle = stringResource(R.string.gnss_prewarm_text), icon = Sym.Place)
+                        }
+                    }
+                }
+
                 InsetGroup {
                     SwitchRow(
                         stringResource(R.string.me_share_zone), settings.shareZone, vm::setShareZone,
@@ -173,7 +187,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     }
                 }
 
-                if (settings.role != AppRole.PARTICIPANT || vm.demoUnlocked) PilotGroup(vm, settings.role, settings.networkLog) { confirmMetrics = true }
+                if (settings.role != AppRole.PARTICIPANT || vm.demoUnlocked) PilotGroup(vm, settings.role, settings.networkLog, { gnss = true }) { confirmMetrics = true }
 
                 InsetGroup {
                     GroupRow(
@@ -218,6 +232,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     }
 
     if (bigCode) BigCodeDialog(code, settings.nickname) { bigCode = false }
+    if (gnss) GnssPanel(vm) { gnss = false }
     if (confirmMetrics) {
         AppDialog(
             { confirmMetrics = false }, stringResource(R.string.metrics_export_title), stringResource(R.string.metrics_export_confirm),
@@ -263,11 +278,11 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 }
 
 /**
- * The pilot's tools: on organiser phones the opt-in mobile network log, everywhere the metrics export, and on the
- * console the reporters' metrics to join with its log.
+ * The pilot's tools: on organiser phones the opt-in mobile network log, everywhere the metrics export and the GNSS
+ * diagnostic, and on the console the reporters' metrics to join with its log.
  */
 @Composable
-private fun PilotGroup(vm: AppViewModel, role: AppRole, networkLog: Boolean, onExport: () -> Unit) {
+private fun PilotGroup(vm: AppViewModel, role: AppRole, networkLog: Boolean, onGnss: () -> Unit, onExport: () -> Unit) {
     val context = LocalContext.current
     val resources = LocalResources.current
     val records by vm.c.reporterMetrics.state.collectAsStateWithLifecycle()
@@ -295,6 +310,8 @@ private fun PilotGroup(vm: AppViewModel, role: AppRole, networkLog: Boolean, onE
             stringResource(R.string.me_metrics_export), subtitle = stringResource(R.string.me_metrics_export_text), icon = Sym.Notes,
             chevron = true, onClick = onExport,
         )
+        GroupDivider()
+        GroupRow(stringResource(R.string.gnss_title), subtitle = stringResource(R.string.gnss_row_text), icon = Sym.Science, chevron = true, onClick = onGnss)
         if (role == AppRole.CONTROL) {
             val count = records.reports.size
             GroupDivider()

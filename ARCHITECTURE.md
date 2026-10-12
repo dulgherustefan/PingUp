@@ -38,6 +38,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `metrics/` | Metricile de pilot: timpii raportorului, instantaneele rețelei mesh și jurnalul rețelei mobile (secțiunea de mai jos). |
 | `data/` | Modelele salvate, `JsonStore` (fișiere JSON scrise atomic) și `ChatStore` (chat-ul, câte un fișier pe conversație). |
 | `venue/` | Harta evenimentului din `venue.json` sau din pachetul de eveniment: zone, punct de întâlnire, grila sitului (A1, B2...). |
+| `location/` | Poziția fără Android: porțile de calitate ale fixărilor (`FixGate`: precizie, viteze imposibile, apă), ciclul de lucru al GNSS-ului (`DutyCycle`), direcția din curs sau busolă, regula L5 și jurnalul de diagnostic GNSS cu CSV-ul lui. |
 | `util/` | Octeți, hex, `sha256`, ceasul. |
 
 Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.

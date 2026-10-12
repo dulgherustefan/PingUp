@@ -67,7 +67,8 @@ fun DiscreetScreen(vm: AppViewModel) {
 
     LifecycleResumeEffect(Unit) {
         vm.c.location.start()
-        onPauseOrDispose { }
+        vm.c.location.urgent(true)
+        onPauseOrDispose { vm.c.location.urgent(false) }
     }
 
     NavScreen(

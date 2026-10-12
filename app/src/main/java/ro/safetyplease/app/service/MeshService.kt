@@ -35,7 +35,8 @@ import ro.safetyplease.core.metrics.NetworkLog
 
 /**
  * Keeps the mesh running with the screen off. Android requires a connectedDevice foreground service
- * with a persistent notification for that.
+ * with a persistent notification for that. While a location share session runs the service also holds the location
+ * type, added only from a visible screen ([shareLocation]); there is no background location permission.
  */
 class MeshService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -56,10 +57,8 @@ class MeshService : Service() {
     override fun onCreate() {
         super.onCreate()
         container = (application as App).container
-        val anchor = container.settings.value.role == Role.ANCHOR
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
         try {
-            ServiceCompat.startForeground(this, Notifier.FOREGROUND_ID, container.notifier.foreground(0, anchor), type)
+            goForeground(location = false)
         } catch (e: Exception) {
             // Android 12+ forbids starting it from the background after the process was killed, unless battery
             // optimization is off; the user brings it back by opening the app
@@ -141,7 +140,21 @@ class MeshService : Service() {
         }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    private fun goForeground(location: Boolean) {
+        val anchor = container.settings.value.role == Role.ANCHOR
+        var type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
+        if (location && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        ServiceCompat.startForeground(this, Notifier.FOREGROUND_ID, container.notifier.foreground(container.engine.state.value.readyLinks, anchor), type)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (running && intent?.hasExtra(EXTRA_LOCATION) == true) {
+            val location = intent.getBooleanExtra(EXTRA_LOCATION, false) && container.location.hasPermission()
+            // Android refuses the location type when the app is not visible; the mesh keeps its own type then
+            runCatching { goForeground(location) }.onFailure { runCatching { goForeground(location = false) } }
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         if (running) {
@@ -156,6 +169,7 @@ class MeshService : Service() {
     companion object {
         private const val PREFS = "mesh_service"
         private const val KEY_WANTED = "wanted"
+        private const val EXTRA_LOCATION = "location"
 
         @Volatile
         var running = false
@@ -163,6 +177,12 @@ class MeshService : Service() {
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, MeshService::class.java))
+        }
+
+        /** A share session started or ended; called from a visible screen, the only time Android allows the location type. */
+        fun shareLocation(context: Context, on: Boolean) {
+            if (!running) return
+            ContextCompat.startForegroundService(context, Intent(context, MeshService::class.java).putExtra(EXTRA_LOCATION, on))
         }
 
         fun stop(context: Context) {

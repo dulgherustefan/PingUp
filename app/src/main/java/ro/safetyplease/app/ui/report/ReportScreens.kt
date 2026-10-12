@@ -256,8 +256,9 @@ fun ReportScreen(vm: AppViewModel) {
     var locationCheck by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) {
         vm.c.location.start()
+        vm.c.location.urgent(true)
         locationCheck++
-        onPauseOrDispose { }
+        onPauseOrDispose { vm.c.location.urgent(false) }
     }
 
     var category by rememberSaveable { mutableIntStateOf(0) }

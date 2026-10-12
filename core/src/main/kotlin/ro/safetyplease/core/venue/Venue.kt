@@ -47,6 +47,8 @@ data class Venue(
     val paths: List<List<GeoPoint>> = emptyList(),
     /** The organiser has a safeguarding team that answers discreet reports; without it the app does not offer them. */
     val safeguarding: Boolean = false,
+    /** Lakes, the sea, rivers: a fix inside one is a GNSS error, since nobody stands there. */
+    val water: List<List<GeoPoint>> = emptyList(),
 ) {
     fun zoneAt(lat: Double, lon: Double): Zone? = zones.firstOrNull { pointInPolygon(lat, lon, it.polygon) }
 

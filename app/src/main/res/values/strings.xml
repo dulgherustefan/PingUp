@@ -955,4 +955,26 @@
     <string name="notice_not_sent">Anunțul nu a plecat. Verifică codul de tură.</string>
     <string name="notice_minutes">%1$d min</string>
     <string name="notice_hours">%1$d h</string>
+    <string name="gnss_title">Diagnostic GNSS</string>
+    <string name="gnss_row_text">Sateliți, L5, precizie și un CSV pe minut, pentru măsurătorile pe telefoane.</string>
+    <string name="gnss_export">Exportă CSV</string>
+    <string name="gnss_yes">da</string>
+    <string name="gnss_no">nu</string>
+    <string name="gnss_unknown">necunoscut</string>
+    <string name="gnss_l5">L5: %1$s</string>
+    <string name="gnss_sats">Sateliți în fixare: %1$d</string>
+    <string name="gnss_cn0">C/N0 mediu: %1$s dB-Hz</string>
+    <string name="gnss_carriers">Frecvențe: %1$s MHz</string>
+    <string name="gnss_ttff">Prima fixare: %1$s s</string>
+    <string name="gnss_accuracy">Precizie: mediană %1$s m, cea mai bună %2$s m, cea mai slabă %3$s m</string>
+    <string name="gnss_fixes">Fixări: %1$d, cu L5: %2$s</string>
+    <string name="gnss_mode">Măsurare cu ecranul stins: %1$s</string>
+    <string name="gnss_mode_off">oprită</string>
+    <string name="gnss_mode_auto">automată</string>
+    <string name="gnss_mode_every">la %1$d s</string>
+    <string name="gnss_mode_text">Atinge ca să schimbi. Pornită, GPS-ul merge și cu ecranul stins până o oprești.</string>
+    <string name="gnss_prewarm">Deschide Ping Up cât mai ai internet</string>
+    <string name="gnss_prewarm_text">Telefonul ia acum datele sateliților, ca la festival să te găsească în câteva secunde, fără semnal.</string>
+    <string name="gnss_searching">Caut sateliți, până la 30 s</string>
+    <string name="gnss_searching_text">N-a mai fost o poziție de peste o oră. Sub cerul liber merge mai repede.</string>
 </resources>

@@ -79,7 +79,8 @@ fun StaffCodesScreen(vm: AppViewModel) {
     // the position is attached to a report whenever there is a fix, so GPS starts with the screen
     LifecycleResumeEffect(Unit) {
         vm.c.location.start()
-        onPauseOrDispose { }
+        vm.c.location.urgent(true)
+        onPauseOrDispose { vm.c.location.urgent(false) }
     }
     LaunchedEffect(result) {
         if (result != null) {

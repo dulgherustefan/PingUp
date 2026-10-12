@@ -932,4 +932,26 @@
     <string name="notice_not_sent">The notice didn’t go out. Check the shift code.</string>
     <string name="notice_minutes">%1$d min</string>
     <string name="notice_hours">%1$d h</string>
+    <string name="gnss_title">GNSS diagnostic</string>
+    <string name="gnss_row_text">Satellites, L5, accuracy and a CSV per minute, for measuring on phones.</string>
+    <string name="gnss_export">Export CSV</string>
+    <string name="gnss_yes">yes</string>
+    <string name="gnss_no">no</string>
+    <string name="gnss_unknown">unknown</string>
+    <string name="gnss_l5">L5: %1$s</string>
+    <string name="gnss_sats">Satellites in fix: %1$d</string>
+    <string name="gnss_cn0">Mean C/N0: %1$s dB-Hz</string>
+    <string name="gnss_carriers">Frequencies: %1$s MHz</string>
+    <string name="gnss_ttff">First fix: %1$s s</string>
+    <string name="gnss_accuracy">Accuracy: median %1$s m, best %2$s m, worst %3$s m</string>
+    <string name="gnss_fixes">Fixes: %1$d, with L5: %2$s</string>
+    <string name="gnss_mode">Measuring with the screen off: %1$s</string>
+    <string name="gnss_mode_off">off</string>
+    <string name="gnss_mode_auto">automatic</string>
+    <string name="gnss_mode_every">every %1$d s</string>
+    <string name="gnss_mode_text">Tap to change. While on, GPS keeps running with the screen off until you stop it.</string>
+    <string name="gnss_prewarm">Open Ping Up while you still have internet</string>
+    <string name="gnss_prewarm_text">Your phone is getting satellite data now, so at the festival it finds you in seconds, with no signal.</string>
+    <string name="gnss_searching">Looking for satellites, up to 30 s</string>
+    <string name="gnss_searching_text">There has been no position for over an hour. It is faster under open sky.</string>
 </resources>

@@ -33,6 +33,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import ro.safetyplease.app.platform.ble.BleRadio
 import ro.safetyplease.app.platform.keystore.KeyVault
+import ro.safetyplease.app.platform.location.GnssPrewarm
 import ro.safetyplease.app.platform.location.LocationSource
 import ro.safetyplease.app.platform.network.MobileNetwork
 import ro.safetyplease.app.platform.power.BatteryMonitor
@@ -226,7 +227,8 @@ class AppContainer(private val app: Application) {
     )
 
     val notifier = Notifier(app, venue, exercise)
-    val location = LocationSource(app)
+    val location = LocationSource(app, venue.water) { battery.state.value.percent }
+    val gnssPrewarm = GnssPrewarm(app)
 
     /** The battery, with the power profile in force and how long it lasts at that profile's pace. */
     val battery = BatteryMonitor(app, clock) { percent, charging ->
