@@ -46,6 +46,10 @@ class JsonStore<T>(
     val value: T get() = _state.value
     private val dirty = Channel<Unit>(Channel.CONFLATED)
 
+    /** Reset and not updated since: a write still pending from before must not bring the file back. */
+    @Volatile
+    private var cleared = false
+
     init {
         scope.launch {
             for (signal in dirty) {
@@ -57,6 +61,7 @@ class JsonStore<T>(
 
     fun update(transform: (T) -> T) {
         _state.update(transform)
+        cleared = false
         dirty.trySend(Unit)
     }
 
@@ -69,6 +74,7 @@ class JsonStore<T>(
             file.delete()
             backup.delete()
             unreadable = false
+            cleared = true
         }
     }
 
@@ -89,7 +95,7 @@ class JsonStore<T>(
 
     private fun write(value: T) {
         synchronized(file) {
-            if (unreadable) return
+            if (unreadable || cleared) return
             file.parentFile?.mkdirs()
             val tmp = File(file.path + ".tmp")
             val stored = buildJsonObject {

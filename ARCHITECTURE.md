@@ -32,7 +32,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `chat/` | Prietenii, grupurile, mesajele și reîncercările. |
 | `incidents/` | Rapoartele, confirmările și stările din teren ale staff-ului, urgența dedusă din triaj, anulările de verificat și semnalarea rapoartelor venite din aceeași zonă în același timp. |
 | `control/` | Jurnalul consolei de control: rapoartele, ACK-urile cu semnături și deciziile operatorului, starea fiecărui incident pe consolă, exportul CSV și JSON. |
-| `data/` | Modelele salvate și `JsonStore` (fișiere JSON scrise atomic). |
+| `data/` | Modelele salvate, `JsonStore` (fișiere JSON scrise atomic) și `ChatStore` (chat-ul, câte un fișier pe conversație). |
 | `venue/` | Harta evenimentului din `venue.json`: zone, punct de întâlnire, grila sitului (A1, B2...). |
 | `util/` | Octeți, hex, `sha256`, ceasul. |
 

@@ -51,7 +51,8 @@ class IncidentStatesTest {
             }
         }
 
-        fun oneZero(name: String, id: Long) = V10Node(scope.backgroundScope, net, name, id, clock) { event.staffCrypto.verifyAck(it) }
+        /** Give it a low [id]: it doesn't connect by itself, and only 1.1 phones with a higher nodeId connect to it. */
+        fun oneZero(name: String, id: Long) = V10Node(scope.backgroundScope, net, name, id, clock, { event.staffCrypto.verifyAck(it) })
     }
 
     /** A reporter, a medical team and the control console, all in range. */
@@ -384,7 +385,7 @@ class IncidentStatesTest {
     fun aOneZeroPhoneShowsTheClosestStatusItKnowsAndCountsNothingMalformed() = runTest {
         val w = World(this)
         val console = w.phone("K", "Control")
-        val old = w.oneZero("O", 0x7000_0000_0000_0007L)
+        val old = w.oneZero("O", 0x0070_0000_0000_0007L)
         w.net.start()
         advanceTimeBy(30_000)
 
@@ -437,7 +438,7 @@ class IncidentStatesTest {
         val w = World(this)
         val reporter = w.phone("R")
         val console = w.phone("K", "Control")
-        val old = w.oneZero("O", 0x7000_0000_0000_0007L)
+        val old = w.oneZero("O", 0x0070_0000_0000_0007L)
         w.net.outOfRange += setOf("R", "K")
         w.net.start()
         advanceTimeBy(30_000)

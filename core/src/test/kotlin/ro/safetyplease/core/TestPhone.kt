@@ -8,8 +8,8 @@ import ro.safetyplease.core.crypto.StaffCrypto
 import ro.safetyplease.core.crypto.StaffPublicKeys
 import ro.safetyplease.core.crypto.StaffSecretKeys
 import ro.safetyplease.core.crypto.testCrypto
-import ro.safetyplease.core.data.ChatData
 import ro.safetyplease.core.data.ChatMessage
+import ro.safetyplease.core.data.ChatStore
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.Group
 import ro.safetyplease.core.data.IncidentData
@@ -17,6 +17,7 @@ import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.IncidentManager
+import ro.safetyplease.core.mesh.CachedIncidents
 import ro.safetyplease.core.mesh.MeshConfig
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.PacketLog
@@ -51,17 +52,19 @@ class TestPhone(
     event: TestEvent,
     seed: Long,
     val identity: Identity = Identity.generate(testCrypto),
+    canAdvertise: Boolean = true,
 ) {
     private val bg = scope.backgroundScope
     val nodeId: Long get() = identity.nodeId
-    val radio = net.radio(name, nodeId.nodePrefix())
+    val radio = net.radio(name, nodeId.nodePrefix(), canAdvertise = canAdvertise)
+    val meshCache = JsonStore(File(dir, "$name-mesh.json"), CachedIncidents.serializer(), CachedIncidents(), bg)
     val engine = MeshEngine(
-        bg, radio, clock, Random(seed), nodeId, MeshConfig(allowTestPackets = true), PacketLog(false),
+        bg, radio, clock, Random(seed), nodeId, MeshConfig(allowTestPackets = true), PacketLog(false), meshCache,
     ) { event.staffCrypto.verifyAck(it) }
 
     val friends = JsonStore(File(dir, "$name-friends.json"), ListSerializer(Friend.serializer()), emptyList(), bg)
     val groups = JsonStore(File(dir, "$name-groups.json"), ListSerializer(Group.serializer()), emptyList(), bg)
-    val chatStore = JsonStore(File(dir, "$name-chat.json"), ChatData.serializer(), ChatData(), bg)
+    val chatStore = ChatStore(File(dir, "$name-chat"), bg)
     val incidentStore = JsonStore(File(dir, "$name-incidents.json"), IncidentData.serializer(), IncidentData(), bg)
 
     var staffSecret: StaffSecretKeys? = null
@@ -103,5 +106,7 @@ class TestPhone(
         other.chat.addFriend(chat.myCard())
     }
 
-    fun ignore(vararg others: TestPhone) = engine.setIgnoredPrefixes(others.map { it.nodeId.nodePrefix() }.toSet())
+    /** By the prefix the others advertise now, so no link opens, and by their nodeId's, so one that opens carries nothing. */
+    fun ignore(vararg others: TestPhone) =
+        engine.setIgnoredPrefixes(others.flatMap { listOf(it.radio.prefix, it.nodeId.nodePrefix()) }.toSet())
 }

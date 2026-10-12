@@ -54,7 +54,7 @@ class Protocol11Test {
 
     private class Node(name: String, val id: Long, world: World) {
         val radio = world.net.radio(name, id.nodePrefix())
-        val engine = MeshEngine(world.bg, radio, world.clock, Random(id), id, MeshConfig(), PacketLog(false), ::verify)
+        val engine = MeshEngine(world.bg, radio, world.clock, Random(id), id, MeshConfig(), PacketLog(false), verifyAck = ::verify)
         val received = mutableListOf<Packet>()
 
         /** Type and TTL of every frame this node put on the air. */
@@ -82,8 +82,9 @@ class Protocol11Test {
         const val A = 0x1000_0000_0000_000AL
         const val B = 0x2000_0000_0000_000BL
         const val C = 0x3000_0000_0000_000CL
-        const val OLD = 0x7000_0000_0000_0007L
-        const val OLD2 = 0x7100_0000_0000_0007L
+        // below every 1.1 nodeId here, so the 1.1 phones connect to them (ConnectionPolicy.initiates)
+        const val OLD = 0x0070_0000_0000_0007L
+        const val OLD2 = 0x0071_0000_0000_0007L
         const val UNKNOWN = 0x55
         const val NEWER_STATUS = 0x7e
     }
@@ -153,7 +154,8 @@ class Protocol11Test {
         repeat(11) { a.radio.inject(link, foreign) }
         advanceTimeBy(1_000)
         assertTrue("closed past ten a minute", a.radio.links.isEmpty())
-        advanceTimeBy(10_000)
+        // B waits out a cooldown; A connects at once or, if its prefix is the higher one, after the fallback
+        advanceTimeBy(ConnectionPolicy.FALLBACK_MS + 5_000)
         assertEquals("not banned: the peer connects again", 1, b.engine.state.value.readyLinks)
         assertNothingMalformed(listOf(a, b))
     }
@@ -284,7 +286,7 @@ class Protocol11Test {
         a.engine.publishReport(incidentId(1), ByteArray(80))
         a.engine.broadcast(PacketType.ANNOUNCEMENT, ByteArray(10))
         advanceTimeBy(5_000)
-        assertEquals(listOf(7), a.sentTtls(PacketType.PRIVATE))
+        assertEquals(listOf(PacketType.CHAT_TTL), a.sentTtls(PacketType.PRIVATE))
         assertEquals(listOf(7), a.sentTtls(PacketType.INCIDENT_REPORT))
         assertEquals(listOf(3), a.sentTtls(PacketType.ANNOUNCEMENT))
         assertTrue(a.sentTtls(PacketType.HELLO).all { it == 1 })
@@ -386,6 +388,29 @@ class Protocol11Test {
         assertEquals(AckStatus.RESOLVED, hub.engine.ackStatus(incidentId(2)))
         assertTrue(old.arrived.none { it in withheld })
         assertNothingMalformed(listOf(hub, a, c), listOf(old))
+    }
+
+    /**
+     * A 1.0 phone knows a peer by the nodeId's prefix it advertises, or by the address it connected to. A 1.1 phone
+     * advertises neither for long, and 1.0 can't read its prefix from HELLO: one extra link each time the prefix
+     * changes, and no endless reconnecting, whichever nodeId is the lower one.
+     */
+    @Test
+    fun aOneZeroPhoneNextToARotatingPrefixDoesNotKeepReconnecting() = runTest {
+        for ((newId, oldId) in listOf(A to OLD, OLD to A)) {
+            val w = World(this)
+            val new = w.v11("N", newId)
+            val old = V10Node(w.bg, w.net, "O", oldId, w.clock, ::verify, connects = true)
+            w.net.start()
+            advanceTimeBy(60 * 60_000L)
+            val rotations = new.radio.prefixes.size - 1
+            val connects = new.radio.connectAttempts.size + old.radio.connectAttempts.size
+            assertTrue("rotated $rotations times", rotations >= 3)
+            assertTrue("$connects connects for $rotations rotations", connects <= 2 * rotations + 2)
+            assertEquals(1, new.engine.state.value.readyLinks)
+            assertEquals(1, old.linkCount)
+            assertNothingMalformed(listOf(new), listOf(old))
+        }
     }
 
     @Test

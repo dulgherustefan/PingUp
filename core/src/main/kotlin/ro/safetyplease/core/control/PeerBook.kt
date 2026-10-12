@@ -25,7 +25,8 @@ object PeerBook {
         }
         for (link in state.links) {
             if (link.peerId == 0L) continue
-            val prefix = link.peerId.nodePrefix()
+            // keyed like its advertising, so a linked phone doesn't show twice
+            val prefix = link.prefix ?: link.peerId.nodePrefix()
             next[prefix] = HeardPeer(prefix, link.flags, true, wallMs)
         }
         if (next.size <= MAX_PEERS) return next

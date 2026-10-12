@@ -12,8 +12,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Hello
 import ro.safetyplease.core.protocol.INCIDENT_ID_SIZE
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentCancel
@@ -23,12 +27,16 @@ import ro.safetyplease.core.protocol.PacketCodec
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.nodePrefix
+import java.io.File
 import kotlin.random.Random
 
 private const val BAD_SIGNATURE: Byte = 0x66
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MeshEngineTest {
+    @get:Rule
+    val tmp = TemporaryFolder()
+
     private class Node(
         val name: String,
         val id: Long,
@@ -38,9 +46,10 @@ class MeshEngineTest {
         maxFrame: Int = 514,
         canAdvertise: Boolean = true,
         config: MeshConfig = MeshConfig(allowTestPackets = true),
+        cache: JsonStore<CachedIncidents>? = null,
     ) {
         val radio = net.radio(name, id.nodePrefix(), maxFrame, canAdvertise)
-        val engine = MeshEngine(scope, radio, clock, Random(id), id, config, PacketLog(false)) { payload ->
+        val engine = MeshEngine(scope, radio, clock, Random(id), id, config, PacketLog(false), cache) { payload ->
             payload.last() != BAD_SIGNATURE
         }
         val received = mutableListOf<Packet>()
@@ -63,6 +72,10 @@ class MeshEngineTest {
 
         val readyLinks: Int get() = engine.state.value.readyLinks
         fun ofType(type: Int) = received.filter { it.type == type }
+
+        /** By the prefix the others advertise now, so no link opens, and by their nodeId's, so one that opens carries nothing. */
+        fun ignore(vararg others: Node) =
+            engine.setIgnoredPrefixes(others.flatMap { listOf(it.radio.prefix, it.id.nodePrefix()) }.toSet())
     }
 
     private companion object {
@@ -70,24 +83,30 @@ class MeshEngineTest {
         const val B = 0x2000_0000_0000_000BL
         const val C = 0x3000_0000_0000_000CL
         const val D = 0x4000_0000_0000_000DL
+        const val V = 0x5000_0000_0000_000EL
     }
 
     private class World(scope: TestScope) {
         val clock = TestClock(scope.testScheduler)
         val bg = scope.backgroundScope
         val net = SimNet(bg)
-        fun node(name: String, id: Long, maxFrame: Int = 514, canAdvertise: Boolean = true) =
-            Node(name, id, net, bg, clock, maxFrame, canAdvertise)
+        fun node(name: String, id: Long, maxFrame: Int = 514, canAdvertise: Boolean = true, cache: JsonStore<CachedIncidents>? = null) =
+            Node(name, id, net, bg, clock, maxFrame, canAdvertise, cache = cache)
     }
 
-    /** The acceptance scenario chain: A ignores C and D, B ignores D, so A - B - C - D. */
+    /**
+     * The acceptance scenario chain: A and C, A and D, B and D ignore each other, so A - B - C - D. Both ends ignore,
+     * since chat goes on only some links and a link muted at one end only would swallow it.
+     */
     private fun TestScope.chain(world: World = World(this), midFrame: Int = 514): List<Node> {
         val a = world.node("A", A)
         val b = world.node("B", B, maxFrame = midFrame)
         val c = world.node("C", C)
         val d = world.node("D", D)
-        a.engine.setIgnoredPrefixes(setOf(C.nodePrefix(), D.nodePrefix()))
-        b.engine.setIgnoredPrefixes(setOf(D.nodePrefix()))
+        a.ignore(c, d)
+        b.ignore(d)
+        c.ignore(a)
+        d.ignore(a, b)
         world.net.start()
         advanceTimeBy(30_000)
         return listOf(a, b, c, d)
@@ -380,7 +399,8 @@ class MeshEngineTest {
     @Test
     fun peerSendingGarbageIsBannedForTenMinutes() = runTest {
         val world = World(this)
-        val a = world.node("A", A)
+        // A doesn't advertise, so the only way back is from the address B banned
+        val a = world.node("A", A, canAdvertise = false)
         val b = world.node("B", B)
         world.net.start()
         advanceTimeBy(5_000)
@@ -400,6 +420,31 @@ class MeshEngineTest {
         assertEquals("refusals aren't packets", drops.values.sum(), b.engine.state.value.dropped)
         advanceTimeBy(4 * 60_000L)
         assertEquals(1, b.readyLinks)
+    }
+
+    @Test
+    fun theBanFallsOnTheLinkNotOnTheNodeIdItClaims() = runTest {
+        val world = World(this)
+        val b = world.node("B", B)
+        world.net.start()
+        // a phone that claims to be V and sends garbage, to get V banned
+        val framer = world.net.radio("X", 0x7777_7777, canAdvertise = false)
+        framer.connect("B")
+        advanceTimeBy(1_000)
+        val link = framer.links.keys.single()
+        val hello = Hello(PacketCodec.VERSION, V, NodeFlags.PROTOCOL_1_1, null).encode()
+        framer.inject(link, PacketCodec.encode(Packet(PacketType.HELLO, 1, 9L, V, 0, null, false, hello)))
+        repeat(5) { framer.inject(link, byteArrayOf(1, 9, 9)) }
+        advanceTimeBy(2_000)
+        assertTrue(b.engine.state.value.links.isEmpty())
+        framer.connect("B")
+        advanceTimeBy(2_000)
+        assertTrue("its address stays out", framer.links.isEmpty() && b.engine.state.value.counters.refusedBanned >= 1)
+
+        val victim = world.node("V", V)
+        advanceTimeBy(30_000)
+        assertEquals(V, b.engine.state.value.links.single().peerId)
+        assertEquals(1, victim.readyLinks)
     }
 
     @Test
@@ -437,7 +482,8 @@ class MeshEngineTest {
         val b = world.node("B", B)
         world.net.start()
         advanceTimeBy(5_000)
-        b.radio.connect("A")
+        // a second link the other way round, whichever end the prefixes made connect first
+        if (a.engine.state.value.links.single().outgoing) b.radio.connect("A") else a.radio.connect("B")
         advanceTimeBy(5_000)
         assertEquals(1, a.engine.state.value.links.size)
         assertEquals(1, b.engine.state.value.links.size)
@@ -461,17 +507,17 @@ class MeshEngineTest {
     }
 
     @Test
-    fun higherIdConnectsWhenLowerNeverDoes() = runTest {
+    fun higherPrefixConnectsWhenLowerNeverDoes() = runTest {
         val world = World(this)
-        val a = world.node("A", A)
-        val b = world.node("B", B)
-        a.engine.setIgnoredPrefixes(setOf(B.nodePrefix()))
+        val (low, high) = listOf(world.node("A", A), world.node("B", B))
+            .sortedWith { x, y -> Integer.compareUnsigned(x.radio.prefix, y.radio.prefix) }
+        low.ignore(high)
         world.net.start()
         advanceTimeBy(15_000)
-        assertTrue(b.engine.state.value.links.isEmpty())
+        assertTrue(high.engine.state.value.links.isEmpty())
         advanceTimeBy(15_000)
-        assertEquals(1, b.engine.state.value.links.size)
-        assertEquals("A keeps the silent peer", 0, a.readyLinks)
+        assertEquals(1, high.engine.state.value.links.size)
+        assertEquals("the lower one keeps the silent peer", 0, low.readyLinks)
     }
 
     @Test
@@ -481,7 +527,7 @@ class MeshEngineTest {
         val b = world.node("B", B)
         world.net.start()
         runCurrent()
-        val always = NodeFlags.PROTOCOL_1_1
+        val always = NodeFlags.PROTOCOL_1_1 or NodeFlags.PREFIX_IN_HELLO
         assertEquals(always or NodeFlags.ACCEPTS_CONNECTIONS, a.radio.flags)
         a.engine.setRole(staff = true, anchor = false)
         assertEquals(always or NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.STAFF, a.radio.flags)
@@ -492,10 +538,11 @@ class MeshEngineTest {
     @Test
     fun radioRestartForgetsStalePeers() = runTest {
         val world = World(this)
-        val a = world.node("A", A)
-        world.node("B", B)
-        // A sees B without a link to it, so the test only catches the clearing when the radio stops
-        a.engine.setIgnoredPrefixes(setOf(B.nodePrefix()))
+        // A sees B without a link to it, so the test only catches the clearing when the radio stops;
+        // B can't see A, which doesn't advertise
+        val a = world.node("A", A, canAdvertise = false)
+        val b = world.node("B", B)
+        a.ignore(b)
         world.net.start()
         advanceTimeBy(5_000)
         assertEquals(1, a.engine.state.value.seen.size)
@@ -540,5 +587,94 @@ class MeshEngineTest {
         assertFalse(hub.radio.flags and NodeFlags.ACCEPTS_CONNECTIONS != 0)
         advanceTimeBy(10 * 60_000L)
         assertEquals(others.map { it.id }.toSet(), hub.linked)
+    }
+
+    // --- advertised prefix ---
+
+    @Test
+    fun theAdvertisedPrefixRotatesAndNeighborsLearnItBeforeTheyCouldMistakeIt() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        val b = world.node("B", B)
+        world.net.start()
+        advanceTimeBy(5_000)
+        assertEquals(1, a.readyLinks)
+        val connects = a.radio.connectAttempts.size + b.radio.connectAttempts.size
+        advanceTimeBy(40 * 60_000L)
+        assertTrue("rotated: ${a.radio.prefixes}", a.radio.prefixes.size >= 3 && b.radio.prefixes.size >= 3)
+        assertFalse("never the nodeId's", A.nodePrefix() in a.radio.prefixes || B.nodePrefix() in b.radio.prefixes)
+        assertEquals("no second link for a new prefix", connects, a.radio.connectAttempts.size + b.radio.connectAttempts.size)
+        assertEquals(1, a.readyLinks)
+        assertEquals(a.radio.prefix, b.engine.state.value.links.single().prefix)
+        assertEquals(b.radio.prefix, a.engine.state.value.links.single().prefix)
+    }
+
+    @Test
+    fun anAnchorKeepsItsNodeIdPrefixAndLeavesItWithTheRole() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        world.net.start()
+        a.engine.setRole(staff = false, anchor = true)
+        advanceTimeBy(40 * 60_000L)
+        assertEquals(A.nodePrefix(), a.radio.prefix)
+        assertEquals(2, a.radio.prefixes.size)
+        a.engine.setRole(staff = false, anchor = false)
+        advanceTimeBy(1_000)
+        assertTrue(a.radio.prefix != A.nodePrefix() && a.radio.prefix !in a.radio.prefixes.dropLast(1))
+    }
+
+    @Test
+    fun aRadioThatComesBackOnAdvertisesANewPrefix() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        world.net.start()
+        advanceTimeBy(1_000)
+        val before = a.radio.prefix
+        a.radio.powerOff()
+        runCurrent()
+        a.radio.powerOn()
+        advanceTimeBy(1_000)
+        assertTrue(a.radio.prefix != before)
+    }
+
+    // --- persistent store-and-forward ---
+
+    private fun TestScope.cacheStore(name: String = "cache.json") =
+        JsonStore(File(tmp.root, name), CachedIncidents.serializer(), CachedIncidents(), backgroundScope)
+
+    @Test
+    fun aRelayKilledAndStartedAgainStillCarriesTheReportsAndAcks() = runTest {
+        val world = World(this)
+        val a = world.node("A", A)
+        val relay = world.node("R", B, cache = cacheStore())
+        world.net.start()
+        advanceTimeBy(5_000)
+        a.engine.publishReport(incidentId(1), ByteArray(80))
+        a.engine.publishAck(ack(1, AckStatus.RECEIVED))
+        advanceTimeBy(2_000)
+        assertEquals(AckStatus.RECEIVED, relay.engine.ackStatus(incidentId(1)))
+        a.radio.powerOff()
+        relay.radio.powerOff()
+        advanceTimeBy(1_000)
+
+        val again = world.node("R2", B, cache = cacheStore())
+        assertEquals(1, again.engine.cachedReports().size)
+        assertEquals(AckStatus.RECEIVED, again.engine.ackStatus(incidentId(1)))
+        val c = world.node("C", C)
+        advanceTimeBy(10_000)
+        assertEquals("the restarted relay hands it on", 1, c.ofType(PacketType.INCIDENT_REPORT).size)
+        assertEquals(AckStatus.RECEIVED, c.engine.ackStatus(incidentId(1)))
+    }
+
+    @Test
+    fun aDamagedCacheFileStartsEmptyAndIsLeftAsItIs() = runTest {
+        val file = File(tmp.root, "cache.json").apply { writeText("{\"schemaVersion\":1,\"data\":{\"incidents\":[{") }
+        val world = World(this)
+        val a = world.node("A", A, cache = cacheStore())
+        assertEquals(0, a.engine.state.value.cachedReports)
+        a.engine.publishReport(incidentId(1), ByteArray(80))
+        advanceTimeBy(1_000)
+        assertEquals(1, a.engine.state.value.cachedReports)
+        assertEquals("{\"schemaVersion\":1,\"data\":{\"incidents\":[{", file.readText())
     }
 }

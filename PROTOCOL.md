@@ -2,7 +2,7 @@
 
 This document describes protocol 1.1 as implemented on `main`, and 1.0, which 1.1 phones still meet in the field. It is written for an external review and for anyone building a second implementation (an iOS reporting leaf, a hardware relay). It describes what the code does today, including the parts that are known to be weak; those are collected in section 14.
 
-1.1 keeps the 1.0 header and every 1.0 byte: a 1.0 phone and a 1.1 phone talk without either counting the other's packets as malformed. What 1.1 adds is tolerance for what newer versions will send, SUMMARY2 and REQUEST2, a reserved type for organiser announcements, a TTL table per type and a per-link limit on new reports; and, through the extension points this tolerance opens, field states and closing by the control room, reopening (the epoch), triage answers, staff reports and a separate category for a lost friend. Where the two versions differ, the sections below say so; section 15 sums up the differences and the rules a newer version has to follow.
+1.1 keeps the 1.0 header and every 1.0 byte: a 1.0 phone and a 1.1 phone talk without either counting the other's packets as malformed. What 1.1 adds is tolerance for what newer versions will send, SUMMARY2 and REQUEST2, a reserved type for organiser announcements, a TTL table per type, a per-link limit on new reports, a rotating advertised prefix told in HELLO, bans on the link instead of the claimed nodeId, and chat that goes on a few links at each hop instead of a flood; and, through the extension points this tolerance opens, field states and closing by the control room, reopening (the epoch), triage answers, staff reports and a separate category for a lost friend. Where the two versions differ, the sections below say so; section 15 sums up the differences and the rules a newer version has to follow.
 
 The code is the source of truth. Paths below are relative to `core/src/main/kotlin/ro/safetyplease/core/` unless they start with `app/`:
 
@@ -39,11 +39,15 @@ Source: `app/.../platform/ble/BleConstants.kt`, `BleRadio.kt`. This lives outsid
   |---|---|---|
   | 0 | 1 | advertising version, 1 |
   | 1 | 1 | `NodeFlags` (section 6.1) |
-  | 2 | 4 | prefix: the first 4 bytes of the nodeId |
+  | 2 | 4 | prefix: 4 random bytes that change about every 15 minutes (1.0: the first 4 bytes of the nodeId) |
 
-  A scanner that finds no service data, fewer than 6 bytes or a version other than 1 assumes `flags = ACCEPTS_CONNECTIONS` and an unknown prefix, and may still connect.
+  A scanner that finds no service data, fewer than 6 bytes or a version other than 1 assumes `flags = ACCEPTS_CONNECTIONS` and an unknown prefix. A later sighting of the same address without service data keeps the flags and prefix of the last one that had it.
 
-  A 1.1 node sets `PROTOCOL_1_1` (`0x10`) in these flags, as in HELLO. Nothing reads it from advertising yet: what a node sends on a link depends on the peer's HELLO.
+  A 1.1 node sets `PROTOCOL_1_1` (`0x10`) in these flags, as in HELLO; what it sends on a link depends on the peer's HELLO, not on the advertising.
+
+- **Rotating prefix** (`mesh/AdvertisedPrefix.kt`, `PREFIX_IN_HELLO`, 1.1). The static nodeId prefix let a scanner follow a phone across the MAC address rotations all day. A current node advertises a random prefix instead, draws a new one every 12 to 18 minutes (15 ± a fifth, so that neighbours don't change at once) and whenever the radio comes back on, and restarts the advertising set with each new prefix, so the address changes with it (`BleRadio`). It tells the new prefix in HELLO (section 6.1) to the peers that set `PREFIX_IN_HELLO`, before it advertises it, so they don't take it for a new peer. An anchor keeps the nodeId prefix: it is a fixed device, and the control console notices a quiet anchor by it. An advertising set the stack restarts on its own keeps the prefix it had until the next change. Anyone who links to a phone still reads its nodeId in HELLO.
+- **Which end connects** (`mesh/ConnectionPolicy.kt`, informative). Each node connects as a central to the advertisers it chooses, one connection at a time. To keep two nodes from connecting to each other at once, the one with the lower advertised prefix connects (unsigned comparison of the two prefixes, both random and rotating in 1.1), and the other only after it has seen the first for 20 s without a link. A node that can't advertise connects to anyone. A peer that doesn't set `PREFIX_IN_HELLO` (1.0, or 1.1 before the extension) knows a link with us only by the address it connected to, so it would connect again to each new prefix of ours, and, if the duplicate rule (section 6.1) then closed its link, over and over. A current node therefore connects to such a peer only when its own nodeId's first 4 bytes are higher than the prefix the peer advertises, which is the peer's nodeId prefix: if the peer connects too, the duplicate rule keeps the peer's link. Otherwise the peer connects. Since such a peer knows our link only by the address it connected to, it opens a second link to each new prefix of ours, and the duplicate rule closes the older one: one extra connection about every 15 minutes, no more (`Protocol11Test`). A peer without service data is left to connect.
+- **Roles** (interim, until roles are signed). Advertised STAFF and ANCHOR are self-declared. A node seeks one link with a role first; once it has one, the others count like any peer, by signal strength. When outgoing slots are full and an unconnected peer is in sight, a node closes its oldest outgoing link idle for 30 s, every 60 s; of its links with a role it keeps only the one most recently in use, so a phone that only claims a role can't hold all of a neighbour's slots.
 
 ## 3. Frame
 
@@ -118,24 +122,27 @@ So no object larger than 480 bytes can travel. Fragmentation has only run on emu
 | `0x10` | INCIDENT_REPORT | 1.0 | flood | `sender 0`, E | 7 | 6.3 | 1 | yes |
 | `0x11` | INCIDENT_ACK | 1.0 | flood | `sender` = the staff phone's nodeId | 7 | 6.4 | 2 | yes |
 | `0x12` | INCIDENT_CANCEL | 1.0 | flood | `sender 0` | 7 | 6.5 | 2 | no; the author resends it |
-| `0x20` | PRIVATE | 1.0 | flood (unicast is a flood) | `sender` = own nodeId, R, E | 7 | 6.6 | 4 | no |
+| `0x20` | PRIVATE | 1.0 | 1.1: some links at each hop, section 7 (1.0: flood) | `sender` = own nodeId, R, E | 4 (1.0: 7) | 6.6 | 4 | no |
 | `0x30` | ANNOUNCEMENT | 1.1, reserved | flood, to 1.1 peers, at most 3 hops | not sent yet | 3 | not defined yet | 1 | no |
 | `0x7F` | TEST | 1.0 | flood | anything | 7 | opaque | 5 | no; debug builds only |
 | other | unknown | | flood, to 1.1 peers, at most 3 hops | | 3 | opaque | 5 | no |
 
-Flooded packets start with a random `id ≠ 0`, `timestamp = wall clock / 1000` and the origin TTL of their type (`PacketType.originTtl`, 1.1). In 1.0 every flooded type started at 7, and in 1.1 every type 1.0 knows still does. Chat keeps 7 for now: a lower TTL saves transmissions, but cuts off friends in a crowd that walks. Chat gets a lower TTL together with a smaller fan-out; `PacketType.CHAT_TTL` is the one value to change.
+Flooded packets start with a random `id ≠ 0`, `timestamp = wall clock / 1000` and the origin TTL of their type (`PacketType.originTtl`, 1.1). In 1.0 every flooded type started at 7; in 1.1 reports, ACKs, cancels and TEST still do. Chat starts at 4 (`PacketType.CHAT_TTL`) and goes on only some links at each relay (section 7): together they cut what a chat message costs the crowd to a seventh, and they cut how far it reaches.
 
-The chat TTL was measured with `core/src/test/kotlin/ro/safetyplease/core/ScaleTest.kt`, changing only `CHAT_TTL`. Its simulated radio has no shared airtime and no loss, so these are counts of transmissions, not latency or capacity.
+Both were measured with `core/src/test/kotlin/ro/safetyplease/core/ScaleTest.kt`, changing only `CHAT_TTL` and whether relays fan out. Its simulated radio has no shared airtime and no loss, so these are counts of transmissions, not latency or capacity.
 
 - The crowd: 200 phones placed at random over 100 × 100 m (`Random(7)`), each heard 15 m away; the phone nearest the middle of each quarter is staff. Links form for 60 s before anything is sent.
-- Transmissions (`reportsOvertakeAChatBurst`): the other phones pair up with a near neighbour, and in each of the 95 pairs one sends the other a message, all at the same moment; five reports follow 2 s later. Every PRIVATE transmission until 60 s after the reports is counted, delivery receipts included.
-- Reach (`twoHundredPhonesScatteredAndWalking`): the same crowd, every phone moving up to 1 m a second in a random direction (`Random(8)`); ten pairs of friends about 40 m apart, close to three radio ranges, write to each other at once, and every message must be delivered within 180 s.
+- Transmissions (`reportsOvertakeAChatBurst`): the other phones pair up with their nearest neighbour in radio range, and in each of the 90 pairs one sends the other a message, all at the same moment; five reports follow 2 s later. Every PRIVATE transmission until 60 s after the reports is counted, delivery receipts included.
+- Reach: the same crowd, every phone moving up to 1 m a second in a random direction (`Random(8)`); ten pairs of friends write to each other at once, and the messages delivered within 180 s are counted, of 20. In `twoHundredPhonesScatteredAndWalking` the friends are about 25 m apart, under two radio ranges; the test asks for all 20. The 40 m column, close to three ranges, was measured by changing that distance.
 
-| Chat TTL | PRIVATE transmissions in the burst | Change | Friends three ranges apart, walking |
-|---|---|---|---|
-| 7 | 82,336 | | all messages delivered |
-| 6 | 63,027 | −23 % | some still undelivered after 180 s |
-| 5 | 44,904 | −45 % | some still undelivered after 180 s |
+| Chat relays | Chat TTL | PRIVATE transmissions in the burst | Change | Friends 25 m apart, walking | Friends 40 m apart, walking |
+|---|---|---|---|---|---|
+| every link (1.0, and 1.1 before the fan-out) | 7 | 78,328 | | 20 of 20 | 20 of 20 |
+| ⌈log₂ n⌉ links | 7 | 28,764 | −63 % | 20 of 20 | 18 of 20 |
+| ⌈log₂ n⌉ links | 5 | 15,996 | −80 % | 19 of 20 | 11 of 20 |
+| ⌈log₂ n⌉ links (1.1) | 4 | 10,682 | −86 % | 20 of 20 | 2 of 20 |
+
+With TTL 4, friends more than about two radio ranges apart rarely get each other's messages until they walk closer; the outbox keeps retrying for 24 hours. In every row all 90 messages of the burst arrived within 60 s. Raising `CHAT_TTL` buys reach back at the cost in the table.
 
 Types `0x00` to `0x0F` never leave their link, known or not (`PacketType.isLinkLocal`, 1.1). "Send priority" is the level in the per-link send queue (`mesh/SendQueue.kt`, 128 packets). A lower level is sent first. When the queue is full, a new packet pushes out the newest packet of the least important level below its own, or is refused if there is none. Store-and-forward (SUMMARY and REQUEST) sits above chat, so chat load can't push it out; types this version only relays sit at the bottom, except the one reserved for organiser announcements, which goes with reports.
 
@@ -152,14 +159,15 @@ ANNOUNCEMENT is reserved so that signed organiser announcements can be added lat
 | 1 | `flags` | `NodeFlags` |
 | 1 | `nickLen` | at most 24 |
 | `nickLen` | nickname | sent only by debug builds; release sends `nickLen 0` |
+| 4 | `prefix` (1.1, optional) | `i32`, the prefix the sender advertises now (section 2); only to a peer whose HELLO set `PREFIX_IN_HELLO`, and read only from a HELLO that sets it |
 
-11 to 35 bytes. In 1.0 nothing may follow the nickname; 1.1 skips what follows it, so a newer version can append fields.
+11 to 35 bytes, 39 with the prefix. In 1.0 nothing may follow the nickname. 1.1 reads 4 bytes after the nickname as the prefix and skips whatever follows them, or fewer than 4 bytes, so a newer version can append fields after the prefix.
 
-`NodeFlags` (`protocol/Payloads.kt`): `0x01` STAFF, `0x02` ANCHOR, `0x04` PENDING_INCIDENT (older builds set it while one of their reports had no ACK; current builds neither send nor read it, and the bit stays taken), `0x08` ACCEPTS_CONNECTIONS (inbound slots free), `0x10` PROTOCOL_1_1 (the node speaks 1.1). Bits `0x20`..`0x80` are unassigned and ignored, not rejected, both in HELLO and in advertising, by 1.0 and 1.1 alike. The roles are self-declared; nothing authenticates them.
+`NodeFlags` (`protocol/Payloads.kt`): `0x01` STAFF, `0x02` ANCHOR, `0x04` PENDING_INCIDENT (older builds set it while one of their reports had no ACK; current builds neither send nor read it, and the bit stays taken), `0x08` ACCEPTS_CONNECTIONS (inbound slots free), `0x10` PROTOCOL_1_1 (the node speaks 1.1), `0x20` PREFIX_IN_HELLO (1.1: the node advertises a rotating prefix, sends it in HELLO and reads the peer's; section 2). Bits `0x40` and `0x80` are unassigned. Unassigned bits are ignored, not rejected, both in HELLO and in advertising, by 1.0 and 1.1 alike, so `0x20` costs a 1.0 peer nothing. The roles are self-declared; nothing authenticates them.
 
 A 1.1 node sets PROTOCOL_1_1 in every HELLO. A peer whose HELLO doesn't have it is treated as 1.0: it gets SUMMARY and REQUEST instead of SUMMARY2 and REQUEST2, and nothing 1.0 would count as malformed (section 7).
 
-Rules (`MeshEngine.onHello`): each end sends HELLO first on a new link. Until the peer's HELLO arrives, its other packets are dropped; without a HELLO within 10 s the link is closed. A later HELLO on the same link may change the flags and the nickname, but a different nodeId counts as malformed. A HELLO carrying the receiver's own nodeId, or a banned one, closes the link. Two links to the same peer: both ends keep the one initiated by the lower nodeId (unsigned comparison).
+Rules (`MeshEngine.onHello`): each end sends HELLO first on a new link, without the prefix, since it doesn't know yet what the peer reads. Until the peer's HELLO arrives, its other packets are dropped; without a HELLO within 10 s the link is closed. If the peer's HELLO sets `PREFIX_IN_HELLO`, the node sends a second HELLO with its prefix, and another before each new prefix it advertises; the peer then takes the advertising under that prefix for this link and forgets the sightings of the old one. A later HELLO on the same link may change the flags, the nickname and the prefix, but a different nodeId counts as malformed. A HELLO carrying the receiver's own nodeId closes the link. A banned nodeId is no longer refused (section 10). Two links to the same peer: both ends keep the one initiated by the lower nodeId (unsigned comparison); of two initiated by the same end, the newer.
 
 ### 6.2 SUMMARY and REQUEST (`SummaryCodec`, `RequestCodec`)
 
@@ -328,11 +336,15 @@ The report limit (1.1, `MeshConfig.reportsPerMinute`) is per link because report
 
 Relaying: after a random delay of 50..250 ms, the packet goes with `ttl − 1` to every ready link except the one it came from and those that sent a copy during the delay. A node never relays a packet addressed to itself. The send side paces itself to 2.8 packets per second per link (burst 28) and at least 50 ms between packets, just under the neighbour's receive limit.
 
+Chat fan-out (1.1, `mesh/FanOut.kt`): a PRIVATE goes on every ready link from the phone that writes it, but a relay passes it on only `k = ⌈log₂ n⌉` of the `n` links it could use, at least 1, as Bitchat does: 1 of 1 or 2, 2 of 3 or 4, 3 of 5 to 8. If the recipient is one of its neighbours, that link is always among the `k`. The others are drawn at random for each packet, so a retry of the outbox, which is a new packet, takes other paths. Reports, ACKs, cancels and everything else keep the full flood and store-and-forward. With chat's TTL of 4 (section 5), chat no longer costs a flood of the whole crowd, and reaches less far.
+
+Chat budget (1.1, `ChatManager`, not on the wire): a phone writes at most 30 PRIVATE packets a minute (`PACKETS_PER_MINUTE`): messages, retries, receipts, PING and PONG; over that, a message waits for the next retry and a receipt for the sender's next retry. At most 16 outbox entries, one per message and recipient, are tried at once (`MAX_IN_FLIGHT`); the rest wait as queued until one is delivered or gives up. A relay doesn't limit chat by sender: the header `sender` isn't authenticated, so such a limit could be spent in someone else's name; the per-link limits above bound what one neighbour can push.
+
 A 1.1 node sends a 1.0 peer, whether its own packet, a relay or a store-and-forward reply, only what 1.0 accepts (`Compat10`): no type 1.0 doesn't know, no ACK with a status above 4 or with extensions, no cancel other than 32 bytes. Its HELLO, SUMMARY and REQUEST are 1.0 bytes.
 
-Hops: a receiver computes `hops` from the origin TTL of the type (section 5): `origin − ttl + 1`, so a direct neighbour sees 1. A TTL above the type's origin comes from a sender that started higher, as a 1.0 node did on every type, and counts from 7.
+Hops: a receiver computes `hops` from the origin TTL of the type (section 5): `origin − ttl + 1`, so a direct neighbour sees 1. A TTL above the type's origin comes from a sender that started higher, as a 1.0 node did on every type, and counts from 7. A 1.0 receiver counts every type from 7, so it shows a 1.1 phone's chat 3 hops farther than it is.
 
-Store-and-forward: a stored report or ACK keeps `max(ttl − 1, 1)` and is served with that `ttl` when a neighbour requests it; the origin stores its own report or ACK with `ttl 7`. The TTL therefore limits only the live flood. Through SUMMARY and REQUEST a report can travel any number of hops. Reports and ACKs are kept 30 minutes (60 on anchors), at most 50 reports per node, in memory only. `IncidentCache` keys both on `id8`, the first 8 bytes of the `incidentId` read as `i64` (the same `id8` as in SUMMARY and REQUEST, section 6.2), not on all 16 bytes: two reports whose ids share their first 8 bytes are one incident to a relay, so the second is dropped as known, and their ACKs compete for one slot.
+Store-and-forward: a stored report or ACK keeps `max(ttl − 1, 1)` and is served with that `ttl` when a neighbour requests it; the origin stores its own report or ACK with `ttl 7`. The TTL therefore limits only the live flood. Through SUMMARY and REQUEST a report can travel any number of hops. Reports and ACKs are kept 30 minutes (60 on anchors), at most 50 reports per node. Earlier builds kept them in memory only, so a relay or an anchor the system killed lost what it carried; the app now saves the cache after every change (`mesh_cache.json`, `mesh/CachedIncidents.kt`): each incident with its trace, the status, epoch and team of its best ACK, the stored report and ACK as frames, and their times on the wall clock, since the monotonic clock starts over at a reboot. At start the node takes it back aged by the time it was off: a packet older than 60 minutes, the longest any role keeps one, or one that doesn't decode is dropped, a trace older than 6 hours too, and the role's own retention applies from then on. A damaged file is left as it is and the node starts with an empty cache. `IncidentCache` keys both on `id8`, the first 8 bytes of the `incidentId` read as `i64` (the same `id8` as in SUMMARY and REQUEST, section 6.2), not on all 16 bytes: two reports whose ids share their first 8 bytes are one incident to a relay, so the second is dropped as known, and their ACKs compete for one slot.
 
 Dedup key (`Packet.dedupKey`): the first 8 bytes, as `i64`, of SHA-256 over
 
@@ -412,7 +424,7 @@ All cryptography is libsodium (lazysodium on Android, lazysodium-java in the JVM
 
 A link collects a "malformed" mark for: a frame that doesn't decode (in 1.1, unless it comes from a newer version, section 3); an `Invalid` fragment set; a bad HELLO (payload doesn't decode, version 0, or in 1.0 any version but 1, nodeId ≠ header `sender`, or a different nodeId on the same link); a SUMMARY, REQUEST, SUMMARY2 or REQUEST2 that doesn't decode; a report of 64 bytes or less; an ACK that doesn't decode or doesn't verify; a cancel shorter than 32 bytes (in 1.0, any size but 32); a PRIVATE without R, `sender` or E.
 
-Five marks within 60 s ban the peer's nodeId (if it sent HELLO) and its Bluetooth address for 10 minutes and close the link (`MeshEngine.malformed`).
+Five marks within 60 s close the link and ban the Bluetooth address it came from for 10 minutes: links from that address are refused and the node doesn't connect to it (`MeshEngine.malformed`). The ban falls on the link, not on the peer's identity. 1.0 also banned the nodeId the peer claimed in HELLO, and refused it in any later HELLO; since HELLO isn't authenticated, anyone could claim another phone's nodeId, send five bad frames and get that phone refused by its neighbours for 10 minutes ("ban framing"). 1.1 bans no nodeId, and no prefix either, since a phone can advertise or claim anyone's. A peer that comes back from another address, as after its prefix and address change, is accepted, and is banned again if it misbehaves again.
 
 Silent drops, which don't count: rate limit, TEST in release, before HELLO, a demo-muted peer, duplicate, known incident, an ACK that doesn't supersede; in 1.1 also what comes from a newer version and can't be used (`UNSUPPORTED`: frames, types on one link, summary kinds), new reports over the per-link limit (`REPORT_LIMIT`) and unknown types over their limits (`OPAQUE_LIMIT`).
 
@@ -450,7 +462,7 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 | Payload after reassembly | 480 B | `PacketCodec.MAX_PAYLOAD` |
 | Smallest usable frame | 64 B | `PacketCodec.MIN_FRAME` |
 | Maximum TTL | 7 | `PacketCodec.MAX_TTL` |
-| TTL at the origin | 7 when flooded, 1 on one link, 3 for ANNOUNCEMENT and unknown types (section 5) | `PacketType.originTtl` |
+| TTL at the origin | 7 for reports, ACKs, cancels and TEST, 4 for PRIVATE, 1 on one link, 3 for ANNOUNCEMENT and unknown types (section 5) | `PacketType.originTtl`, `CHAT_TTL` |
 | Fragments per packet | 2..255 (`count u8`); 19 at most in practice | `PacketCodec` |
 | Fragment sets per link, timeout | 8, 30 s | `Reassembler` |
 | SUMMARY / REQUEST entries, also SUMMARY2 / REQUEST2 | 50; 47 in a SUMMARY2 with epochs | `Limits.SUMMARY_ENTRIES`, `SUMMARY2_EPOCH_ENTRIES` |
@@ -467,17 +479,21 @@ Both formats are a prefix followed by the payload in base64url without padding. 
 | Largest TEXT payload | 458 B (22 B to spare) | section 6.6 |
 | Receive / send rate per link | 3/s burst 30; 2.8/s burst 28 | `MeshConfig` |
 | Dedup | 4,096 keys, 15 min | `DedupCache` |
-| Bans | 5 malformed in 60 s, 10 min | `MeshConfig` |
+| Bans | 5 malformed in 60 s, 10 min, on the address of the link | `MeshConfig` |
 | New reports from one link (1.1) | 6 a minute | `MeshConfig.reportsPerMinute` |
 | Types relayed opaquely (1.1) | 12 a minute per link; 256 B, 480 B for ANNOUNCEMENT; relayed TTL at most 3 | `MeshConfig.opaquePerMinute`, `PacketType.OPAQUE_MAX_PAYLOAD`, `OPAQUE_MAX_TTL` |
 | ANNOUNCEMENT relayed (1.1) | 4 a minute per link, apart from the 12 above | `MeshConfig.announcementsPerMinute` |
 | Unsupported frames, types and kinds (1.1) | more than 10 a minute from one link close it, without a ban | `MeshConfig.unsupportedPerMinute` |
+| Chat fan-out of a relay (1.1) | ⌈log₂ n⌉ of n links, at least 1, the recipient's first | `FanOut` |
+| Chat a phone writes (1.1) | 30 PRIVATE packets a minute; 16 outbox entries tried at once | `ChatManager.PACKETS_PER_MINUTE`, `MAX_IN_FLIGHT` |
+| Advertised prefix (1.1) | new every 12 to 18 min and after the radio restarts; anchors keep the nodeId's | `AdvertisedPrefix` |
+| Store-and-forward on disk | packets up to 60 min old, traces up to 6 h, taken back at start | `IncidentCache.restore` |
 
 ## 13. Golden vectors and fuzzing
 
 **Golden vectors.** `core/src/test/resources/golden/protocol-v1.txt` holds one line per vector, `name value`. Values are lowercase hex, except the `qr.*` vectors, which are the QR text. The comment above each vector lists its inputs, so the file can be used without reading Kotlin. It covers the derived keys and nodeIds, whole frames (with and without recipient, and three fragments), HELLO, SUMMARY, REQUEST, two report bodies, the cancel hash, a sealed report, the signed ACK bytes and the ACK, the cancel, all seven inner types, a boxed PRIVATE payload, and both QR formats.
 
-1.1 added vectors and changed none. Its encoders write `hello.v11`, `summary2`, `request2`, `frame.opaque`, `frame.opaque.relayed` and `incident.ack.assigned`, an ACKNOWLEDGED with the ASSIGNED flag (section 6.4); then, for the field states and the epoch, `incident.ack.on_scene`, `.handed_over`, `.closed`, `.unfounded`, `.reopened` (epoch 1) and `.assigned.epoch` (ASSIGNED and epoch 1), `summary2.epochs`, and the bodies `incident.body.triage`, `incident.body.staff` and `incident.body.lost_friend`. The others carry what a newer version may send and are built by hand: `hello.extended`, `summary2.unknown`, `incident.body.extended`, `incident.ack.unknown`, a signed ACK with status 0x7e and two bytes of extensions, and `incident.ack.future`, written the same way with status 7 before 1.1 gave 7 and the epoch a meaning: 1.1 now reads it as CLOSED_BY_CONTROL with the flags ASSIGNED and EPOCH and epoch 205, and still skips the flag bits it doesn't know. 1.1 must read them all; 1.0 rejects every one of them.
+1.1 added vectors and changed none. Its encoders write `hello.v11`, `summary2`, `request2`, `frame.opaque`, `frame.opaque.relayed`, `incident.ack.assigned`, an ACKNOWLEDGED with the ASSIGNED flag (section 6.4), and `hello.prefix`, a HELLO with `PREFIX_IN_HELLO` and the advertised prefix after the nickname (section 6.1); then, for the field states and the epoch, `incident.ack.on_scene`, `.handed_over`, `.closed`, `.unfounded`, `.reopened` (epoch 1) and `.assigned.epoch` (ASSIGNED and epoch 1), `summary2.epochs`, and the bodies `incident.body.triage`, `incident.body.staff` and `incident.body.lost_friend`. The others carry what a newer version may send and are built by hand: `hello.extended`, `summary2.unknown`, `incident.body.extended`, `incident.ack.unknown`, a signed ACK with status 0x7e and two bytes of extensions, and `incident.ack.future`, written the same way with status 7 before 1.1 gave 7 and the epoch a meaning: 1.1 now reads it as CLOSED_BY_CONTROL with the flags ASSIGNED and EPOCH and epoch 205, and still skips the flag bits it doesn't know. 1.1 must read them all; 1.0 rejects every one of them.
 
 Inputs are deterministic. Seeds are 32 consecutive byte values (`seed(0x10)` = `10 11 … 2f`): the staff keys come from `seed(0x10)` and `seed(0x30)`, alice from `seed(0x50)` and `seed(0x70)`, bob from `seed(0x90)` and `seed(0xb0)`. Ed25519 signatures are deterministic. A real sealed box uses a random ephemeral key, so the vector builds `crypto_box_seal` step by step with the ephemeral pair from `seed(0xd0)`. Implementations should check that they open it, not that they produce it. The `crypto_box` nonce is fixed to `e0 e1 … f7` by overriding lazysodium's `randomBytesBuf`, which is the only randomness `SodiumCrypto.box` takes from Java. When the file was created, the key, nodeId, hash, dedup, sealing, signature, box and QR vectors were also checked against PyNaCl 1.6.2 and Python's `hashlib`.
 
@@ -511,14 +527,14 @@ Inputs are deterministic. Seeds are 32 consecutive byte values (`seed(0x10)` = `
 6. **The `incidentId` is not bound to the sealed body.** Anyone can wrap a captured sealed body under a new `incidentId`, and staff would see it as a new report with the same content and the same cancel hash.
 7. **One shared staff key per build, no revocation.** Every holder of the staff QR can read every report, past ones included (a sealed box has no forward secrecy), and can sign any ACK for any team, the console's statuses included: it can close, reopen or confirm a cancel as if it were the console; the team name is free text from the QR. An anchor's QR holds the same seeds.
 8. **Reports and cancels can't be checked by relays**, and relays don't enforce `sender = 0` on them. Any node can fill a neighbour's report cache (50) with sealed garbage and push real reports out.
-9. **Anonymity is partial.** The first neighbour receives `ttl 7` and knows the sender is the origin. The advertising prefix is static, so a nearby observer can follow a phone by signal strength; older builds also broadcast PENDING_INCIDENT while a report waited for an ACK, which showed who had just reported.
-10. **HELLO is not authenticated.** A node can claim another's nodeId and get it banned by sending five bad frames ("ban framing"). The STAFF and ANCHOR roles are self-declared, but connection policy prefers them.
+9. **Anonymity is partial.** The first neighbour receives `ttl 7` and knows the sender is the origin. Since 1.1 the advertised prefix is random and changes about every 15 minutes with the address (section 2), so a passive scanner can follow a phone only between two changes; an anchor keeps a static one; a phone still on 1.0 advertises its nodeId prefix all day; and anyone who links to a phone reads its nodeId in HELLO, so an observer that connects again after each change can still follow it; older builds also broadcast PENDING_INCIDENT while a report waited for an ACK, which showed who had just reported.
+10. **HELLO is not authenticated.** A node can claim another's nodeId. In 1.0 it could get that phone banned by sending five bad frames ("ban framing"); 1.1 bans only the address of the link (section 10). It can still make a neighbour close the real phone's link, since two links with one nodeId count as duplicates, and it can claim another phone's advertised prefix, so that a neighbour linked to it doesn't connect to the real one. The STAFF and ANCHOR roles are self-declared; until they are signed, a node seeks one link with a role and keeps one from rotation, not more (section 2).
 11. **Fragment sets are easy to disturb** for a peer on the same link: it can evict the 8 sets or reuse a `fragId` with a different header and invalidate one. It only affects that link.
 12. **480 bytes is the ceiling.** Photos and event packs need a new transfer mechanism. The report has 22 bytes to spare and TEXT 22, so a 64-byte signature on a chat message doesn't fit without shortening the text.
 13. **The codec allows R on every type.** Only PRIVATE uses it. A report with R set would be stored and served by SUMMARY/REQUEST but delivered only to the named node. 1.1 still allows it; should a later version reject it?
 14. **The dedup key is truncated to 64 bits.** Collisions are negligible at 4,096 entries, but a key is not a secure identifier.
 15. **Chat messages carry no send time.** The displayed time is the arrival time, and a replay within the history is answered with a fresh DELIVERED.
-16. **Prefix collisions.** Two phones with the same 32-bit prefix look like one peer to the connection policy, and a ban on one blocks the other. About 0.3 % at 5,000 phones.
+16. **Prefix collisions.** Two phones with the same 32-bit prefix look like one peer to the connection policy until one of them changes it. About 0.3 % at 5,000 phones. A ban no longer follows the prefix.
 17. **1.0 phones and the field states.** A 1.0 phone gets the closest status it knows only from the live flood and from 1.0 relays (section 8): a 1.0 phone that joins later, through 1.1 phones only, keeps the status it had. A reopened incident stays closed on 1.0 phones, and a 1.0 staff phone still closes an urgent report on the reporter's cancel. Both go away only when the staff fleet runs 1.1. And a 1.0 staff phone never shows a report with triage answers, a staff report or a lost friend (section 6.3): it drops the body silently. So staff phones and the console move to 1.1 before reporters do.
 
 ## 15. Version 1.1
@@ -530,14 +546,18 @@ What changed from 1.0:
 | Header | version 1 | version 1, unchanged; the node announces 1.1 with `PROTOCOL_1_1` (`0x10`) in HELLO and advertising |
 | Another header version or flag | malformed | dropped as unsupported |
 | Unknown type | malformed | relayed as it is, at most 3 hops, 256 B, 12 a minute per link, never to a 1.0 peer (section 7.1) |
-| HELLO | nothing after the nickname | trailing bytes skipped |
+| HELLO | nothing after the nickname | the advertised prefix after the nickname, to peers that set `PREFIX_IN_HELLO`; what follows skipped |
+| Advertising | the nodeId prefix | a random prefix, new every 12 to 18 minutes with a new address; anchors keep the nodeId prefix (section 2) |
+| Who connects | the lower nodeId prefix | the lower advertised prefix; to a peer without `PREFIX_IN_HELLO`, only from the higher nodeId |
+| Bans | the claimed nodeId and the address | the address of the link only |
 | ACK | status 1..4, nothing between team name and signature | statuses 1..9 (field states, closing by the console, reopening), a newer one relayed but not stored; extensions before the signature, signed and kept, starting with the ACK flags byte (ASSIGNED, EPOCH and the epoch) |
 | Supersede order | status, then oldest, then team | epoch, then rank (section 8), then a take over an assignment, then oldest, then team |
 | Report body | flags `0x01`..`0x04`, categories 1..7, nothing after | triage (`0x08`) and staff fields (`0x10`) after the cancel hash, category 8 (lost friend); unknown flags and the fields after those skipped; unknown category kept |
 | Cancel by the reporter | closes any open incident | closes it by itself only where a wrong cancel costs little; elsewhere staff checks it |
 | CANCEL | 32 bytes | at least 32 |
 | Store-and-forward | SUMMARY, REQUEST | SUMMARY2, REQUEST2, with a kind and the epochs, between 1.1 peers; SUMMARY and REQUEST with 1.0 peers |
-| Origin TTL | 7 for every flooded type | per type, 7 for every type 1.0 knows (section 5) |
+| Origin TTL | 7 for every flooded type | per type: 7 for incidents and TEST, 4 for PRIVATE (section 5) |
+| Chat relay | flood | ⌈log₂ n⌉ of n links, the recipient's first (section 7) |
 | New reports from one link | no limit | 6 a minute, and no more requested than that |
 | Reserved | | ANNOUNCEMENT `0x30`, at report priority, 4 a minute per link |
 | What can't be used | malformed, five in a minute ban | dropped; more than 10 a minute close the link, without a ban |
@@ -546,6 +566,6 @@ What a newer version can do without 1.1 phones dropping or banning it:
 
 - Keep the header as it is: version 1, the same flags. A frame with another version or a new header flag is dropped by 1.1 and malformed to 1.0.
 - A new flooded type takes a code from `0x10` up and must make sense within 3 hops of a 1.1 relay, in 256 bytes and at 12 a minute per link; a new type that stays on one link takes `0x06`..`0x0F`. Organiser announcements take `0x30`.
-- New fields go after the nickname in HELLO; in an ACK, after the fields of the flags 1.1 knows, behind a new flag bit (`0x04` and up); in the report body after the staff fields, behind a new flag bit (`0x20` and up); after the token in a CANCEL; in a SUMMARY2 of kind INCIDENTS after the epochs, behind a new bit of its flags byte (`0x02` and up); and after the entries in a REQUEST2 of kind INCIDENTS. Other things to store and forward go in a new SUMMARY2 kind.
+- New fields go after the prefix in HELLO; in an ACK, after the fields of the flags 1.1 knows, behind a new flag bit (`0x04` and up); in the report body after the staff fields, behind a new flag bit (`0x20` and up); after the token in a CANCEL; in a SUMMARY2 of kind INCIDENTS after the epochs, behind a new bit of its flags byte (`0x02` and up); and after the entries in a REQUEST2 of kind INCIDENTS. Other things to store and forward go in a new SUMMARY2 kind.
 - ACK statuses above 9 cross 1.1 phones but aren't stored or shown there: a status that has to stick needs relays that know it. A new status needs a place in the rank table that keeps the order of the old ones.
-- A peer that doesn't announce 1.1 gets only what 1.0 accepts. The next version announces itself with a bit of its own, `0x20` or above, and sends its own additions only to peers that set it.
+- A peer that doesn't announce 1.1 gets only what 1.0 accepts. The next version announces itself with a bit of its own, `0x40` or above, and sends its own additions only to peers that set it, as `PREFIX_IN_HELLO` (`0x20`) does for the prefix in HELLO.

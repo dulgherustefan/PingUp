@@ -22,6 +22,7 @@ import ro.safetyplease.core.data.MsgStatus
 import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.ReportDraft
+import ro.safetyplease.core.mesh.Position
 import ro.safetyplease.core.mesh.SimNet
 import ro.safetyplease.core.mesh.TestClock
 import ro.safetyplease.core.protocol.AckStatus
@@ -52,7 +53,7 @@ class ScenarioTest {
 
     private class Chain(val world: World, val a: TestPhone, val b: TestPhone, val c: TestPhone, val d: TestPhone)
 
-    /** A participant, B and C relays, D staff; A ignores C and D, B ignores D. */
+    /** A participant, B and C relays, D staff; A and C, A and D, B and D ignore each other. */
     private fun TestScope.chain(): Chain {
         val world = World(this)
         val a = world.phone("A")
@@ -64,6 +65,8 @@ class ScenarioTest {
         d.engine.setRole(staff = true, anchor = false)
         a.ignore(c, d)
         b.ignore(d)
+        c.ignore(a)
+        d.ignore(a, b)
         world.net.start()
         advanceTimeBy(30_000)
         return Chain(world, a, b, c, d)
@@ -145,6 +148,43 @@ class ScenarioTest {
         advanceTimeBy(40_000)
         assertEquals(1, w.d.staffIncidents.size)
         assertEquals(AckStatus.RECEIVED, w.a.myReports.single().status)
+    }
+
+    /**
+     * Four phones that claim to be anchors sit closest to the reporter and drop everything. Seeking roles first and
+     * never rotating them, the reporter would give them all its links; one is kept, the others rotate, and the report
+     * reaches staff through the honest relay. The reporter doesn't advertise, so only it chooses its links.
+     */
+    @Test
+    fun fakeAnchorsThatDropEverythingCannotHoldEveryLink() = runTest {
+        val world = World(this)
+        world.net.range = 15.0
+        val reporter = TestPhone("R", this, world.net, world.clock, tmp.root, world.event, 900, canAdvertise = false)
+        reporter.radio.position = Position(0.0, 0.0)
+        val fakes = List(4) { i -> world.phone("F$i") }
+        for ((i, fake) in fakes.withIndex()) {
+            fake.engine.setRole(staff = false, anchor = true)
+            fake.radio.position = Position(2.0 * (i + 1), 1.0)
+            fake.radio.tamper = { frame -> frame.takeIf { it[1].toInt() == PacketType.HELLO } }
+        }
+        val relay = world.phone("X").apply { radio.position = Position(12.0, 0.0) }
+        val staff = world.phone("S").apply { radio.position = Position(24.0, 0.0) }
+        staff.staffSecret = world.event.secret
+        // they keep their slots for the reporter
+        for (fake in fakes) for (other in fakes + relay + staff) if (fake !== other) world.net.outOfRange += setOf(fake.name, other.name)
+        world.net.start()
+        // before the first rotation, a minute in
+        advanceTimeBy(50_000)
+        assertEquals("the loudest are the fakes", fakes.map { it.nodeId }.toSet(), reporter.engine.state.value.links.map { it.peerId }.toSet())
+
+        assertTrue(reporter.incidents.report(medical()))
+        val start = testScheduler.currentTime
+        while (staff.staffIncidents.isEmpty() && testScheduler.currentTime - start < 10 * 60_000L) advanceTimeBy(1_000)
+        val tookMs = testScheduler.currentTime - start
+        println("A report next to four fake anchors reached staff after ${tookMs / 1000} s")
+        assertEquals(1, staff.staffIncidents.size)
+        assertTrue(relay.nodeId in reporter.engine.state.value.links.map { it.peerId })
+        assertTrue("$tookMs ms", tookMs <= 3 * 60_000L)
     }
 
     @Test

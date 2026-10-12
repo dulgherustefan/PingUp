@@ -94,6 +94,7 @@ class GoldenVectorsTest {
         "incident.body.staff" to { Golden.staffBody.encode().toHex() },
         "incident.body.lost_friend" to { Golden.lostFriendBody.encode().toHex() },
         "summary2.epochs" to { Summary2Codec.encode(Golden.summary2Epochs).toHex() },
+        "hello.prefix" to { Golden.helloPrefix.encode().toHex() },
     )
 
     @Test
@@ -226,6 +227,10 @@ class GoldenVectorsTest {
         assertEquals("01", decoded.extensions.toHex())
         val packet = Packet(PacketType.INCIDENT_ACK, 7, 1L, 2L, Golden.TIME, null, false, assigned)
         assertFalse("never to a 1.0 phone", Compat10.accepts(packet))
+
+        val withPrefix = Hello.decode(bytes("hello.prefix"))!!
+        assertEquals(Golden.helloPrefix.fields(), withPrefix.fields())
+        assertEquals(0x1a2b3c4d, withPrefix.prefix)
     }
 
     @Test
@@ -276,6 +281,7 @@ class GoldenVectorsTest {
         assertNotNull(Frozen10.body(bytes("incident.body")))
 
         assertNull(Frozen10.hello(bytes("hello.extended")))
+        assertNull(Frozen10.hello(bytes("hello.prefix")))
         assertNull(Frozen10.frame(bytes("frame.opaque")))
         assertNull(Frozen10.ack(bytes("incident.ack.future")))
         assertNull(Frozen10.ack(bytes("incident.ack.assigned")))
@@ -355,6 +361,11 @@ private object Golden {
     val helloNick = Hello(PacketCodec.VERSION, alice.nodeId, NodeFlags.PENDING_INCIDENT, "Ana")
     val hello11 = Hello(
         PacketCodec.VERSION, alice.nodeId, NodeFlags.STAFF or NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.PROTOCOL_1_1, null,
+    )
+    val helloPrefix = Hello(
+        PacketCodec.VERSION, alice.nodeId,
+        NodeFlags.STAFF or NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.PROTOCOL_1_1 or NodeFlags.PREFIX_IN_HELLO, null,
+        prefix = 0x1a2b3c4d,
     )
 
     /** Bytes a newer version appends to a payload. */
@@ -489,7 +500,7 @@ private object Golden {
 
 private fun Packet.fields() = listOf(type, ttl, id, sender, timestamp, recipient, encrypted, payload.toHex())
 
-private fun Hello.fields() = listOf(version, nodeId, flags, nickname)
+private fun Hello.fields() = listOf(version, nodeId, flags, nickname, prefix)
 
 private fun IncidentBody.fields() =
     listOf(category, severity, timestamp, zone, lat, lon, description, nickname, cancelHash?.toHex(), triage, staff)

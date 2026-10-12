@@ -262,7 +262,8 @@ private fun Random.packet() = Packet(
     payload = nextBytes(nextInt(0, PacketCodec.MAX_PAYLOAD + 1)),
 )
 
-private fun Random.hello() = Hello(nextInt(256), nonZeroLong(), nextInt(256), text(Limits.NICK_BYTES).ifEmpty { null })
+private fun Random.hello() =
+    Hello(nextInt(256), nonZeroLong(), nextInt(256), text(Limits.NICK_BYTES).ifEmpty { null }, if (nextBoolean()) nextInt() else null)
 
 private fun Random.summary() =
     List(nextInt(0, Limits.SUMMARY_ENTRIES + 1)) { SummaryEntry(nextLong(), nextBoolean(), nextInt(0, AckStatus.CANCELLED + 1)) }

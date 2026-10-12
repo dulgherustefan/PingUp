@@ -99,6 +99,7 @@ class BleRadio(
         var callback: AdvertisingSetCallback? = null
         var startedAt = 0L
         var appliedFlags = 0
+        var appliedPrefix = 0
         var appliedInterval = 0
         private var op: AdvOp? = null
         private var signal: CompletableDeferred<Int>? = null
@@ -177,7 +178,8 @@ class BleRadio(
         }
     }
 
-    private val prefix = nodeId.nodePrefix()
+    /** Until the engine gives the prefix it advertises. */
+    private var prefix = nodeId.nodePrefix()
     private val serviceUuid = ParcelUuid(BleConstants.SERVICE)
     private val manager: BluetoothManager? = context.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? get() = manager?.adapter
@@ -405,9 +407,10 @@ class BleRadio(
 
     // --- Radio ---
 
-    override fun setAdvertisedFlags(flags: Int) {
-        if (this.flags == flags) return
+    override fun setAdvertising(flags: Int, prefix: Int) {
+        if (this.flags == flags && this.prefix == prefix) return
         this.flags = flags
+        this.prefix = prefix
         if (active && serviceReady) requestAdvertise()
     }
 
@@ -953,7 +956,8 @@ class BleRadio(
     // --- advertising ---
     //
     // Each set is started once and then updated in place. A new set gets a new MAC address,
-    // and peers that were connecting to the old one hang until the timeout.
+    // and peers that were connecting to the old one hang until the timeout. A new prefix is the exception:
+    // it restarts the set, so that the address changes with it and the old one can't be tied to the new one.
 
     private fun AdvSet.wanted(): Boolean {
         val legacyWanted = active && canAdvertise && serviceReady
@@ -976,7 +980,7 @@ class BleRadio(
         }
     }
 
-    /** Bring the set to the current flags and mode; anything that can't change in place is done by stop and start. */
+    /** Bring the set to the current prefix, flags and mode; anything that can't change in place is done by stop and start. */
     private suspend fun AdvSet.sync() {
         val advertiser = adapter?.bluetoothLeAdvertiser ?: return
         val current = set
@@ -988,6 +992,7 @@ class BleRadio(
             started(null, AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR)
             return
         }
+        if (appliedPrefix != prefix) return restart(advertiser)
         val wantedFlags = flags
         if (appliedFlags != wantedFlags && !updateInPlace { setData(current, wantedFlags) }) return restart(advertiser)
         if (set !== current) return
@@ -1007,7 +1012,8 @@ class BleRadio(
 
     private suspend fun AdvSet.setData(current: AdvertisingSet, wantedFlags: Int): Boolean {
         val status = await(AdvOp.DATA) {
-            if (coded) current.setAdvertisingData(codedData(wantedFlags)) else current.setScanResponseData(serviceData(wantedFlags))
+            if (coded) current.setAdvertisingData(codedData(wantedFlags, appliedPrefix))
+            else current.setScanResponseData(serviceData(wantedFlags, appliedPrefix))
         }
         if (status != AdvertisingSetCallback.ADVERTISE_SUCCESS) return false
         appliedFlags = wantedFlags
@@ -1035,11 +1041,12 @@ class BleRadio(
         callback = cb
         startedAt = now()
         appliedFlags = flags
+        appliedPrefix = prefix
         appliedInterval = interval()
         val parameters = parameters(appliedInterval)
         val status = await(AdvOp.START) {
-            if (coded) advertiser.startAdvertisingSet(parameters, codedData(appliedFlags), null, null, null, cb)
-            else advertiser.startAdvertisingSet(parameters, uuidData(), serviceData(appliedFlags), null, null, cb)
+            if (coded) advertiser.startAdvertisingSet(parameters, codedData(appliedFlags, appliedPrefix), null, null, null, cb)
+            else advertiser.startAdvertisingSet(parameters, uuidData(), serviceData(appliedFlags, appliedPrefix), null, null, cb)
         }
         // an exception during start produces no callback
         if (status == AdvertisingSetCallback.ADVERTISE_FAILED_INTERNAL_ERROR && callback === cb && set == null) {
@@ -1094,20 +1101,20 @@ class BleRadio(
         return builder.build()
     }
 
-    private fun payload(flags: Int): ByteArray = ByteBuffer.allocate(BleConstants.ADVERT_DATA_SIZE)
+    private fun payload(flags: Int, prefix: Int): ByteArray = ByteBuffer.allocate(BleConstants.ADVERT_DATA_SIZE)
         .put(BleConstants.ADVERT_VERSION.toByte()).put(flags.toByte()).putInt(prefix).array()
 
     // the UUID goes in the advertisement so scan filters match it; short data goes in the scan response
     private fun uuidData(): AdvertiseData = AdvertiseData.Builder().setIncludeDeviceName(false).setIncludeTxPowerLevel(false)
         .addServiceUuid(ParcelUuid(BleConstants.SERVICE)).build()
 
-    private fun serviceData(flags: Int): AdvertiseData = AdvertiseData.Builder().setIncludeDeviceName(false)
-        .setIncludeTxPowerLevel(false).addServiceData(ParcelUuid(BleConstants.SERVICE), payload(flags)).build()
+    private fun serviceData(flags: Int, prefix: Int): AdvertiseData = AdvertiseData.Builder().setIncludeDeviceName(false)
+        .setIncludeTxPowerLevel(false).addServiceData(ParcelUuid(BleConstants.SERVICE), payload(flags, prefix)).build()
 
     // the coded set has no scan response: the UUID and the data both go in the advertisement
-    private fun codedData(flags: Int): AdvertiseData {
+    private fun codedData(flags: Int, prefix: Int): AdvertiseData {
         val uuid = ParcelUuid(BleConstants.SERVICE)
         return AdvertiseData.Builder().setIncludeDeviceName(false).setIncludeTxPowerLevel(false)
-            .addServiceUuid(uuid).addServiceData(uuid, payload(flags)).build()
+            .addServiceUuid(uuid).addServiceData(uuid, payload(flags, prefix)).build()
     }
 }

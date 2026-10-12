@@ -342,6 +342,20 @@ class SmallPartsTest {
         assertFalse(File(file.path + ".bak").exists())
     }
 
+    @Test
+    fun aWriteStillPendingAtResetDoesNotBringTheFileBack() = runTest {
+        val file = File(tmp.root, "s.json")
+        val store = JsonStore(file, Settings.serializer(), Settings(), backgroundScope)
+        store.update { it.copy(nickname = "x") }
+        store.reset()
+        advanceTimeBy(1_000)
+        store.flush()
+        assertFalse(file.exists())
+        store.update { it.copy(nickname = "y") }
+        advanceTimeBy(1_000)
+        assertEquals("y", JsonStore(file, Settings.serializer(), Settings(), backgroundScope).value.nickname)
+    }
+
     // --- outbox ---
 
     @Test

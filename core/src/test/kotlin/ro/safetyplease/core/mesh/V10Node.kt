@@ -19,7 +19,9 @@ import kotlin.random.Random
 /**
  * A phone still on protocol 1.0, for the interop tests. It reads and writes only through [Frozen10], answers SUMMARY
  * and REQUEST, keeps reports and ACKs and relays as 1.0 did, and counts in [malformed] every packet 1.0 would have
- * counted: five in a minute would have got the sender banned. It never connects by itself; 1.1 phones connect to it.
+ * counted: five in a minute would have got the sender banned. It advertises its nodeId's prefix. Unless [connects],
+ * it never connects by itself, and only 1.1 phones with a higher nodeId connect to it; with [connects], it also picks
+ * peers and settles duplicate links as 1.0 did.
  */
 class V10Node(
     private val scope: CoroutineScope,
@@ -28,16 +30,22 @@ class V10Node(
     val nodeId: Long,
     private val clock: Clock,
     private val verifyAck: (ByteArray) -> Boolean,
+    private val connects: Boolean = false,
 ) {
-    private class Link(val maxFrame: Int) {
+    private class Link(val maxFrame: Int, val address: String, val outgoing: Boolean) {
         var peerId = 0L
         var fragSeq = 0
         val reassembler = Reassembler()
     }
 
+    /** An advertisement 1.0 kept: since when it was visible without a link, and when it was last heard. */
+    private class Advert(val prefix: Int?, val sinceMs: Long, val lastMs: Long)
+
     val radio = net.radio(name, nodeId.nodePrefix())
     private val random = Random(nodeId)
     private val links = HashMap<Int, Link>()
+    private val adverts = HashMap<String, Advert>()
+    private var connecting: String? = null
     private val seen = HashSet<Long>()
     private val reports = LinkedHashMap<Long, Packet>()
     private val acks = LinkedHashMap<Long, Pair<Int, Packet>>()
@@ -51,9 +59,11 @@ class V10Node(
         private set
 
     init {
-        radio.setAdvertisedFlags(NodeFlags.ACCEPTS_CONNECTIONS)
+        radio.setAdvertising(NodeFlags.ACCEPTS_CONNECTIONS, nodeId.nodePrefix())
         scope.launch { for (event in radio.events) handle(event) }
     }
+
+    val linkCount: Int get() = links.values.count { it.peerId != 0L }
 
     fun publishReport(incidentId: ByteArray, sealed: ByteArray): Packet {
         val packet = newPacket(PacketType.INCIDENT_REPORT, incidentId + sealed, sender = 0L, encrypted = true)
@@ -92,14 +102,38 @@ class V10Node(
     private fun handle(event: RadioEvent) {
         when (event) {
             is RadioEvent.LinkUp -> {
-                links[event.link] = Link(event.maxFrame)
+                if (event.outgoing && connecting == event.address) connecting = null
+                links[event.link] = Link(event.maxFrame, event.address, event.outgoing)
                 val hello = Frozen10.encodeHello(nodeId, NodeFlags.ACCEPTS_CONNECTIONS, null)
                 sendLocal(event.link, PacketType.HELLO, hello)
             }
-            is RadioEvent.LinkDown -> links.remove(event.link)
+            is RadioEvent.LinkDown -> links.remove(event.link)?.let { forget(it) }
             is RadioEvent.Frame -> onFrame(event.link, event.bytes)
+            is RadioEvent.PeerSeen -> if (connects) onPeerSeen(event)
+            is RadioEvent.ConnectFailed -> if (connecting == event.address) connecting = null
             else -> Unit
         }
+    }
+
+    /** 1.0's initiator rule: the lower prefix connects, the other one after 20 s; a known peer is known by its prefix. */
+    private fun onPeerSeen(e: RadioEvent.PeerSeen) {
+        val now = clock.monoMs()
+        val old = adverts[e.address]
+        adverts[e.address] = Advert(e.prefix ?: old?.prefix, old?.sinceMs ?: now, now)
+        if (connecting != null || links.values.count { it.outgoing } >= 4) return
+        val addresses = links.values.map { it.address }.toSet()
+        val prefixes = links.values.filter { it.peerId != 0L }.map { it.peerId.nodePrefix() }.toSet()
+        val pick = adverts.entries.firstOrNull { (address, s) ->
+            now - s.lastMs <= 15_000 && address !in addresses && s.prefix !in prefixes &&
+                (s.prefix == null || Integer.compareUnsigned(nodeId.nodePrefix(), s.prefix) <= 0 || now - s.sinceMs >= 20_000)
+        } ?: return
+        connecting = pick.key
+        radio.connect(pick.key)
+    }
+
+    private fun forget(link: Link) {
+        val prefix = if (link.peerId != 0L) link.peerId.nodePrefix() else null
+        adverts.entries.removeAll { (address, s) -> address == link.address || (prefix != null && s.prefix == prefix) }
     }
 
     private fun onFrame(linkId: Int, bytes: ByteArray) {
@@ -124,6 +158,14 @@ class V10Node(
         val hello = Frozen10.hello(packet.payload)
         if (hello == null || hello.nodeId != packet.sender) return bad()
         if (link.peerId != 0L) return
+        val twin = links.entries.firstOrNull { it.key != linkId && it.value.peerId == hello.nodeId }
+        if (twin != null) {
+            // as 1.0: the link opened by the lower nodeId stays; of two opened the same way, the newer one
+            val preferOutgoing = java.lang.Long.compareUnsigned(nodeId, hello.nodeId) < 0
+            val loser = if (twin.value.outgoing == preferOutgoing && link.outgoing != preferOutgoing) linkId else twin.key
+            radio.disconnect(loser)
+            if (loser == linkId) return
+        }
         link.peerId = hello.nodeId
         val ids = (reports.keys + acks.keys).distinct().take(50)
         if (ids.isEmpty()) return

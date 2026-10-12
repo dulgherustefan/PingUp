@@ -40,7 +40,7 @@ import ro.safetyplease.core.crypto.StaffCrypto
 import ro.safetyplease.core.crypto.StaffPublicKeys
 import ro.safetyplease.core.crypto.StaffRole
 import ro.safetyplease.core.crypto.StaffSecretKeys
-import ro.safetyplease.core.data.ChatData
+import ro.safetyplease.core.data.ChatStore
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.Group
 import ro.safetyplease.core.data.IncidentData
@@ -48,6 +48,7 @@ import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.incidents.IncidentManager
+import ro.safetyplease.core.mesh.CachedIncidents
 import ro.safetyplease.core.mesh.MeshConfig
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.PacketLog
@@ -82,7 +83,7 @@ class AppContainer(private val app: Application) {
     val settings = JsonStore(File(dataDir, "settings.json"), Settings.serializer(), Settings(), ioScope)
     val friends = JsonStore(File(dataDir, "friends.json"), ListSerializer(Friend.serializer()), emptyList(), ioScope)
     val groups = JsonStore(File(dataDir, "groups.json"), ListSerializer(Group.serializer()), emptyList(), ioScope)
-    val chatStore = JsonStore(File(dataDir, "chat.json"), ChatData.serializer(), ChatData(), ioScope)
+    val chatStore = ChatStore(dataDir, ioScope)
     val incidentStore = JsonStore(File(dataDir, "incidents.json"), IncidentData.serializer(), IncidentData(), ioScope)
 
     val venue: Venue = Venue.parse(asset("venue.json"), AppLocale.language(app))
@@ -108,10 +109,14 @@ class AppContainer(private val app: Application) {
 
     val log = PacketLog(BuildConfig.DEBUG).apply { sink = { Log.d(TAG, it) } }
     val radio = BleRadio(app, meshScope, identity.nodeId) { Log.i(TAG, it) }
+
+    /** The reports and ACKs this phone carries for store-and-forward, so a restart doesn't lose them. */
+    private val meshCache = JsonStore(File(dataDir, "mesh_cache.json"), CachedIncidents.serializer(), CachedIncidents(), ioScope)
+
     val engine = MeshEngine(
         meshScope, radio, clock, SecureRandom().asKotlinRandom(), identity.nodeId,
         MeshConfig(nicknameInHello = BuildConfig.DEBUG, allowTestPackets = BuildConfig.DEBUG),
-        log,
+        log, meshCache,
     ) { staffCrypto.verifyAck(it) }
 
     val notifier = Notifier(app, venue)

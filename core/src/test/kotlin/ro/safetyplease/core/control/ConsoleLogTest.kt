@@ -387,6 +387,18 @@ class ConsoleLogTest {
     }
 
     @Test
+    fun aLinkedPhoneIsOneRowUnderThePrefixItAdvertises() {
+        val rotating = 0x0bad_cafe
+        val state = MeshState(
+            seen = listOf(SeenPeer("aa", rotating, NodeFlags.STAFF, -60, 9_000)),
+            links = listOf(LinkInfo(1, "c:aa", 0x5566778899aabbccL, null, NodeFlags.STAFF, false, false, 0, prefix = rotating)),
+        )
+        val book = PeerBook.update(emptyMap(), state, t0, 10_000)
+        assertEquals(listOf(rotating), book.keys.toList())
+        assertTrue(book.getValue(rotating).linked)
+    }
+
+    @Test
     fun peerBookKeepsTheMostRecentPhonesOnly() {
         val many = (0 until PeerBook.MAX_PEERS + 20).map { SeenPeer("a$it", it, 0, -80, it.toLong()) }
         val book = PeerBook.update(emptyMap(), MeshState(seen = many), t0, 10_000)

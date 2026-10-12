@@ -47,7 +47,8 @@ interface Radio {
     /** Sends a frame; returns once the stack has taken it. False means the link is broken. */
     suspend fun send(link: Int, frame: ByteArray): Boolean
 
-    fun setAdvertisedFlags(flags: Int)
+    /** What advertising carries. A new [prefix] needs a new advertising set, so that the address changes with it. */
+    fun setAdvertising(flags: Int, prefix: Int)
 
     fun setPowerMode(scan: PowerMode, advertise: PowerMode)
 }

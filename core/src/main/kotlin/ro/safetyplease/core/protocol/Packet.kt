@@ -24,10 +24,10 @@ object PacketType {
     private val known = V1_0 + setOf(SUMMARY2, REQUEST2)
 
     /**
-     * Chat keeps the reach it had in 1.0 until it also gets a smaller fan-out: in ScaleTest's walking crowd of 200,
-     * with a TTL of 6, friends three radio ranges apart no longer get each other's messages.
+     * Chat reaches 4 hops, and each relay passes it on only a few links ([ro.safetyplease.core.mesh.FanOut]): a chat
+     * message no longer costs a flood of the whole crowd. Friends farther apart get it once they walk closer.
      */
-    const val CHAT_TTL = PacketCodec.MAX_TTL
+    const val CHAT_TTL = 4
 
     /** Types this version doesn't read, the reserved one included, start at this TTL and are never relayed above it. */
     const val OPAQUE_MAX_TTL = 3

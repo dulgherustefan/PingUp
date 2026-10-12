@@ -31,9 +31,13 @@ data class Position(val x: Double, val y: Double)
 class SimNet(private val scope: CoroutineScope) {
     private val radios = mutableListOf<SimRadio>()
     private var nextLink = 1
+    private var started = false
     val outOfRange = mutableSetOf<Set<String>>()
     var connectDelayMs = 300L
     var frameDelayMs = 5L
+
+    /** A new advertising set takes this long to start, as with BleRadio's debounce. */
+    var advertiseRestartMs = 300L
 
     /** How far a placed radio is heard by another placed one; radios without a position hear everyone. */
     var range = Double.POSITIVE_INFINITY
@@ -52,7 +56,11 @@ class SimNet(private val scope: CoroutineScope) {
     }
 
     fun radio(address: String, prefix: Int, maxFrame: Int = 514, canAdvertise: Boolean = true): SimRadio =
-        SimRadio(this, address, prefix, maxFrame, canAdvertise).also { radios += it }
+        SimRadio(this, address, prefix, maxFrame, canAdvertise).also {
+            radios += it
+            // a phone that joins later finds the radio on
+            if (started) it.announceStatus()
+        }
 
     /** Rows of [columns] radios, [spacing] apart. */
     fun grid(radios: List<SimRadio>, columns: Int, spacing: Double) {
@@ -110,6 +118,13 @@ class SimNet(private val scope: CoroutineScope) {
         return Traffic(ofType.size, ofType.sumOf { it.count })
     }
 
+    internal fun later(delayMs: Long, block: () -> Unit) {
+        scope.launch {
+            delay(delayMs)
+            block()
+        }
+    }
+
     internal fun onAir(frame: ByteArray) {
         val decoded = PacketCodec.decode(frame) ?: return
         // a fragmented packet counts once, on its first fragment
@@ -118,13 +133,14 @@ class SimNet(private val scope: CoroutineScope) {
     }
 
     fun start() {
+        started = true
         radios.forEach { it.announceStatus() }
         scope.launch {
             while (isActive) {
                 delay(1000)
                 for (a in radios) for (b in radios) {
                     if (a !== b && a.on && b.on && a.canAdvertise && inRange(a, b)) {
-                        b.events.trySend(RadioEvent.PeerSeen(a.address, a.prefix, a.flags, rssi(a, b)))
+                        b.events.trySend(RadioEvent.PeerSeen(a.advertisedAddress, a.prefix, a.flags, rssi(a, b)))
                     }
                 }
             }
@@ -157,7 +173,7 @@ class SimNet(private val scope: CoroutineScope) {
     internal fun connect(from: SimRadio, address: String) {
         scope.launch {
             delay(connectDelayMs)
-            val target = radios.firstOrNull { it.address == address }
+            val target = radios.firstOrNull { it.address == address || it.advertisedAddress == address }
             if (target == null || !target.on || !from.on || !inRange(from, target)) {
                 from.events.trySend(RadioEvent.ConnectFailed(address))
                 return@launch
@@ -176,7 +192,7 @@ class SimNet(private val scope: CoroutineScope) {
 class SimRadio(
     private val net: SimNet,
     val address: String,
-    val prefix: Int,
+    prefix: Int,
     val maxFrame: Int,
     val canAdvertise: Boolean,
 ) : Radio {
@@ -185,6 +201,9 @@ class SimRadio(
     override val events = Channel<RadioEvent>(Channel.UNLIMITED)
     val links = HashMap<Int, Peer>()
     var flags = 0
+
+    /** What it advertises; the engine sets it once it starts. */
+    var prefix = prefix
     var on = true
     var position: Position? = null
     val connectAttempts = mutableListOf<String>()
@@ -225,12 +244,32 @@ class SimRadio(
         peer.radio.events.trySend(RadioEvent.Frame(peer.link, frame))
     }
 
-    /** Every flag set the engine asked to advertise, in order. */
+    /** Every flag set the engine asked to advertise, in order, and every prefix. */
     val advertised = mutableListOf<Int>()
+    val prefixes = mutableListOf<Int>()
 
-    override fun setAdvertisedFlags(flags: Int) {
+    /**
+     * The address scanners see. As on a phone, a new prefix comes with a new advertising set, which starts
+     * [SimNet.advertiseRestartMs] later under a new address; the old one no longer answers. A connect to [address]
+     * itself always reaches this radio.
+     */
+    var advertisedAddress = address
+        private set
+
+    override fun setAdvertising(flags: Int, prefix: Int) {
         this.flags = flags
         advertised += flags
+        if (prefixes.lastOrNull() == prefix) return
+        prefixes += prefix
+        if (prefixes.size == 1) {
+            this.prefix = prefix
+            return
+        }
+        val newAddress = "$address/${prefixes.size - 1}"
+        net.later(net.advertiseRestartMs) {
+            this.prefix = prefix
+            advertisedAddress = newAddress
+        }
     }
 
     override fun setPowerMode(scan: PowerMode, advertise: PowerMode) = Unit

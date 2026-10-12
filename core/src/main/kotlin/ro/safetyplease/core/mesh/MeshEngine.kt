@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Compat10
 import ro.safetyplease.core.protocol.Hello
@@ -98,6 +99,8 @@ data class LinkInfo(
     val outgoing: Boolean,
     val muted: Boolean,
     val upAtMs: Long,
+    /** The prefix the peer advertises, as in [SeenPeer.prefix]; null while unknown. */
+    val prefix: Int? = null,
 )
 
 data class SeenPeer(val address: String, val prefix: Int?, val flags: Int, val rssi: Int, val lastSeenMs: Long)
@@ -130,7 +133,7 @@ data class MeshCounters(
     val drops: Map<DropReason, Long> = emptyMap(),
     /** Reports and ACKs queued for a neighbor that requested them after a SUMMARY. */
     val storeAndForward: Long = 0,
-    /** Links and HELLOs refused because the peer is banned. Not packets, so not in [MeshState.dropped]. */
+    /** Links refused because the address they came from is banned. Not packets, so not in [MeshState.dropped]. */
     val refusedBanned: Long = 0,
 )
 
@@ -161,6 +164,7 @@ data class MeshState(
 /**
  * Mesh core, independent of the radio: links, HELLO, dedup, TTL relay, priority queues, abuse limits
  * and store-and-forward. All state is touched from a single thread (the [scope] context).
+ * With a [cacheStore], the reports and ACKs kept for store-and-forward outlive the process.
  */
 class MeshEngine(
     private val scope: CoroutineScope,
@@ -170,6 +174,7 @@ class MeshEngine(
     val nodeId: Long,
     private val config: MeshConfig,
     val log: PacketLog,
+    private val cacheStore: JsonStore<CachedIncidents>? = null,
     private val verifyAck: (payload: ByteArray) -> Boolean,
 ) {
     private class Link(
@@ -178,12 +183,14 @@ class MeshEngine(
         val outgoing: Boolean,
         val maxFrame: Int,
         val upAtMs: Long,
-        var advertisedPrefix: Int?,
+        /** What we saw advertised at the address we connected to; null on links the peer opened. */
+        val advertisedPrefix: Int?,
         config: MeshConfig,
         onQueueFull: () -> Unit,
     ) {
         var peerId = 0L
         var peerFlags = 0
+        var helloPrefix: Int? = null
         var nickname: String? = null
         var muted = false
         var closing = false
@@ -207,13 +214,21 @@ class MeshEngine(
 
         /** The peer announced 1.1 in its HELLO; a 1.0 peer gets only what 1.0 reads. */
         val speaks11: Boolean get() = peerFlags and NodeFlags.PROTOCOL_1_1 != 0
+
+        val readsPrefix: Boolean get() = peerFlags and NodeFlags.PREFIX_IN_HELLO != 0
+
+        /** What the peer advertises: from its HELLO; a peer that doesn't rotate advertises its nodeId's prefix. */
+        val peerPrefix: Int?
+            get() = helloPrefix ?: if (peerId != 0L && !readsPrefix) peerId.nodePrefix() else advertisedPrefix
     }
 
-    private val myPrefix = nodeId.nodePrefix()
+    private val rotatingPrefix = AdvertisedPrefix(random, clock.monoMs())
     private val links = LinkedHashMap<Int, Link>()
     private val seen = HashMap<String, Candidate>()
     private val dedup = DedupCache()
-    private val cache = IncidentCache(config.retentionMs)
+    private val cache = IncidentCache(config.retentionMs).apply {
+        cacheStore?.let { restore(it.value, clock.monoMs(), clock.wallMs(), maxOf(config.retentionMs, config.anchorRetentionMs)) }
+    }
 
     /** Packets waiting out the relay jitter, with the links that already gave us a copy. */
     private val relaying = HashMap<Long, MutableSet<Int>>()
@@ -221,7 +236,6 @@ class MeshEngine(
     private val addressBlockedUntil = HashMap<String, Long>()
     private val addressFailures = HashMap<String, Int>()
     private val prefixCooldownUntil = HashMap<Int, Long>()
-    private val bannedNodesUntil = HashMap<Long, Long>()
     private val bannedAddressesUntil = HashMap<String, Long>()
 
     private var connecting: String? = null
@@ -234,6 +248,7 @@ class MeshEngine(
     private var limits = LinkLimits.DEFAULT
     private var nickname: String? = null
     private var advertisedFlags = -1
+    private var advertisedPrefix: Int? = null
 
     private var sentCount = 0L
     private var receivedCount = 0L
@@ -254,7 +269,7 @@ class MeshEngine(
 
     fun start() {
         if (jobs.isNotEmpty()) return
-        refreshFlags()
+        refreshAdvertising()
         jobs = listOf(
             scope.launch { for (event in radio.events) handle(event) },
             scope.launch {
@@ -284,8 +299,9 @@ class MeshEngine(
         roleFlags = flags
         limits = if (anchor) LinkLimits.ANCHOR else LinkLimits.DEFAULT
         cache.retentionMs = if (anchor) config.anchorRetentionMs else config.retentionMs
-        refreshFlags()
+        // the HELLOs go first, so neighbors know a changed prefix before they see it advertised
         links.values.filter { !it.closing }.forEach { sendHello(it) }
+        refreshAdvertising()
     }
 
     fun setNickname(value: String?) {
@@ -310,6 +326,7 @@ class MeshEngine(
 
     fun clearCaches() {
         cache.clear()
+        saveCache()
         publishState()
     }
 
@@ -331,7 +348,7 @@ class MeshEngine(
     fun publishReport(incidentId: ByteArray, sealed: ByteArray): Packet {
         val payload = IncidentReportCodec.encode(incidentId, sealed)
         val packet = newPacket(PacketType.INCIDENT_REPORT, payload, null, encrypted = true, anonymous = true)
-        cache.offerReport(incidentId, packet, clock.monoMs(), own = true)
+        if (cache.offerReport(incidentId, packet, clock.monoMs(), own = true)) saveCache()
         flood(packet, own = true)
         publishState()
         return packet
@@ -340,6 +357,7 @@ class MeshEngine(
     fun publishAck(ack: IncidentAck): Packet? {
         val packet = newPacket(PacketType.INCIDENT_ACK, ack.encode(), null, encrypted = false, anonymous = false)
         if (!cache.offerAck(ack, packet, clock.monoMs())) return null
+        saveCache()
         flood(packet, own = true)
         return packet
     }
@@ -355,6 +373,7 @@ class MeshEngine(
     /** After a cancel we stop spreading our own report; the trace stays so neighbors don't bring it back. */
     fun forgetReport(incidentId: ByteArray) {
         cache.forgetReport(incidentId, clock.monoMs())
+        saveCache()
         publishState()
     }
 
@@ -384,12 +403,18 @@ class MeshEngine(
     }
 
     private fun flood(packet: Packet, except: Set<Int> = emptySet(), own: Boolean): Int {
+        val targets = links.values.filter { it.ready && it.id !in except && canSend(it, packet) }
         var count = 0
-        for (link in links.values) {
-            if (!link.ready || link.id in except || !canSend(link, packet)) continue
+        for (link in fanOut(packet, targets, own)) {
             if (link.queue.offer(Outbound(packet, own))) count++ else drop(packet, link, DropReason.QUEUE_FULL)
         }
         return count
+    }
+
+    /** A relay passes chat on a few links, the recipient's own among them; its writer and every other type use them all. */
+    private fun fanOut(packet: Packet, targets: List<Link>, own: Boolean): List<Link> {
+        if (own || packet.type != PacketType.PRIVATE) return targets
+        return FanOut.pick(targets, targets.firstOrNull { it.peerId == packet.recipient }, random)
     }
 
     /** Nothing goes to a 1.0 peer that it would count as malformed. */
@@ -401,9 +426,11 @@ class MeshEngine(
         link.queue.offer(Outbound(packet, own = true))
     }
 
+    /** The prefix goes only to a peer whose HELLO showed it reads it; nothing else may follow a 1.0 HELLO's nickname. */
     private fun sendHello(link: Link) {
         val nick = if (config.nicknameInHello) nickname else null
-        sendLocal(link, PacketType.HELLO, Hello(PacketCodec.VERSION, nodeId, currentFlags(), nick).encode())
+        val prefix = if (link.readsPrefix) myPrefix() else null
+        sendLocal(link, PacketType.HELLO, Hello(PacketCodec.VERSION, nodeId, currentFlags(), nick, prefix).encode())
     }
 
     /** SUMMARY2 to a 1.1 peer, the 1.0 SUMMARY to the others. */
@@ -466,9 +493,11 @@ class MeshEngine(
             is RadioEvent.ConnectFailed -> onConnectFailed(event.address)
             is RadioEvent.Status -> {
                 // With the radio off everything seen is stale: after a restart, wait for fresh advertising.
+                // The advertising set starts again with a new address, so it gets a new prefix too.
                 if (radioStatus.bluetoothOn && !event.status.bluetoothOn) {
                     seen.clear()
                     connecting = null
+                    renewPrefix(clock.monoMs())
                 }
                 radioStatus = event.status
                 publishState()
@@ -476,10 +505,12 @@ class MeshEngine(
         }
     }
 
+    /** A sighting without service data (the scan response was missed) keeps what the last one with it said. */
     private fun onPeerSeen(e: RadioEvent.PeerSeen) {
         val now = clock.monoMs()
         val old = seen[e.address]
-        seen[e.address] = Candidate(e.address, e.prefix ?: old?.prefix, e.flags, e.rssi, old?.sinceMs ?: now, now)
+        val flags = if (e.prefix == null && old != null) old.flags else e.flags
+        seen[e.address] = Candidate(e.address, e.prefix ?: old?.prefix, flags, e.rssi, old?.sinceMs ?: now, now)
         maintainConnections(now)
     }
 
@@ -499,7 +530,7 @@ class MeshEngine(
         log.link(clock.wallMs(), link.label, if (e.outgoing) "link up (out) mtu=${e.maxFrame}" else "link up (in) mtu=${e.maxFrame}")
         startPump(link)
         sendHello(link)
-        refreshFlags()
+        refreshAdvertising()
         publishState()
     }
 
@@ -512,12 +543,12 @@ class MeshEngine(
         if (link.outgoing && link.peerId == 0L) registerFailure(link.address)
         // After a lost link, forget the peer: if it's still in range we'll see its advertising within a second;
         // if it left, we won't keep connecting to its last address.
-        val prefix = if (link.peerId != 0L) link.peerId.nodePrefix() else link.advertisedPrefix
+        val prefix = link.peerPrefix
         seen.entries.removeAll { (address, c) -> address == link.address || (prefix != null && c.prefix == prefix) }
         if (link.peerId != 0L && links.values.none { it.peerId == link.peerId && it.ready }) {
             _events.tryEmit(MeshEvent.PeerUnlinked(link.peerId))
         }
-        refreshFlags()
+        refreshAdvertising()
         publishState()
     }
 
@@ -577,17 +608,13 @@ class MeshEngine(
         if (hello == null || hello.version < PacketCodec.VERSION || hello.nodeId != packet.sender) {
             return malformed(link, "HELLO invalid")
         }
-        val now = clock.monoMs()
-        val banned = (bannedNodesUntil[hello.nodeId] ?: 0) > now
-        if (hello.nodeId == nodeId || banned) {
-            if (banned) refusedBannedCount++
-            close(link)
-            return
-        }
+        if (hello.nodeId == nodeId) return close(link)
         if (link.peerId != 0L) {
             if (link.peerId != hello.nodeId) return malformed(link, "HELLO with a different nodeId")
-            link.peerFlags = hello.flags
-            link.nickname = hello.nickname
+            val before = link.peerPrefix
+            setPeer(link, hello)
+            // the peer moved to a new prefix: what it advertised before is stale, not a new peer to connect to
+            if (before != null && link.peerPrefix != before) seen.values.removeAll { it.prefix == before }
             publishState()
             return
         }
@@ -600,15 +627,22 @@ class MeshEngine(
             if (loser === link) return
         }
         link.peerId = hello.nodeId
-        link.peerFlags = hello.flags
-        link.nickname = hello.nickname
+        setPeer(link, hello)
         addressFailures.remove(link.address)
+        // our first HELLO left before we knew the peer reads the prefix
+        if (link.readsPrefix) sendHello(link)
         link.muted = hello.nodeId.nodePrefix() in ignored
         if (!link.muted) {
             sendSummary(link)
             _events.tryEmit(MeshEvent.PeerLinked(link.peerId))
         }
         publishState()
+    }
+
+    private fun setPeer(link: Link, hello: Hello) {
+        link.peerFlags = hello.flags
+        link.nickname = hello.nickname
+        if (link.readsPrefix) hello.prefix?.let { link.helloPrefix = it }
     }
 
     /** Both ends must pick the same link without talking: keep the one initiated by the lower nodeId. */
@@ -686,6 +720,7 @@ class MeshEngine(
                 val incidentId = IncidentReportCodec.incidentId(packet.payload)
                 if (!cache.offerReport(incidentId, forwardable, now, packet.hops)) return drop(packet, link, DropReason.KNOWN_INCIDENT)
                 link.newReports.tryAdd(now)
+                saveCache()
             }
             PacketType.INCIDENT_ACK -> {
                 val ack = IncidentAck.decode(packet.payload) ?: return malformed(link, "ACK invalid")
@@ -693,6 +728,7 @@ class MeshEngine(
                 // a status from a newer version has no place in the supersede order: relayed, neither kept nor delivered
                 if (!AckStatus.isKnown(ack.status)) return relayOnward(link, packet)
                 if (!cache.offerAck(ack, forwardable, now)) return drop(packet, link, DropReason.STALE_ACK)
+                saveCache()
             }
             PacketType.INCIDENT_CANCEL -> {
                 if (packet.payload.size < IncidentCancel.SIZE) return malformed(link, "invalid CANCEL")
@@ -770,11 +806,14 @@ class MeshEngine(
         val now = clock.monoMs()
         if (link.unsupported.tryAdd(now)) return
         log.link(clock.wallMs(), link.label, "too much from a newer version, closing")
-        val prefix = if (link.peerId != 0L) link.peerId.nodePrefix() else link.advertisedPrefix
-        prefix?.let { prefixCooldownUntil[it] = now + config.rotationCooldownMs }
+        link.peerPrefix?.let { prefixCooldownUntil[it] = now + config.rotationCooldownMs }
         close(link)
     }
 
+    /**
+     * The ban falls on the address the link came from, not on the nodeId its HELLO claims: HELLO isn't
+     * authenticated, so a ban on the claimed id would let anyone get another phone refused.
+     */
     private fun malformed(link: Link, reason: String) {
         drops.bump(DropReason.MALFORMED)
         val now = clock.monoMs()
@@ -784,7 +823,6 @@ class MeshEngine(
             link.malformedAt.removeFirst()
         }
         if (link.malformedAt.size < config.malformedLimit) return
-        if (link.peerId != 0L) bannedNodesUntil[link.peerId] = now + config.banMs
         bannedAddressesUntil[link.address] = now + config.banMs
         log.link(clock.wallMs(), link.label, "ignored for ${config.banMs / 60_000} min")
         close(link)
@@ -804,8 +842,8 @@ class MeshEngine(
         seen.values.removeAll { now - it.lastSeenMs > config.seenTtlMs }
         addressBlockedUntil.values.removeAll { it <= now }
         prefixCooldownUntil.values.removeAll { it <= now }
-        bannedNodesUntil.values.removeAll { it <= now }
         bannedAddressesUntil.values.removeAll { it <= now }
+        if (rotatingPrefix.isDue(now)) renewPrefix(now)
 
         for (link in links.values.toList()) {
             if (link.closing) continue
@@ -831,20 +869,18 @@ class MeshEngine(
     private fun isBlocked(c: Candidate, now: Long): Boolean {
         if ((addressBlockedUntil[c.address] ?: 0) > now || (bannedAddressesUntil[c.address] ?: 0) > now) return true
         val prefix = c.prefix ?: return false
-        return prefix in ignored || (prefixCooldownUntil[prefix] ?: 0) > now ||
-            bannedNodesUntil.keys.any { it.nodePrefix() == prefix }
+        return prefix in ignored || (prefixCooldownUntil[prefix] ?: 0) > now
     }
 
     private fun linkViews(): List<LinkView> = links.values.map {
-        val prefix = if (it.peerId != 0L) it.peerId.nodePrefix() else it.advertisedPrefix
-        LinkView(it.id, it.address, prefix, it.peerFlags, it.outgoing, it.upAtMs, it.lastActivityMs)
+        LinkView(it.id, it.address, it.peerPrefix, it.peerFlags, it.outgoing, it.upAtMs, it.lastActivityMs)
     }
+
+    private fun me() = Me(myPrefix(), nodeId.nodePrefix(), radioStatus.canAdvertise)
 
     private fun maintainConnections(now: Long) {
         if (connecting != null || !radioStatus.bluetoothOn) return
-        val pick = ConnectionPolicy.pick(
-            myPrefix, radioStatus.canAdvertise, limits, seen.values, linkViews(), now,
-        ) { isBlocked(it, now) } ?: return
+        val pick = ConnectionPolicy.pick(me(), limits, seen.values, linkViews(), now) { isBlocked(it, now) } ?: return
         connecting = pick.address
         connectingSinceMs = now
         log.link(clock.wallMs(), pick.address.takeLast(5), "connect ${pick.prefix?.toHex() ?: "?"} rssi=${pick.rssi}")
@@ -852,13 +888,23 @@ class MeshEngine(
     }
 
     private fun rotate(now: Long) {
-        val victim = ConnectionPolicy.rotationVictim(
-            myPrefix, radioStatus.canAdvertise, limits, seen.values, linkViews(), now,
-        ) { isBlocked(it, now) } ?: return
+        val victim = ConnectionPolicy.rotationVictim(me(), limits, seen.values, linkViews(), now) { isBlocked(it, now) } ?: return
         val link = links[victim.id] ?: return
         victim.peerPrefix?.let { prefixCooldownUntil[it] = now + config.rotationCooldownMs }
         log.link(clock.wallMs(), link.label, "rotatie")
         close(link)
+    }
+
+    /** An anchor keeps its nodeId's prefix: it is a fixed device, and the control console notices a quiet anchor by it. */
+    private fun myPrefix(): Int = if (roleFlags and NodeFlags.ANCHOR != 0) nodeId.nodePrefix() else rotatingPrefix.value
+
+    /** Neighbors that read the prefix learn the new one before it is advertised, so they don't connect to it again. */
+    private fun renewPrefix(now: Long) {
+        val before = myPrefix()
+        rotatingPrefix.renew(now)
+        if (myPrefix() == before) return
+        for (link in links.values) if (!link.closing && link.readsPrefix) sendHello(link)
+        refreshAdvertising()
     }
 
     /**
@@ -866,25 +912,31 @@ class MeshEngine(
      * so the reporter isn't a beacon.
      */
     private fun currentFlags(): Int {
-        var flags = roleFlags or NodeFlags.PROTOCOL_1_1
+        var flags = roleFlags or NodeFlags.PROTOCOL_1_1 or NodeFlags.PREFIX_IN_HELLO
         if (links.values.count { !it.outgoing && !it.closing } < limits.maxIn) {
             flags = flags or NodeFlags.ACCEPTS_CONNECTIONS
         }
         return flags
     }
 
-    private fun refreshFlags() {
+    private fun refreshAdvertising() {
         val flags = currentFlags()
-        if (flags == advertisedFlags) return
+        val prefix = myPrefix()
+        if (flags == advertisedFlags && prefix == advertisedPrefix) return
         advertisedFlags = flags
-        radio.setAdvertisedFlags(flags)
+        advertisedPrefix = prefix
+        radio.setAdvertising(flags, prefix)
+    }
+
+    private fun saveCache() {
+        cacheStore?.update { cache.snapshot(clock.monoMs(), clock.wallMs()) }
     }
 
     private fun publishState() {
         _state.value = MeshState(
             radio = radioStatus,
             links = links.values.filter { !it.closing }.map {
-                LinkInfo(it.id, it.address, it.peerId, it.nickname, it.peerFlags, it.outgoing, it.muted, it.upAtMs)
+                LinkInfo(it.id, it.address, it.peerId, it.nickname, it.peerFlags, it.outgoing, it.muted, it.upAtMs, it.peerPrefix)
             },
             seen = seen.values.map { SeenPeer(it.address, it.prefix, it.flags, it.rssi, it.lastSeenMs) }
                 .sortedByDescending { it.rssi },

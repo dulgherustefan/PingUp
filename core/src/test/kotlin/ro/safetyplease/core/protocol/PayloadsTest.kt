@@ -35,6 +35,18 @@ class PayloadsTest {
         assertEquals(5L, h.nodeId)
         assertEquals(NodeFlags.PROTOCOL_1_1, h.flags)
         assertEquals("x", h.nickname)
+        assertNull("three bytes are no prefix", h.prefix)
+    }
+
+    @Test
+    fun helloCarriesTheAdvertisedPrefixAfterTheNickname() {
+        val bytes = Hello(1, 5L, NodeFlags.PREFIX_IN_HELLO, "x", prefix = 0x80a0_0001.toInt()).encode()
+        assertEquals("4 bytes after the nickname", Hello(1, 5L, NodeFlags.PREFIX_IN_HELLO, "x").encode().size + 4, bytes.size)
+        assertEquals(0x80a0_0001.toInt(), Hello.decode(bytes)!!.prefix)
+        val later = Hello.decode(bytes + byteArrayOf(9, 9))!!
+        assertEquals("what follows the prefix is skipped", 0x80a0_0001.toInt(), later.prefix)
+        assertEquals("x", later.nickname)
+        assertNull(Hello.decode(Hello(1, 5L, 0, null).encode())!!.prefix)
     }
 
     @Test

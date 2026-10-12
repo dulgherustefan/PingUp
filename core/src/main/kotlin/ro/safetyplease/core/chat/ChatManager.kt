@@ -8,8 +8,8 @@ import kotlinx.coroutines.launch
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.Identity
-import ro.safetyplease.core.data.ChatData
 import ro.safetyplease.core.data.ChatMessage
+import ro.safetyplease.core.data.ChatStore
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.Group
@@ -20,6 +20,7 @@ import ro.safetyplease.core.data.MsgStatus
 import ro.safetyplease.core.data.OutboxItem
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.MeshEvent
+import ro.safetyplease.core.mesh.WindowLimit
 import ro.safetyplease.core.protocol.GroupMemberWire
 import ro.safetyplease.core.protocol.Inner
 import ro.safetyplease.core.protocol.InnerCodec
@@ -43,7 +44,7 @@ class ChatManager(
     private val identity: Identity,
     private val friends: JsonStore<List<Friend>>,
     private val groups: JsonStore<List<Group>>,
-    private val chat: JsonStore<ChatData>,
+    private val chat: ChatStore,
     private val clock: Clock,
     private val random: Random,
     private val myNickname: () -> String,
@@ -51,6 +52,9 @@ class ChatManager(
 ) {
     private val attempts = LinkedHashMap<Long, Pair<Long, Long>>()
     private var linkRetry: Job? = null
+
+    /** Every chat packet this phone writes, retries and receipts included. */
+    private val sendLimit = WindowLimit(PACKETS_PER_MINUTE, 60_000)
 
     /** When we last confirmed each (sender, msgId), so copies of one message don't each cost a DELIVERED flood. */
     private val confirmedAt = LinkedHashMap<Pair<Long, Long>, Long>()
@@ -218,10 +222,15 @@ class ChatManager(
         attempt(item)
     }
 
-    /** Every attempt is a new packet (new id, new nonce) so relays don't drop it as a duplicate. */
+    /**
+     * Every attempt is a new packet (new id, new nonce) so relays don't drop it as a duplicate. A message waits its
+     * turn while [MAX_IN_FLIGHT] others are being tried, and any attempt waits while the phone is over its chat budget.
+     */
     private fun attempt(item: OutboxItem) {
         if (engine.state.value.readyLinks == 0) return
+        if (item.attempts == 0 && chat.value.outbox.count { it.attempts > 0 } >= MAX_IN_FLIGHT) return
         val key = boxKeyOf(item.recipient) ?: return
+        if (!sendLimit.tryAdd(clock.monoMs())) return
         val payload = crypto.box(item.innerHex.hexToBytes(), key, identity.box.secretKey)
         val packet = engine.unicast(PacketType.PRIVATE, item.recipient, payload)
         attempts[packet.id] = item.msgId to item.recipient
@@ -235,10 +244,13 @@ class ChatManager(
         }
     }
 
-    private fun sendDirect(recipient: Long, inner: Inner) {
-        if (engine.state.value.readyLinks == 0) return
-        val key = boxKeyOf(recipient) ?: return
+    /** False if it didn't go: no link, no key, or over the chat budget. */
+    private fun sendDirect(recipient: Long, inner: Inner): Boolean {
+        if (engine.state.value.readyLinks == 0) return false
+        val key = boxKeyOf(recipient) ?: return false
+        if (!sendLimit.tryAdd(clock.monoMs())) return false
         engine.unicast(PacketType.PRIVATE, recipient, crypto.box(InnerCodec.encode(inner), key, identity.box.secretKey))
+        return true
     }
 
     private fun retryOutbox(linkTrigger: Boolean) {
@@ -387,10 +399,11 @@ class ChatManager(
         val now = clock.wallMs()
         val last = confirmedAt[key]
         if (last != null && now - last < CONFIRM_REPEAT_MS) return
+        // a receipt that didn't go is sent when the sender retries
+        if (!sendDirect(sender, Inner.Delivered(newId(), msgId))) return
         confirmedAt.remove(key)
         confirmedAt[key] = now
         while (confirmedAt.size > 512) confirmedAt.remove(confirmedAt.keys.first())
-        sendDirect(sender, Inner.Delivered(newId(), msgId))
     }
 
     // --- helpers ---
@@ -437,6 +450,12 @@ class ChatManager(
 
         /** Under the first retry delay, so a retry after a lost DELIVERED is still answered. */
         const val CONFIRM_REPEAT_MS = 10_000L
+
+        /** Messages (per recipient) being tried at once; the others wait in the outbox. */
+        const val MAX_IN_FLIGHT = 16
+
+        /** Chat packets this phone may write in a minute: a message to a full group is 7, its receipts 1 each. */
+        const val PACKETS_PER_MINUTE = 30
 
         fun backoffMs(attempts: Int): Long = when {
             attempts <= 0 -> 0

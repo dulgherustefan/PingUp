@@ -16,9 +16,12 @@ import ro.safetyplease.core.protocol.INCIDENT_ID_SIZE
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.protocol.Packet
+import ro.safetyplease.core.protocol.PacketCodec
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.RequestEntry
 import ro.safetyplease.core.protocol.SummaryEntry
+import ro.safetyplease.core.util.toHex
+import kotlin.random.Random
 
 class MeshPartsTest {
     private fun packet(type: Int, id: Long = 1) = Packet(type, 7, id, 5L, 0L, null, false, ByteArray(1))
@@ -383,64 +386,93 @@ class MeshPartsTest {
 
     // --- connection policy ---
 
-    private fun cand(addr: String, prefix: Int?, flags: Int = NodeFlags.ACCEPTS_CONNECTIONS, rssi: Int = -60, since: Long = 0, seen: Long = 0) =
+    private val current = NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.PREFIX_IN_HELLO
+
+    private fun cand(addr: String, prefix: Int?, flags: Int = current, rssi: Int = -60, since: Long = 0, seen: Long = 0) =
         Candidate(addr, prefix, flags, rssi, since, seen)
 
     private fun link(id: Int, prefix: Int, outgoing: Boolean, up: Long = 0, activity: Long = 0, flags: Int = 0) =
         LinkView(id, "L$id", prefix, flags, outgoing, up, activity)
+
+    private fun me(prefix: Int, nodePrefix: Int = 0, canAdvertise: Boolean = true) = Me(prefix, nodePrefix, canAdvertise)
 
     private val none: (Candidate) -> Boolean = { false }
 
     @Test
     fun lowerPrefixInitiates() {
         val c = listOf(cand("x", 100))
-        assertNotNull(ConnectionPolicy.pick(50, true, LinkLimits.DEFAULT, c, emptyList(), 0, none))
-        assertNull(ConnectionPolicy.pick(200, true, LinkLimits.DEFAULT, c, emptyList(), 0, none))
+        assertNotNull(ConnectionPolicy.pick(me(50), LinkLimits.DEFAULT, c, emptyList(), 0, none))
+        assertNull(ConnectionPolicy.pick(me(200), LinkLimits.DEFAULT, c, emptyList(), 0, none))
+    }
+
+    @Test
+    fun theRuleComparesAdvertisedPrefixesNotNodeIds() {
+        val c = listOf(cand("x", 100))
+        assertNotNull(ConnectionPolicy.pick(me(50, nodePrefix = 0x7fff_ffff), LinkLimits.DEFAULT, c, emptyList(), 0, none))
+        assertNull(ConnectionPolicy.pick(me(200, nodePrefix = 1), LinkLimits.DEFAULT, c, emptyList(), 0, none))
     }
 
     @Test
     fun prefixComparisonIsUnsigned() {
         val high = listOf(cand("x", 0x80000000.toInt()))
-        assertNotNull(ConnectionPolicy.pick(1, true, LinkLimits.DEFAULT, high, emptyList(), 0, none))
-        assertNull(ConnectionPolicy.pick(0x80000001.toInt(), true, LinkLimits.DEFAULT, high, emptyList(), 0, none))
+        assertNotNull(ConnectionPolicy.pick(me(1), LinkLimits.DEFAULT, high, emptyList(), 0, none))
+        assertNull(ConnectionPolicy.pick(me(0x80000001.toInt()), LinkLimits.DEFAULT, high, emptyList(), 0, none))
     }
 
     @Test
     fun higherPrefixConnectsAnywayAfterFallbackDelay() {
         val c = listOf(cand("x", 100, since = 0, seen = 20_000))
-        assertNull(ConnectionPolicy.pick(200, true, LinkLimits.DEFAULT, listOf(cand("x", 100, seen = 19_000)), emptyList(), 19_000, none))
-        assertNotNull(ConnectionPolicy.pick(200, true, LinkLimits.DEFAULT, c, emptyList(), 20_000, none))
+        assertNull(ConnectionPolicy.pick(me(200), LinkLimits.DEFAULT, listOf(cand("x", 100, seen = 19_000)), emptyList(), 19_000, none))
+        assertNotNull(ConnectionPolicy.pick(me(200), LinkLimits.DEFAULT, c, emptyList(), 20_000, none))
+    }
+
+    @Test
+    fun anOlderPhoneIsConnectedToOnlyFromAHigherNodeIdEvenAfterTheFallback() {
+        val old = listOf(cand("old", 100, NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.PROTOCOL_1_1, since = 0, seen = 60_000))
+        assertNotNull(ConnectionPolicy.pick(me(1, nodePrefix = 200), LinkLimits.DEFAULT, old, emptyList(), 60_000, none))
+        assertNull(ConnectionPolicy.pick(me(1, nodePrefix = 50), LinkLimits.DEFAULT, old, emptyList(), 60_000, none))
+        assertNull("equal isn't higher", ConnectionPolicy.pick(me(1, nodePrefix = 100), LinkLimits.DEFAULT, old, emptyList(), 60_000, none))
+    }
+
+    @Test
+    fun aPeerWhoseServiceDataNeverArrivedIsLeftToConnectToUs() {
+        val unknown = listOf(cand("x", null, NodeFlags.ACCEPTS_CONNECTIONS, since = 0, seen = 60_000))
+        assertNull(ConnectionPolicy.pick(me(1, nodePrefix = -1), LinkLimits.DEFAULT, unknown, emptyList(), 60_000, none))
+        assertNotNull(ConnectionPolicy.pick(me(1, canAdvertise = false), LinkLimits.DEFAULT, unknown, emptyList(), 60_000, none))
     }
 
     @Test
     fun leafAlwaysInitiates() {
-        assertNotNull(ConnectionPolicy.pick(200, false, LinkLimits.DEFAULT, listOf(cand("x", 100)), emptyList(), 0, none))
+        assertNotNull(ConnectionPolicy.pick(me(200, canAdvertise = false), LinkLimits.DEFAULT, listOf(cand("x", 100)), emptyList(), 0, none))
+        val old = listOf(cand("old", 100, NodeFlags.ACCEPTS_CONNECTIONS))
+        assertNotNull(ConnectionPolicy.pick(me(200, nodePrefix = 1, canAdvertise = false), LinkLimits.DEFAULT, old, emptyList(), 0, none))
     }
 
     @Test
-    fun prefersStaffThenRssi() {
-        val accept = NodeFlags.ACCEPTS_CONNECTIONS
+    fun seeksOneLinkWithARoleThenGoesByRssi() {
         val c = listOf(
             cand("near", 100, rssi = -40),
             // an older version still advertises its pending report; it gets no precedence for it
-            cand("pending", 101, accept or NodeFlags.PENDING_INCIDENT, rssi = -80),
-            cand("anchor", 102, accept or NodeFlags.ANCHOR, rssi = -90),
+            cand("pending", 101, current or NodeFlags.PENDING_INCIDENT, rssi = -80),
+            cand("anchor", 102, current or NodeFlags.ANCHOR, rssi = -90),
         )
-        val order = ConnectionPolicy.eligible(1, true, c, emptyList(), 0, none).map { it.address }
-        assertEquals(listOf("anchor", "near", "pending"), order)
+        assertEquals(listOf("anchor", "near", "pending"), ConnectionPolicy.eligible(me(1), c, emptyList(), 0, none).map { it.address })
+        val withStaff = listOf(link(1, 7, false, flags = NodeFlags.STAFF))
+        val after = ConnectionPolicy.eligible(me(1), c, withStaff, 0, none).map { it.address }
+        assertEquals("a second role gets no precedence", listOf("near", "pending", "anchor"), after)
     }
 
     @Test
     fun skipsFullStaleBlockedAndAlreadyLinkedPeers() {
         val c = listOf(
-            cand("full", 100, flags = 0),
+            cand("full", 100, flags = NodeFlags.PREFIX_IN_HELLO),
             cand("stale", 101, seen = 0),
             cand("blocked", 102, seen = 20_000),
             cand("linked", 103, seen = 20_000),
             cand("ok", 104, seen = 20_000),
         )
         val links = listOf(link(1, 103, true))
-        val picked = ConnectionPolicy.eligible(1, true, c, links, 20_000) { it.address == "blocked" }
+        val picked = ConnectionPolicy.eligible(me(1), c, links, 20_000) { it.address == "blocked" }
         assertEquals(listOf("ok"), picked.map { it.address })
     }
 
@@ -448,20 +480,20 @@ class MeshPartsTest {
     fun respectsOutgoingAndTotalLimits() {
         val c = listOf(cand("x", 100))
         val fourOut = List(4) { link(it, it + 1, true) }
-        assertNull(ConnectionPolicy.pick(1, true, LinkLimits.DEFAULT, c, fourOut, 0, none))
+        assertNull(ConnectionPolicy.pick(me(1), LinkLimits.DEFAULT, c, fourOut, 0, none))
         val threeOutFourIn = List(3) { link(it, it + 1, true) } + List(4) { link(10 + it, 20 + it, false) }
-        assertNull(ConnectionPolicy.pick(1, true, LinkLimits.ANCHOR, c, threeOutFourIn, 0, none))
-        assertNotNull(ConnectionPolicy.pick(1, true, LinkLimits.DEFAULT, c, List(3) { link(it, it + 1, true) }, 0, none))
+        assertNull(ConnectionPolicy.pick(me(1), LinkLimits.ANCHOR, c, threeOutFourIn, 0, none))
+        assertNotNull(ConnectionPolicy.pick(me(1), LinkLimits.DEFAULT, c, List(3) { link(it, it + 1, true) }, 0, none))
     }
 
     @Test
     fun rotatedMacCountsAsOnePeer() {
         val c = listOf(cand("old", 100, seen = 1_000), cand("new", 100, seen = 5_000))
-        assertEquals(listOf("new"), ConnectionPolicy.eligible(1, true, c, emptyList(), 5_000, none).map { it.address })
+        assertEquals(listOf("new"), ConnectionPolicy.eligible(me(1), c, emptyList(), 5_000, none).map { it.address })
     }
 
     @Test
-    fun rotationClosesOldestInactiveOutgoingLinkButKeepsStaff() {
+    fun rotationClosesOldestInactiveOutgoingLinkButKeepsOneWithARole() {
         val now = 100_000L
         val c = listOf(cand("x", 100, seen = now))
         val links = listOf(
@@ -471,8 +503,174 @@ class MeshPartsTest {
             link(4, 4, true, up = 5, activity = 40),
             link(5, 5, false, up = 1, activity = 1),
         )
-        assertEquals(4, ConnectionPolicy.rotationVictim(1, true, LinkLimits.DEFAULT, c, links, now, none)!!.id)
-        assertNull("no rotation without candidates", ConnectionPolicy.rotationVictim(1, true, LinkLimits.DEFAULT, emptyList(), links, now, none))
-        assertNull("no rotation with free slots", ConnectionPolicy.rotationVictim(1, true, LinkLimits.DEFAULT, c, links.take(2), now, none))
+        assertEquals(4, ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, c, links, now, none)!!.id)
+        assertNull("no rotation without candidates", ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, emptyList(), links, now, none))
+        assertNull("no rotation with free slots", ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, c, links.take(2), now, none))
+    }
+
+    @Test
+    fun ofSeveralLinksWithARoleOnlyTheOneMostRecentlyInUseIsKept() {
+        val now = 100_000L
+        val c = listOf(cand("x", 100, seen = now))
+        val roles = listOf(
+            link(1, 1, true, up = 5, activity = 50, flags = NodeFlags.ANCHOR),
+            link(2, 2, true, up = 10, activity = 60, flags = NodeFlags.ANCHOR),
+            link(3, 3, true, up = 15, activity = 40, flags = NodeFlags.STAFF),
+            link(4, 4, true, up = 20, activity = 30, flags = NodeFlags.ANCHOR),
+        )
+        assertEquals(1, ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, c, roles, now, none)!!.id)
+        val next = roles.drop(1) + link(5, 5, true, up = 1_000, activity = 0)
+        assertEquals("staff rotates too", 3, ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, c, next, now, none)!!.id)
+        val inbound = roles.map { if (it.id == 1) it.copy(outgoing = false, lastActivityMs = 90) else it } + link(6, 6, true, up = 1_000)
+        assertEquals("the kept one came in, so every outgoing one rotates", 2,
+            ConnectionPolicy.rotationVictim(me(1), LinkLimits.DEFAULT, c, inbound, now, none)!!.id)
+    }
+
+    // --- advertised prefix ---
+
+    @Test
+    fun theAdvertisedPrefixIsDueEveryTwelveToEighteenMinutesAndAlwaysNew() {
+        val p = AdvertisedPrefix(Random(3), nowMs = 0)
+        var now = 0L
+        repeat(200) {
+            val due = generateSequence(now) { it + 1_000 }.first { p.isDue(it) }
+            assertTrue("${due - now}", due - now in 12 * 60_000L..18 * 60_000L + 1_000)
+            now = due
+            val before = p.value
+            p.renew(now)
+            assertTrue(p.value != before)
+            assertFalse(p.isDue(now))
+        }
+    }
+
+    @Test
+    fun phonesStartedTogetherDoNotRenewTogether() {
+        val dues = (1..20).map { seed ->
+            val p = AdvertisedPrefix(Random(seed), nowMs = 0)
+            generateSequence(0L) { it + 1_000 }.first { p.isDue(it) }
+        }
+        assertTrue(dues.distinct().size > 15)
+    }
+
+    // --- chat fan-out ---
+
+    @Test
+    fun chatGoesOnTheCeilingOfLog2OfTheLinks() {
+        assertEquals(listOf(0, 1, 1, 2, 2, 3, 3, 3, 3), (0..8).map { FanOut.size(it) })
+    }
+
+    @Test
+    fun fanOutPicksThatManyDifferentLinksAndTheRecipientsOwnFirst() {
+        val links = (1..7).toList()
+        val random = Random(5)
+        repeat(50) {
+            val picked = FanOut.pick(links, null, random)
+            assertEquals(3, picked.size)
+            assertEquals(3, picked.distinct().size)
+            assertTrue(links.containsAll(picked))
+            assertEquals(6, FanOut.pick(links, 6, random).first())
+        }
+        val spread = (1..300).flatMap { FanOut.pick(links, null, random) }.groupingBy { it }.eachCount()
+        assertEquals("every link gets its share", links.toSet(), spread.keys)
+        assertEquals(listOf(4), FanOut.pick(listOf(4), 4, random))
+        assertEquals(listOf(2), FanOut.pick(listOf(1, 2), 2, random))
+        assertEquals("a recipient that isn't a neighbor changes nothing", 3, FanOut.pick(links, 9, random).size)
+    }
+
+    // --- the cache on disk ---
+
+    private fun report(n: Int) = Packet(PacketType.INCIDENT_REPORT, 6, n.toLong(), 0L, 0L, null, true, id(n) + ByteArray(70))
+
+    private fun ackPacket(ack: IncidentAck) = Packet(PacketType.INCIDENT_ACK, 6, 99L, 5L, 0L, null, false, ack.encode())
+
+    @Test
+    fun theCacheComesBackWithItsAgesAndExpiresOnTime() {
+        val wall = 1_760_000_000_000L
+        val c = IncidentCache()
+        c.offerReport(id(1), report(1), 1_000, hops = 3, own = true)
+        c.offerAck(ack(1, AckStatus.ACKNOWLEDGED, team = "Medical 1"), ackPacket(ack(1, AckStatus.ACKNOWLEDGED)), 2_000)
+        c.offerReport(id(2), report(2), 5 * 60_000L)
+        val saved = c.snapshot(nowMs = 10 * 60_000L, wallMs = wall)
+
+        // a reboot: the monotonic clock starts over, the wall clock went on 5 minutes
+        val back = IncidentCache()
+        back.restore(saved, nowMs = 0, wallMs = wall + 5 * 60_000L, maxAgeMs = 60 * 60_000L)
+        assertEquals(PacketCodec.encode(report(1)).toList(), PacketCodec.encode(back.report(1L)!!).toList())
+        assertEquals(listOf(report(1).id to 3, report(2).id to 0), back.reports().map { it.first.id to it.second })
+        assertEquals(AckStatus.ACKNOWLEDGED, back.ackStatus(id(1)))
+        assertEquals(listOf(SummaryEntry(2L, true, 0), SummaryEntry(1L, true, AckStatus.ACKNOWLEDGED)), back.summary(0))
+        assertTrue(back.missing(listOf(SummaryEntry(1L, true, AckStatus.RECEIVED)), 0).isEmpty())
+
+        // report 1 was nearly 15 minutes old at the reboot, so it has a little over 15 of its 30 left; report 2 has 20
+        back.summary(15 * 60_000L - 1_000)
+        assertNotNull(back.report(1L))
+        back.summary(15 * 60_000L + 2_000)
+        assertNull(back.report(1L))
+        assertNotNull(back.report(2L))
+        assertTrue("the trace stays", back.hasSeenReport(id(1), 15 * 60_000L + 2_000))
+    }
+
+    @Test
+    fun aRestoredCacheKeepsTheEpochOfAReopenedIncident() {
+        val wall = 1_760_000_000_000L
+        val c = IncidentCache()
+        c.offerReport(id(1), report(1), 0)
+        c.offerAck(ack(1, AckStatus.CLOSED_BY_CONTROL, ts = 100, team = "Control"), ackPacket(ack(1, AckStatus.CLOSED_BY_CONTROL)), 0)
+        val reopened = ack(1, AckStatus.REOPENED, ts = 200, team = "Control", epoch = 1)
+        assertTrue(c.offerAck(reopened, ackPacket(reopened), 0))
+        val saved = c.snapshot(nowMs = 0, wallMs = wall)
+        assertEquals(1, saved.incidents.single().ackEpoch)
+
+        val back = IncidentCache()
+        back.restore(saved, nowMs = 0, wallMs = wall + 60_000L, maxAgeMs = 60 * 60_000L)
+        assertEquals(listOf(SummaryEntry(1L, true, AckStatus.REOPENED, epoch = 1)), back.summary(0))
+        val staleClose = ack(1, AckStatus.CLOSED_BY_CONTROL, ts = 300, team = "Control")
+        assertTrue("an epoch 0 close no longer wins", back.missing(listOf(SummaryEntry(1L, true, AckStatus.CLOSED_BY_CONTROL)), 0).isEmpty())
+        assertFalse(back.offerAck(staleClose, ackPacket(staleClose), 0))
+
+        // with the ACK packet past every retention only the trace comes back, and it still knows the epoch
+        val late = IncidentCache()
+        late.restore(saved, nowMs = 0, wallMs = wall + 61 * 60_000L, maxAgeMs = 60 * 60_000L)
+        assertNull(late.ack(1L))
+        assertFalse(late.offerAck(staleClose, ackPacket(staleClose), 0))
+        val onScene = ack(1, AckStatus.ON_SCENE, ts = 400, team = "Medical 1", epoch = 1)
+        assertTrue(late.offerAck(onScene, ackPacket(onScene), 0))
+    }
+
+    @Test
+    fun whatNoRoleKeepsAnyMoreIsDroppedOnLoadButItsTraceStays() {
+        val wall = 1_760_000_000_000L
+        val c = IncidentCache()
+        c.offerReport(id(1), report(1), 0)
+        c.forgetReport(id(2), 0)
+        val saved = c.snapshot(nowMs = 0, wallMs = wall)
+
+        val hourLater = IncidentCache(retentionMs = 60 * 60_000L)
+        hourLater.restore(saved, nowMs = 0, wallMs = wall + 61 * 60_000L, maxAgeMs = 60 * 60_000L)
+        assertNull(hourLater.report(1L))
+        assertTrue(hourLater.hasSeenReport(id(1), 0) && hourLater.hasSeenReport(id(2), 0))
+
+        val dayLater = IncidentCache()
+        dayLater.restore(saved, nowMs = 0, wallMs = wall + 7 * 60 * 60_000L, maxAgeMs = 60 * 60_000L)
+        assertFalse(dayLater.hasSeenReport(id(1), 0))
+        assertTrue(dayLater.snapshot(0, wall).incidents.isEmpty())
+    }
+
+    @Test
+    fun aPacketThatDoesNotDecodeIsDroppedAndTheRestKept() {
+        val wall = 1_760_000_000_000L
+        val c = IncidentCache()
+        c.offerReport(id(1), report(1), 0)
+        c.offerReport(id(2), report(2), 0)
+        val saved = c.snapshot(0, wall)
+        val damaged = saved.copy(incidents = saved.incidents.map {
+            if (it.id8 == 1L) it.copy(report = it.report!!.copy(frame = "zz01")) else it
+        } + CachedIncident(3L, reportSeen = true, report = CachedPacket(PacketCodec.encode(ackPacket(ack(3, 1))).toHex(), wall)))
+        val back = IncidentCache()
+        back.restore(damaged, 0, wall, 60 * 60_000L)
+        assertNull(back.report(1L))
+        assertTrue(back.hasSeenReport(id(1), 0))
+        assertNotNull(back.report(2L))
+        assertNull("an ACK where a report should be", back.report(3L))
     }
 }

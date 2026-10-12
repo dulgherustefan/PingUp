@@ -163,7 +163,8 @@ object Demo {
         val peers = buildList {
             for (link in mesh.links.filter { it.peerId != 0L }) {
                 val prefix = link.peerId.nodePrefix()
-                val seen = mesh.seen.firstOrNull { it.prefix == prefix }
+                // a peer that rotates advertises another prefix than its nodeId's; the link knows which
+                val seen = mesh.seen.firstOrNull { it.prefix == (link.prefix ?: prefix) }
                 add(
                     PeerRow(
                         prefix, link.nickname ?: link.peerId.shortHex(),
@@ -174,7 +175,9 @@ object Demo {
             }
             for (seen in mesh.seen) {
                 val prefix = seen.prefix ?: continue
-                if (none { it.prefix == prefix }) add(PeerRow(prefix, prefix.toHex(), null, seen.rssi, seen.flags, false))
+                if (none { it.prefix == prefix } && mesh.links.none { it.prefix == prefix }) {
+                    add(PeerRow(prefix, prefix.toHex(), null, seen.rssi, seen.flags, false))
+                }
             }
             for (prefix in settings.ignoredPrefixes) {
                 if (none { it.prefix == prefix }) add(PeerRow(prefix, prefix.toHex(), null, null, 0, false))

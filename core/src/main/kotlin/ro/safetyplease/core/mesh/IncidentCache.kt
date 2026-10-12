@@ -5,8 +5,12 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.Packet
+import ro.safetyplease.core.protocol.PacketCodec
+import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.RequestEntry
 import ro.safetyplease.core.protocol.SummaryEntry
+import ro.safetyplease.core.util.hexToBytes
+import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.toLong
 
 /**
@@ -153,6 +157,49 @@ class IncidentCache(
     fun ack(id8: Long): Packet? = entries[id8]?.ack?.packet
 
     fun clear() = entries.clear()
+
+    fun snapshot(nowMs: Long, wallMs: Long): CachedIncidents {
+        fun wall(atMs: Long) = wallMs - (nowMs - atMs)
+        fun saved(s: Stored?) = s?.let { CachedPacket(PacketCodec.encode(it.packet).toHex(), wall(it.atMs), it.hops) }
+        return CachedIncidents(entries.values.map { e ->
+            CachedIncident(
+                e.id8, e.reportSeen, e.own, saved(e.report), saved(e.ack),
+                e.ackStatus, e.ackEpoch, e.ackTimestamp, e.ackTeam, e.ackAssigned, wall(e.touchedMs),
+            )
+        })
+    }
+
+    /**
+     * Takes back what [snapshot] saved, aged by the wall clock. Packets older than [maxAgeMs], the longest any role
+     * keeps them, are dropped, and so is a packet that doesn't decode; the role's own retention applies from then on.
+     */
+    fun restore(saved: CachedIncidents, nowMs: Long, wallMs: Long, maxAgeMs: Long) {
+        fun at(wall: Long) = nowMs - maxOf(wallMs - wall, 0)
+        fun stored(p: CachedPacket?, type: Int): Stored? {
+            if (p == null || wallMs - p.at > maxAgeMs) return null
+            val packet = runCatching { PacketCodec.decode(p.frame.hexToBytes()) }.getOrNull()
+                ?.takeIf { it.fragment == null && it.packet.type == type }?.packet ?: return null
+            return Stored(packet, at(p.at), p.hops)
+        }
+        entries.clear()
+        for (c in saved.incidents) {
+            val report = stored(c.report, PacketType.INCIDENT_REPORT)
+            val ack = stored(c.ack, PacketType.INCIDENT_ACK)
+            if (report == null && ack == null && wallMs - c.touchedAt > traceMs) continue
+            val e = Entry(c.id8)
+            e.reportSeen = c.reportSeen
+            e.own = c.own
+            e.report = report
+            e.ack = ack
+            e.ackStatus = c.ackStatus
+            e.ackEpoch = c.ackEpoch
+            e.ackTimestamp = c.ackTimestamp
+            e.ackTeam = c.ackTeam
+            e.ackAssigned = c.ackAssigned
+            e.touchedMs = at(c.touchedAt)
+            entries[c.id8] = e
+        }
+    }
 
     private fun purge(nowMs: Long) {
         val it = entries.values.iterator()

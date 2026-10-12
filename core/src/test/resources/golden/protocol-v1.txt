@@ -145,3 +145,8 @@ incident.body.lost_friend 080168e77800040a5363656e61206d61726500000117b666bb268f
 # SUMMARY2 of kind INCIDENTS with epochs: (00112233..77, report, REOPENED), (0102030405060708, no report,
 # CLOSED_BY_CONTROL), then the flags byte 01 (EPOCHS) and one epoch per entry: 01, 00.
 summary2.epochs 0102001122334455667789010203040506070807010100
+
+# HELLO a phone sends once the peer's HELLO showed PREFIX_IN_HELLO: version 1, nodeId node.alice, flags
+# STAFF|ACCEPTS_CONNECTIONS|PROTOCOL_1_1|PREFIX_IN_HELLO (0x39), no nickname, then the prefix it advertises, 1a2b3c4d.
+# 1.1 reads the prefix; a 1.1 phone without the extension skips it; 1.0 rejects it and never gets it.
+hello.prefix 0179388b6b02a70d4939001a2b3c4d

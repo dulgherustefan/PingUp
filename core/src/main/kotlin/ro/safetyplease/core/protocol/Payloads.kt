@@ -14,6 +14,12 @@ object NodeFlags {
 
     /** Speaks protocol 1.1: tolerates what it doesn't know and reads SUMMARY2 and REQUEST2. */
     const val PROTOCOL_1_1 = 0x10
+
+    /**
+     * Advertises a random prefix that rotates, not its nodeId's, and gives it in HELLO to the peers that set this bit
+     * too, so they can tell its advertising from a new peer's.
+     */
+    const val PREFIX_IN_HELLO = 0x20
 }
 
 object Limits {
@@ -35,15 +41,20 @@ object Limits {
 private fun WireWriter.coord(deg: Double) = i32((deg * 1e6).roundToInt())
 private fun WireReader.coord(): Double = i32() / 1e6
 
-class Hello(val version: Int, val nodeId: Long, val flags: Int, val nickname: String?) {
+/** [prefix] is the one the sender advertises; only peers that set [NodeFlags.PREFIX_IN_HELLO] get it. */
+class Hello(val version: Int, val nodeId: Long, val flags: Int, val nickname: String?, val prefix: Int? = null) {
     fun encode(): ByteArray {
         val nick = nickname?.utf8() ?: ByteArray(0)
         require(nick.size <= Limits.NICK_BYTES)
-        return WireWriter().u8(version).i64(nodeId).u8(flags).u8(nick.size).bytes(nick).toByteArray()
+        val w = WireWriter().u8(version).i64(nodeId).u8(flags).u8(nick.size).bytes(nick)
+        if (prefix != null) w.i32(prefix)
+        return w.toByteArray()
     }
 
     companion object {
-        /** Anything after the nickname comes from a newer version and is skipped. */
+        private const val PREFIX_SIZE = 4
+
+        /** The prefix may follow the nickname. Anything after it, or fewer than 4 bytes, comes from a newer version and is skipped. */
         fun decode(payload: ByteArray): Hello? = parseOrNull {
             val r = WireReader(payload)
             val version = r.u8()
@@ -51,7 +62,8 @@ class Hello(val version: Int, val nodeId: Long, val flags: Int, val nickname: St
             val flags = r.u8()
             val nick = r.string(r.u8(), Limits.NICK_BYTES)
             if (nodeId == 0L) throw MalformedException("anonymous hello")
-            Hello(version, nodeId, flags, nick.ifEmpty { null })
+            val prefix = if (r.remaining >= PREFIX_SIZE) r.i32() else null
+            Hello(version, nodeId, flags, nick.ifEmpty { null }, prefix)
         }
     }
 }
