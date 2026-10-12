@@ -109,7 +109,7 @@ class JsonStore<T>(
                 put(DATA_KEY, json.encodeToJsonElement(serializer, value))
             }
             // on disk before the rename, like Android's AtomicFile; otherwise a power cut can leave an empty file
-            writeDurably(tmp, stored.toString().encodeToByteArray())
+            writeSynced(tmp, stored.toString().encodeToByteArray())
             if (fs.exists(file)) fs.copy(file, backup)
             fs.atomicMove(tmp, file)
         }

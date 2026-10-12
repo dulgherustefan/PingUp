@@ -22,7 +22,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 
 ## `:core`: logica, fără Android
 
-`core/src/commonMain/kotlin/ro/safetyplease/core/`. Ce diferă de la o platformă la alta e puțin și stă în `jvmMain/` și `iosMain/`, prin `expect`/`actual`: SHA-256 (`MessageDigest` / CommonCrypto), libsodium (lazysodium / biblioteca statică legată prin cinterop), scrierea durabilă a fișierelor (`fd.sync()` / `F_FULLFSYNC`), formatarea zecimalelor și descompunerea NFD a textului. Fișierele trec prin Okio, timpul local prin kotlinx-datetime, lacătele prin atomicfu. Pe iOS, libsodium se compilează din sursa semnată cu `tools/build_libsodium_ios.sh`, pe care Gradle îl rulează singur, doar pe macOS.
+`core/src/commonMain/kotlin/ro/safetyplease/core/`. Ce diferă de la o platformă la alta e puțin și stă în `jvmMain/` și `iosMain/`, prin `expect`/`actual`: SHA-256 (`MessageDigest` / CommonCrypto), libsodium (lazysodium / biblioteca statică legată prin cinterop), scrierea sincronizată a fișierelor (`fd.sync()` / `F_BARRIERFSYNC`), formatarea zecimalelor și descompunerea NFD a textului. Fișierele trec prin Okio, timpul local prin kotlinx-datetime, lacătele prin atomicfu. Pe iOS, libsodium se compilează din sursa semnată cu `tools/build_libsodium_ios.sh`, pe care Gradle îl rulează singur, doar pe macOS.
 
 | Pachet | Ce face |
 |---|---|
