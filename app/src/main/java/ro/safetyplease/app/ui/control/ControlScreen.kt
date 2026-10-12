@@ -266,7 +266,7 @@ private fun QueuePane(
     }
 }
 
-/** One incident: category and status, then urgency, square, zone and age, then the reporter's words. */
+/** One incident: category and status, then a cancel to check, urgency, square, zone and age, then the reporter's words. */
 @Composable
 private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, onClick: () -> Unit) {
     val colors = AppTheme.colors
@@ -275,6 +275,7 @@ private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, onC
     val place = listOf(r.grid, if (r.zone.isEmpty()) "" else venue.zoneName(r.zone)).filter { it.isNotEmpty() }
         .ifEmpty { listOf(stringResource(R.string.zone_unknown)) }
     val urgent = stringResource(R.string.sev_urgent)
+    val cancelToCheck = stringResource(R.string.control_queue_cancel_requested).takeIf { case.cancelRequested }
     val informational = stringResource(R.string.incident_informational).takeIf { Priority.isInformational(r.category) }
     Row(
         Modifier.fillMaxWidth().background(if (selected) colors.fill else Color.Transparent)
@@ -297,6 +298,11 @@ private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, onC
             // urgency is spelled out, not only colored
             Text(
                 buildAnnotatedString {
+                    // the operator's next step, seen without opening the case
+                    if (cancelToCheck != null) {
+                        withStyle(SpanStyle(color = colors.orangeInk, fontWeight = FontWeight.SemiBold)) { append(cancelToCheck) }
+                        append(" · ")
+                    }
                     if (case.urgent) {
                         withStyle(SpanStyle(color = colors.redInk, fontWeight = FontWeight.SemiBold)) { append(urgent) }
                         append(" · ")

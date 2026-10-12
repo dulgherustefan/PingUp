@@ -200,6 +200,27 @@ class IncidentStatesTest {
     }
 
     @Test
+    fun aReopenKnownBeforeTheReportAlertsOnce() = runTest {
+        val s = site()
+        val late = s.world.phone("L").also { it.radio.announceStatus() }
+        advanceTimeBy(30_000)
+        s.reporter.incidents.report(medical())
+        advanceTimeBy(10_000)
+        s.console.incidents.close(s.id)
+        advanceTimeBy(10_000)
+        s.console.incidents.reopen(s.id)
+        advanceTimeBy(10_000)
+        assertEquals(AckStatus.REOPENED, late.engine.ackStatus(s.id.hexToBytes()))
+
+        late.staffSecret = s.world.event.secret
+        late.team = "Medical 2"
+        late.incidents.reprocessCached()
+        advanceTimeBy(5_000)
+        assertEquals(AckStatus.REOPENED, late.status(s.id))
+        assertEquals(1, late.alerts.size)
+    }
+
+    @Test
     fun aPhoneThatMissedTheReopenCatchesUpThroughSummaries() = runTest {
         val s = site()
         s.reporter.incidents.report(medical())
@@ -238,6 +259,48 @@ class IncidentStatesTest {
         advanceTimeBy(10_000)
         assertEquals(AckStatus.REOPENED, s.console.status(s.id))
         assertTrue(s.console.staffIncidents.single().cancelRequested)
+    }
+
+    @Test
+    fun aReporterThatMissedTheReopenLearnsThatStaffChecksItsCancel() = runTest {
+        val s = site()
+        s.reporter.incidents.report(draft(IncidentCategory.CROWD, Severity.MEDIUM))
+        advanceTimeBy(10_000)
+        s.reporter.radio.powerOff()
+        advanceTimeBy(2_000)
+        s.console.incidents.close(s.id)
+        advanceTimeBy(5_000)
+        s.console.incidents.reopen(s.id)
+        advanceTimeBy(5_000)
+
+        s.reporter.incidents.cancel(s.id)
+        advanceTimeBy(1_000)
+        assertFalse("it can't know of the reopen yet", IncidentManager.cancelIsChecked(s.reporter.myReports.single()))
+        assertEquals("staff had the report: it stays", 1, s.reporter.engine.state.value.cachedReports)
+
+        s.reporter.radio.powerOn()
+        advanceTimeBy(40_000)
+        val atConsole = s.console.staffIncidents.single()
+        assertTrue("staff checks it", atConsole.cancelRequested)
+        assertEquals(AckStatus.REOPENED, atConsole.status)
+        val mine = s.reporter.myReports.single()
+        assertEquals("a summary brought the reopen", 1, mine.epoch)
+        assertTrue("so the reporter's screen says staff checks it", IncidentManager.cancelIsChecked(mine))
+        assertEquals(1, s.reporter.engine.state.value.cachedReports)
+    }
+
+    @Test
+    fun aWithdrawnReportNoStaffConfirmedLeavesTheCacheWhenItsCancelClosesIt() = runTest {
+        val s = site()
+        s.reporter.radio.powerOff()
+        advanceTimeBy(2_000)
+        s.reporter.incidents.report(draft(IncidentCategory.CROWD, Severity.MEDIUM))
+        s.reporter.incidents.report(medical())
+        advanceTimeBy(1_000)
+        assertEquals(2, s.reporter.engine.state.value.cachedReports)
+        s.reporter.myReports.forEach { s.reporter.incidents.cancel(it.incidentId) }
+        advanceTimeBy(1_000)
+        assertEquals("only the urgent one stays, for staff to check", 1, s.reporter.engine.state.value.cachedReports)
     }
 
     // --- staff reports, triage, lost people ---
@@ -349,6 +412,24 @@ class IncidentStatesTest {
         assertEquals(AckStatus.ACKNOWLEDGED, console.status(hex))
         assertEquals(0, old.malformed)
         assertNull(console.engine.state.value.counters.drops[DropReason.MALFORMED])
+    }
+
+    @Test
+    fun whileTheOneZeroStatusLeadsTheSignerShowsWhatTheNetworkHas() = runTest {
+        val s = site()
+        s.reporter.incidents.report(medical())
+        advanceTimeBy(10_000)
+        s.console.incidents.close(s.id)
+        advanceTimeBy(1_000)
+        val id = s.id.hexToBytes()
+        assertEquals(AckStatus.RESOLVED, s.console.engine.ackStatus(id))
+        assertEquals("not a status the network doesn't have yet", AckStatus.RESOLVED, s.console.status(s.id))
+        assertTrue(s.console.acks.none { (ack, own, _) -> own && ack.status == AckStatus.CLOSED_BY_CONTROL })
+
+        advanceTimeBy(IncidentManager.ONE_ZERO_LEAD_MS)
+        assertEquals(AckStatus.CLOSED_BY_CONTROL, s.console.engine.ackStatus(id))
+        assertEquals(AckStatus.CLOSED_BY_CONTROL, s.console.status(s.id))
+        assertTrue(s.console.acks.any { (ack, own, _) -> own && ack.status == AckStatus.CLOSED_BY_CONTROL })
     }
 
     @Test

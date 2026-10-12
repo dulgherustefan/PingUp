@@ -508,6 +508,7 @@
     <string name="control_state_assigned">Alocat la %1$s</string>
     <string name="control_state_unfounded">Închis ca nefondat</string>
     <string name="control_word_unfounded">Nefondat</string>
+    <string name="control_queue_cancel_requested">Anulat de raportor</string>
     <string name="control_local_only">Doar pe consolă. Telefoanele din teren văd: %1$s.</string>
     <string name="control_radio_title">De citit în stație</string>
     <!-- Label of the phrase in the clipboard; some keyboards show it -->

@@ -492,6 +492,7 @@
     <string name="control_state_assigned">Assigned to %1$s</string>
     <string name="control_state_unfounded">Closed as unfounded</string>
     <string name="control_word_unfounded">Unfounded</string>
+    <string name="control_queue_cancel_requested">Called off by the reporter</string>
     <string name="control_local_only">On the console only. Phones in the field see: %1$s.</string>
     <string name="control_radio_title">To read over the radio</string>
     <!-- Label of the phrase in the clipboard; some keyboards show it -->

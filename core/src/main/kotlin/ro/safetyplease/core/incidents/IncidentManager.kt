@@ -144,8 +144,8 @@ class IncidentManager(
 
     /**
      * Withdraws one of our reports that staff hasn't closed yet. The cancel is resent on every new neighbor
-     * and every minute until the incident is closed or [CANCEL_RETRY_MS] passes. Where staff has to check it
-     * ([cancelIsChecked]), the report keeps spreading, so every staff phone sees both.
+     * and every minute until the incident is closed or [CANCEL_RETRY_MS] passes. The report keeps spreading, so every
+     * staff phone sees both, unless [forgetsWithCancel].
      */
     fun cancel(incidentId: String) {
         val report = store.value.mine.firstOrNull { it.incidentId == incidentId } ?: return
@@ -158,7 +158,7 @@ class IncidentManager(
         val id = incidentId.hexToBytes()
         val token = report.cancelToken.hexToBytes()
         scope.launch {
-            if (!cancelIsChecked(report)) engine.forgetReport(id)
+            if (forgetsWithCancel(report)) engine.forgetReport(id)
             cancelling[incidentId] = Cancel(token, now)
             engine.publishCancel(id, token)
             // a staff phone never receives its own packet from the network, so it applies the cancel itself
@@ -229,22 +229,25 @@ class IncidentManager(
             val epoch = if (status == AckStatus.REOPENED) known + 1 else known
             if (epoch > IncidentAck.MAX_EPOCH) return@launch
             val ack = staffCrypto.signAck(id, status, time, name, secret, flags, epoch)
-            val lead = epoch == 0 && publishForOneZero(id, status, time, name, secret)
-            applyAck(ack)
-            if (lead) delay(ONE_ZERO_LEAD_MS)
+            if (epoch == 0) publishForOneZero(id, status, time, name, secret)?.let { lead ->
+                // the phone shows what the network has, also if the scope ends before the new status goes out
+                applyAck(lead)
+                delay(ONE_ZERO_LEAD_MS)
+            }
             publishOwn(ack)
+            applyAck(ack)
         }
     }
 
     /**
      * 1.0 phones get neither a status they don't know nor an ACK with an epoch. In epoch 0 such a status first goes
      * out as the closest one they know, so they show that; it leads by [ONE_ZERO_LEAD_MS], so relays keep and pass it
-     * on before the new status replaces it. False if nothing went out.
+     * on before the new status replaces it. Null if nothing went out.
      */
-    private fun publishForOneZero(id: ByteArray, status: Int, time: Long, team: String, secret: StaffSecretKeys): Boolean {
+    private fun publishForOneZero(id: ByteArray, status: Int, time: Long, team: String, secret: StaffSecretKeys): IncidentAck? {
         val legacy = AckStatus.legacy(status)
-        if (legacy == status || legacy == AckStatus.NONE) return false
-        return engine.publishAck(staffCrypto.signAck(id, legacy, time, team, secret)) != null
+        if (legacy == status || legacy == AckStatus.NONE) return null
+        return staffCrypto.signAck(id, legacy, time, team, secret).takeIf { engine.publishAck(it) != null }
     }
 
     /** The incident's epoch as far as this phone knows. */
@@ -309,7 +312,8 @@ class IncidentManager(
             fromStaff = body.staff != null, people = body.staff?.people ?: 0, dangerContinues = body.staff?.dangerContinues == true,
         )
         store.update { it.copy(staff = (it.staff + incident).takeLast(staffCap())) }
-        engine.cachedAck(incidentId)?.let(::applyAck)
+        // a reopen that came before the report raises no alert of its own: the one below does, once, if [alert]
+        engine.cachedAck(incidentId)?.let { applyAck(it, alertOnReopen = false) }
         earlyCancels.remove(key)?.takeIf { clock.monoMs() - it.atMs <= EARLY_CANCEL_MS }?.let { tryCancel(key, it.token, secret) }
         // if another team already confirmed receipt, a second RECEIVED would just be network noise
         if (engine.ackStatus(incidentId) == AckStatus.NONE) {
@@ -355,7 +359,7 @@ class IncidentManager(
         applyAck(ack)
     }
 
-    private fun applyAck(ack: IncidentAck) {
+    private fun applyAck(ack: IncidentAck, alertOnReopen: Boolean = true) {
         val key = ack.incidentId.toHex()
         val now = clock.wallMs()
         val before = store.value.staff.firstOrNull { it.incidentId == key }?.takeIf { supersedes(ack, it.status, it.epoch, it.assigned) }
@@ -384,7 +388,7 @@ class IncidentManager(
         updated?.let(onReportUpdate)
         if (before == null) return
         if (ack.status in CLEARS_ALERT && before.status !in CLEARS_ALERT) onStaffAlertCleared(key)
-        if (ack.status == AckStatus.REOPENED && !Priority.isInformational(before.category)) {
+        if (alertOnReopen && ack.status == AckStatus.REOPENED && !Priority.isInformational(before.category)) {
             store.value.staff.firstOrNull { it.incidentId == key }?.let(onStaffAlert)
         }
     }
@@ -401,7 +405,7 @@ class IncidentManager(
     /** The mesh cache doesn't survive a restart; the cancellation state does. */
     private fun resumeCancels() {
         for (r in store.value.mine.filter { it.cancelled }) {
-            if (!cancelIsChecked(r)) engine.forgetReport(r.incidentId.hexToBytes())
+            if (forgetsWithCancel(r)) engine.forgetReport(r.incidentId.hexToBytes())
             if (!AckStatus.isClosed(r.status)) cancelling[r.incidentId] = Cancel(r.cancelToken.hexToBytes(), r.updatedAt)
         }
     }
@@ -449,8 +453,18 @@ class IncidentManager(
             return order > 0 || (order == 0 && assigned && !ack.assigned)
         }
 
-        /** The reporter's cancel waits for an operator: see [Priority.cancelNeedsReview]; after a reopen, always. */
+        /**
+         * The reporter's cancel waits for an operator: see [Priority.cancelNeedsReview]; after a reopen, always. The
+         * reporter knows only the epochs that reached it: after a reopen it missed, staff checks a cancel this calls
+         * unchecked, and the reporter learns so from the next summary.
+         */
         fun cancelIsChecked(report: MyReport): Boolean = Priority.cancelNeedsReview(report.category, report.severity) || report.epoch > 0
+
+        /**
+         * A withdrawn report leaves our cache only if no staff phone confirmed it and its cancel closes it by itself.
+         * A report staff has may have been reopened without our knowing, and then staff checks the cancel: it stays.
+         */
+        private fun forgetsWithCancel(report: MyReport): Boolean = report.status == AckStatus.NONE && !cancelIsChecked(report)
 
         /** Our report that hasn't reached staff yet and wasn't withdrawn. */
         fun isPending(report: MyReport, nowMs: Long): Boolean =
