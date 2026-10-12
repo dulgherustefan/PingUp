@@ -25,10 +25,10 @@ data class Zone(val id: String, val name: String, val color: String, val polygon
 /**
  * A useful point on the map: exit, wc, water, info, charge, dea (a defibrillator). With a [number], 1 to 255, it is a
  * landmark of the site plan: a report names the one nearest to the reporter by it, so the number must not change
- * during an event.
+ * during an event. [team] is the staff team that reports its status to the console, if any.
  */
 @Serializable
-data class Poi(val type: String, val lat: Double, val lon: Double, val name: String = "", val number: Int = 0) {
+data class Poi(val type: String, val lat: Double, val lon: Double, val name: String = "", val number: Int = 0, val team: String = "") {
     val point: GeoPoint get() = GeoPoint(lat, lon)
 }
 

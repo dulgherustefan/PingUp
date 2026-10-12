@@ -37,14 +37,17 @@ import ro.safetyplease.app.ui.designsystem.footnote
 import ro.safetyplease.app.ui.designsystem.headline
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title3
+import ro.safetyplease.core.control.Coverage
 import ro.safetyplease.core.control.HeardPeer
 import ro.safetyplease.core.control.PeerBook
 import ro.safetyplease.core.mesh.AnchorHeartbeat
 import ro.safetyplease.core.mesh.MeshState
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.protocol.Heartbeat
+import ro.safetyplease.core.protocol.MobileReading
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.util.toHex
+import ro.safetyplease.core.venue.SiteGrid
 
 /** An anchor not heard for this long is called out: control would read its silence as calm. */
 private const val SILENT_ANCHOR_MIN = 10
@@ -59,7 +62,7 @@ private const val QUIET_S = 5 * 60
  * stop goes silent wherever it is.
  */
 @Composable
-internal fun NetworkPane(mesh: MeshState, heard: Map<Int, HeardPeer>, gate: RadioGate, now: Long, modifier: Modifier) {
+internal fun NetworkPane(mesh: MeshState, heard: Map<Int, HeardPeer>, gate: RadioGate, now: Long, grid: SiteGrid, modifier: Modifier) {
     val colors = AppTheme.colors
     val peers = remember(heard) { PeerBook.rows(heard, MAX_HEARD_ROWS) }
     val counters = listOf(
@@ -89,7 +92,7 @@ internal fun NetworkPane(mesh: MeshState, heard: Map<Int, HeardPeer>, gate: Radi
         if (peers.isEmpty()) {
             Text(stringResource(R.string.control_heard_empty), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
         }
-        peers.forEach { HeardRow(it, now) }
+        peers.forEach { HeardRow(it, now, grid) }
     }
 }
 
@@ -123,7 +126,7 @@ private fun Counter(value: String, label: String, modifier: Modifier) {
 
 /** A phone by its advertised prefix: its role, and whether it's linked now or when it was last heard. */
 @Composable
-private fun HeardRow(peer: HeardPeer, now: Long) {
+private fun HeardRow(peer: HeardPeer, now: Long, grid: SiteGrid) {
     val colors = AppTheme.colors
     val anchor = peer.anchor
     val quietMin = ((now - peer.lastHeardMs) / 60_000).toInt()
@@ -151,15 +154,26 @@ private fun HeardRow(peer: HeardPeer, now: Long) {
                 },
             )
         }
-        if (anchor) peer.beat?.let { BeatLine(it) }
+        if (anchor) peer.beat?.let { BeatLine(it, grid) }
     }
 }
 
-/** What an anchor's last heartbeat said. Nothing signs heartbeats yet, so the line says it is only indicative. */
+/**
+ * What an anchor's last heartbeat said, with its square and the mobile network it measured when it says them.
+ * Nothing signs heartbeats yet, so the line says it is only indicative.
+ */
 @Composable
-private fun BeatLine(beat: Heartbeat) {
+private fun BeatLine(beat: Heartbeat, grid: SiteGrid) {
     val colors = AppTheme.colors
     val parts = buildList {
+        val column = beat.column
+        val row = beat.row
+        if (column != null && row != null) add(stringResource(R.string.control_beat_square, grid.columnLabel(column) + grid.rowLabel(row)))
+        beat.mobile?.let { mobile ->
+            val technology = MobileReading.TECHNOLOGIES[mobile.technology].uppercase().ifEmpty { stringResource(R.string.control_beat_mobile) }
+            mobile.level?.let { add(stringResource(R.string.control_beat_signal, technology, it)) }
+            add(stringResource(cellText(Coverage.data(mobile))))
+        }
         beat.batteryPercent?.let { add(stringResource(R.string.control_beat_battery, it)) }
         if (beat.charging) add(stringResource(R.string.control_beat_plugged))
         beat.temperatureC?.let { add(stringResource(R.string.control_beat_temperature, it)) }

@@ -42,6 +42,7 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.StaffCodeResult
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.GlassIconButton
@@ -55,6 +56,7 @@ import ro.safetyplease.app.ui.designsystem.footnote
 import ro.safetyplease.app.ui.designsystem.headline
 import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.incidents.StaffCode
 import ro.safetyplease.core.incidents.StaffCodes
 
@@ -125,6 +127,11 @@ fun StaffCodesScreen(vm: AppViewModel) {
                     subtitle = target?.let { listOf(stringResource(Labels.category(it.category)), vm.venue.zoneName(it.zone)).filter { part -> part.isNotEmpty() }.joinToString(" · ") }
                         ?: stringResource(R.string.staff_codes_none),
                 ) { send(code, text) }
+            }
+
+            if (PointBoard.points(vm.venue).isNotEmpty()) {
+                val points = stringResource(R.string.staff_points_open)
+                CodeButton(points, Sym.Flag, colors.fill, colors.label) { vm.open(Dest.Points) }
             }
         }
     }

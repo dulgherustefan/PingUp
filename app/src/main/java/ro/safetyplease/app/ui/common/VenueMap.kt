@@ -230,7 +230,8 @@ private fun rememberGlyphs(): Map<String, Painter> = GlyphTypes.associateWith { 
  * You are the pulsing dot labeled "Tu"; [target] is where you're heading, joined to you by a dotted route.
  * With [camera] the map zooms with two fingers, a double tap and the buttons. [compact] is the message bubble variant.
  * [reserved] are the corners the overlay's controls cover: no name or scale bar is drawn under them.
- * [grid] draws the site plan's squares, lettered along the top and numbered down the left side.
+ * [grid] draws the site plan's squares, lettered along the top and numbered down the left side; [squareShades] fill
+ * some of them, by 0-based column and row. [poiRings] ring numbered points in a color, by their number.
  */
 @Composable
 fun VenueMap(
@@ -248,6 +249,8 @@ fun VenueMap(
     target: GeoPoint? = null,
     targetColor: Color = AppTheme.colors.accent,
     grid: SiteGrid? = null,
+    squareShades: Map<Pair<Int, Int>, Color> = emptyMap(),
+    poiRings: Map<Int, Color> = emptyMap(),
     aspect: Float = venueAspect(venue),
     reserved: List<MapReserve> = emptyList(),
     overlay: @Composable BoxScope.() -> Unit = {},
@@ -414,6 +417,13 @@ fun VenueMap(
             }
 
             grid?.let { g ->
+                for ((square, shade) in squareShades) {
+                    val (column, row) = square
+                    if (column >= g.columns || row >= g.rows) continue
+                    val from = at(GeoPoint(g.rowLat(row), g.columnLon(column)))
+                    val to = at(GeoPoint(g.rowLat(row + 1), g.columnLon(column + 1)))
+                    drawRect(shade, from, Size(to.x - from.x, to.y - from.y))
+                }
                 val line = colors.label.copy(alpha = if (colors.dark) 0.18f else 0.14f)
                 for (column in 1 until g.columns) {
                     val x = at(GeoPoint(b.maxLat, g.columnLon(column))).x
@@ -436,6 +446,9 @@ fun VenueMap(
             venue.pois.forEach { poi ->
                 val o = at(poi.point)
                 val focused = goal != null && (goal - o).getDistance() < 1f
+                poiRings[poi.number]?.takeIf { poi.number > 0 }?.let { ring ->
+                    drawCircle(ring, (if (focused) 17.dp else 13.dp).toPx(), o)
+                }
                 badge(o, (if (focused) 12.dp else 8.dp).toPx(), spotColor(colors, poi.type), glyphs[poi.type])
             }
 

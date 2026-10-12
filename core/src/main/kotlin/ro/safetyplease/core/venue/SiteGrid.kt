@@ -14,11 +14,14 @@ data class SiteGrid(val bounds: Bounds, val columns: Int, val rows: Int) {
     }
 
     /** The square holding the point; null outside the venue. */
-    fun cellAt(lat: Double, lon: Double): String? {
+    fun cellAt(lat: Double, lon: Double): String? = squareAt(lat, lon)?.let { (column, row) -> columnLabel(column) + rowLabel(row) }
+
+    /** The 0-based column and row of the square holding the point; null outside the venue. */
+    fun squareAt(lat: Double, lon: Double): Pair<Int, Int>? {
         if (!bounds.contains(lat, lon)) return null
         val column = ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon) * columns).toInt().coerceAtMost(columns - 1)
         val row = ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat) * rows).toInt().coerceAtMost(rows - 1)
-        return columnLabel(column) + rowLabel(row)
+        return column to row
     }
 
     fun columnLabel(column: Int): String = ('A' + column).toString()

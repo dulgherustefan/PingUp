@@ -388,7 +388,7 @@ Phones show a notice only on staff phones and on participants' that opted in (Eu
 
 ### 6.9 Control channel (`ControlChannel`, 1.1)
 
-A PRIVATE whose `recipient` is `5350 2d43 5452 4c31` ("SP-CTRL1" in ASCII, `ControlChannel.ID`) is for the control console, not for a phone. Relays pass it on like any PRIVATE, 1.0 ones included, since they check only R, `sender ≠ 0` and E; a leaf relays it too (section 7). A node hands it to the app and passes it on as well, since there may be more than one console. The payload isn't a `crypto_box` but a `crypto_box_seal` to the key a report body is sealed to, the day's report key or else the build's staff box key (section 9, `AnchorBeats`): only staff phones that open reports read it, and the console needs no key of the sender's. The plaintext starts with `kind u8`; kind 1 is HEARTBEAT, and the console drops the others.
+A PRIVATE whose `recipient` is `5350 2d43 5452 4c31` ("SP-CTRL1" in ASCII, `ControlChannel.ID`) is for the control console, not for a phone. Relays pass it on like any PRIVATE, 1.0 ones included, since they check only R, `sender ≠ 0` and E; a leaf relays it too (section 7). A node hands it to the app and passes it on as well, since there may be more than one console. The payload isn't a `crypto_box` but a `crypto_box_seal` to the key a report body is sealed to, the day's report key or else the build's staff box key (section 9, `AnchorBeats`): only staff phones that open reports read it, and the console needs no key of the sender's. The plaintext starts with `kind u8`: 1 is HEARTBEAT, 2 is POINT_STATUS, and the console drops the others. A console from before POINT_STATUS drops kind 2 the same way, so it needs no negotiation.
 
 HEARTBEAT (`Heartbeat`), what an anchor tells the console about itself, 9 bytes plus the zone:
 
@@ -402,10 +402,43 @@ HEARTBEAT (`Heartbeat`), what an anchor tells the console about itself, 9 bytes 
 | 1 | links up now |
 | 1 | phones heard around it, as a bucket: 0 none, 1 for 1–2, 2 for 3–5, 3 for 6–10, 4 for 11–20, 5 for 21–50, 6 for 51–100, 7 for more |
 | 1 + n | the zone of the anchor's QR, `zoneLen u8` (≤ 32), UTF-8 |
+| 5 | optional, the site block: the coverage map's fields (below) |
 
-A battery above 100 or a bucket above 7 is rejected. Flag bits other than `0x01`, and bytes after the zone, belong to newer versions and are skipped. Sealed, it takes 57 to 89 bytes.
+A battery above 100 or a bucket above 7 is rejected. Flag bits other than `0x01`, and bytes after the zone, belong to newer versions and are skipped. Sealed, it takes 57 to 89 bytes, 62 to 94 with the site block.
 
-An anchor sends one every 5 minutes, and within a minute of a change in what the console acts on: plugged in or not, the battery crossing 50, 20 or 10 %, the temperature reaching 45 °C, its last link gone (`AnchorHeartbeat`). The crowd bucket changes all the time and waits for the next one. 30 anchors cost the mesh 0.1 packets a second. The console keeps the last heartbeat of each anchor, found by the prefix of the sender's nodeId, which is what an anchor advertises (section 2), and counts it as hearing the anchor: an anchor that is neither heard nor heard from for 10 minutes shows as silent. Nothing signs a heartbeat yet, so anyone can send one in an anchor's name; the console marks what it says as indicative until anchors have certificates (roadmap 2.18). A newer version adds fields after the zone or a new kind.
+**The site block** came after the zone was defined, as bytes a 1.1 console already skipped: an older console reads the heartbeat as before. It is read only when at least 5 bytes follow the zone; a shorter tail, like the 2 bytes of `control.heartbeat.extended`, is still a newer version's and skipped, as is anything after the block. An anchor writes it when it knows its square or has a fresh mobile sample, and otherwise leaves the heartbeat as it was.
+
+| Size | Field |
+|---|---|
+| 1 | signal level, 0..4 bars as Android shows them; `0xff` unknown |
+| 1 | the serving cell's technology: 0 unknown, 1 gsm, 2 cdma, 3 wcdma, 4 tdscdma, 5 lte, 6 nr |
+| 1 | `0x80` measured (without it the first three bytes mean nothing); bits 0-1 what carries data (0 nothing, 1 mobile, 2 Wi-Fi, 3 other); bits 2-3 the probe (0 not run, 1 answered, 2 failed); `0x10` Android validated the network; `0x20`, `0x40` reserved, ignored |
+| 1 | the anchor's column of the site grid, 0-based (A = 0), below 26; `0xff` unknown |
+| 1 | its row, 0-based (1 = 0), below 99; `0xff` unknown |
+
+The measurement is the mobile network log's last sample (ARCHITECTURE.md, "Metrici de pilot"), taken only with the log's switch on and only if it is at most 4 minutes old; the square comes from the last fresh GPS fix the anchor had, kept since anchors don't move. A value this version can't use (a level above 4, a technology above 6, probe 3, a column or row off the grid) reads as unknown, not as malformed. Both ride along in the heartbeat the anchor sends anyway and never make one due: the coverage map costs the mesh no packet. In airplane mode an anchor reports measured, nothing carrying data and no level, which the console shows as no network.
+
+The console colors each square of the site grid from the anchors that placed themselves in it, with a heartbeat younger than 15 minutes (`Coverage`): for the mobile network the worst of what they say (no network, data fails, data works, unknown), for the mesh whether an anchor there has links. A square with no such anchor is left clear and the legend says it has no data.
+
+An anchor sends one every 5 minutes, and within a minute of a change in what the console acts on: plugged in or not, the battery crossing 50, 20 or 10 %, the temperature reaching 45 °C, its last link gone (`AnchorHeartbeat`). The crowd bucket changes all the time and waits for the next one. 30 anchors cost the mesh 0.1 packets a second. The console keeps the last heartbeat of each anchor, found by the prefix of the sender's nodeId, which is what an anchor advertises (section 2), and counts it as hearing the anchor: an anchor that is neither heard nor heard from for 10 minutes shows as silent. Nothing signs a heartbeat yet, so anyone can send one in an anchor's name; the console marks what it says as indicative until anchors have certificates (roadmap 2.18). A newer version adds fields after the site block or a new kind.
+
+POINT_STATUS (`PointStatus`), a staff phone telling the console how a point of the site is: a gate, toilets, water, charging or transport. Only the console reads it; nothing goes to the public.
+
+| Size | Field | Rule |
+|---|---|---|
+| 1 | `kind` | 2 |
+| 1 | `flags` | `0x01` CERT; other bits reserved and ignored |
+| 1 | `point` | 1..255, the number of a POI in the venue of the event in use (section 16) |
+| 1 | `level` | 1 free, 2 busy, 3 closed or broken; another level is a newer version's and the console drops the message |
+| 4 | `issued` | `u32` seconds, the sender's clock |
+| 1 + n | team | `u8` length, at most 24, the sender's team |
+| | certificate | with CERT: the signer's shift certificate (section 9) |
+| n | extensions | a newer version's fields, signed and kept unread |
+| 64 | `signature` | Ed25519 over `SP-POINT-v1` (11 bytes) ‖ every byte before it |
+
+At most 236 bytes before the extensions, 284 sealed. It is signed like an ACK (`KeyChain.checkPoint`): without CERT with the build's staff key; with CERT under the certificate's key, the certificate holding now, a team only in its own name, a console in any, an anchor or a report key never, and `issued` neither after the console's clock plus the skew nor before the certificate. The sealed box hides it from relays; the signature is what stops a phone that only knows the public report key from inventing a status.
+
+A staff phone sends one when its person taps a level (Coduri rapide › Stare puncte): a change, at most one per point every 20 seconds, or the same level again after 5 minutes, as a confirmation (`PointBoard.maySend`). Nothing is sent on a timer. The console keeps, per point it knows from the venue, the status with the latest `issued`; it dates it by `issued`, but never later than its arrival, and shows it grey, as unconfirmed, 30 minutes after that (`PointBoard`). About 15 people in charge of points changing or confirming 6 times an hour cost the mesh about 0.03 packets a second.
 
 
 ### 6.10 INCIDENT_RESPONSE (`IncidentResponse`, 1.1)
@@ -696,7 +729,7 @@ A phone accepts it only if the certificate holds now and every seed derives the 
 
 **Golden vectors.** `core/src/test/resources/golden/protocol-v1.txt` holds one line per vector, `name value`. Values are lowercase hex, except the `qr.*` vectors, which are the QR text. The comment above each vector lists its inputs, so the file can be used without reading Kotlin. It covers the derived keys and nodeIds, whole frames (with and without recipient, and three fragments), HELLO, SUMMARY, REQUEST, two report bodies, the cancel hash, a sealed report, the signed ACK bytes and the ACK, the cancel, the seven inner types of 1.0, a boxed PRIVATE payload, and both QR formats.
 
-1.1 added vectors and changed none. Its encoders write `hello.v11`, `summary2`, `request2`, `frame.opaque`, `frame.opaque.relayed`, `incident.ack.assigned`, an ACKNOWLEDGED with the ASSIGNED flag (section 6.4), and `hello.prefix`, a HELLO with `PREFIX_IN_HELLO` and the advertised prefix after the nickname (section 6.1); then, for the field states and the epoch, `incident.ack.on_scene`, `.handed_over`, `.closed`, `.unfounded`, `.reopened` (epoch 1) and `.assigned.epoch` (ASSIGNED and epoch 1), `summary2.epochs`, and the bodies `incident.body.triage`, `incident.body.staff`, `incident.body.lost_friend` and `incident.body.location` (triage plus accuracy 12 m and landmark 4); and for the control channel (section 6.9), `frame.control` (a PRIVATE to the channel id, with a stand-in for the sealed payload), `control.heartbeat` and `control.heartbeat.unknown`; and for responses and updates (sections 6.10 and 6.11), `incident.body.reply` (`incident.body.location` with the reply key), `response.body`, `incident.response` (sealed to the reply key with the ephemeral pair from `seed(0xd0)`, signed with the staff key), `cert.control` and `incident.response.cert` (the same under a control shift), `update.body`, `incident.update`, `frame.update`, `summary2.responses`, `summary2.updates`, `request2.responses` and `request2.updates`. The others carry what a newer version may send and are built by hand: `hello.extended`, `summary2.unknown`, `incident.body.extended`, `incident.ack.unknown`, a signed ACK with status 0x7e and two bytes of extensions, and `incident.ack.future`, written the same way with status 7 before 1.1 gave 7 and the epoch a meaning: 1.1 now reads it as CLOSED_BY_CONTROL with the flags ASSIGNED and EPOCH and epoch 205, and still skips the flag bits it doesn't know; and `control.heartbeat.extended`, a heartbeat with an unknown flag bit and two bytes after the zone. 1.1 must read them all; 1.0 rejects every one of them.
+1.1 added vectors and changed none. Its encoders write `hello.v11`, `summary2`, `request2`, `frame.opaque`, `frame.opaque.relayed`, `incident.ack.assigned`, an ACKNOWLEDGED with the ASSIGNED flag (section 6.4), and `hello.prefix`, a HELLO with `PREFIX_IN_HELLO` and the advertised prefix after the nickname (section 6.1); then, for the field states and the epoch, `incident.ack.on_scene`, `.handed_over`, `.closed`, `.unfounded`, `.reopened` (epoch 1) and `.assigned.epoch` (ASSIGNED and epoch 1), `summary2.epochs`, and the bodies `incident.body.triage`, `incident.body.staff`, `incident.body.lost_friend` and `incident.body.location` (triage plus accuracy 12 m and landmark 4); and for the control channel (section 6.9), `frame.control` (a PRIVATE to the channel id, with a stand-in for the sealed payload), `control.heartbeat` and `control.heartbeat.unknown`, then, for the coverage map and the points, `control.heartbeat.site` (the heartbeat with the site block), `control.point` (signed with the build's staff key) and `control.point.cert` (under `cert.staff`); and for responses and updates (sections 6.10 and 6.11), `incident.body.reply` (`incident.body.location` with the reply key), `response.body`, `incident.response` (sealed to the reply key with the ephemeral pair from `seed(0xd0)`, signed with the staff key), `cert.control` and `incident.response.cert` (the same under a control shift), `update.body`, `incident.update`, `frame.update`, `summary2.responses`, `summary2.updates`, `request2.responses` and `request2.updates`. The others carry what a newer version may send and are built by hand: `hello.extended`, `summary2.unknown`, `incident.body.extended`, `incident.ack.unknown`, a signed ACK with status 0x7e and two bytes of extensions, and `incident.ack.future`, written the same way with status 7 before 1.1 gave 7 and the epoch a meaning: 1.1 now reads it as CLOSED_BY_CONTROL with the flags ASSIGNED and EPOCH and epoch 205, and still skips the flag bits it doesn't know; and `control.heartbeat.extended`, a heartbeat with an unknown flag bit and two bytes after the zone. 1.1 must read them all; 1.0 rejects every one of them.
 
 The event pack (section 16) added `event.pack.hash` and `event.pack.signature`, for the body built in `GoldenVectorsTest` (`Golden.PACK_BODY`), and `qr.event`, the gate code with that hash; `eventPackVectorsVerify` checks the whole pack against `key.root.sign`. The signing was also checked through `tools/gen_staff_keys.py pack` and PyNaCl 1.6.2.
 
@@ -774,7 +807,7 @@ What changed from 1.0:
 | ANNOUNCEMENT | | `0x30`, at report priority, 4 a minute per link; with `HELLO_AUTH`, signed revocations relayed like reports, and the console's notices, the latest per topic stored and forwarded as SUMMARY2 kind 4 |
 | Keys | the build's shared pair | with `HELLO_AUTH`: a chain from Ping Up's root, shift certificates, ACKs signed under them (only to `HELLO_AUTH` peers), a report key per day, revocations; the shared pair stays for SPS1 |
 | Links with anchors | held like any other | short sessions that the anchor starts, round the phones it sees; a slot each phone keeps for them, `ANCHOR_SLOT` (`0x80`) in advertising (section 2) |
-| Control channel | | a PRIVATE to the id `SP-CTRL1`, sealed to the staff key: anchor heartbeats (section 6.9) |
+| Control channel | | a PRIVATE to the id `SP-CTRL1`, sealed to the staff key: anchor heartbeats, with the coverage map's site block, and signed point statuses (section 6.9) |
 | What can't be used | malformed, five in a minute ban | dropped; more than 10 a minute close the link, without a ban |
 
 What a newer version can do without 1.1 phones dropping or banning it:
@@ -804,7 +837,7 @@ Nothing here travels on the mesh: the pack is a file a phone loads before the fe
 | `organiser`, `event` | the organiser's certificate (signed by the root) and the event's (signed by the organiser), hex, section 9 |
 | `reportKeys` | the days' report key certificates, hex |
 | `box`, `sign` | optional 32-byte public keys that replace the build's shared pair (section 9); an exercise must carry its own |
-| `venue` | the venue as in `app/src/main/assets/venue.json`: zones, numbered POIs, DEA, the meeting point |
+| `venue` | the venue as in `app/src/main/assets/venue.json`: zones, numbered POIs, DEA, the meeting point. A numbered POI of type `exit`, `wc`, `water`, `charge` or `transport` is a point staff report the status of (section 6.9); its optional `team` names the team in charge, whose phones list it first |
 | `grid` | optional `{"cellMeters": n}`, 10 to 500, the site grid (50 by default) |
 | `firstAid` | optional `{"file name.md": "sheet text"}`, the first-aid sheets in the format of `app/src/main/assets/firstaid` |
 | `notices` | optional, the notice templates (section 6.8) in the format of `app/src/main/assets/notices.json`, which the app uses without them: a list of `{"id": 1..255, "topic": "alert" \| "heat" \| "schedule" \| "transport", "level": n, "text": {"ro": ..., "en": ...}, "params": [{"ro": ..., "en": ...}]}`, `{1}` to `{4}` in the text for the parameters. A template whose id repeats, whose level its topic doesn't have, without Romanian or English, over 400 characters, with more than 4 parameters or a placeholder past them makes the pack malformed |

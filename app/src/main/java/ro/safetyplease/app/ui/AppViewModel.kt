@@ -65,6 +65,9 @@ sealed interface Dest {
     /** The one-tap codes of a field phone. */
     data object StaffCodes : Dest
 
+    /** Where a staff phone tells the console how its points are. */
+    data object Points : Dest
+
     /** The people this phone ignores. */
     data object Blocked : Dest
     data class Incident(val id: String) : Dest
@@ -441,6 +444,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * One tap of the staff codes: the first three leave as staff reports, with the position attached like any
      * report; the last two move the incident this team already holds.
      */
+    /** False when this phone can't sign or sent that point too recently. */
+    fun sendPoint(point: Int, level: Int): Boolean = c.sendPoint(point, level)
+
     fun sendStaffCode(code: StaffCode, label: String): StaffCodeResult {
         val spec = StaffCodes.report(code)
         if (spec != null) {

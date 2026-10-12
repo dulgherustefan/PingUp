@@ -31,6 +31,7 @@ import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.mesh.AnchorHeartbeat
 import ro.safetyplease.core.mesh.DeviceReadings
 import ro.safetyplease.core.mesh.PowerPolicy
+import ro.safetyplease.core.metrics.NetworkLog
 
 /**
  * Keeps the mesh running with the screen off. Android requires a connectedDevice foreground service
@@ -118,15 +119,25 @@ class MeshService : Service() {
         }
     }
 
-    /** Tells the console this anchor is alive, how its battery is and what it hears (PROTOCOL.md, section 6.9). */
+    /**
+     * Tells the console this anchor is alive, how its battery is and what it hears (PROTOCOL.md, section 6.9), with
+     * its square of the site grid once it had a fix there and, with the mobile network log on, its last sample.
+     */
     private suspend fun beatAsAnchor() {
         val heartbeat = AnchorHeartbeat()
+        var square: Pair<Int, Int>? = null
         while (true) {
             delay(AnchorHeartbeat.CHECK_MS)
             val b = battery.value
             val device = DeviceReadings(b.percent, b.charging, b.temperatureC)
-            val zone = container.settings.value.anchorZone
-            heartbeat.next(container.engine.state.value, device, zone, container.clock.monoMs())?.let { container.sendHeartbeat(it) }
+            val settings = container.settings.value
+            val now = container.clock.wallMs()
+            container.location.fix.value?.takeIf { it.isFresh(now) }?.let { fix -> container.grid.squareAt(fix.lat, fix.lon)?.let { square = it } }
+            val sample = container.networkLog.value.samples.lastOrNull()
+                ?.takeIf { settings.networkLog && now - it.at <= 2 * NetworkLog.INTERVAL_MS }
+            val mobile = sample?.let(AnchorHeartbeat::mobileOf)
+            heartbeat.next(container.engine.state.value, device, settings.anchorZone, container.clock.monoMs(), mobile, square)
+                ?.let { container.sendHeartbeat(it) }
         }
     }
 

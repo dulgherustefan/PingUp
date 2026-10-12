@@ -12,8 +12,12 @@ import ro.safetyplease.core.mesh.DeviceReadings
 import ro.safetyplease.core.mesh.LinkInfo
 import ro.safetyplease.core.mesh.MeshState
 import ro.safetyplease.core.mesh.SeenPeer
+import ro.safetyplease.core.metrics.NetworkSample
+import ro.safetyplease.core.metrics.Probe
+import ro.safetyplease.core.metrics.Transport
 import ro.safetyplease.core.protocol.ControlChannel
 import ro.safetyplease.core.protocol.Heartbeat
+import ro.safetyplease.core.protocol.MobileReading
 import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
@@ -61,12 +65,43 @@ class AnchorBeatsTest {
     fun onlyStaffOpensAHeartbeatAndOnlyOnTheControlChannel() {
         val event = TestEvent()
         val beat = Heartbeat(batteryPercent = 64, charging = false, temperatureC = 41, quietS = 12, links = 2, crowd = 5, zone = "C3")
-        val sealed = AnchorBeats.seal(event.staffCrypto, beat)
+        val sealed = ControlMessages.seal(event.staffCrypto, beat.encode())
         fun to(recipient: Long) = Packet(PacketType.PRIVATE, 6, 1, 0x1234L, 0, recipient, true, sealed)
         val packet = to(ControlChannel.ID)
-        assertEquals(beat, AnchorBeats.open(event.staffCrypto, event.secret, packet))
-        assertNull("addressed to a phone", AnchorBeats.open(event.staffCrypto, event.secret, to(5L)))
-        assertNull("another event's staff", AnchorBeats.open(event.staffCrypto, TestEvent().secret, packet))
+        assertEquals(beat, ControlMessages.open(event.staffCrypto, event.secret, packet)?.let(Heartbeat::decode))
+        assertNull("addressed to a phone", ControlMessages.open(event.staffCrypto, event.secret, to(5L)))
+        assertNull("another event's staff", ControlMessages.open(event.staffCrypto, TestEvent().secret, packet))
+    }
+
+    @Test
+    fun theSiteBlockRoundTripsAndOnlyWhatIsKnownTravels() {
+        val base = Heartbeat(batteryPercent = 64, charging = false, temperatureC = 41, quietS = 12, links = 2, crowd = 5, zone = "C3")
+        val offline = MobileReading(null, MobileReading.TECH_UNKNOWN, MobileReading.TRANSPORT_NONE, MobileReading.PROBE_NOT_RUN, false)
+        for (beat in listOf(base, base.copy(column = 25, row = 98), base.copy(mobile = offline), base.copy(mobile = offline, column = 0, row = 0))) {
+            assertEquals(beat, Heartbeat.decode(beat.encode()))
+        }
+        assertEquals("nothing known adds nothing", base.encode().size, Heartbeat(64, false, 41, 12, 2, 5, "C3").encode().size)
+        assertEquals(base.encode().size + Heartbeat.SITE_BYTES, base.copy(mobile = offline).encode().size)
+
+        val odd = base.encode() + byteArrayOf(9, 0x7f, 0xff.toByte(), 30, 2, 0x55)
+        val read = Heartbeat.decode(odd)!!
+        assertEquals("level 9 and technology 0x7f are unknown, probe 3 is not run", MobileReading(null, 0, 3, 0, true), read.mobile)
+        assertNull("column 30 is off the grid", read.column)
+        assertNull(read.row)
+    }
+
+    @Test
+    fun anAnchorCarriesItsLastNetworkSampleAndSquareWithoutBeatingMoreOften() {
+        val beats = AnchorHeartbeat()
+        val sample = NetworkSample(at = 0, level = 3, technology = "nr", transport = Transport.CELLULAR, validated = true, probe = Probe.FAILED)
+        val mobile = AnchorHeartbeat.mobileOf(sample)
+        assertEquals(MobileReading(3, 6, MobileReading.TRANSPORT_CELLULAR, MobileReading.PROBE_FAILED, true), mobile)
+        assertEquals(0, AnchorHeartbeat.mobileOf(sample.copy(technology = "iden")).technology)
+        val first = beats.next(linked, plugged, "B2", 0, mobile, 1 to 4)!!
+        assertEquals(listOf(mobile, 1, 4), listOf(first.mobile, first.column, first.row))
+        val airplane = AnchorHeartbeat.mobileOf(NetworkSample(at = 0))
+        assertNull("a new reading waits for the next beat", beats.next(linked, plugged, "B2", AnchorHeartbeat.MIN_GAP_MS, airplane, 1 to 4))
+        assertEquals(CellData.NO_NETWORK, Coverage.data(beats.next(linked, plugged, "B2", AnchorHeartbeat.INTERVAL_MS, airplane, 1 to 4)!!.mobile))
     }
 
     @Test

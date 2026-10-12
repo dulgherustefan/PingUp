@@ -135,6 +135,9 @@ class GoldenVectorsTest {
         "control.heartbeat" to { Golden.heartbeat.encode().toHex() },
         "control.heartbeat.unknown" to { Golden.unknownHeartbeat.encode().toHex() },
         "control.heartbeat.extended" to { Golden.extendedHeartbeat().toHex() },
+        "control.heartbeat.site" to { Golden.siteHeartbeat.encode().toHex() },
+        "control.point" to { Golden.point(null).encode().toHex() },
+        "control.point.cert" to { Golden.point(Golden.staffCert).encode().toHex() },
         "incident.body.reply" to { Golden.replyBody.encode().toHex() },
         "response.body" to { Golden.responseBody.encode().toHex() },
         "incident.response" to { Golden.response(null).encode().toHex() },
@@ -178,6 +181,20 @@ class GoldenVectorsTest {
         assertEquals(Golden.heartbeat, Heartbeat.decode(bytes("control.heartbeat")))
         assertEquals(Golden.unknownHeartbeat, Heartbeat.decode(bytes("control.heartbeat.unknown")))
         assertEquals("unknown flag bits and what follows the zone are skipped", Golden.heartbeat, Heartbeat.decode(bytes("control.heartbeat.extended")))
+        assertEquals(Golden.siteHeartbeat, Heartbeat.decode(bytes("control.heartbeat.site")))
+        assertEquals("the site block adds 5 bytes", bytes("control.heartbeat").size + Heartbeat.SITE_BYTES, bytes("control.heartbeat.site").size)
+
+        val chain = Golden.chain()
+        for ((name, team) in listOf("control.point" to "Medical 1", "control.point.cert" to "Medical 1")) {
+            val plain = bytes(name)
+            assertEquals(name, Verdict.VALID, chain.checkPoint(plain))
+            val status = PointStatus.decode(plain)!!
+            assertEquals(listOf(5, PointLevel.BUSY, Golden.TIME + 60, team), listOf(status.point, status.level, status.issued, status.teamName))
+            assertNull("a heartbeat it isn't", Heartbeat.decode(plain))
+            val tampered = plain.clone().also { it[3] = PointLevel.CLOSED.toByte() }
+            assertEquals(name, Verdict.INVALID, chain.checkPoint(tampered))
+        }
+        assertEquals(Golden.staffCert.fields(), PointStatus.decode(bytes("control.point.cert"))!!.certificate!!.fields())
     }
 
     @Test
@@ -700,6 +717,17 @@ private object Golden {
     val heartbeat = Heartbeat(batteryPercent = 78, charging = true, temperatureC = -5, quietS = 300, links = 3, crowd = 4, zone = "B2")
     val unknownHeartbeat = Heartbeat(batteryPercent = null, charging = false, temperatureC = null, quietS = null, links = 0, crowd = 0, zone = "")
     fun extendedHeartbeat(): ByteArray = heartbeat.encode().also { it[1] = (it[1].toInt() or 0x80).toByte() } + EXTRA
+
+    /** [heartbeat] from square C4 with the mobile network: 2 bars of LTE, mobile data, validated, the probe answered. */
+    val siteHeartbeat = heartbeat.copy(
+        mobile = MobileReading(2, MobileReading.TECHNOLOGIES.indexOf("lte"), MobileReading.TRANSPORT_CELLULAR, MobileReading.PROBE_OK, true),
+        column = 2,
+        row = 3,
+    )
+
+    /** Point 5 is busy, said by "Medical 1" at TIME + 60: with the build's staff key, or under [cert] with the shift key. */
+    fun point(cert: Certificate?): PointStatus =
+        staff.signPoint(5, PointLevel.BUSY, TIME + 60, "Medical 1", if (cert == null) staffSecret else StaffSecretKeys(null, shift, cert))
 
     /** 60 bytes with a recipient at the smallest frame (64): chunks of 26, 26 and 8. */
     val fragmented = Packet(

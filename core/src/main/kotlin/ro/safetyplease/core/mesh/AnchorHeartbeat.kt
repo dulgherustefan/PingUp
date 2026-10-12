@@ -1,7 +1,11 @@
 package ro.safetyplease.core.mesh
 
+import ro.safetyplease.core.metrics.NetworkSample
+import ro.safetyplease.core.metrics.Probe
+import ro.safetyplease.core.metrics.Transport
 import ro.safetyplease.core.protocol.Heartbeat
 import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.MobileReading
 import ro.safetyplease.core.util.truncateUtf8
 
 /** What the platform reads of the device. Unknown values are null. */
@@ -20,8 +24,18 @@ class AnchorHeartbeat {
     /** What changes the console's view of an anchor, unlike the crowd, which changes all the time. */
     private data class State(val charging: Boolean, val battery: Int?, val hot: Boolean, val alone: Boolean)
 
-    /** The heartbeat due now, or null. [nowMs] is on the engine's monotonic clock, as [state] is. */
-    fun next(state: MeshState, device: DeviceReadings, zone: String, nowMs: Long): Heartbeat? {
+    /**
+     * The heartbeat due now, or null. [nowMs] is on the engine's monotonic clock, as [state] is. [mobile] and [square]
+     * ride along when known and never make a heartbeat due.
+     */
+    fun next(
+        state: MeshState,
+        device: DeviceReadings,
+        zone: String,
+        nowMs: Long,
+        mobile: MobileReading? = null,
+        square: Pair<Int, Int>? = null,
+    ): Heartbeat? {
         val heard = if (state.readyLinks > 0) nowMs else state.seen.maxOfOrNull { it.lastSeenMs }
         if (heard != null && heard > (lastHeardMs ?: Long.MIN_VALUE)) lastHeardMs = heard
         val beat = Heartbeat(
@@ -32,6 +46,9 @@ class AnchorHeartbeat {
             links = state.readyLinks.coerceAtMost(0xFF),
             crowd = Heartbeat.crowdOf(state.visiblePeers),
             zone = zone.truncateUtf8(Limits.ZONE_BYTES),
+            mobile = mobile,
+            column = square?.first,
+            row = square?.second,
         )
         val current = State(
             charging = beat.charging,
@@ -57,5 +74,23 @@ class AnchorHeartbeat {
         /** Phones shut down near 60 °C, and a box in the sun gets there; the console is told from here up. */
         const val HOT_C = 45
         private val BATTERY_BANDS = intArrayOf(50, 20, 10)
+
+        /** What the heartbeat carries of the mobile network log's last sample. */
+        fun mobileOf(sample: NetworkSample): MobileReading = MobileReading(
+            level = sample.level?.coerceIn(0, 4),
+            technology = MobileReading.TECHNOLOGIES.indexOf(sample.technology).coerceAtLeast(MobileReading.TECH_UNKNOWN),
+            transport = when (sample.transport) {
+                Transport.NONE -> MobileReading.TRANSPORT_NONE
+                Transport.CELLULAR -> MobileReading.TRANSPORT_CELLULAR
+                Transport.WIFI -> MobileReading.TRANSPORT_WIFI
+                Transport.OTHER -> MobileReading.TRANSPORT_OTHER
+            },
+            probe = when (sample.probe) {
+                Probe.NOT_RUN -> MobileReading.PROBE_NOT_RUN
+                Probe.OK -> MobileReading.PROBE_OK
+                Probe.FAILED -> MobileReading.PROBE_FAILED
+            },
+            validated = sample.validated,
+        )
     }
 }

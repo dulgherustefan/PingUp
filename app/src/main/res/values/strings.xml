@@ -739,6 +739,24 @@
     <string name="control_beat_crowd">%1$s telefoane în jur</string>
     <string name="control_beat_quiet">niciun telefon de %1$d min</string>
     <string name="control_beat_indicative">indicativ, nesemnat</string>
+    <string name="control_beat_square">pătratul %1$s</string>
+    <string name="control_beat_signal">%1$s %2$d/4</string>
+    <string name="control_beat_mobile">mobil</string>
+    <string name="control_cell_works">date mobile merg</string>
+    <string name="control_cell_fails">date mobile nu merg</string>
+    <string name="control_cell_no_network">fără rețea</string>
+    <string name="control_cell_unknown">date mobile necunoscute</string>
+    <string name="control_pane_points">Puncte</string>
+    <string name="control_points_title">Starea punctelor</string>
+    <string name="control_points_empty">Nicio stare primită încă. Responsabilii trimit din Coduri rapide › Stare puncte.</string>
+    <string name="control_points_stale">neconfirmat de %1$d min</string>
+    <string name="control_points_age">acum %1$d min, de la %2$s</string>
+    <string name="control_points_none">Pachetul evenimentului nu are puncte cu stare: porți, toalete, apă, încărcare sau transport, numerotate.</string>
+    <string name="control_layer_incidents">Incidente</string>
+    <string name="control_layer_cellular">Rețea mobilă</string>
+    <string name="control_layer_mesh">Mesh</string>
+    <string name="control_coverage_cellular_legend">Verde: datele mobile merg. Portocaliu: nu merg. Roșu: fără rețea. Gri: ancora nu măsoară rețeaua mobilă. Pătratele fără culoare nu au date: nicio ancoră nu s-a plasat acolo în ultimele 15 minute.</string>
+    <string name="control_coverage_mesh_legend">Verde: ancora are legături. Roșu: ancora e singură. Pătratele fără culoare nu au date: nicio ancoră nu s-a plasat acolo în ultimele 15 minute.</string>
     <string-array name="control_roles">
         <item>Medical</item>
         <item>Securitate</item>
@@ -849,6 +867,16 @@
 
     <string name="staff_codes_title">Coduri rapide</string>
     <string name="staff_codes_open">Coduri rapide</string>
+    <string name="staff_points_open">Stare puncte</string>
+    <string name="staff_points_title">Stare puncte</string>
+    <string name="staff_points_intro">Spune camerei de control cum e la punctele tale. Trimite când se schimbă ceva; aceeași stare din nou confirmă că e încă așa. După 30 de minute fără confirmare, consola o arată gri.</string>
+    <string name="staff_points_team">Punctele echipei</string>
+    <string name="staff_points_other">Alte puncte</string>
+    <string name="staff_points_sent">Ai trimis: %1$s, acum %2$d min</string>
+    <string name="staff_points_wait">Prea curând pentru același punct. Mai încearcă peste câteva secunde.</string>
+    <string name="point_level_free">Liber</string>
+    <string name="point_level_busy">Aglomerat</string>
+    <string name="point_level_closed">Închis sau defect</string>
     <string name="staff_codes_intro">O atingere trimite codul cu poziția ta. Consola și echipele îl văd ca pe orice raport de staff.</string>
     <string name="staff_code_medic">Am nevoie de medic aici</string>
     <string name="staff_code_reinforcements">Întăriri</string>

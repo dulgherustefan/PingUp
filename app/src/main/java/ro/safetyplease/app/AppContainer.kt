@@ -45,11 +45,14 @@ import ro.safetyplease.core.announce.NoticeBoard
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.announce.Notices
 import ro.safetyplease.core.chat.ChatManager
-import ro.safetyplease.core.control.AnchorBeats
 import ro.safetyplease.core.control.ConsoleLog
 import ro.safetyplease.core.control.ConsoleRecorder
+import ro.safetyplease.core.control.ControlMessages
 import ro.safetyplease.core.control.HeardPeer
 import ro.safetyplease.core.control.PeerBook
+import ro.safetyplease.core.control.PointBoard
+import ro.safetyplease.core.control.PointReport
+import ro.safetyplease.core.control.SentPoint
 import ro.safetyplease.core.control.ReporterRecords
 import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.Certificate
@@ -90,12 +93,14 @@ import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.MeshEvent
 import ro.safetyplease.core.mesh.PacketLog
 import ro.safetyplease.core.mesh.PowerPolicy
+import ro.safetyplease.core.mesh.Verdict
 import ro.safetyplease.core.metrics.MeshMetrics
 import ro.safetyplease.core.metrics.MetricsLog
 import ro.safetyplease.core.metrics.NetworkLog
 import ro.safetyplease.core.protocol.ControlChannel
 import ro.safetyplease.core.protocol.Heartbeat
 import ro.safetyplease.core.protocol.PacketType
+import ro.safetyplease.core.protocol.PointStatus
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.SiteGrid
@@ -164,6 +169,13 @@ class AppContainer(private val app: Application) {
 
     /** When the console last heard each phone; kept while this phone is the console. */
     val heard = MutableStateFlow<Map<Int, HeardPeer>>(emptyMap())
+
+    /** The last verified status of each point, by its number; kept while this phone is the console. */
+    val points = MutableStateFlow<Map<Int, PointReport>>(emptyMap())
+
+    /** What this staff phone last said of each point, by its number. */
+    val sentPoints = MutableStateFlow<Map<Int, SentPoint>>(emptyMap())
+    private val pointNumbers = PointBoard.points(venue).mapTo(HashSet()) { it.number }
 
     /** The console's last shared log, in the cache; the share sheet reads the files from here. */
     val exportDir = File(app.cacheDir, "export")
@@ -316,6 +328,7 @@ class AppContainer(private val app: Application) {
                     watchAsConsole()
                 } else {
                     heard.value = emptyMap()
+                    points.value = emptyMap()
                 }
             }
         }
@@ -334,17 +347,45 @@ class AppContainer(private val app: Application) {
             engine.events.collect { event ->
                 if (event !is MeshEvent.Received) return@collect
                 val secret = staffSecret ?: return@collect
-                val beat = AnchorBeats.open(staffCrypto, secret, event.packet) ?: return@collect
-                heard.update { PeerBook.heartbeat(it, event.packet.sender, beat, clock.wallMs()) }
+                val plain = ControlMessages.open(staffCrypto, secret, event.packet) ?: return@collect
+                when (plain[0].toInt()) {
+                    ControlChannel.HEARTBEAT -> Heartbeat.decode(plain)?.let { beat ->
+                        heard.update { PeerBook.heartbeat(it, event.packet.sender, beat, clock.wallMs()) }
+                    }
+                    ControlChannel.POINT_STATUS -> if (staffCrypto.chain.checkPoint(plain) == Verdict.VALID) {
+                        PointStatus.decode(plain)?.let(::offerPoint)
+                    }
+                }
             }
         }
+    }
+
+    private fun offerPoint(status: PointStatus) {
+        points.update { PointBoard.offer(it, status, pointNumbers, clock.wallMs()) }
     }
 
     /** An anchor's heartbeat, to whichever console the mesh reaches. */
     fun sendHeartbeat(beat: Heartbeat) {
         meshScope.launch {
-            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, AnchorBeats.seal(staffCrypto, beat))
+            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, ControlMessages.seal(staffCrypto, beat.encode()))
         }
+    }
+
+    /**
+     * A point's status, signed in this phone's team name, to whichever console the mesh reaches; false if this phone
+     * can't sign or sent that point too recently. A console takes its own at once.
+     */
+    fun sendPoint(point: Int, level: Int): Boolean {
+        val secret = staffSecret ?: return false
+        val now = clock.wallMs()
+        if (!PointBoard.maySend(sentPoints.value, point, level, now)) return false
+        val status = staffCrypto.signPoint(point, level, now / 1000, settings.value.teamName, secret)
+        sentPoints.update { it + (point to SentPoint(level, now)) }
+        if (settings.value.role == Role.CONTROL) offerPoint(status)
+        meshScope.launch {
+            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, ControlMessages.seal(staffCrypto, status.encode()))
+        }
+        return true
     }
 
     /**

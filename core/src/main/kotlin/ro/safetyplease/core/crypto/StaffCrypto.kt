@@ -3,6 +3,7 @@ package ro.safetyplease.core.crypto
 import ro.safetyplease.core.mesh.Verdict
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentResponse
+import ro.safetyplease.core.protocol.PointStatus
 import ro.safetyplease.core.protocol.ResponseBody
 import ro.safetyplease.core.util.Clock
 
@@ -60,6 +61,13 @@ class StaffCrypto(
         val unsigned = IncidentResponse.unsigned(incidentId, timestamp, sealed, secret.certificate)
         val signature = crypto.sign(IncidentResponse.signedMessage(unsigned), secret.sign.secretKey)
         return IncidentResponse(incidentId, timestamp, sealed, secret.certificate, signature)
+    }
+
+    /** A point's status for the console, signed like an ACK: under the certificate if there is one. */
+    fun signPoint(point: Int, level: Int, issued: Long, teamName: String, secret: StaffSecretKeys): PointStatus {
+        val unsigned = PointStatus.unsigned(point, level, issued, teamName, secret.certificate)
+        val signature = crypto.sign(PointStatus.signedMessage(unsigned), secret.sign.secretKey)
+        return PointStatus(point, level, issued, teamName, secret.certificate, signature)
     }
 
     /** Null if the seeds don't match this build's public keys. */

@@ -717,6 +717,24 @@
     <string name="control_beat_crowd">%1$s phones around</string>
     <string name="control_beat_quiet">no phones for %1$d min</string>
     <string name="control_beat_indicative">indicative, unsigned</string>
+    <string name="control_beat_square">square %1$s</string>
+    <string name="control_beat_signal">%1$s %2$d/4</string>
+    <string name="control_beat_mobile">mobile</string>
+    <string name="control_cell_works">mobile data works</string>
+    <string name="control_cell_fails">mobile data fails</string>
+    <string name="control_cell_no_network">no network</string>
+    <string name="control_cell_unknown">mobile data unknown</string>
+    <string name="control_pane_points">Points</string>
+    <string name="control_points_title">Point status</string>
+    <string name="control_points_empty">No status received yet. The people in charge send it from Quick codes › Point status.</string>
+    <string name="control_points_stale">unconfirmed for %1$d min</string>
+    <string name="control_points_age">%1$d min ago, from %2$s</string>
+    <string name="control_points_none">The event pack has no points with a status: numbered gates, toilets, water, charging or transport.</string>
+    <string name="control_layer_incidents">Incidents</string>
+    <string name="control_layer_cellular">Mobile network</string>
+    <string name="control_layer_mesh">Mesh</string>
+    <string name="control_coverage_cellular_legend">Green: mobile data works. Orange: it fails. Red: no network. Grey: the anchor doesn’t measure the mobile network. Squares without a colour have no data: no anchor placed itself there in the last 15 minutes.</string>
+    <string name="control_coverage_mesh_legend">Green: the anchor has links. Red: the anchor is alone. Squares without a colour have no data: no anchor placed itself there in the last 15 minutes.</string>
     <string-array name="control_roles">
         <item>Medical</item>
         <item>Security</item>
@@ -827,6 +845,16 @@
 
     <string name="staff_codes_title">Quick codes</string>
     <string name="staff_codes_open">Quick codes</string>
+    <string name="staff_points_open">Point status</string>
+    <string name="staff_points_title">Point status</string>
+    <string name="staff_points_intro">Tell the control room how your points are. Send when something changes; the same status again confirms it still holds. After 30 minutes without a confirmation the console shows it grey.</string>
+    <string name="staff_points_team">Your team’s points</string>
+    <string name="staff_points_other">Other points</string>
+    <string name="staff_points_sent">You sent: %1$s, %2$d min ago</string>
+    <string name="staff_points_wait">Too soon for the same point. Try again in a few seconds.</string>
+    <string name="point_level_free">Free</string>
+    <string name="point_level_busy">Busy</string>
+    <string name="point_level_closed">Closed or broken</string>
     <string name="staff_codes_intro">One tap sends the code with your position. The console and the teams see it like any staff report.</string>
     <string name="staff_code_medic">I need a medic here</string>
     <string name="staff_code_reinforcements">Reinforcements</string>

@@ -9,6 +9,7 @@ import ro.safetyplease.core.protocol.HelloProof
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentResponse
 import ro.safetyplease.core.protocol.NodeFlags
+import ro.safetyplease.core.protocol.PointStatus
 import ro.safetyplease.core.util.Clock
 
 enum class CertStatus { VALID, UNKNOWN, FORGED, REVOKED, OUTSIDE_WINDOW }
@@ -122,6 +123,31 @@ class KeyChain(
         if (!crypto.verify(response.signature, message, cert.key)) return Verdict.INVALID
         val late = response.timestamp > now + SKEW_S || response.timestamp < cert.validFrom - SKEW_S
         return if (cert.role != CertRole.CONTROL || late) Verdict.REFUSED else Verdict.VALID
+    }
+
+    /**
+     * A point's status, opened from the control channel: as an ACK, against the build's staff key without a
+     * certificate; with one, a team signs only in its own name and a console anything, within the shift.
+     */
+    fun checkPoint(plain: ByteArray): Verdict {
+        val status = PointStatus.decode(plain) ?: return Verdict.INVALID
+        val message = PointStatus.signedMessage(PointStatus.unsignedPart(plain))
+        val cert = status.certificate
+            ?: return if (crypto.verify(status.signature, message, legacySign)) Verdict.VALID else Verdict.INVALID
+        val now = nowSec()
+        when (status(cert, now)) {
+            CertStatus.VALID -> Unit
+            CertStatus.FORGED -> return Verdict.INVALID
+            else -> return Verdict.REFUSED
+        }
+        if (!crypto.verify(status.signature, message, cert.key)) return Verdict.INVALID
+        val allowed = when (cert.role) {
+            CertRole.CONTROL -> true
+            CertRole.STAFF -> status.teamName == cert.name
+            else -> false
+        }
+        if (!allowed || status.issued > now + SKEW_S || status.issued < cert.validFrom - SKEW_S) return Verdict.REFUSED
+        return Verdict.VALID
     }
 
     /**

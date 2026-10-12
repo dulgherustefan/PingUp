@@ -128,6 +128,7 @@ import ro.safetyplease.app.ui.report.MyReportsScreen
 import ro.safetyplease.app.ui.report.ReportScreen
 import ro.safetyplease.app.ui.report.ReportSentScreen
 import ro.safetyplease.app.ui.safety.DiscreetScreen
+import ro.safetyplease.app.ui.staffcodes.PointsScreen
 import ro.safetyplease.app.ui.staffcodes.StaffCodesScreen
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
@@ -312,6 +313,7 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         Dest.MyReports -> MyReportsScreen(vm)
         Dest.Discreet -> DiscreetScreen(vm)
         Dest.StaffCodes -> StaffCodesScreen(vm)
+        Dest.Points -> PointsScreen(vm)
         Dest.Blocked -> BlockedScreen(vm)
         is Dest.Incident -> IncidentDetailScreen(vm, dest.id)
         Dest.Me -> MeScreen(vm, onStartMesh)

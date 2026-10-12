@@ -83,6 +83,7 @@ import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.ConsoleView
+import ro.safetyplease.core.control.Coverage
 import ro.safetyplease.core.incidents.AlertPlanner
 import ro.safetyplease.core.incidents.CrowdSignal
 import ro.safetyplease.core.incidents.Priority
@@ -95,6 +96,7 @@ private enum class Pane(val label: Int) {
     QUEUE(R.string.control_pane_queue),
     INCIDENT(R.string.control_pane_incident),
     MAP(R.string.map_title),
+    POINTS(R.string.control_pane_points),
     NETWORK(R.string.me_network),
 }
 
@@ -121,6 +123,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val log by c.consoleLog.state.collectAsStateWithLifecycle()
     val mesh by vm.mesh.collectAsStateWithLifecycle()
     val heard by c.heard.collectAsStateWithLifecycle()
+    val points by c.points.collectAsStateWithLifecycle()
     val mutedUntil by c.mutedUntil.collectAsStateWithLifecycle()
     val gate = rememberRadioGate(vm, mesh.radio, onStartMesh)
     val now = rememberNow()
@@ -135,6 +138,8 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var confirmExport by remember { mutableStateOf(false) }
     var showReport by remember { mutableStateOf(false) }
     var composeNotice by remember { mutableStateOf(false) }
+    var layer by rememberSaveable { mutableStateOf(MapLayer.INCIDENTS) }
+    val squares = remember(heard, now) { Coverage.squares(heard.values, now) }
     val selected = selectedId?.let(cases::get)
     val onMap = remember(cases) { cases.values.filter { it.state != CaseState.CLOSED } }
 
@@ -173,14 +178,21 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 QueuePane(cases, filter, { filter = it }, selectedId, select, vm.venue, now, modifier)
             }
             val detailPane = @Composable { modifier: Modifier -> DetailPane(vm, selected, log.entries, now, modifier) }
-            val mapPane = @Composable { modifier: Modifier -> MapPane(vm.venue, c.grid, onMap, selected, select, modifier) }
-            val networkPane = @Composable { modifier: Modifier -> NetworkPane(mesh, heard, gate, now, modifier) }
+            val mapPane = @Composable { modifier: Modifier ->
+                val shades = coverageShades(colors, squares, layer)
+                MapPane(vm.venue, c.grid, onMap, selected, select, pointRings(points, now), shades, layer, { layer = it }, modifier)
+            }
+            val networkPane = @Composable { modifier: Modifier -> NetworkPane(mesh, heard, gate, now, c.grid, modifier) }
+            val pointsPane = @Composable { modifier: Modifier -> PointsPane(vm.venue, points, now, modifier) }
             when {
                 wide -> Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(PaneGap)) {
                     queuePane(Modifier.width(QueueWidth).fillMaxHeight())
                     Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(PaneGap)) {
                         mapPane(Modifier.fillMaxWidth().weight(0.62f))
-                        networkPane(Modifier.fillMaxWidth().weight(0.38f))
+                        Row(Modifier.fillMaxWidth().weight(0.38f), horizontalArrangement = Arrangement.spacedBy(PaneGap)) {
+                            networkPane(Modifier.weight(1f).fillMaxHeight())
+                            pointsPane(Modifier.weight(1f).fillMaxHeight())
+                        }
                     }
                     detailPane(Modifier.width(DetailWidth).fillMaxHeight())
                 }
@@ -198,6 +210,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                                 Pane.QUEUE -> queuePane(rest)
                                 Pane.INCIDENT -> detailPane(rest)
                                 Pane.MAP -> mapPane(rest)
+                                Pane.POINTS -> pointsPane(rest)
                                 Pane.NETWORK -> networkPane(rest)
                             }
                         }
@@ -348,7 +361,11 @@ private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, onC
     }
 }
 
-/** The map with the site grid: open and assigned incidents as pins, the chosen one ringed. */
+/**
+ * The map with the site grid: open and assigned incidents as pins, the chosen one ringed, the points ringed in the
+ * color of their status, and, on the coverage layers, the squares the anchors cover, with a line saying what the
+ * colors mean.
+ */
 @Composable
 private fun MapPane(
     venue: Venue,
@@ -356,6 +373,10 @@ private fun MapPane(
     cases: List<Case>,
     selected: Case?,
     onSelect: (String) -> Unit,
+    rings: Map<Int, Color>,
+    shades: Map<Pair<Int, Int>, Color>,
+    layer: MapLayer,
+    onLayer: (MapLayer) -> Unit,
     modifier: Modifier,
 ) {
     val colors = AppTheme.colors
@@ -363,18 +384,29 @@ private fun MapPane(
     val pins = remember(cases, colors) {
         cases.mapNotNull { case -> casePoint(case, venue)?.let { MapPin(it, colors.severity(case.report.severity), case.incidentId, case.report.severity) } }
     }
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
-        VenueMap(
-            venue = venue,
-            modifier = Modifier.width(fit(maxWidth, maxHeight, venueAspect(venue))),
-            pins = pins,
-            highlightZone = selected?.report?.zone.orEmpty(),
-            onPinTap = { onSelect(it.key) },
-            camera = camera,
-            target = selected?.let { casePoint(it, venue) },
-            targetColor = colors.label,
-            grid = grid,
-        )
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SegmentedControl(MapLayer.entries.map { it to stringResource(it.label) }, layer, onLayer)
+        if (layer != MapLayer.INCIDENTS) {
+            Text(
+                stringResource(if (layer == MapLayer.MESH) R.string.control_coverage_mesh_legend else R.string.control_coverage_cellular_legend),
+                style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+            )
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+            VenueMap(
+                venue = venue,
+                modifier = Modifier.width(fit(maxWidth, maxHeight, venueAspect(venue))),
+                pins = if (layer == MapLayer.INCIDENTS) pins else emptyList(),
+                highlightZone = selected?.report?.zone.orEmpty(),
+                onPinTap = { onSelect(it.key) },
+                camera = camera,
+                target = selected?.let { casePoint(it, venue) },
+                targetColor = colors.label,
+                grid = grid,
+                squareShades = shades,
+                poiRings = rings,
+            )
+        }
     }
 }
 

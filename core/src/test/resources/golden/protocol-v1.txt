@@ -207,6 +207,13 @@ control.heartbeat 01014efb012c0304024232
 control.heartbeat.unknown 0100ff80ffff000000
 # Built by hand: control.heartbeat with flag bit 0x80 and the bytes abcd after the zone, which a newer version may add.
 control.heartbeat.extended 01814efb012c0304024232abcd
+# control.heartbeat with the site block: 2 bars, technology 5 (lte), data 0x80 (measured) | 0x10 (validated) | probe 1
+# (answered) << 2 | transport 1 (mobile), square C4 (column 2, row 3).
+control.heartbeat.site 01014efb012c03040242320205950203
+# Point status: point 5, level 2 (busy), issued TIME + 60, team "Medical 1", signed with the build's staff key.
+control.point 0200050268e7783c094d65646963616c2031a2518d24d214d67e0e2c4c12bea7a8c091abc07fa9bbd785838cad73ce85e9693187f71fea10917ac075d5403d596133b50fb506ceb3da2c69e5de545bfbed0d
+# The same under cert.staff, signed with the shift key seed(0x80).
+control.point.cert 0201050268e7783c094d65646963616c20310101cd14b37f956e953194ff7fb73b3d81dcc561d61a7538094b7c3e1a643ee5f3aa68e7780068e820c068894d58f18f2c34094d65646963616c203192006002b5efc88c45e4144f39c157bf49985526cbf52bc1b4f1c95b725b1446b2efa3de99383c76011eeab5b9525f3f54550616a62e096788df366271f4850eb323db3dcedf65fdddb88fbb0b207ecae34247a365352e93123e76f550a82b63d14ff0c6b8209330cbf2cac18e9189b97f48df14efc35c88453323af1e22700d
 
 # 1.1, responses to the reporter and the reporter's updates (PROTOCOL.md, sections 6.3, 6.10 and 6.11).
 # incident.body.location with flag 0x40 and the reporter's reply key after the location fields: X25519 from seed(0xe0).

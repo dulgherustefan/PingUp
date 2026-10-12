@@ -73,6 +73,10 @@ class DecoderFuzzTest {
         ),
         Codec("heartbeat", { heartbeat() }, Heartbeat::encode, { Heartbeat.decode(it) }, { listOf(it.zone) }, tolerant = true),
         Codec(
+            "point status", { pointStatus() }, PointStatus::encode, { PointStatus.decode(it) },
+            { listOfNotNull(it.teamName, it.certificate?.name) }, tolerant = true,
+        ),
+        Codec(
             "response", { response() }, IncidentResponse::encode, { IncidentResponse.decode(it) },
             { listOfNotNull(it.certificate?.name) }, tolerant = true,
         ),
@@ -414,6 +418,19 @@ private fun Random.heartbeat() = Heartbeat(
     links = nextInt(0, 256),
     crowd = nextInt(0, Heartbeat.CROWD.size),
     zone = text(Limits.ZONE_BYTES),
+    mobile = if (nextBoolean()) {
+        MobileReading(
+            if (nextBoolean()) nextInt(0, 5) else null, nextInt(MobileReading.TECHNOLOGIES.size), nextInt(4),
+            nextInt(MobileReading.PROBE_FAILED + 1), nextBoolean(),
+        )
+    } else {
+        null
+    },
+).let { if (nextBoolean()) it.copy(column = nextInt(26), row = nextInt(99)) else it }
+
+private fun Random.pointStatus() = PointStatus(
+    nextInt(1, 256), nextInt(PointLevel.FREE, PointLevel.CLOSED + 1), nextLong(0, 1L shl 32), text(Limits.TEAM_BYTES),
+    if (nextBoolean()) certificate() else null, nextBytes(64), if (nextInt(4) == 0) nextBytes(nextInt(0, 20)) else ByteArray(0),
 )
 
 private fun Random.inner(): Inner {
