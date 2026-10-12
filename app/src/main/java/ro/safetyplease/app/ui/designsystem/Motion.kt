@@ -57,6 +57,9 @@ fun Modifier.pressScale(interaction: InteractionSource, pressed: Float = 0.92f):
 /** True when the phone has "Remove animations" on: transitions become plain fades. */
 val LocalReduceMotion = staticCompositionLocalOf { false }
 
+/** True when the battery is nearly empty: no map and no animations, only text. */
+val LocalTextOnly = staticCompositionLocalOf { false }
+
 @Composable
 fun rememberReduceMotion(): Boolean {
     val context = LocalContext.current

@@ -61,6 +61,7 @@ import ro.safetyplease.app.text.NoticeText
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
+import ro.safetyplease.app.ui.common.LowBatteryBanner
 import ro.safetyplease.app.ui.common.MapCamera
 import ro.safetyplease.app.ui.common.MapCorner
 import ro.safetyplease.app.ui.common.MapGlyph
@@ -98,6 +99,7 @@ import ro.safetyplease.app.ui.notices.shadeType
 import ro.safetyplease.app.ui.rememberLocationRequest
 import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.incidents.Priority
+import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
@@ -121,6 +123,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val board by vm.c.notices.board.collectAsStateWithLifecycle()
     val now = rememberNow()
+    val battery by vm.c.battery.state.collectAsStateWithLifecycle()
     val colors = AppTheme.colors
     val heat = if (vm.c.showsNotices(settings)) board.active(now / 1000).firstOrNull { it.second.topic == NoticeTopic.HEAT }?.second else null
     // in the heat, water and shade come first
@@ -199,6 +202,9 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
+            if (PowerPolicy.lowBattery(battery.percent, battery.charging)) {
+                item(key = "battery") { LowBatteryBanner(battery, vm.venue, origin, Modifier.padding(start = Gutter, end = Gutter, top = 8.dp)) }
+            }
             item(key = "map") {
                 VenueMap(
                     venue = vm.venue,
@@ -311,6 +317,16 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                                 },
                             )
                         }
+                    }
+                }
+            }
+            if (dest.sendTo == null) {
+                item(key = "pages") {
+                    InsetGroup(Modifier.padding(top = 20.dp)) {
+                        GroupRow(
+                            stringResource(R.string.pages_title), subtitle = stringResource(R.string.pages_map_text), icon = Sym.Info,
+                            chevron = true, onClick = { vm.open(Dest.Pages) },
+                        )
                     }
                 }
             }

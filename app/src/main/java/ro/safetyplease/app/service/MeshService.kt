@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
-import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -40,23 +39,10 @@ import ro.safetyplease.core.mesh.PowerPolicy
 class MeshService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var container: AppContainer
-    private val battery = MutableStateFlow(Battery(percent = 100, charging = false, temperatureC = null))
+    private val battery get() = container.battery.state
     private val screenOn = MutableStateFlow(true)
     private val boosting = MutableStateFlow(false)
     private val reportPending = MutableStateFlow(false)
-
-    private data class Battery(val percent: Int, val charging: Boolean, val temperatureC: Int?)
-
-    private val batteryReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-            val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
-            val percent = if (level >= 0 && scale > 0) level * 100 / scale else battery.value.percent
-            // tenths of a degree Celsius
-            val temperature = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
-            battery.value = Battery(percent, intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0, temperature?.let { it / 10 })
-        }
-    }
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -84,9 +70,6 @@ class MeshService : Service() {
         running = true
         setWanted(this, true)
         container.meshScope.launch { container.radio.start() }
-        ContextCompat.registerReceiver(
-            this, batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
         screenOn.value = getSystemService(PowerManager::class.java)?.isInteractive ?: true
         val screenEvents = IntentFilter(Intent.ACTION_SCREEN_ON).apply { addAction(Intent.ACTION_SCREEN_OFF) }
         ContextCompat.registerReceiver(this, screenReceiver, screenEvents, ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -139,7 +122,6 @@ class MeshService : Service() {
     private suspend fun beatAsAnchor() {
         val heartbeat = AnchorHeartbeat()
         while (true) {
-            // the first wait also lets the battery broadcast arrive
             delay(AnchorHeartbeat.CHECK_MS)
             val b = battery.value
             val device = DeviceReadings(b.percent, b.charging, b.temperatureC)
@@ -153,7 +135,6 @@ class MeshService : Service() {
     override fun onDestroy() {
         if (running) {
             running = false
-            runCatching { unregisterReceiver(batteryReceiver) }
             runCatching { unregisterReceiver(screenReceiver) }
             container.meshScope.launch { container.radio.stop() }
         }

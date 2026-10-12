@@ -35,6 +35,7 @@ import ro.safetyplease.app.platform.ble.BleRadio
 import ro.safetyplease.app.platform.keystore.KeyVault
 import ro.safetyplease.app.platform.location.LocationSource
 import ro.safetyplease.app.platform.network.MobileNetwork
+import ro.safetyplease.app.platform.power.BatteryMonitor
 import ro.safetyplease.app.service.Notifier
 import ro.safetyplease.app.text.EscalationReminder
 import ro.safetyplease.app.text.NoticeText
@@ -214,6 +215,12 @@ class AppContainer(private val app: Application) {
 
     val notifier = Notifier(app, venue, exercise)
     val location = LocationSource(app)
+
+    /** The battery, with the power profile in force and how long it lasts at that profile's pace. */
+    val battery = BatteryMonitor(app, clock) { percent, charging ->
+        val role = settings.value.role
+        PowerPolicy.profile(role.hasStaffKeys, role == Role.ANCHOR, percent, charging)
+    }
 
     /** Until when (monotonic) scanning and advertising stay at LOW_LATENCY after an incident is sent. */
     val boostUntil = MutableStateFlow(0L)

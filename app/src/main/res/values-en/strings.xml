@@ -525,6 +525,33 @@
     <string name="first_aid_draft_text">This text has not been checked by a doctor yet.</string>
     <string name="first_aid_warning">Warning</string>
     <string name="first_aid_approved">Approved: %1$s</string>
+    <string name="pages_title">Useful information</string>
+    <string name="pages_intro">Beach, transport, the wristband and money, safety. Works without signal.</string>
+    <string name="pages_map_text">Beach, transport, wristband, safety</string>
+    <string name="pages_draft_title">Text awaiting approval</string>
+    <string name="pages_draft_text">The organiser has not approved it yet. The details marked “source: organiser” are theirs to fill in.</string>
+    <string name="pages_approved">Approved by the organiser: %1$s</string>
+    <string name="low_battery_title">Battery under %1$d%%</string>
+    <string name="low_battery_text">The phone scans less often and helps less with relaying messages, so the battery lasts. Reporting works as usual.</string>
+    <string name="low_battery_text_only">The map and animations are off until you charge the phone.</string>
+    <string name="low_battery_charger">Nearest charging point: %1$s</string>
+    <string name="low_battery_show">Show on the map</string>
+    <string name="map_text_only">The map is off to save battery. The places in the list still work.</string>
+    <string name="autonomy_level">Battery level</string>
+    <string name="autonomy_charging">Charging</string>
+    <string name="autonomy_profile_leaf">Scanning in cycles, so the battery lasts</string>
+    <string name="autonomy_profile_staff">Continuous scanning, for staff</string>
+    <string name="autonomy_profile_anchor">Continuous scanning, for an anchor</string>
+    <string name="autonomy_profile_economy">Economy: scans less often, relays less</string>
+    <string name="autonomy_left">Estimated time left</string>
+    <string name="autonomy_left_text">At the pace of the last hour, with the current profile.</string>
+    <string name="autonomy_left_measuring">Calculated once the battery has dropped a few percent at the same pace.</string>
+    <string name="autonomy_left_charging">The phone is charging.</string>
+    <string name="autonomy_minutes">~%1$d min</string>
+    <string name="autonomy_hours">~%1$d h</string>
+    <string name="autonomy_hours_minutes">~%1$d h %2$d min</string>
+    <string name="autonomy_over_day">over %1$d h</string>
+    <string name="autonomy_charger">Nearest charging point</string>
     <string name="report_help_first_aid_text">What to do until the team arrives, step by step.</string>
 
     <!-- Date patterns (SimpleDateFormat): each language has its own word order -->

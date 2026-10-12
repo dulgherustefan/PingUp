@@ -87,6 +87,10 @@ sealed interface Dest {
     /** Offline first-aid sheets, then one of them by [id]. */
     data object FirstAid : Dest
     data class FirstAidSheet(val id: String) : Dest
+
+    /** The offline information pages, then one of them by [id]. */
+    data object Pages : Dest
+    data class Page(val id: String) : Dest
 }
 
 /** What one tap on the staff codes screen did. */

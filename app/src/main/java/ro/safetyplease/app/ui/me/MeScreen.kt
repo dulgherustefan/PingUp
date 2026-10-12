@@ -139,6 +139,8 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     }
                 }
 
+                BatteryGroup(vm)
+
                 InsetGroup {
                     SwitchRow(
                         stringResource(R.string.me_share_zone), settings.shareZone, vm::setShareZone,
@@ -180,6 +182,8 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     )
                     GroupDivider()
                     GroupRow(stringResource(R.string.first_aid_title), icon = Sym.Medical, chevron = true, onClick = { vm.open(Dest.FirstAid) })
+                    GroupDivider()
+                    GroupRow(stringResource(R.string.pages_title), icon = Sym.Info, chevron = true, onClick = { vm.open(Dest.Pages) })
                 }
 
                 InsetGroup(Modifier.padding(bottom = 24.dp)) {

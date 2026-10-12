@@ -97,6 +97,7 @@ import ro.safetyplease.app.ui.designsystem.FullScreen
 import ro.safetyplease.app.ui.designsystem.LocalBottomClearance
 import ro.safetyplease.app.ui.designsystem.LocalReduceMotion
 import ro.safetyplease.app.ui.designsystem.LocalStatusBarTop
+import ro.safetyplease.app.ui.designsystem.LocalTextOnly
 import ro.safetyplease.app.ui.designsystem.Motion
 import ro.safetyplease.app.ui.designsystem.Sym
 import ro.safetyplease.app.ui.designsystem.TextFont
@@ -108,6 +109,8 @@ import ro.safetyplease.app.ui.incidents.IncidentDetailScreen
 import ro.safetyplease.app.ui.incidents.IncidentsScreen
 import ro.safetyplease.app.ui.firstaid.FirstAidScreen
 import ro.safetyplease.app.ui.firstaid.FirstAidSheetScreen
+import ro.safetyplease.app.ui.info.PageScreen
+import ro.safetyplease.app.ui.info.PagesScreen
 import ro.safetyplease.app.ui.map.MapScreen
 import ro.safetyplease.app.ui.map.PinScreen
 import ro.safetyplease.app.ui.me.AnchorScreen
@@ -126,6 +129,7 @@ import ro.safetyplease.app.ui.report.ReportScreen
 import ro.safetyplease.app.ui.report.ReportSentScreen
 import ro.safetyplease.app.ui.safety.DiscreetScreen
 import ro.safetyplease.app.ui.staffcodes.StaffCodesScreen
+import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
@@ -233,7 +237,9 @@ private fun Dest?.isSheet() = this == Dest.Me || this == Dest.AddFriend || this 
 @Composable
 fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val reduce = LocalReduceMotion.current
+    val battery by vm.c.battery.state.collectAsStateWithLifecycle()
+    val textOnly = PowerPolicy.textOnly(battery.percent, battery.charging)
+    val reduce = LocalReduceMotion.current || textOnly
     BackHandler(enabled = vm.stack.isNotEmpty()) { vm.back() }
 
     // each back-stack entry keeps its state (drafts, filters, scroll) while it's on the stack
@@ -252,19 +258,21 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
     val shown = shownNotices(vm, if (vm.c.showsNotices(settings)) board.active(now / 1000) else emptyList())
     val bands = shown.filter { !it.held.dismissed }
     val alert = shown.firstOrNull { it.notice.urgent && !it.held.alerted }
-    FullScreen {
-        // the bands sit above every screen and take the status bar, so they cover no header
-        val topTaken = vm.c.exercise || bands.isNotEmpty()
-        Column(Modifier.fillMaxSize()) {
-            if (vm.c.exercise) ExerciseBanner()
-            NoticeBands(vm, bands, statusBar = !vm.c.exercise)
-            Box(Modifier.weight(1f).then(if (topTaken) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
-                CompositionLocalProvider(LocalStatusBarTop provides if (topTaken) 0.dp else null) {
-                    Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce)
+    CompositionLocalProvider(LocalTextOnly provides textOnly, LocalReduceMotion provides reduce) {
+        FullScreen {
+            // the bands sit above every screen and take the status bar, so they cover no header
+            val topTaken = vm.c.exercise || bands.isNotEmpty()
+            Column(Modifier.fillMaxSize()) {
+                if (vm.c.exercise) ExerciseBanner()
+                NoticeBands(vm, bands, statusBar = !vm.c.exercise)
+                Box(Modifier.weight(1f).then(if (topTaken) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
+                    CompositionLocalProvider(LocalStatusBarTop provides if (topTaken) 0.dp else null) {
+                        Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce)
+                    }
                 }
             }
+            alert?.let { NoticeAlert(it, vm.c.exercise) { vm.c.notices.alerted(it.notice.topic, it.notice.seq) } }
         }
-        alert?.let { NoticeAlert(it, vm.c.exercise) { vm.c.notices.alerted(it.notice.topic, it.notice.seq) } }
     }
 }
 
@@ -313,6 +321,8 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         is Dest.Map -> MapScreen(vm, dest)
         Dest.FirstAid -> FirstAidScreen(vm)
         is Dest.FirstAidSheet -> FirstAidSheetScreen(vm, dest.id)
+        Dest.Pages -> PagesScreen(vm)
+        is Dest.Page -> PageScreen(vm, dest.id)
         null -> when (role) {
             AppRole.ANCHOR -> AnchorScreen(vm)
             AppRole.CONTROL -> ControlScreen(vm, onStartMesh)

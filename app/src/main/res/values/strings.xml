@@ -543,6 +543,33 @@
     <string name="first_aid_draft_text">Textul nu a fost încă verificat de un medic.</string>
     <string name="first_aid_warning">Atenție</string>
     <string name="first_aid_approved">Aprobat: %1$s</string>
+    <string name="pages_title">Informații utile</string>
+    <string name="pages_intro">Plajă, transport, brățara și banii, siguranță. Funcționează și fără semnal.</string>
+    <string name="pages_map_text">Plajă, transport, brățară, siguranță</string>
+    <string name="pages_draft_title">Text în curs de aprobare</string>
+    <string name="pages_draft_text">Organizatorul nu l-a aprobat încă. Datele marcate „sursa: organizatorul” le completează el.</string>
+    <string name="pages_approved">Aprobat de organizator: %1$s</string>
+    <string name="low_battery_title">Baterie sub %1$d%%</string>
+    <string name="low_battery_text">Telefonul scanează mai rar și ajută mai puțin la retransmiterea mesajelor, ca bateria să țină. Raportarea merge ca de obicei.</string>
+    <string name="low_battery_text_only">Harta și animațiile sunt oprite până încarci telefonul.</string>
+    <string name="low_battery_charger">Cel mai apropiat punct de încărcare: %1$s</string>
+    <string name="low_battery_show">Arată pe hartă</string>
+    <string name="map_text_only">Harta e oprită ca să economisești bateria. Locurile din listă merg în continuare.</string>
+    <string name="autonomy_level">Nivelul bateriei</string>
+    <string name="autonomy_charging">Se încarcă</string>
+    <string name="autonomy_profile_leaf">Scanare în cicluri, ca bateria să țină</string>
+    <string name="autonomy_profile_staff">Scanare continuă, pentru staff</string>
+    <string name="autonomy_profile_anchor">Scanare continuă, pentru ancoră</string>
+    <string name="autonomy_profile_economy">Economic: scanează mai rar, retransmite mai puțin</string>
+    <string name="autonomy_left">Timp rămas estimat</string>
+    <string name="autonomy_left_text">La ritmul din ultima oră, cu profilul de acum.</string>
+    <string name="autonomy_left_measuring">Se calculează după ce bateria scade cu câteva procente la același ritm.</string>
+    <string name="autonomy_left_charging">Telefonul se încarcă.</string>
+    <string name="autonomy_minutes">~%1$d min</string>
+    <string name="autonomy_hours">~%1$d h</string>
+    <string name="autonomy_hours_minutes">~%1$d h %2$d min</string>
+    <string name="autonomy_over_day">peste %1$d h</string>
+    <string name="autonomy_charger">Cel mai apropiat punct de încărcare</string>
     <string name="report_help_first_aid_text">Ce faci până ajunge echipa, pas cu pas.</string>
 
     <!-- Date patterns (SimpleDateFormat): each language has its own word order -->

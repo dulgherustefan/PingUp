@@ -29,7 +29,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `protocol/` | Formatul pachetelor pe fir: codare, decodare, fragmentare. Specificația, cu vectorii de test, e în `PROTOCOL.md`. |
 | `mesh/` | Rutarea mesh: cui trimitem, ce am văzut deja, cozi, limite, consum. `Radio` e interfața pe care o implementează Bluetooth-ul. |
 | `crypto/` | Identitatea, criptarea cap-coadă (libsodium), lanțul de chei al evenimentului (certificate de tură, cheia rapoartelor pe zi, revocări), codurile QR de prieten și de staff. |
-| `event/` | Pachetul de eveniment semnat (venue, grila, fișele, cheile evenimentului), verificat pe lanțul de chei, pachetele ținute pe telefon și cel folosit, exercițiile cu fișierele lor separate (`PROTOCOL.md`, secțiunea 16). |
+| `event/` | Pachetul de eveniment semnat (venue, grila, fișele, paginile de informații, cheile evenimentului), verificat pe lanțul de chei, pachetele ținute pe telefon și cel folosit, exercițiile cu fișierele lor separate (`PROTOCOL.md`, secțiunea 16). |
 | `chat/` | Prietenii, grupurile, mesajele și reîncercările; blocarea, ieșirea din grup cu anunț și ultima zonă a prietenilor (fără difuzare periodică). |
 | `incidents/` | Rapoartele, confirmările și stările din teren ale staff-ului, răspunsurile rapide ale consolei către raportor și actualizările raportorului, urgența dedusă din triaj, anulările de verificat și semnalarea rapoartelor venite din aceeași zonă în același timp, semnalul de aglomerație pentru consolă (`CrowdWatch`), codurile rapide de staff (`StaffCodes`) și raportul discret (`Discreet`, rutat către rolul Safeguarding). Rutarea pe roluri (`Routing`): cine primește alerta insistentă, cine doar vibrația și când se extinde; `AlertPlanner` o transformă în notificări, fără repetări inutile. |
 | `announce/` | Anunțurile semnate ale consolei: alertă (informare, pauză, evacuare), nivelul de căldură, schimbări de program și transport. Formatul de pe fir, ultimul anunț pe subiect, retragerea, retrimiterea de către consolă și șabloanele RO/EN din pachet (`PROTOCOL.md`, secțiunea 6.8). |
@@ -55,7 +55,7 @@ Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate di
 | `ui/` | `AppViewModel` și `MainScreen` (tab-urile și navigarea), apoi câte un pachet pe funcționalitate. |
 | `ui/designsystem/` | Tema, culorile, tipografia, componentele de bază. Nu știe nimic despre mesaje sau incidente. |
 | `ui/common/` | Componente folosite de mai multe ecrane: harta, cardul QR, antetul de incident, starea rețelei. |
-| `ui/chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `onboarding/`, `staffcodes/`, `safety/`, `notices/` | Ecranele, câte un pachet pe funcționalitate. |
+| `ui/chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `onboarding/`, `staffcodes/`, `safety/`, `notices/`, `info/` | Ecranele, câte un pachet pe funcționalitate. |
 | `ui/control/` | Consola camerei de control, în landscape pe o tabletă: coada, harta cu grila, alocarea, fraza pentru stație, rețeaua, anunțurile, exportul jurnalului și raportul de ediție (previzualizare, PDF cu `PdfDocument`, CSV). |
 
 `src/debug/` conține modul demo (simulare, comenzi adb); `src/release/` are aceeași clasă `Demo`, dar goală.
@@ -70,6 +70,10 @@ Pilotul măsoară ce n-a publicat nimeni: dacă raportul ajunge la consolă, în
 - **Legătura cu consola** (`control/MetricsJoin.kt`). Operatorul adaugă pe consolă exporturile JSON ale raportorilor (Eu › Adaugă metricile raportorilor). La exportul consolei, `livrare.csv` pune pe un rând, după `incidentId`, ce spune raportorul (creat, timpii lui) și ce spune jurnalul consolei (când l-a deschis, cu câte hop-uri). Cele două ceasuri nu se scad niciodată unul din altul: livrarea e da sau nu, iar latența e doar dus-întors pe ceasul raportorului.
 
 Fișierele exportului (`metrici-<dată>`): `-rapoarte.csv`, `-retea.csv`, `-mobil.csv` (dacă jurnalul are eșantioane), `-livrare.csv` (pe consolă) și `.json` (formatul `pingup-metrics`, versiunea 1, cu tot ce e mai sus). Coloanele sunt în `MetricsExport`; celulele sunt coduri, ca în `PROTOCOL.md`, iar orele sunt locale, ISO 8601.
+
+## Autonomie pe tură
+
+Totul rămâne pe telefon, nimic nu circulă pe mesh. `BatteryMonitor` (`platform/power`) urmărește bateria cât trăiește procesul; `BatteryDrain` (`core/mesh`) măsoară ritmul de scădere din momentele în care nivelul a coborât cu un procent, pe profilul de putere în vigoare, și dă minutele rămase (rotunjite la 5) abia după 15 minute și cel puțin 2 procente. Un alt profil, un încărcător sau un nivel care urcă încep o măsurătoare nouă. Sub 20% fără încărcător intră profilul ECONOMY (scanare mai rară) și un banner pe Hartă și în Eu; sub 5% (`PowerPolicy.textOnly`) harta e înlocuită de o notă și animațiile sunt oprite (`LocalTextOnly`, `LocalReduceMotion`). Paginile de informații stau în `ui/info`, din pachet sau din `assets/pages`.
 
 ## Reguli
 

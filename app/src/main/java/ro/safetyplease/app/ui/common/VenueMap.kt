@@ -79,6 +79,7 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.designsystem.AppColors
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.LocalReduceMotion
+import ro.safetyplease.app.ui.designsystem.LocalTextOnly
 import ro.safetyplease.app.ui.designsystem.Sym
 import ro.safetyplease.app.ui.designsystem.caption1
 import ro.safetyplease.app.ui.designsystem.caption2
@@ -251,6 +252,10 @@ fun VenueMap(
     reserved: List<MapReserve> = emptyList(),
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
+    if (LocalTextOnly.current) {
+        TextOnlyMapNote(modifier)
+        return
+    }
     val colors = AppTheme.colors
     val paint = remember(colors) { MapPaint(colors) }
     val measurer = rememberTextMeasurer()
