@@ -32,7 +32,7 @@ enum class EventKind(val code: String) { REAL("real"), EXERCISE("exercise") }
 enum class PackStatus { VALID, MALFORMED, TAMPERED, WRONG_CHAIN, REVOKED, NOT_YET, EXPIRED }
 
 /**
- * A signed event pack (PROTOCOL.md, section 16): the venue, the first-aid sheets and the event's keys, signed by the
+ * A signed event pack (PROTOCOL.md, section 16): the venue, the first-aid sheets, the information pages and the event's keys, signed by the
  * organiser whose certificate the Ping Up root signed. [box] and [sign] replace the build's shared keys; an exercise
  * pack always carries its own. [hash] is SHA-256 over the signed body, what the gate QR names. [notices] are the texts
  * the console's notices name; null without them, when the app's own are used.
@@ -52,6 +52,8 @@ class EventPack(
     val venue: String,
     val gridMeters: Int,
     val firstAid: Map<String, String>,
+    /** Static information pages by language, then file name (section 16); empty when the pack has none. */
+    val pages: Map<String, Map<String, String>>,
     val hash: ByteArray,
     val notices: NoticeTemplates? = null,
 ) {
@@ -152,9 +154,10 @@ object EventPacks {
         if (grid !in 10..500) return null
         val firstAid = (o["firstAid"] as? JsonObject)?.mapValues { (_, v) -> (v as? JsonPrimitive)?.contentOrNull ?: return null }.orEmpty()
         val notices = o["notices"]?.let { NoticeTemplates.parse(it) ?: return null }
+        val pages = InfoPages.fromJson(o["pages"]) ?: return null
         return EventPack(
             id, version, kind, o.string("name").orEmpty(), from, until, organiser, event, reportKeys,
-            box.takeIf { it.isNotEmpty() }, sign.takeIf { it.isNotEmpty() }, venue, grid, firstAid, hashOf(body), notices,
+            box.takeIf { it.isNotEmpty() }, sign.takeIf { it.isNotEmpty() }, venue, grid, firstAid, pages, hashOf(body), notices,
         )
     }
 

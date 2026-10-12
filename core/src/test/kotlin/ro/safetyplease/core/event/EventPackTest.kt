@@ -51,7 +51,7 @@ class EventPackTest {
         val legacyBox = testCrypto.boxKeyPair()
         val legacySign = testCrypto.signKeyPair()
 
-        fun body(venueName: String = "Fest"): String {
+        fun body(venueName: String = "Fest", pages: String = """{"en":{"01-beach.md":"# Beach\nFlags"},"ro":{"01-plaja.md":"# Plajă\nSteaguri"}}"""): String {
             val keys = if (kind == EventKind.EXERCISE) {
                 ""","box":"${legacyBox.publicKey.toHex()}","sign":"${legacySign.publicKey.toHex()}""""
             } else {
@@ -61,7 +61,7 @@ class EventPackTest {
                 """"validUntil":$validUntil,"organiser":"${byCert.encode().toHex()}","event":"${cert.encode().toHex()}",""" +
                 """"reportKeys":["${dayCert.encode().toHex()}"]$keys,"grid":{"cellMeters":40},""" +
                 """"venue":{"name":"$venueName","bounds":{"minLat":44.0,"minLon":26.0,"maxLat":44.01,"maxLon":26.01},"zones":[]},""" +
-                """"firstAid":{"01-caldura.md":"# Căldură\n1. Umbră"}}"""
+                """"firstAid":{"01-caldura.md":"# Căldură\n1. Umbră"},"pages":$pages}"""
         }
 
         fun text(body: String = body()): String {
@@ -100,12 +100,33 @@ class EventPackTest {
         assertEquals("Fest", Venue.parse(pack.venue).name)
         assertEquals(40, pack.gridMeters)
         assertEquals("# Căldură\n1. Umbră", pack.firstAid["01-caldura.md"])
+        assertEquals(mapOf("en" to mapOf("01-beach.md" to "# Beach\nFlags"), "ro" to mapOf("01-plaja.md" to "# Plajă\nSteaguri")), pack.pages)
         assertArrayEquals(EventPacks.hashOf(event.body()), pack.hash)
         // a real pack keeps the build's shared keys; the chain accepts its event and its day's key
         assertSame(bundled.box, pack.publicKeys(bundled).box)
         val chain = event.chain()
         assertEquals(CertStatus.VALID, chain.status(event.cert))
         assertArrayEquals(event.dayBox.publicKey, chain.reportKey(t0))
+    }
+
+    @Test
+    fun aPackWithoutPagesHasNoneAndOneWithMalformedPagesIsMalformed() {
+        val event = Event()
+        val without = event.body().replace(Regex(""","pages":\{.*\}\}$"""), "}")
+        assertTrue(without != event.body())
+        assertEquals(emptyMap<String, Map<String, String>>(), event.check(text = event.text(without)).pack!!.pages)
+        val bad = listOf(
+            """["a"]""",
+            """{"en":"# Beach"}""",
+            """{"en":{"01-beach.md":5}}""",
+            """{"en":{"01-beach.md":"no title here"}}""",
+            """{"en":{"beach.txt":"# Beach"}}""",
+            """{"en":{"../beach.md":"# Beach"}}""",
+            """{"english":{"01-beach.md":"# Beach"}}""",
+        )
+        for (pages in bad) {
+            assertEquals(pages, PackStatus.MALFORMED, event.check(text = event.text(event.body(pages = pages))).status)
+        }
     }
 
     @Test
