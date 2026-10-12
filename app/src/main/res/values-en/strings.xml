@@ -679,4 +679,34 @@
     <string name="event_revoked">This pack’s organiser or event was revoked. It wasn’t loaded.</string>
     <string name="event_expired">This pack’s event is over.</string>
     <string name="event_download_failed">The pack couldn’t be downloaded. The link must start with https://.</string>
+
+    <!-- Responses to the reporter and the reporter's updates -->
+    <string name="report_responses_title">From the organisers</string>
+    <string name="report_update_title">Tell them what changed</string>
+    <string name="report_update_active">I still need help</string>
+    <string name="report_update_moved">I have moved</string>
+    <string name="report_update_moved_text">Sends where you are now</string>
+    <string name="report_update_moved_unknown">Pick your zone on the map first</string>
+    <string name="report_update_resolved">It sorted itself out</string>
+    <string name="report_update_last">You sent the last one at %1$s.</string>
+    <string name="report_update_wait">The next one after a minute.</string>
+    <string name="response_coming">We\'re on our way, stay where you are.</string>
+    <string name="response_landmark">We can\'t find you. Go to landmark %1$s.</string>
+    <string name="response_medical">Go to the medical point.</string>
+    <string name="response_other">The organisers replied.</string>
+    <string name="notif_response_title">Reply to your report</string>
+    <string name="incident_updates_title">From the reporter</string>
+    <string name="update_still_active">Still needs help</string>
+    <string name="update_moved">Has moved</string>
+    <string name="update_resolved">Says it sorted itself out</string>
+    <string name="update_other">Sent an update</string>
+    <string name="control_respond_title">Reply to the reporter</string>
+    <string name="control_respond_coming">On our way, stay put</string>
+    <string name="control_respond_landmark">Go to a landmark…</string>
+    <string name="control_respond_medical">Go to the medical point</string>
+    <string name="control_respond_unavailable">The reporter\'s phone can\'t receive replies.</string>
+    <string name="control_respond_sent">Sent at %1$s: %2$s</string>
+    <string name="control_respond_send">Send</string>
+    <string name="control_landmark_title">Which landmark?</string>
+    <string name="control_landmark_none">The site plan has no numbered landmarks.</string>
 </resources>

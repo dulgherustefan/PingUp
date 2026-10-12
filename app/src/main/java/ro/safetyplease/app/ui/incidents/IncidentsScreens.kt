@@ -63,6 +63,7 @@ import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.app.ui.common.categoryIcon
 import ro.safetyplease.app.ui.common.incidentPoint
 import ro.safetyplease.app.ui.common.placeText
+import ro.safetyplease.app.ui.common.UpdateTimeline
 import ro.safetyplease.app.ui.common.reportFacts
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppMenu
@@ -542,6 +543,10 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 highlightZone = incident.zone,
             )
             InsetGroup(Modifier.padding(top = 20.dp)) { StaffReportBlock(incident, settings.teamName, incidentPlace(vm, incident)) }
+            if (incident.updates.isNotEmpty()) {
+                SectionTitle(stringResource(R.string.incident_updates_title))
+                InsetGroup { UpdateTimeline(incident.updates, vm.venue, vm.c.grid, Modifier.padding(horizontal = Gutter, vertical = 10.dp)) }
+            }
             if (hint != null && others.isNotEmpty()) {
                 SectionTitle(stringResource(if (hint.sameEvent) R.string.incident_maybe_same else R.string.incident_same_zone_title))
                 InsetGroup {

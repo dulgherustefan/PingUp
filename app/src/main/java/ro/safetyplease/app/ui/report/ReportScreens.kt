@@ -80,6 +80,7 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.text.ESCALATE_AFTER_MS
 import ro.safetyplease.app.platform.torch.Torch
 import ro.safetyplease.app.text.Labels
+import ro.safetyplease.app.text.Replies
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.escalationAt
 import ro.safetyplease.app.text.needsEscalation
@@ -138,9 +139,11 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.ResponseCode
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.protocol.StaffFields
 import ro.safetyplease.core.protocol.Triage
+import ro.safetyplease.core.protocol.UpdateKind
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 
@@ -738,6 +741,13 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
         return
     }
     val escalated = rememberEscalated(report)
+    val haptics = rememberHaptics()
+    var heard by rememberSaveable(incidentId) { mutableIntStateOf(report.responses.size) }
+    LaunchedEffect(report.responses.size) {
+        // the notification sounds; on this screen the phone also gives a nudge
+        if (report.responses.size > heard) haptics.confirm()
+        heard = report.responses.size
+    }
     Box(Modifier.fillMaxSize()) {
         NavScreen(
             title = stringResource(R.string.report_next_title),
@@ -773,6 +783,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
                     style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
                 )
+                if (report.responses.isNotEmpty()) Responses(vm, report)
                 if (escalated) {
                     Banner(
                         stringResource(R.string.report_escalate_title), stringResource(R.string.report_escalate_text),
@@ -787,6 +798,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
                     // staying put contradicts the escalation, which sends you to a steward; the banner may say it already
                     HelpSteps(vm, helpOrigin(position, report, settings.manualZone, vm.venue), stay = !escalated && !stayPut)
                 }
+                if (IncidentManager.canUpdate(report)) UpdateSteps(vm, report)
                 // the path to staff no longer matters for a cancelled alert
                 if (!withdrawn) {
                     InsetGroup(Modifier.padding(top = 20.dp)) {
@@ -908,6 +920,67 @@ private fun MeetingSteps(vm: AppViewModel, origin: GeoPoint?) {
             GroupDivider()
         }
         GroupRow(stringResource(R.string.report_help_info), subtitle = stringResource(R.string.report_help_info_text), icon = Sym.Info)
+    }
+}
+
+/** The organisers' answers, newest first; the way to the medical point opens the map. */
+@Composable
+private fun Responses(vm: AppViewModel, report: MyReport) {
+    val res = LocalResources.current
+    SectionTitle(stringResource(R.string.report_responses_title))
+    InsetGroup {
+        report.responses.asReversed().forEachIndexed { i, r ->
+            if (i > 0) GroupDivider()
+            val medical = r.code == ResponseCode.GO_TO_MEDICAL
+            GroupRow(
+                Replies.response(res, vm.venue, r.code, r.landmark), subtitle = Labels.clock(r.receivedAt),
+                icon = if (medical) Sym.Medical else Sym.Chat, chevron = medical,
+                onClick = if (medical) ({ vm.open(Dest.Map(spot = MEDICAL)) }) else null,
+            )
+        }
+    }
+}
+
+/**
+ * What the reporter can tell staff since: still in need, moved to where the phone is now, or sorted out by itself.
+ * One a minute; the rows wait in between.
+ */
+@Composable
+private fun UpdateSteps(vm: AppViewModel, report: MyReport) {
+    val colors = AppTheme.colors
+    val haptics = rememberHaptics()
+    val now = rememberNow(5_000)
+    val wait = remember(report.updates.size, now) { vm.updateWaitMs(report.incidentId) } ?: return
+    val ready = wait == 0L
+    val located = vm.knowsWhereIAm()
+    fun send(kind: Int) = if (vm.updateReport(report.incidentId, kind)) haptics.confirm() else haptics.reject()
+    SectionTitle(stringResource(R.string.report_update_title))
+    InsetGroup {
+        GroupRow(
+            stringResource(R.string.report_update_active), icon = Sym.Bell, tint = if (ready) colors.label else colors.secondaryLabel,
+            onClick = { send(UpdateKind.STILL_ACTIVE) }.takeIf { ready },
+        )
+        GroupDivider()
+        GroupRow(
+            stringResource(R.string.report_update_moved),
+            subtitle = stringResource(if (located) R.string.report_update_moved_text else R.string.report_update_moved_unknown),
+            icon = Sym.MyLocation, tint = if (ready && located) colors.label else colors.secondaryLabel,
+            onClick = { send(UpdateKind.MOVED) }.takeIf { ready && located },
+        )
+        GroupDivider()
+        GroupRow(
+            stringResource(R.string.report_update_resolved), icon = Sym.CheckCircle, tint = if (ready) colors.label else colors.secondaryLabel,
+            onClick = { send(UpdateKind.RESOLVED_ITSELF) }.takeIf { ready },
+        )
+    }
+    report.updates.lastOrNull()?.let { last ->
+        Text(
+            listOfNotNull(
+                stringResource(R.string.report_update_last, Labels.clock(last.at)), stringResource(R.string.report_update_wait).takeIf { !ready },
+            ).joinToString(" "),
+            style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+            modifier = Modifier.fillMaxWidth().padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
+        )
     }
 }
 

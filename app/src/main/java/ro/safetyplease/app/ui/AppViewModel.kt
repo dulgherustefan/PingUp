@@ -32,10 +32,12 @@ import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.ReportDraft
 import ro.safetyplease.core.incidents.StatusFilter
+import ro.safetyplease.core.incidents.UpdateDraft
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.StaffFields
 import ro.safetyplease.core.protocol.Triage
+import ro.safetyplease.core.protocol.UpdateKind
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
@@ -356,6 +358,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (!c.incidents.report(draft)) return null
         return c.incidentStore.value.mine.lastOrNull()?.incidentId
     }
+
+    /** Milliseconds until the report can take another update; null once it can't take any. */
+    fun updateWaitMs(incidentId: String): Long? = c.incidents.updateWaitMs(incidentId)
+
+    /** Whether a move can say where to: a position or a zone the user picked. */
+    fun knowsWhereIAm(): Boolean = spotNow() != null || currentZoneId().isNotEmpty()
+
+    /** A move goes with where you are now, like a report; false if the report can't take an update yet. */
+    fun updateReport(incidentId: String, kind: Int): Boolean {
+        val moved = kind == UpdateKind.MOVED
+        val spot = if (moved) spotNow() else null
+        val zone = if (moved) currentZoneId().ifEmpty { null } else null
+        return c.incidents.update(incidentId, UpdateDraft(kind, zone, spot?.point?.lat, spot?.point?.lon, spot?.fields))
+    }
+
+    /** The console's predefined answer to the reporter; [landmark] only for "go to landmark". */
+    fun respond(incidentId: String, code: Int, landmark: Int = 0) = c.incidents.respond(incidentId, code, landmark)
 
     fun acknowledge(incidentId: String) = c.incidents.acknowledge(incidentId)
 

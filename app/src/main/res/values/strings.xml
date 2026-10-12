@@ -700,4 +700,34 @@
     <string name="event_revoked">Organizatorul acestui pachet sau evenimentul lui a fost revocat. Nu e încărcat.</string>
     <string name="event_expired">Evenimentul acestui pachet s-a încheiat.</string>
     <string name="event_download_failed">Pachetul nu s-a putut descărca. Linkul trebuie să înceapă cu https://.</string>
+
+    <!-- Responses to the reporter and the reporter's updates -->
+    <string name="report_responses_title">Răspunsul organizatorilor</string>
+    <string name="report_update_title">Spune-le ce s-a schimbat</string>
+    <string name="report_update_active">Încă am nevoie de ajutor</string>
+    <string name="report_update_moved">M-am mutat</string>
+    <string name="report_update_moved_text">Trimite locul unde ești acum</string>
+    <string name="report_update_moved_unknown">Marchează-ți întâi zona pe hartă</string>
+    <string name="report_update_resolved">S-a rezolvat singur</string>
+    <string name="report_update_last">Ai trimis ultima la %1$s.</string>
+    <string name="report_update_wait">Următoarea, după un minut.</string>
+    <string name="response_coming">Venim, rămâi pe loc.</string>
+    <string name="response_landmark">Nu te găsim. Du-te la reperul %1$s.</string>
+    <string name="response_medical">Mergi la punctul medical.</string>
+    <string name="response_other">Organizatorii ți-au răspuns.</string>
+    <string name="notif_response_title">Răspuns la raportul tău</string>
+    <string name="incident_updates_title">De la raportor</string>
+    <string name="update_still_active">Încă are nevoie de ajutor</string>
+    <string name="update_moved">S-a mutat</string>
+    <string name="update_resolved">Spune că s-a rezolvat singur</string>
+    <string name="update_other">A trimis o actualizare</string>
+    <string name="control_respond_title">Răspunde raportorului</string>
+    <string name="control_respond_coming">Venim, rămâi pe loc</string>
+    <string name="control_respond_landmark">Du-te la un reper…</string>
+    <string name="control_respond_medical">Mergi la punctul medical</string>
+    <string name="control_respond_unavailable">Telefonul raportorului nu poate primi răspunsuri.</string>
+    <string name="control_respond_sent">Trimis la %1$s: %2$s</string>
+    <string name="control_respond_send">Trimite</string>
+    <string name="control_landmark_title">La ce reper?</string>
+    <string name="control_landmark_none">Planul sitului nu are repere numerotate.</string>
 </resources>

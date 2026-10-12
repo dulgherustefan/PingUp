@@ -19,6 +19,7 @@ import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
+import ro.safetyplease.app.text.Replies
 import ro.safetyplease.app.text.needsEscalation
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MsgKind
@@ -202,6 +203,26 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             builder.setContentTitle(marked(context.getString(R.string.notif_report_title))).setContentText(status)
         }
         manager.notify(id, builder.build())
+    }
+
+    /**
+     * The console's latest answer to your report, in the foreground too: it is what you are waiting for, so it sounds
+     * and vibrates on the status channel.
+     */
+    fun reportResponse(report: MyReport) {
+        val response = report.responses.lastOrNull() ?: return
+        if (!canPost()) return
+        val id = report.incidentId.hashCode() xor 0x2b2b
+        val text = Replies.response(context.resources, venue, response.code, response.landmark)
+        val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notif_response_title))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setContentIntent(open(MainActivity.OPEN_REPORT_PREFIX + report.incidentId, id))
+            .build()
+        manager.notify(id, notification)
     }
 
     fun chatMessage(message: ChatMessage, senderName: String) {

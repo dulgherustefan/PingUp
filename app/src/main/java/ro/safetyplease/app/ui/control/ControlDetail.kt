@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,10 +47,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
+import ro.safetyplease.app.text.Replies
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.hopsText
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.common.CategoryCircle
+import ro.safetyplease.app.ui.common.UpdateTimeline
 import ro.safetyplease.app.ui.common.placeText
 import ro.safetyplease.app.ui.common.reportFacts
 import ro.safetyplease.app.ui.designsystem.AppButton
@@ -71,10 +74,13 @@ import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry
 import ro.safetyplease.core.control.LogEvent
+import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.incidents.Recognition
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.ResponseCode
+import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.util.truncateUtf8
 
 /** A reason is a line in the log, not a report. */
@@ -113,7 +119,8 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
     var copied by remember(phrase) { mutableStateOf(false) }
     val clipLabel = stringResource(R.string.control_radio_clip)
     val history = remember(entries, case.incidentId) { entries.filter { it.incidentId == case.incidentId } }
-    val nickname = incidents.staff.firstOrNull { it.incidentId == case.incidentId }?.nickname
+    val incident = incidents.staff.firstOrNull { it.incidentId == case.incidentId }
+    val nickname = incident?.nickname
     val (_, statusIcon, statusColor) = caseLook(case)
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -179,6 +186,16 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
             }
         }
 
+        ReplyPanel(vm, incident, r.landmark)
+        val updates = incident?.updates.orEmpty()
+        if (updates.isNotEmpty()) {
+            Text(
+                stringResource(R.string.incident_updates_title), style = MaterialTheme.typography.headline,
+                modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
+            )
+            UpdateTimeline(updates, vm.venue, c.grid)
+        }
+
         if (hint.isNotEmpty()) {
             Text(
                 stringResource(R.string.incident_recognition, hint), style = MaterialTheme.typography.body, fontWeight = FontWeight.SemiBold,
@@ -216,6 +233,69 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
         else -> ReasonDialog(open, { dialog = null }) { reason ->
             decisions.run(case, open, reason = reason)
             haptics.confirm()
+        }
+    }
+}
+
+/**
+ * Quick answers to the reporter, predefined and sealed to the report's reply key, with what this console already
+ * sent. "Go to a landmark" asks which one, starting from the one nearest to the reporter.
+ */
+@Composable
+private fun ReplyPanel(vm: AppViewModel, incident: StaffIncident?, near: Int) {
+    val colors = AppTheme.colors
+    val haptics = rememberHaptics()
+    val res = LocalResources.current
+    var picking by remember { mutableStateOf(false) }
+    Text(stringResource(R.string.control_respond_title), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
+    if (incident == null || incident.replyKey.isEmpty()) {
+        Text(stringResource(R.string.control_respond_unavailable), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
+        return
+    }
+    fun send(code: Int, landmark: Int = 0) {
+        vm.respond(incident.incidentId, code, landmark)
+        haptics.confirm()
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val wide = Modifier.fillMaxWidth()
+        AppButton(stringResource(R.string.control_respond_coming), { send(ResponseCode.COMING) }, wide, kind = ButtonKind.Secondary, compact = true)
+        AppButton(stringResource(R.string.control_respond_landmark), { picking = true }, wide, kind = ButtonKind.Secondary, compact = true)
+        AppButton(stringResource(R.string.control_respond_medical), { send(ResponseCode.GO_TO_MEDICAL) }, wide, kind = ButtonKind.Secondary, compact = true)
+    }
+    incident.responses.asReversed().forEach { r ->
+        Text(
+            stringResource(R.string.control_respond_sent, Labels.clock(r.at), Replies.response(res, vm.venue, r.code, r.landmark)),
+            style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+    if (picking) LandmarkDialog(vm.venue, near, { picking = false }) { send(ResponseCode.GO_TO_LANDMARK, it) }
+}
+
+/** The numbered landmarks of the site plan, to send the reporter to one. */
+@Composable
+private fun LandmarkDialog(venue: Venue, near: Int, onDismiss: () -> Unit, onPick: (Int) -> Unit) {
+    val landmarks = remember(venue) { venue.pois.filter { venue.landmark(it.number) == it }.sortedBy { it.number } }
+    var picked by remember { mutableIntStateOf(near.takeIf { n -> landmarks.any { it.number == n } } ?: 0) }
+    AppDialog(
+        onDismiss, stringResource(R.string.control_landmark_title), stringResource(R.string.control_respond_send),
+        onConfirm = {
+            onPick(picked)
+            onDismiss()
+        },
+        confirmEnabled = picked != 0,
+    ) {
+        if (landmarks.isEmpty()) {
+            Text(stringResource(R.string.control_landmark_none), style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel)
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            landmarks.forEach { poi ->
+                Chip(Replies.landmarkName(venue, poi.number).let { if (it == poi.number.toString()) it else "${poi.number} · $it" }, selected = picked == poi.number) {
+                    picked = poi.number
+                }
+            }
         }
     }
 }

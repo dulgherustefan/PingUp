@@ -2,7 +2,7 @@
 
 This document describes protocol 1.1 as implemented on `main`, and 1.0, which 1.1 phones still meet in the field. It is written for an external review and for anyone building a second implementation (an iOS reporting leaf, a hardware relay). It describes what the code does today, including the parts that are known to be weak; those are collected in section 14.
 
-1.1 keeps the 1.0 header and every 1.0 byte: a 1.0 phone and a 1.1 phone talk without either counting the other's packets as malformed. What 1.1 adds is tolerance for what newer versions will send, SUMMARY2 and REQUEST2, a reserved type for organiser announcements, a TTL table per type, a per-link limit on new reports, a rotating advertised prefix told in HELLO, bans on the link instead of the claimed nodeId, and an optional chat fan-out, off by default, that passes chat on a few links at each hop instead of all; and, through the extension points this tolerance opens, field states and closing by the control room, reopening (the epoch), triage answers, staff reports, a separate category for a lost friend, and the accuracy of the reporter's fix with the nearest landmark; short sessions between anchors and the phones around them, with a slot each phone keeps for them; anchor heartbeats to the control console on a control channel; and, announced by a capability bit of its own (`HELLO_AUTH`), a key chain: shift certificates proven in HELLO, ACKs signed one by one under them, revocations in the reserved announcement type and a report key per day. Where the two versions differ, the sections below say so; section 15 sums up the differences and the rules a newer version has to follow.
+1.1 keeps the 1.0 header and every 1.0 byte: a 1.0 phone and a 1.1 phone talk without either counting the other's packets as malformed. What 1.1 adds is tolerance for what newer versions will send, SUMMARY2 and REQUEST2, a reserved type for organiser announcements, a TTL table per type, a per-link limit on new reports, a rotating advertised prefix told in HELLO, bans on the link instead of the claimed nodeId, and an optional chat fan-out, off by default, that passes chat on a few links at each hop instead of all; and, through the extension points this tolerance opens, field states and closing by the control room, reopening (the epoch), triage answers, staff reports, a separate category for a lost friend, and the accuracy of the reporter's fix with the nearest landmark; short sessions between anchors and the phones around them, with a slot each phone keeps for them; anchor heartbeats to the control console on a control channel; and, announced by a capability bit of its own (`HELLO_AUTH`), a key chain: shift certificates proven in HELLO, ACKs signed one by one under them, revocations in the reserved announcement type and a report key per day; and, as two new flooded types with store-and-forward of their own, the control console's quick responses to a reporter and the reporter's updates of its incident. Where the two versions differ, the sections below say so; section 15 sums up the differences and the rules a newer version has to follow.
 
 The code is the source of truth. Paths below are relative to `core/src/main/kotlin/ro/safetyplease/core/` unless they start with `app/`:
 
@@ -124,6 +124,8 @@ So no object larger than 480 bytes can travel. Fragmentation has only run on emu
 | `0x10` | INCIDENT_REPORT | 1.0 | flood | `sender 0`, E | 7 | 6.3 | 1 | yes |
 | `0x11` | INCIDENT_ACK | 1.0 | flood | `sender` = the staff phone's nodeId | 7 | 6.4 | 2 | yes |
 | `0x12` | INCIDENT_CANCEL | 1.0 | flood | `sender 0` | 7 | 6.5 | 2 | no; the author resends it |
+| `0x13` | INCIDENT_RESPONSE | 1.1 | flood, to 1.1 peers; one under a certificate only to `HELLO_AUTH` peers | `sender` = the console's nodeId | 7 | 6.10 | 2 | yes, the latest per incident (SUMMARY2 kind RESPONSES) |
+| `0x14` | INCIDENT_UPDATE | 1.1 | flood, to 1.1 peers | `sender 0`, E | 7 | 6.11 | 2 | yes, the latest per incident (SUMMARY2 kind UPDATES) |
 | `0x20` | PRIVATE | 1.0 | flood (unicast is a flood); in 1.1 optionally some links at each hop, off by default (section 7) | `sender` = own nodeId, R, E | 6 (1.0: 7) | 6.6 | 4 | no |
 | `0x30` | ANNOUNCEMENT | 1.1 | flood, to 1.1 peers; at most 3 hops past a relay that can't verify it | `sender` = own nodeId | 7 (before `HELLO_AUTH`: 3) | 6.8 | 1 | no; the console sends it again every 10 minutes |
 | `0x7F` | TEST | 1.0 | flood | anything | 7 | opaque | 5 | no; debug builds only |
@@ -195,6 +197,8 @@ Rules (`MeshEngine.onHello`): each end sends HELLO first on a new link, without 
 | Kind | Name | After the kind |
 |---|---|---|
 | 1 | INCIDENTS | the SUMMARY or REQUEST payload above; a SUMMARY2 may add the fields below |
+| 2 | RESPONSES | SUMMARY2: `count u8` (at most 39, `Limits.SUMMARY2_RESPONSE_ENTRIES`), then per entry `id8 i64` and the `timestamp u32` of the latest response held (section 6.10). REQUEST2: `count u8` (at most 50), then the `id8`s wanted |
+| 3 | UPDATES | SUMMARY2: `count u8` (at most 50), then per entry `id8 i64` and the `seq u8` of the latest update held (section 6.11). REQUEST2: as for RESPONSES |
 | other | | not read |
 
 A SUMMARY2 of kind INCIDENTS may carry, after its entries:
@@ -208,7 +212,7 @@ A node writes the flags byte only when one of the incidents it lists was reopene
 
 Unlike SUMMARY and REQUEST, they tolerate what a newer version may add: bytes after the fields this version reads are skipped; a SUMMARY2 status above 9 is kept as a number, and never requested, because 1.1 doesn't store such an ACK (section 6.4); a REQUEST2 want bit other than `0x80` and `0x01` is ignored. A kind the node doesn't read is dropped as unsupported, not malformed. Entry counts above 50 and truncated entries are still malformed. The largest SUMMARY2 is 452 bytes without epochs and 473 with them.
 
-A node sends a summary after the peer's HELLO and then every 60 s on each ready link, only when it has something to list: the 50 incidents it stored most recently. A 1.1 node sends SUMMARY2 of kind INCIDENTS to a 1.1 peer and SUMMARY to a 1.0 peer, and to a 1.0 peer it lists only the packets it could hand to it (an ACK with a status 1.0 doesn't know or with extensions is left out, section 6.4). On a summary it requests the ACK if the peer's status is known and its (epoch, status) comes later in the supersede order (section 8) than its own; and the report if the peer holds it, it has never seen that report, and the later of the two ACKs isn't CANCELLED. It asks a link for no more reports than that link's budget for new reports has left (section 7); the others wait for a later summary, so none crosses the link only to be dropped. It answers SUMMARY with REQUEST and SUMMARY2 with REQUEST2. On a request it sends the stored packets on that link only, as relays, and to a 1.0 peer only what 1.0 accepts.
+A node sends a summary after the peer's HELLO and then every 60 s on each ready link, only when it has something to list: the 50 incidents it stored most recently. A 1.1 node sends SUMMARY2 of kind INCIDENTS to a 1.1 peer and SUMMARY to a 1.0 peer, and to a 1.0 peer it lists only the packets it could hand to it (an ACK with a status 1.0 doesn't know or with extensions is left out, section 6.4). On a summary it requests the ACK if the peer's status is known and its (epoch, status) comes later in the supersede order (section 8) than its own; and the report if the peer holds it, it has never seen that report, and the later of the two ACKs isn't CANCELLED. It asks a link for no more reports than that link's budget for new reports has left (section 7); the others wait for a later summary, so none crosses the link only to be dropped. It answers SUMMARY with REQUEST and SUMMARY2 with REQUEST2. To a 1.1 peer it also sends, each only when it holds something to list, a SUMMARY2 of RESPONSES and one of UPDATES, the latest stored first; it asks for those whose timestamp or `seq` is later than its own, and for no more updates than the link's budget for new ones has left (section 6.11). On a request it sends the stored packets on that link only, as relays, and to a 1.0 peer only what 1.0 accepts.
 
 ### 6.3 INCIDENT_REPORT (`IncidentReportCodec`, `IncidentBody`)
 
@@ -228,7 +232,7 @@ Relays cannot open the body. They check only that the payload is longer than 64 
 | 1 | `category` | 1..8 |
 | 1 | `severity` | 1..3 |
 | 4 | `timestamp` | reporter's clock |
-| 1 | `flags` | `0x01` coordinates, `0x02` nickname, `0x04` cancel hash, `0x08` triage, `0x10` staff fields, `0x20` location fields (1.1) |
+| 1 | `flags` | `0x01` coordinates, `0x02` nickname, `0x04` cancel hash, `0x08` triage, `0x10` staff fields, `0x20` location fields, `0x40` reply key (1.1) |
 | 1 | `zoneLen` | at most 32 |
 | `zoneLen` | zone | free text, may be empty |
 | 4 + 4 | `lat i32`, `lon i32` | only if `0x01` |
@@ -240,8 +244,9 @@ Relays cannot open the body. They check only that the payload is longer than 64 
 | 1 | `triage` | 1.1, only if `0x08`: bits 0..1 "does the person respond", bits 2..3 "do they breathe normally"; bits 4..7 ignored |
 | 1 + 1 | `people u8`, `staffFlags u8` | 1.1, only if `0x10`: how many people (0 = not given); `staffFlags` `0x01` = the danger continues, other bits ignored |
 | 1 + 1 | `accuracy u8`, `landmark u8` | 1.1, only if `0x20`: how far off the coordinates may be, in metres, rounded up and capped at 255 (0 = unknown); the number of the site-plan landmark nearest to the reporter (0 = none) |
+| 32 | `replyKey` | 1.1, only if `0x40`: an X25519 public key the reporter draws for this report alone; the console seals its responses to it (section 6.10) |
 
-At most 396 bytes (391 in 1.0). In 1.0 nothing may follow, flag bits above `0x04` are rejected and so is a category outside 1..7.
+At most 416 bytes (`IncidentBody.MAX_SIZE`), so that the report fits in a payload; 391 in 1.0. With every field at its limit a body takes 396 bytes before the reply key and 428 with it, so the reporter (`IncidentManager.report`) cuts the description to what is left: at most 12 bytes short of its 300. In 1.0 nothing may follow, flag bits above `0x04` are rejected and so is a category outside 1..7.
 
 Categories: 1 medical, 2 violence, 3 lost child, 4 harassment, 5 crowd, 6 fire, 7 other, 8 lost friend (1.1). 1.0 called 3 "lost person"; a report with 3 from an older phone may be about anyone lost, and 1.1 shows it as a lost child, which errs on the side of a search. Severity: 1 low, 2 medium, 3 urgent.
 
@@ -249,9 +254,9 @@ Triage answers (`Answer`, two bits each): 0 not asked, 1 yes, 2 no, 3 don't know
 
 The reporter sends its coordinates whenever it has a fix from the last 2 minutes, whatever zone was picked; the zone stays the text the reporter chose. The location fields go only when there is something to put in them: a simulated position has no accuracy and a spot farther than 100 m from every landmark has none. Landmarks are the numbered points of interest of the site plan (`number` in `venue.json`, 1..255), so the number means the same on the reporter's phone and on the console only while both hold the same plan. The console computes the grid square from the coordinates. How to recognise the reporter ("Cum te recunoaștem?") isn't a field: it travels as the first line of the description, after the prefix `👀 ` (U+1F440 and a space), so any staff phone shows it at least as text.
 
-1.1 lets a newer version extend the body: new fields go after the location fields, each behind a flag bit of its own (`0x40` and up, in bit order). A 1.1 staff phone ignores flag bits it doesn't know and everything after the fields it reads, and keeps a category it doesn't know as a number; the app shows it as "other". Category 0 and a severity outside 1..3 are still rejected. The body is sealed, so only staff phones decode it: a body a staff phone rejects is dropped silently, which is why staff phones must be updated before reporters send anything new here.
+1.1 lets a newer version extend the body: new fields go after the reply key, each behind a flag bit of its own (`0x80`, the last one left; a version that needs more puts a flags byte of its own behind it). A 1.1 staff phone ignores flag bits it doesn't know and everything after the fields it reads, and keeps a category it doesn't know as a number; the app shows it as "other". Category 0 and a severity outside 1..3 are still rejected. The body is sealed, so only staff phones decode it: a body a staff phone rejects is dropped silently, which is why staff phones must be updated before reporters send anything new here.
 
-What a 1.0 phone makes of the 1.1 fields: as a relay, nothing, since the body is sealed; it stores, relays and serves these reports like any other, and never counts them as malformed. As a staff phone, it rejects a body with triage, staff fields, location fields or category 8, so it never shows that report, sends no RECEIVED for it and bans nobody: a sealed body that doesn't decode is dropped silently. The categories are numbered so this costs least: a lost child keeps code 3 and reaches 1.0 staff phones as an urgent "lost person"; only the lost friend, which is for the control room alone, takes the new code. A medical report with triage answers, a report with accuracy or a landmark, or a staff report, doesn't reach a 1.0 staff phone at all; a report with coordinates alone still does, with the zone text and the recognition line in its description: staff phones are a fleet the organiser updates together.
+What a 1.0 phone makes of the 1.1 fields: as a relay, nothing, since the body is sealed; it stores, relays and serves these reports like any other, and never counts them as malformed. As a staff phone, it rejects a body with triage, staff fields, location fields, a reply key or category 8, so it never shows that report, sends no RECEIVED for it and bans nobody: a sealed body that doesn't decode is dropped silently. The categories are numbered so this costs least: a lost child keeps code 3 and reaches 1.0 staff phones as an urgent "lost person"; only the lost friend, which is for the control room alone, takes the new code. A report with coordinates alone would still reach it, but every current reporter writes a reply key (section 6.10), so no report of a current phone reaches a 1.0 staff phone any more; a 1.1 staff phone from before the reply key skips the key and opens the report as before. Staff phones are a fleet the organiser updates together.
 
 ### 6.4 INCIDENT_ACK (`IncidentAck`)
 
@@ -361,6 +366,59 @@ A battery above 100 or a bucket above 7 is rejected. Flag bits other than `0x01`
 An anchor sends one every 5 minutes, and within a minute of a change in what the console acts on: plugged in or not, the battery crossing 50, 20 or 10 %, the temperature reaching 45 °C, its last link gone (`AnchorHeartbeat`). The crowd bucket changes all the time and waits for the next one. 30 anchors cost the mesh 0.1 packets a second. The console keeps the last heartbeat of each anchor, found by the prefix of the sender's nodeId, which is what an anchor advertises (section 2), and counts it as hearing the anchor: an anchor that is neither heard nor heard from for 10 minutes shows as silent. Nothing signs a heartbeat yet, so anyone can send one in an anchor's name; the console marks what it says as indicative until anchors have certificates (roadmap 2.18). A newer version adds fields after the zone or a new kind.
 
 
+### 6.10 INCIDENT_RESPONSE (`IncidentResponse`, 1.1)
+
+The control console's answer to the author of a report, out of a fixed set (`ResponseCode`): 1 "Venim, rămâi pe loc" (we're coming, stay put), 2 "Nu te găsim, du-te la reperul X" (we can't find you, go to landmark X), 3 "Mergi la punctul medical" (go to the medical point). Free text isn't part of it.
+
+| Size | Field | Rule |
+|---|---|---|
+| 16 | `incidentId` | the report's |
+| 4 | `timestamp` | console's clock, `u32` seconds; a console never gives two responses to one incident the same second |
+| 1 | `flags` | `0x01` CERT; other bits reserved and ignored |
+| 1 | `sealedLen` | more than 48 |
+| `sealedLen` | `sealed` | `crypto_box_seal(ResponseBody)` to the report's reply key (section 6.3) |
+| 115..139 | `certificate` | only with CERT: the signer's shift certificate (section 9) |
+| n | extensions | a newer version's fields, kept as they came |
+| 64 | `signature` | Ed25519 over `SP-RESP-v1` (10 bytes) ‖ every byte before it |
+
+`ResponseBody`, the plaintext: `code u8` (0 is rejected, a code this version doesn't know is kept as a number), `landmark u8` (the site-plan number for code 2, else 0); bytes after it belong to newer versions and are skipped. 50 bytes sealed. A whole response takes 136 bytes, 251 to 275 under a certificate.
+
+Relays check it like an ACK (`KeyChain.checkResponse`): without CERT, the signature against the build's staff key; with CERT, the certificate against the chain, the signature against its key, the role (only a control shift answers a reporter) and the time (not after the node's clock plus the skew, not before the certificate). A bad signature or a payload that doesn't decode is malformed; any other refusal drops it silently (`UNTRUSTED`). A relay keeps, per `id8`, the response with the latest `timestamp` and drops an older or equal one without relaying it (`STALE_ACK`), so the reporter always gets the latest. Like an ACK, a response under a certificate goes only to `HELLO_AUTH` peers, and like every type 1.0 doesn't know, never to a 1.0 peer.
+
+Only the author can open it: the reporter keeps the reply key's secret half with its report (`MyReport.replySecret`), opens each response that names its incidentId, and shows them in order on its report's screen, with a notification that sounds. A response can't say who it is for beyond the incidentId, and relays can't read it.
+
+What 1.0 sees: nothing. Its staff phones can't read a report with a reply key (section 6.3), and no 1.1 phone sends it a response.
+
+### 6.11 INCIDENT_UPDATE (`IncidentUpdateCodec`, `UpdateBody`, 1.1)
+
+What the author of a report says later: still in need of help, moved (and where to), or sorted out by itself. Anonymous like the report.
+
+| Size | Field |
+|---|---|
+| 16 | `incidentId` |
+| 1 | `seq`, the update's number for this report, from 1 |
+| rest | `crypto_box_seal(UpdateBody)` to the key the report was sealed to, more than 48 bytes |
+
+`UpdateBody`:
+
+| Size | Field | Rule |
+|---|---|---|
+| 1 | `kind` | `UpdateKind`: 1 still active, 2 moved, 3 resolved by itself; 0 is rejected, an unknown one kept as a number |
+| 4 | `timestamp` | reporter's clock |
+| 16 | `token` | the report's cancel token (section 8) |
+| 1 | `flags` | `0x01` coordinates, `0x02` zone, `0x04` location fields; other bits belong to newer versions and are ignored |
+| 4 + 4 | `lat i32`, `lon i32` | only if `0x01` |
+| 1 + n | `zoneLen u8` (≤ 32), zone | only if `0x02` |
+| 1 + 1 | `accuracy u8`, `landmark u8` | only if `0x04`, as in the report |
+
+Bytes after the fields this version reads are skipped. At most 65 bytes, 130 sealed with the incidentId and `seq`.
+
+Relays can't check an update: they require only that it is longer than 65 bytes (malformed otherwise), relay every new one live, and keep per `id8` the one with the highest `seq` (`IncidentCache.offerUpdate`), at most 50 updates in all (the one kept longest goes first, never the phone's own). Each link may bring at most 6 new updates a minute (`MeshConfig.updatesPerMinute`), counted apart from reports; the rest are dropped (`UPDATE_LIMIT`) and not recorded in dedup, so they can come again; a node requests no more updates through REQUEST2 than that budget has left. A staff phone that holds the report opens the update, checks `SHA-256("SP-CANCEL-v1" ‖ token)` against the report's cancel hash and keeps it by `seq`, so its timeline follows the reporter's order whatever order the updates came in. One that comes before the report waits in the mesh cache, the latest of them, and is applied when the report arrives. The reporter sends at most 10 updates per report, one a minute, and none once the report is closed or withdrawn (`IncidentManager.canUpdate`).
+
+The token in the update shows staff that the author wrote it; it also tells every staff phone that opens it the token that cancels the report, which those phones could do anyway. A relay that replays an old update, or sends sealed garbage under a high `seq`, can make relays keep that one instead of the real latest: staff phones drop it, and the real ones still travel live. What 1.0 sees: nothing, as for responses.
+
+A 1.1 phone from before these two types relays them as types it doesn't read (section 7.1): an update, and a response without a certificate, at most 3 hops past it; a response under a certificate, over 256 bytes, not at all. It drops the two SUMMARY2 kinds as unsupported, two a minute from each neighbour that holds something to list, well under the 10 that close a link. So responses and updates need relays of this version to go far; the fleet of an event is updated before the public is let in.
+
 ## 7. Receiving and relaying
 
 The receive path of `MeshEngine.onFrame`, in order:
@@ -382,6 +440,8 @@ Per-type checks, at every hop:
 | INCIDENT_REPORT | payload longer than 64 bytes; then stored if its `id8` is new. 1.1: at most 6 new reports a minute from one link | malformed; a known `id8` is dropped and not relayed; a new report over the limit is dropped (`REPORT_LIMIT`) |
 | INCIDENT_ACK | decodes and the signature verifies; then stored if it supersedes the stored ACK (section 8). 1.1: a status above 9 is relayed, but neither stored nor delivered | malformed; an ACK that doesn't supersede is dropped and not relayed |
 | INCIDENT_CANCEL | payload exactly 32 bytes; 1.1: at least 32 | malformed |
+| INCIDENT_RESPONSE (1.1) | decodes and checks out (section 6.10); then stored if its timestamp is the incident's latest | malformed for a bad payload or signature, `UNTRUSTED` otherwise; an older one is dropped and not relayed |
+| INCIDENT_UPDATE (1.1) | payload longer than 65 bytes; at most 6 new ones a minute from one link; stored if its `seq` is the incident's highest | malformed; over the limit, `UPDATE_LIMIT`; an older one is relayed but not stored |
 | PRIVATE | R set, `sender ≠ 0`, E set | malformed |
 
 Nobody checks that a report or a cancel has `sender = 0`, or that a report has E set.
@@ -392,7 +452,7 @@ Relaying: after a random delay of 50..250 ms, the packet goes with `ttl − 1` t
 
 Chat fan-out (1.1, optional, `mesh/FanOut.kt`): off by default (`MeshEngine.CHAT_FAN_OUT`, `MeshConfig.chatFanOut`), so a relay floods chat like everything else. When it is on, a PRIVATE goes on every ready link from the phone that writes it, but a relay passes it on only `k = ⌈log₂ n⌉` of the `n` links it could use, at least 1, as Bitchat does: 1 of 1 or 2, 2 of 3 or 4, 3 of 5 to 8. If the recipient is one of its neighbours, that link is always among the `k`. The others are drawn at random for each packet, so a retry of the outbox, which is a new packet, takes other paths. Reports, ACKs, cancels and everything else always keep the full flood and store-and-forward. Section 5 has what it saves and what it costs in delivery.
 
-Leaves (1.1, optional, `MeshConfig.leaves`): a participant that had a link with a phone claiming STAFF or ANCHOR in the last 10 minutes keeps at most one outgoing and one incoming link, and relays only reports, ACKs, cancels and the control channel (section 6.9), not chat or types it doesn't read (`ConnectionPolicy.relays`); its own packets and store-and-forward are unchanged. It is off (`MeshEngine.LEAVES`) for two reasons. The role comes from an unsigned HELLO (section 14), so a phone that only claims one would turn its neighbours into leaves. And with most phones down to two links, the leaves of a crowd split into chains: with leaves on, `ScaleTest` lost 2 of 150 report copies on the 50-phone grid, and chat between friends among 200 walking phones. It comes on with signed roles, and with a rule that keeps leaves attached to relays.
+Leaves (1.1, optional, `MeshConfig.leaves`): a participant that had a link with a phone claiming STAFF or ANCHOR in the last 10 minutes keeps at most one outgoing and one incoming link, and relays only reports, ACKs, cancels, responses, updates and the control channel (section 6.9), not chat or types it doesn't read (`ConnectionPolicy.relays`); its own packets and store-and-forward are unchanged. It is off (`MeshEngine.LEAVES`) for two reasons. The role comes from an unsigned HELLO (section 14), so a phone that only claims one would turn its neighbours into leaves. And with most phones down to two links, the leaves of a crowd split into chains: with leaves on, `ScaleTest` lost 2 of 150 report copies on the 50-phone grid, and chat between friends among 200 walking phones. It comes on with signed roles, and with a rule that keeps leaves attached to relays.
 
 Chat budget (1.1, `ChatManager`, not on the wire): a phone writes at most 30 PRIVATE packets a minute (`PACKETS_PER_MINUTE`): messages, retries, receipts, PING and PONG; over that, a message waits for the next retry and a receipt for the sender's next retry. At most 16 outbox entries, one per message and recipient, are tried at once (`MAX_IN_FLIGHT`); the rest wait as queued until one is delivered or gives up. A relay doesn't limit chat by sender: the header `sender` isn't authenticated, so such a limit could be spent in someone else's name; the per-link limits above bound what one neighbour can push.
 
@@ -467,6 +527,8 @@ All cryptography is libsodium (lazysodium on Android, lazysodium-java in the JVM
 | ACK | `crypto_sign_detached`, Ed25519, domain `SP-ACK-v1` | staff signing key |
 | Cancel | SHA-256 over `SP-CANCEL-v1` ‖ token, first 16 bytes | none |
 | PRIVATE | `crypto_box_easy`: static X25519 on both sides, XSalsa20-Poly1305, random 24-byte nonce | sender's box secret key, recipient's box public key |
+| Response to a reporter (1.1) | `crypto_box_seal` of the answer, then `crypto_sign_detached`, domain `SP-RESP-v1` | the report's reply key (X25519, one per report); the control shift's key or the staff signing key |
+| Update (1.1) | `crypto_box_seal`, the cancel token inside | as the report body |
 
 - **Node identity** (`crypto/Identity.kt`): an X25519 pair and an Ed25519 pair, random at first start. `nodeId` = the first 8 bytes of SHA-256(Ed25519 public key ‖ X25519 public key), read as `i64`. 0 is reserved for anonymous packets; an identity that hashes to 0 is generated again. The advertised prefix is the first 4 bytes of the nodeId. The Ed25519 identity key is not used by the protocol today; it only feeds the nodeId and the friend QR.
 - **Key chain** (`crypto/Certificate.kt`, `KeyChain.kt`). Ping Up's root Ed25519 key is kept offline; its public key ships in the app (`staff_public.json`, `root`). The root signs an organiser's key, the organiser one key per event (revocable), and the event key signs, per day, the shift certificates of teams, consoles and anchors, and the day's report key. The app ships the organiser's and the event's certificates (`chain`) and the days' report keys (`reportKeys`); a certificate there that doesn't lead to the root is ignored. Certificate, version 1:
@@ -497,7 +559,7 @@ A link collects a "malformed" mark for: a frame that doesn't decode (in 1.1, unl
 
 Five marks within 60 s close the link and ban the Bluetooth address it came from for 10 minutes: links from that address are refused and the node doesn't connect to it (`MeshEngine.malformed`). The ban falls on the link, not on the peer's identity. 1.0 also banned the nodeId the peer claimed in HELLO, and refused it in any later HELLO; since HELLO isn't authenticated, anyone could claim another phone's nodeId, send five bad frames and get that phone refused by its neighbours for 10 minutes ("ban framing"). 1.1 bans no nodeId, and no prefix either, since a phone can advertise or claim anyone's. A peer that comes back from another address, as after its prefix and address change, is accepted, and is banned again if it misbehaves again.
 
-Silent drops, which don't count: rate limit, TEST in release, before HELLO, duplicate, known incident, an ACK that doesn't supersede; in 1.1 also what comes from a newer version and can't be used (`UNSUPPORTED`: frames, types on one link, summary kinds), new reports over the per-link limit (`REPORT_LIMIT`) and unknown types over their limits (`OPAQUE_LIMIT`).
+Silent drops, which don't count: rate limit, TEST in release, before HELLO, duplicate, known incident, an ACK that doesn't supersede; in 1.1 also what comes from a newer version and can't be used (`UNSUPPORTED`: frames, types on one link, summary kinds), new reports over the per-link limit (`REPORT_LIMIT`), new updates over theirs (`UPDATE_LIMIT`), responses that don't supersede or that the chain refuses, and unknown types over their limits (`OPAQUE_LIMIT`).
 
 `UNSUPPORTED` never bans, since the peer may be a newer version, but a link that brings more than 10 of them in a minute (`MeshConfig.unsupportedPerMinute`) is closed, and the node waits 2 minutes, as after a rotation, before it connects to that peer again. The peer may connect to it meanwhile.
 
@@ -562,7 +624,7 @@ A phone accepts it only if the certificate holds now and every seed derives the 
 | Chat text | 400 B | `Limits.TEXT_BYTES` |
 | Group name, group nickname | 32 B, 16 B | `Limits.GROUP_NAME_BYTES`, `GROUP_NICK_BYTES` |
 | Group size | 8, creator included | `Limits.GROUP_MAX_MEMBERS` |
-| Largest report payload | 460 B (20 B to spare); 455 B in 1.0 | section 6.3 |
+| Largest report payload | 480 B with the reply key, the description cut to fit; 460 B without it; 455 B in 1.0 | section 6.3 |
 | Epoch (1.1) | 255 reopens of one incident | `IncidentAck.MAX_EPOCH` |
 | Own reports (local, not on the wire) | 3 in 10 minutes, 20 on a phone with the staff keys | `IncidentManager.RATE_MAX`, `STAFF_RATE_MAX` |
 | Largest TEXT payload | 458 B (22 B to spare) | section 6.6 |
@@ -570,6 +632,11 @@ A phone accepts it only if the certificate holds now and every seed derives the 
 | Dedup | 4,096 keys, 15 min | `DedupCache` |
 | Bans | 5 malformed in 60 s, 10 min, on the address of the link | `MeshConfig` |
 | New reports from one link (1.1) | 6 a minute | `MeshConfig.reportsPerMinute` |
+| New updates from one link (1.1) | 6 a minute, apart from reports | `MeshConfig.updatesPerMinute` |
+| Updates a reporter sends (1.1) | 10 per report, one a minute | `IncidentManager.MAX_UPDATES`, `UPDATE_INTERVAL_MS` |
+| Updates a node keeps (1.1) | the latest per incident, 50 in all | `IncidentCache` |
+| SUMMARY2 of RESPONSES / UPDATES (1.1) | 39 / 50 entries | `Limits.SUMMARY2_RESPONSE_ENTRIES`, `SUMMARY_ENTRIES` |
+| Largest response (1.1) | 275 B under a certificate, 136 B without | section 6.10 |
 | Types relayed opaquely (1.1) | 12 a minute per link; 256 B, 480 B for ANNOUNCEMENT; relayed TTL at most 3 | `MeshConfig.opaquePerMinute`, `PacketType.OPAQUE_MAX_PAYLOAD`, `OPAQUE_MAX_TTL` |
 | ANNOUNCEMENT relayed (1.1) | 4 a minute per link, apart from the 12 above, verified or not | `MeshConfig.announcementsPerMinute` |
 | Certificate | 115..139 B; clock skew ±10 min | `Certificate`, `KeyChain.SKEW_S` |
@@ -584,7 +651,7 @@ A phone accepts it only if the certificate holds now and every seed derives the 
 
 **Golden vectors.** `core/src/test/resources/golden/protocol-v1.txt` holds one line per vector, `name value`. Values are lowercase hex, except the `qr.*` vectors, which are the QR text. The comment above each vector lists its inputs, so the file can be used without reading Kotlin. It covers the derived keys and nodeIds, whole frames (with and without recipient, and three fragments), HELLO, SUMMARY, REQUEST, two report bodies, the cancel hash, a sealed report, the signed ACK bytes and the ACK, the cancel, all seven inner types, a boxed PRIVATE payload, and both QR formats.
 
-1.1 added vectors and changed none. Its encoders write `hello.v11`, `summary2`, `request2`, `frame.opaque`, `frame.opaque.relayed`, `incident.ack.assigned`, an ACKNOWLEDGED with the ASSIGNED flag (section 6.4), and `hello.prefix`, a HELLO with `PREFIX_IN_HELLO` and the advertised prefix after the nickname (section 6.1); then, for the field states and the epoch, `incident.ack.on_scene`, `.handed_over`, `.closed`, `.unfounded`, `.reopened` (epoch 1) and `.assigned.epoch` (ASSIGNED and epoch 1), `summary2.epochs`, and the bodies `incident.body.triage`, `incident.body.staff`, `incident.body.lost_friend` and `incident.body.location` (triage plus accuracy 12 m and landmark 4); and for the control channel (section 6.9), `frame.control` (a PRIVATE to the channel id, with a stand-in for the sealed payload), `control.heartbeat` and `control.heartbeat.unknown`. The others carry what a newer version may send and are built by hand: `hello.extended`, `summary2.unknown`, `incident.body.extended`, `incident.ack.unknown`, a signed ACK with status 0x7e and two bytes of extensions, and `incident.ack.future`, written the same way with status 7 before 1.1 gave 7 and the epoch a meaning: 1.1 now reads it as CLOSED_BY_CONTROL with the flags ASSIGNED and EPOCH and epoch 205, and still skips the flag bits it doesn't know; and `control.heartbeat.extended`, a heartbeat with an unknown flag bit and two bytes after the zone. 1.1 must read them all; 1.0 rejects every one of them.
+1.1 added vectors and changed none. Its encoders write `hello.v11`, `summary2`, `request2`, `frame.opaque`, `frame.opaque.relayed`, `incident.ack.assigned`, an ACKNOWLEDGED with the ASSIGNED flag (section 6.4), and `hello.prefix`, a HELLO with `PREFIX_IN_HELLO` and the advertised prefix after the nickname (section 6.1); then, for the field states and the epoch, `incident.ack.on_scene`, `.handed_over`, `.closed`, `.unfounded`, `.reopened` (epoch 1) and `.assigned.epoch` (ASSIGNED and epoch 1), `summary2.epochs`, and the bodies `incident.body.triage`, `incident.body.staff`, `incident.body.lost_friend` and `incident.body.location` (triage plus accuracy 12 m and landmark 4); and for the control channel (section 6.9), `frame.control` (a PRIVATE to the channel id, with a stand-in for the sealed payload), `control.heartbeat` and `control.heartbeat.unknown`; and for responses and updates (sections 6.10 and 6.11), `incident.body.reply` (`incident.body.location` with the reply key), `response.body`, `incident.response` (sealed to the reply key with the ephemeral pair from `seed(0xd0)`, signed with the staff key), `cert.control` and `incident.response.cert` (the same under a control shift), `update.body`, `incident.update`, `frame.update`, `summary2.responses`, `summary2.updates`, `request2.responses` and `request2.updates`. The others carry what a newer version may send and are built by hand: `hello.extended`, `summary2.unknown`, `incident.body.extended`, `incident.ack.unknown`, a signed ACK with status 0x7e and two bytes of extensions, and `incident.ack.future`, written the same way with status 7 before 1.1 gave 7 and the epoch a meaning: 1.1 now reads it as CLOSED_BY_CONTROL with the flags ASSIGNED and EPOCH and epoch 205, and still skips the flag bits it doesn't know; and `control.heartbeat.extended`, a heartbeat with an unknown flag bit and two bytes after the zone. 1.1 must read them all; 1.0 rejects every one of them.
 
 The event pack (section 16) added `event.pack.hash` and `event.pack.signature`, for the body built in `GoldenVectorsTest` (`Golden.PACK_BODY`), and `qr.event`, the gate code with that hash; `eventPackVectorsVerify` checks the whole pack against `key.root.sign`. The signing was also checked through `tools/gen_staff_keys.py pack` and PyNaCl 1.6.2.
 
@@ -630,7 +697,7 @@ Inputs are deterministic. Seeds are 32 consecutive byte values (`seed(0x10)` = `
 14. **The dedup key is truncated to 64 bits.** Collisions are negligible at 4,096 entries, but a key is not a secure identifier.
 15. **Chat messages carry no send time.** The displayed time is the arrival time, and a replay within the history is answered with a fresh DELIVERED.
 16. **Prefix collisions.** Two phones with the same 32-bit prefix look like one peer to the connection policy until one of them changes it. About 0.3 % at 5,000 phones. A ban no longer follows the prefix.
-17. **1.0 phones and the field states.** A 1.0 phone gets the closest status it knows only from the live flood and from 1.0 relays (section 8): a 1.0 phone that joins later, through 1.1 phones only, keeps the status it had. A reopened incident stays closed on 1.0 phones, and a 1.0 staff phone still closes an urgent report on the reporter's cancel. Both go away only when the staff fleet runs 1.1. And a 1.0 staff phone never shows a report with triage answers, location fields, a staff report or a lost friend (section 6.3): it drops the body silently. So staff phones and the console move to 1.1 before reporters do.
+17. **1.0 phones and the field states.** A 1.0 phone gets the closest status it knows only from the live flood and from 1.0 relays (section 8): a 1.0 phone that joins later, through 1.1 phones only, keeps the status it had. A reopened incident stays closed on 1.0 phones, and a 1.0 staff phone still closes an urgent report on the reporter's cancel. Both go away only when the staff fleet runs 1.1. And a 1.0 staff phone never shows a report with triage answers, location fields, a reply key, a staff report or a lost friend (section 6.3): it drops the body silently, and since current reporters always add the reply key, it shows none of theirs. Responses and updates never reach a 1.0 phone at all. So staff phones and the console move to 1.1 before reporters do.
 
 ## 15. Version 1.1
 
@@ -647,7 +714,8 @@ What changed from 1.0:
 | Bans | the claimed nodeId and the address | the address of the link only |
 | ACK | status 1..4, nothing between team name and signature | statuses 1..9 (field states, closing by the console, reopening), a newer one relayed but not stored; extensions before the signature, signed and kept, starting with the ACK flags byte (ASSIGNED, EPOCH and the epoch) |
 | Supersede order | status, then oldest, then team | epoch, then rank (section 8), then a take over an assignment, then oldest, then team |
-| Report body | flags `0x01`..`0x04`, categories 1..7, nothing after | triage (`0x08`), staff fields (`0x10`) and location fields (`0x20`) after the cancel hash, category 8 (lost friend); unknown flags and the fields after those skipped; unknown category kept |
+| Report body | flags `0x01`..`0x04`, categories 1..7, nothing after | triage (`0x08`), staff fields (`0x10`), location fields (`0x20`) and the reply key (`0x40`) after the cancel hash, category 8 (lost friend); unknown flags and the fields after those skipped; unknown category kept |
+| Responses and updates | | INCIDENT_RESPONSE (`0x13`) from the console to the reporter and INCIDENT_UPDATE (`0x14`) from the reporter to staff, stored and forwarded as SUMMARY2 kinds 2 and 3, never to a 1.0 peer |
 | Cancel by the reporter | closes any open incident | closes it by itself only where a wrong cancel costs little; elsewhere staff checks it |
 | CANCEL | 32 bytes | at least 32 |
 | Store-and-forward | SUMMARY, REQUEST | SUMMARY2, REQUEST2, with a kind and the epochs, between 1.1 peers; SUMMARY and REQUEST with 1.0 peers |
@@ -664,7 +732,7 @@ What a newer version can do without 1.1 phones dropping or banning it:
 
 - Keep the header as it is: version 1, the same flags. A frame with another version or a new header flag is dropped by 1.1 and malformed to 1.0.
 - A new flooded type takes a code from `0x10` up and must make sense within 3 hops of a 1.1 relay, in 256 bytes and at 12 a minute per link; a new type that stays on one link takes `0x06`..`0x0F`. Organiser announcements take `0x30`.
-- New fields go after the auth fields in HELLO; in an ACK, after the fields of the flags 1.1 knows, behind a new flag bit (`0x08` and up); in the report body after the location fields, behind a new flag bit (`0x40` and up); after the token in a CANCEL; in a SUMMARY2 of kind INCIDENTS after the epochs, behind a new bit of its flags byte (`0x02` and up); and after the entries in a REQUEST2 of kind INCIDENTS. Other things to store and forward go in a new SUMMARY2 kind.
+- New fields go after the auth fields in HELLO; in an ACK, after the fields of the flags 1.1 knows, behind a new flag bit (`0x08` and up); in the report body after the reply key, behind flag bit `0x80`; in a response, between the certificate and the signature, behind a new flag bit (`0x02` and up); in an update body after the location fields, behind a new flag bit (`0x08` and up); after the token in a CANCEL; in a SUMMARY2 of kind INCIDENTS after the epochs, behind a new bit of its flags byte (`0x02` and up); and after the entries in a REQUEST2 of kind INCIDENTS. Other things to store and forward go in a new SUMMARY2 kind (1, 2 and 3 are taken).
 - ACK statuses above 9 cross 1.1 phones but aren't stored or shown there: a status that has to stick needs relays that know it. A new status needs a place in the rank table that keeps the order of the old ones.
 - A peer that doesn't announce 1.1 gets only what 1.0 accepts. A newer version announces itself with a bit of its own and sends its own additions only to peers that set it, as `PREFIX_IN_HELLO` (`0x20`) does for the prefix in HELLO and `HELLO_AUTH` (`0x40`) for the nonce, the proof and ACKs under a certificate. `0x80` went to `ANCHOR_SLOT`, which is only advertised, so no bit is left: the next version needs a field of its own, after the auth fields in HELLO.
 

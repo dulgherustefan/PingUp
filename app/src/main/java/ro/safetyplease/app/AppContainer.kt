@@ -225,6 +225,7 @@ class AppContainer(private val app: Application) {
         onStaffAlertCleared = { notifier.cancelStaffAlert(it) },
         onReportUpdate = { if (!foreground.value) notifier.reportUpdate(it, clock.wallMs()) },
         onReportSent = { boostUntil.value = clock.monoMs() + PowerPolicy.BOOST_MS },
+        onReportResponse = { notifier.reportResponse(it) },
         onAck = { ack, own, hops -> if (settings.value.role == Role.CONTROL) console.sawAck(ack, own, hops) },
         staffCap = { if (settings.value.role == Role.CONTROL) IncidentManager.MAX_STAFF_CONSOLE else IncidentManager.MAX_STAFF },
     )
