@@ -1,11 +1,10 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.ui
 
-import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,11 +15,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import ro.safetyplease.app.App
-import ro.safetyplease.app.AppContainer
-import ro.safetyplease.app.MainActivity
-import ro.safetyplease.app.service.MeshService
-import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.QrCodes
 import ro.safetyplease.core.crypto.ReservedNames
@@ -43,11 +37,13 @@ import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.StaffFields
 import ro.safetyplease.core.protocol.Triage
 import ro.safetyplease.core.protocol.UpdateKind
+import ro.safetyplease.core.session.PingUpSession
 import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
+import ro.safetyplease.ui.common.Nearby
 
 enum class Tab { MESSAGES, REPORT, MAP, INCIDENTS }
 
@@ -133,13 +129,29 @@ sealed interface ScanOutcome {
     data object Unknown : ScanOutcome
 }
 
+/** What a notification, a tile or a shortcut asks the app to open. */
+object OpenTarget {
+    const val HOME = "home"
+    const val INCIDENTS = "incidents"
+
+    /** The report categories, for a new report; the tile, the shortcut and the mesh notification open it. */
+    const val REPORT = "report"
+
+    /** The discreet report, straight to its confirmation; its own Quick Settings tile opens it. */
+    const val DISCREET = "discreet"
+
+    /** One of your reports, by id. */
+    const val REPORT_PREFIX = "report:"
+    const val CHAT_PREFIX = "chat:"
+}
+
 /** Where a link from a notification, the tile or a shortcut lands: a tab and maybe a screen on top; null for neither. */
 fun landing(target: String): Pair<Tab, Dest?>? = when {
-    target == MainActivity.OPEN_INCIDENTS -> Tab.INCIDENTS to null
-    target == MainActivity.OPEN_REPORT -> Tab.REPORT to null
-    target == MainActivity.OPEN_DISCREET -> Tab.REPORT to Dest.Discreet
-    target.startsWith(MainActivity.OPEN_REPORT_PREFIX) -> Tab.REPORT to Dest.ReportSent(target.removePrefix(MainActivity.OPEN_REPORT_PREFIX))
-    target.startsWith(MainActivity.OPEN_CHAT_PREFIX) -> Tab.MESSAGES to Dest.Conversation(target.removePrefix(MainActivity.OPEN_CHAT_PREFIX))
+    target == OpenTarget.INCIDENTS -> Tab.INCIDENTS to null
+    target == OpenTarget.REPORT -> Tab.REPORT to null
+    target == OpenTarget.DISCREET -> Tab.REPORT to Dest.Discreet
+    target.startsWith(OpenTarget.REPORT_PREFIX) -> Tab.REPORT to Dest.ReportSent(target.removePrefix(OpenTarget.REPORT_PREFIX))
+    target.startsWith(OpenTarget.CHAT_PREFIX) -> Tab.MESSAGES to Dest.Conversation(target.removePrefix(OpenTarget.CHAT_PREFIX))
     else -> null
 }
 
@@ -199,8 +211,8 @@ fun closedReports(mine: List<MyReport>): List<String> = mine.filterNot { it.isOp
 /** Incidents under the "Inchise" filter: resolved or cancelled, each on its own whatever came from the same zone. */
 fun closedIncidents(staff: List<StaffIncident>): List<String> = staff.filter(StatusFilter.RESOLVED::matches).map { it.incidentId }
 
-class AppViewModel(app: Application) : AndroidViewModel(app) {
-    val c: AppContainer = (app as App).container
+/** The screens' state and what they do, over the session; [phone] is what only the phone itself can do. */
+class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
     val venue = c.venue
 
     val settings = c.settings.state
@@ -223,19 +235,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** For display only. What goes out on the network reads [pointNow] at send time. */
-    val position: StateFlow<GeoPoint?> = combine(c.settings.state, c.location.fix, ticker) { s, fix, _ ->
+    val position: StateFlow<GeoPoint?> = combine(c.settings.state, c.locationFix, ticker) { s, fix, _ ->
         currentPoint(s, fix, c.clock.wallMs())
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /** What a report sent now would say of where you are, for the report screen; [report] reads it again at send time. */
-    val spot: StateFlow<ReportSpot?> = combine(c.settings.state, c.location.fix, ticker) { s, fix, _ ->
+    val spot: StateFlow<ReportSpot?> = combine(c.settings.state, c.locationFix, ticker) { s, fix, _ ->
         reportSpot(s, fix, c.clock.wallMs(), venue)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), spotNow())
 
     init {
         // friends learn the zone as the app learns it; no GPS runs for this alone
         viewModelScope.launch {
-            combine(c.settings.state, c.location.fix, ticker) { _, _, _ -> currentZoneId() }
+            combine(c.settings.state, c.locationFix, ticker) { _, _, _ -> currentZoneId() }
                 .distinctUntilChanged()
                 .collect(c.chat::zoneChanged)
         }
@@ -279,9 +291,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // --- zone ---
 
-    fun pointNow(): GeoPoint? = currentPoint(c.settings.value, c.location.fix.value, c.clock.wallMs())
+    fun pointNow(): GeoPoint? = currentPoint(c.settings.value, c.locationFix.value, c.clock.wallMs())
 
-    private fun spotNow(): ReportSpot? = reportSpot(c.settings.value, c.location.fix.value, c.clock.wallMs(), venue)
+    private fun spotNow(): ReportSpot? = reportSpot(c.settings.value, c.locationFix.value, c.clock.wallMs(), venue)
 
     fun autoZone(): Zone? = pointNow()?.let { venue.zoneAt(it.lat, it.lon) }
 
@@ -315,7 +327,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Off stops the service right away; on only saves the choice, the caller starts the mesh. */
     fun setMeshEnabled(on: Boolean) {
         c.settings.update { it.copy(meshEnabled = on) }
-        if (!on) MeshService.stop(getApplication())
+        if (!on) phone.stopMesh()
     }
 
     fun setNetworkLog(on: Boolean) = c.settings.update { it.copy(networkLog = on) }
@@ -388,7 +400,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun enterConversation(conversation: String, friendId: Long?) {
         c.openConversation = conversation
         c.chat.markRead(conversation)
-        c.notifier.cancelConversation(conversation)
+        c.dismissConversation(conversation)
         if (friendId != null) c.chat.ping(friendId)
     }
 
@@ -503,6 +515,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissClosedIncidents() = closedIncidents(c.incidentStore.value.staff).forEach(c.incidents::dismiss)
 
     fun retryRadio() {
-        c.meshScope.launch { c.bleRadio.retry() }
+        c.meshScope.launch { c.radio.retry() }
     }
 }

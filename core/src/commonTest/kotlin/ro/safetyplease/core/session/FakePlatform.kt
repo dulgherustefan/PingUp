@@ -136,6 +136,8 @@ class FakeRadio : MeshRadio {
 
     override fun stop() = synchronized(lock) { calls += "stop" }
 
+    override fun retry() = synchronized(lock) { calls += "retry" }
+
     override fun setPower(plan: PowerPlan) = synchronized(lock) {
         calls += "power"
         plans += plan
@@ -157,6 +159,10 @@ class FakeNotifications : Notifications {
 
     override fun chatMessage(message: ChatMessage, senderName: String) {
         posted += "chat ${message.conversation} $senderName"
+    }
+
+    override fun cancelConversation(conversation: String) {
+        posted += "read $conversation"
     }
 
     override fun staffAlert(post: AlertPost) {

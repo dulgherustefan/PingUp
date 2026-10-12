@@ -5,7 +5,6 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
-import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.ui.common.freshExportDir
 import ro.safetyplease.app.ui.common.shareFiles
 import ro.safetyplease.core.control.DeliveryRow
@@ -15,6 +14,7 @@ import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.metrics.MeshSnapshot
 import ro.safetyplease.core.metrics.NetworkSample
 import ro.safetyplease.core.metrics.ReportTiming
+import ro.safetyplease.core.session.PingUpSession
 import ro.safetyplease.core.venue.SiteGrid
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -51,7 +51,7 @@ internal class PhoneMetrics(
 }
 
 /** The console joins its log with the reporters' records it was given and with its own reports. */
-internal fun AppContainer.phoneMetrics(): PhoneMetrics {
+internal fun PingUpSession.phoneMetrics(): PhoneMetrics {
     val role = settings.value.role
     val reports = incidentStore.value.mine.map { ReportTiming.of(it, grid) }
     val delivery = if (role == Role.CONTROL) {
@@ -63,7 +63,7 @@ internal fun AppContainer.phoneMetrics(): PhoneMetrics {
 }
 
 /** Writes the metrics to the export folder, replacing the last export's files, and opens the share sheet. */
-internal suspend fun shareMetrics(context: Context, c: AppContainer) {
+internal suspend fun shareMetrics(context: Context, c: PingUpSession) {
     val files = withContext(Dispatchers.IO) {
         c.phoneMetrics().writeTo(freshExportDir(c.exportDir.toFile()), c.clock.wallMs(), TimeZone.currentSystemDefault())
     }
@@ -71,7 +71,7 @@ internal suspend fun shareMetrics(context: Context, c: AppContainer) {
 }
 
 /** Adds the reporters' records from metrics exports the operator picked; how many there were. */
-internal suspend fun importMetrics(context: Context, c: AppContainer, uris: List<Uri>): Int = withContext(Dispatchers.IO) {
+internal suspend fun importMetrics(context: Context, c: PingUpSession, uris: List<Uri>): Int = withContext(Dispatchers.IO) {
     val records = uris.flatMap { uri ->
         runCatching { context.contentResolver.openInputStream(uri)?.use(::readBounded) }.getOrNull()
             ?.let(MetricsExport::reportsIn).orEmpty()

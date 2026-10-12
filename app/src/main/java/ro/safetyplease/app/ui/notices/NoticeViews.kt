@@ -45,8 +45,13 @@ import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.AppLocale
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.NoticeText
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
+import ro.safetyplease.core.announce.HeldNotice
+import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeLevel
+import ro.safetyplease.core.announce.NoticeTopic
+import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
@@ -57,11 +62,6 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.largeTitle
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title3
-import ro.safetyplease.core.announce.HeldNotice
-import ro.safetyplease.core.announce.Notice
-import ro.safetyplease.core.announce.NoticeLevel
-import ro.safetyplease.core.announce.NoticeTopic
-import ro.safetyplease.core.venue.Venue
 
 /** A notice in force, with its words in the phone's language. */
 class ShownNotice(val held: HeldNotice, val notice: Notice, val title: String, val text: String)

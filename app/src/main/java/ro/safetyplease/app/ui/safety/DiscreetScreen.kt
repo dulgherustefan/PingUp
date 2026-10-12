@@ -26,7 +26,9 @@ import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.app.ui.rememberLocationRequest
+import ro.safetyplease.core.incidents.Discreet
+import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
@@ -38,9 +40,7 @@ import ro.safetyplease.ui.designsystem.StatusLabel
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
 import ro.safetyplease.ui.designsystem.subheadline
-import ro.safetyplease.app.ui.isOpen
-import ro.safetyplease.app.ui.rememberLocationRequest
-import ro.safetyplease.core.incidents.Discreet
+import ro.safetyplease.ui.isOpen
 
 /** A discreet report still counts as the one in progress for this long. */
 private const val ACTIVE_MS = 60 * 60_000L
@@ -66,7 +66,7 @@ fun DiscreetScreen(vm: AppViewModel) {
     val report = incidents.mine.filter { Discreet.isDiscreet(it.description) && it.isOpen() && now - it.createdAt < ACTIVE_MS }.maxByOrNull { it.createdAt }
 
     LifecycleResumeEffect(Unit) {
-        vm.c.location.start()
+        vm.phone.startLocation()
         onPauseOrDispose { }
     }
 
@@ -91,7 +91,7 @@ fun DiscreetScreen(vm: AppViewModel) {
                 Text(stringResource(R.string.discreet_text), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
                 if (spot == null) {
                     StatusLabel(stringResource(R.string.discreet_no_location), icon = Sym.Info)
-                    if (!vm.c.location.hasPermission()) TextLink(stringResource(R.string.report_use_location), { requestLocation() })
+                    if (!vm.phone.locationAllowed()) TextLink(stringResource(R.string.report_use_location), { requestLocation() })
                 }
                 if (limited) {
                     StatusLabel(

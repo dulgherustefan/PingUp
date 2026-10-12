@@ -102,15 +102,18 @@ import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.hopsText
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
-import ro.safetyplease.app.ui.ScanOutcome
-import ro.safetyplease.app.ui.Tab
 import ro.safetyplease.app.ui.common.BigCodeDialog
 import ro.safetyplease.app.ui.common.QrBadge
 import ro.safetyplease.app.ui.common.QrCardWidth
 import ro.safetyplease.app.ui.common.friendStatus
 import ro.safetyplease.app.ui.deniedForGood
+import ro.safetyplease.app.ui.openAppSettings
+import ro.safetyplease.core.data.Conversations
+import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.ScanOutcome
+import ro.safetyplease.ui.Tab
 import ro.safetyplease.ui.designsystem.ActionTile
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -138,9 +141,6 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title1
-import ro.safetyplease.app.ui.openAppSettings
-import ro.safetyplease.core.data.Conversations
-import ro.safetyplease.core.protocol.Limits
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 

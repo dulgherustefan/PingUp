@@ -53,11 +53,23 @@ import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.Replies
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.hopsText
-import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.common.CategoryCircle
 import ro.safetyplease.app.ui.common.UpdateTimeline
 import ro.safetyplease.app.ui.common.placeText
 import ro.safetyplease.app.ui.common.reportFacts
+import ro.safetyplease.core.control.Case
+import ro.safetyplease.core.control.CaseState
+import ro.safetyplease.core.control.LogEntry
+import ro.safetyplease.core.control.LogEvent
+import ro.safetyplease.core.data.StaffIncident
+import ro.safetyplease.core.incidents.Priority
+import ro.safetyplease.core.incidents.Recognition
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.ResponseCode
+import ro.safetyplease.core.util.truncateUtf8
+import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -73,18 +85,6 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title3
-import ro.safetyplease.core.control.Case
-import ro.safetyplease.core.control.CaseState
-import ro.safetyplease.core.control.LogEntry
-import ro.safetyplease.core.control.LogEvent
-import ro.safetyplease.core.data.StaffIncident
-import ro.safetyplease.core.incidents.Priority
-import ro.safetyplease.core.incidents.Recognition
-import ro.safetyplease.core.protocol.AckStatus
-import ro.safetyplease.core.protocol.Limits
-import ro.safetyplease.core.protocol.ResponseCode
-import ro.safetyplease.core.venue.Venue
-import ro.safetyplease.core.util.truncateUtf8
 
 /** A reason is a line in the log, not a report. */
 private const val MAX_REASON = 200

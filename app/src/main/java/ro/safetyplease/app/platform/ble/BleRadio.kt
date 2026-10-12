@@ -290,7 +290,7 @@ class BleRadio(
     }
 
     /** Call after the user grants permissions, so the radio starts without an app restart. */
-    fun retry() = post { if (running && !active) bringUp() }
+    override fun retry() = post { if (running && !active) bringUp() }
 
     fun hasPermissions(): Boolean {
         fun granted(p: String) = ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED

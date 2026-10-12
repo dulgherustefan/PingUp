@@ -33,11 +33,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.AppLocale
 import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.R
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.MapGlyph
 import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.app.ui.common.routeText
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Banner
 import ro.safetyplease.ui.designsystem.GlassIconButton
@@ -52,9 +54,7 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
-import ro.safetyplease.app.ui.isOpen
-import ro.safetyplease.core.venue.GeoPoint
-import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.isOpen
 
 /** Headings and loose text start where the text inside the cards starts. */
 private val TextInset = Gutter * 2

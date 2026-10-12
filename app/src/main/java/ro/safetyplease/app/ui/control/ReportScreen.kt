@@ -24,8 +24,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
-import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
+import ro.safetyplease.core.report.AnchorSeen
+import ro.safetyplease.core.report.EditionReport
+import ro.safetyplease.core.report.EditionReports
+import ro.safetyplease.core.report.ModeLog
+import ro.safetyplease.core.session.PingUpSession
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.ButtonKind
 import ro.safetyplease.ui.designsystem.GroupDivider
@@ -36,10 +40,6 @@ import ro.safetyplease.ui.designsystem.ScreenScaffold
 import ro.safetyplease.ui.designsystem.SectionTitle
 import ro.safetyplease.ui.designsystem.SegmentedControl
 import ro.safetyplease.ui.designsystem.subheadline
-import ro.safetyplease.core.report.AnchorSeen
-import ro.safetyplease.core.report.EditionReport
-import ro.safetyplease.core.report.EditionReports
-import ro.safetyplease.core.report.ModeLog
 
 internal enum class ReportKind(val label: Int) { SHIFT(R.string.edition_kind_shift), EDITION(R.string.edition_kind_edition) }
 
@@ -47,7 +47,7 @@ internal enum class ReportKind(val label: Int) { SHIFT(R.string.edition_kind_shi
  * The shift or the whole edition, from this console's logs of both modes, its metrics and the anchors it heard. The
  * shift ends now and starts where the previous one was exported.
  */
-internal fun buildReport(c: AppContainer, kind: ReportKind, now: Long): EditionReport {
+internal fun buildReport(c: PingUpSession, kind: ReportKind, now: Long): EditionReport {
     val current = ModeLog(c.consoleLog.value.entries, c.incidentStore.value.staff)
     val other = ModeLog(c.otherConsoleLog.entries)
     val (real, exercise) = if (c.exercise) other to current else current to other
@@ -65,7 +65,7 @@ internal fun buildReport(c: AppContainer, kind: ReportKind, now: Long): EditionR
 
 /** The report as it will leave the console, before the operator shares it as a PDF and two CSV files. */
 @Composable
-internal fun ReportDialog(c: AppContainer, scope: CoroutineScope, onDismiss: () -> Unit) {
+internal fun ReportDialog(c: PingUpSession, scope: CoroutineScope, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val res = LocalResources.current
     var kind by rememberSaveable { mutableStateOf(ReportKind.SHIFT) }

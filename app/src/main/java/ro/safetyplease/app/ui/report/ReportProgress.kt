@@ -2,11 +2,11 @@ package ro.safetyplease.app.ui.report
 
 import androidx.annotation.StringRes
 import ro.safetyplease.app.R
-import ro.safetyplease.app.ui.isOpen
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.ui.isOpen
 
 /** Venue place type of first aid, as in venue.json. */
 internal const val MEDICAL = "medical"

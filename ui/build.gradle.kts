@@ -37,6 +37,8 @@ kotlin {
             implementation(libs.compose.mp.ui)
             implementation(libs.compose.mp.resources)
             implementation(libs.compose.mp.material3)
+            implementation(libs.compose.mp.lifecycle.viewmodel)
+            implementation(libs.compose.mp.lifecycle.runtime)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

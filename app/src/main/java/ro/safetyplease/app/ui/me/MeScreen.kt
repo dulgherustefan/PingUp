@@ -46,12 +46,14 @@ import ro.safetyplease.app.BuildConfig
 import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.platform.power.BatteryExemption
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.BigCodeDialog
 import ro.safetyplease.app.ui.common.MAX_NAME
 import ro.safetyplease.app.ui.common.QrBadge
 import ro.safetyplease.app.ui.common.networkText
+import ro.safetyplease.app.ui.rememberRadioGate
+import ro.safetyplease.core.util.toHex
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ConfirmDialog
@@ -69,8 +71,6 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title1
-import ro.safetyplease.app.ui.rememberRadioGate
-import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.data.Role as AppRole
 
 private const val DEMO_UNLOCK_TAPS = 7

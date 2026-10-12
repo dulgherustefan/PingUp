@@ -1,7 +1,6 @@
 package ro.safetyplease.app.ui.control
 
 import androidx.annotation.StringRes
-import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
@@ -16,6 +15,7 @@ import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.core.session.PingUpSession
 import ro.safetyplease.core.util.truncateUtf8
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
@@ -120,7 +120,7 @@ internal fun mutedMinutes(mutedUntil: Long, nowMs: Long): Int {
 }
 
 /** Runs the operator's decisions: each one goes into the log first, then out as an ACK when the network can carry it. */
-internal class ConsoleActions(private val c: AppContainer) {
+internal class ConsoleActions(private val c: PingUpSession) {
     fun run(case: Case, action: Action, team: String = "", reason: String = "") {
         val name = when (action) {
             Action.ASSIGN -> team.trim().truncateUtf8(Limits.TEAM_BYTES)

@@ -84,9 +84,6 @@ import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.Replies
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
-import ro.safetyplease.app.ui.ReportSpot
 import ro.safetyplease.app.ui.common.CategoryCircle
 import ro.safetyplease.app.ui.common.IncidentHeader
 import ro.safetyplease.app.ui.common.MapGlyph
@@ -96,6 +93,29 @@ import ro.safetyplease.app.ui.common.categoryIcon
 import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.app.ui.common.placeLine
 import ro.safetyplease.app.ui.common.routeText
+import ro.safetyplease.app.ui.rememberLocationRequest
+import ro.safetyplease.app.ui.rememberRadioGate
+import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.incidents.ESCALATE_AFTER_MS
+import ro.safetyplease.core.incidents.IncidentManager
+import ro.safetyplease.core.incidents.Priority
+import ro.safetyplease.core.incidents.Recognition
+import ro.safetyplease.core.incidents.escalationAt
+import ro.safetyplease.core.incidents.needsEscalation
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Answer
+import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.ResponseCode
+import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.core.protocol.StaffFields
+import ro.safetyplease.core.protocol.Triage
+import ro.safetyplease.core.protocol.UpdateKind
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.ReportSpot
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppMenu
@@ -129,28 +149,8 @@ import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
-import ro.safetyplease.app.ui.isOpen
-import ro.safetyplease.app.ui.pickedZoneAge
-import ro.safetyplease.app.ui.rememberLocationRequest
-import ro.safetyplease.app.ui.rememberRadioGate
-import ro.safetyplease.core.data.MyReport
-import ro.safetyplease.core.incidents.ESCALATE_AFTER_MS
-import ro.safetyplease.core.incidents.IncidentManager
-import ro.safetyplease.core.incidents.Priority
-import ro.safetyplease.core.incidents.Recognition
-import ro.safetyplease.core.incidents.escalationAt
-import ro.safetyplease.core.incidents.needsEscalation
-import ro.safetyplease.core.protocol.AckStatus
-import ro.safetyplease.core.protocol.Answer
-import ro.safetyplease.core.protocol.IncidentCategory
-import ro.safetyplease.core.protocol.Limits
-import ro.safetyplease.core.protocol.ResponseCode
-import ro.safetyplease.core.protocol.Severity
-import ro.safetyplease.core.protocol.StaffFields
-import ro.safetyplease.core.protocol.Triage
-import ro.safetyplease.core.protocol.UpdateKind
-import ro.safetyplease.core.venue.GeoPoint
-import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.isOpen
+import ro.safetyplease.ui.pickedZoneAge
 
 /** A lost child is always urgent and a lost friend never is, so neither offers the urgent switch. */
 private fun hasFixedUrgency(category: Int): Boolean =
@@ -269,7 +269,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     // or the settings, the location row checks again what it can offer
     var locationCheck by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) {
-        vm.c.location.start()
+        vm.phone.startLocation()
         locationCheck++
         onPauseOrDispose { }
     }
@@ -388,7 +388,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                                         onClick = {
                                             category = if (category == c) 0 else c
                                             // a report carries the exact location, so starting one is when to ask for it, once
-                                            val ask = !vm.locationAskedForReport && !vm.locationBlocked && !vm.c.location.hasPermission()
+                                            val ask = !vm.locationAskedForReport && !vm.locationBlocked && !vm.phone.locationAllowed()
                                             if (category != 0 && ask) {
                                                 vm.locationAskedForReport = true
                                                 requestLocation()
@@ -594,7 +594,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     ZoneOption(z.name, choice == z.id) { choice = z.id }
                 }
             }
-            if (position == null && !vm.c.location.hasPermission()) {
+            if (position == null && !vm.phone.locationAllowed()) {
                 TextLink(
                     stringResource(if (vm.locationBlocked) R.string.location_open_settings else R.string.report_use_location),
                     {
@@ -631,8 +631,8 @@ private fun ZoneOption(name: String, selected: Boolean, onClick: () -> Unit) {
 private fun LocationRow(vm: AppViewModel, spot: ReportSpot?, check: Int, onAllow: () -> Unit) {
     val context = LocalContext.current
     val res = LocalResources.current
-    val permitted = remember(check) { vm.c.location.hasPermission() }
-    val gpsOn = remember(check) { vm.c.location.isGpsOn() }
+    val permitted = remember(check) { vm.phone.locationAllowed() }
+    val gpsOn = remember(check) { vm.phone.locationOn() }
     val row: Pair<String, (() -> Unit)?> = when {
         spot != null -> {
             val zone = vm.venue.zoneAt(spot.point.lat, spot.point.lon)?.name.orEmpty()

@@ -91,20 +91,6 @@ import ro.safetyplease.app.ui.common.ExerciseBanner
 import ro.safetyplease.app.ui.common.RadioGate
 import ro.safetyplease.app.ui.control.ControlScreen
 import ro.safetyplease.app.ui.control.ControlWindow
-import ro.safetyplease.ui.designsystem.AppTheme
-import ro.safetyplease.ui.designsystem.Backdrop
-import ro.safetyplease.ui.designsystem.FullScreen
-import ro.safetyplease.ui.designsystem.LocalBottomClearance
-import ro.safetyplease.ui.designsystem.LocalReduceMotion
-import ro.safetyplease.ui.designsystem.LocalStatusBarTop
-import ro.safetyplease.ui.designsystem.LocalTextOnly
-import ro.safetyplease.ui.designsystem.Motion
-import ro.safetyplease.ui.designsystem.Sym
-import ro.safetyplease.ui.designsystem.TextFont
-import ro.safetyplease.ui.designsystem.backdropSource
-import ro.safetyplease.ui.designsystem.glass
-import ro.safetyplease.ui.designsystem.pressScale
-import ro.safetyplease.ui.designsystem.rememberBackdrop
 import ro.safetyplease.app.ui.firstaid.FirstAidScreen
 import ro.safetyplease.app.ui.firstaid.FirstAidSheetScreen
 import ro.safetyplease.app.ui.incidents.IncidentDetailScreen
@@ -135,6 +121,24 @@ import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.Tab
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.Backdrop
+import ro.safetyplease.ui.designsystem.FullScreen
+import ro.safetyplease.ui.designsystem.LocalBottomClearance
+import ro.safetyplease.ui.designsystem.LocalReduceMotion
+import ro.safetyplease.ui.designsystem.LocalStatusBarTop
+import ro.safetyplease.ui.designsystem.LocalTextOnly
+import ro.safetyplease.ui.designsystem.Motion
+import ro.safetyplease.ui.designsystem.Sym
+import ro.safetyplease.ui.designsystem.TextFont
+import ro.safetyplease.ui.designsystem.backdropSource
+import ro.safetyplease.ui.designsystem.glass
+import ro.safetyplease.ui.designsystem.pressScale
+import ro.safetyplease.ui.designsystem.rememberBackdrop
+import ro.safetyplease.ui.push
 import ro.safetyplease.core.data.Role as AppRole
 
 /** The mesh can't start without these. */
@@ -188,7 +192,7 @@ fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> U
         onStartMesh()
     }
     // tick and radio state force a re-check when the user comes back from the dialogs
-    val hasAccess = remember(tick, radio) { vm.c.bleRadio.hasPermissions() }
+    val hasAccess = remember(tick, radio) { vm.phone.bluetoothAllowed() }
     val bluetoothOn = remember(tick, radio) { bluetoothEnabled(context) }
     val locationOff = remember(tick, radio) {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S &&
@@ -218,7 +222,7 @@ fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}):
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true
         if (granted) {
-            vm.c.location.start()
+            vm.phone.startLocation()
         } else {
             vm.locationBlocked = deniedForGood(activity, listOf(Manifest.permission.ACCESS_FINE_LOCATION))
             if (result[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
@@ -229,8 +233,8 @@ fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}):
     }
     return {
         when {
-            vm.c.location.hasPermission() -> {
-                vm.c.location.start()
+            vm.phone.locationAllowed() -> {
+                vm.phone.startLocation()
                 onResult(true)
             }
             vm.locationBlocked -> openAppSettings(context)

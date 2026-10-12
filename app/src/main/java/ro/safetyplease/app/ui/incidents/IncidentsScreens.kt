@@ -54,17 +54,28 @@ import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.hopsText
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.IncidentHeader
 import ro.safetyplease.app.ui.common.MapPin
 import ro.safetyplease.app.ui.common.MeButton
+import ro.safetyplease.app.ui.common.UpdateTimeline
 import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.app.ui.common.categoryIcon
 import ro.safetyplease.app.ui.common.incidentPoint
 import ro.safetyplease.app.ui.common.placeText
-import ro.safetyplease.app.ui.common.UpdateTimeline
 import ro.safetyplease.app.ui.common.reportFacts
+import ro.safetyplease.core.control.isAssignedTo
+import ro.safetyplease.core.data.StaffIncident
+import ro.safetyplease.core.incidents.Clustering
+import ro.safetyplease.core.incidents.DuplicateHint
+import ro.safetyplease.core.incidents.Priority
+import ro.safetyplease.core.incidents.Recognition
+import ro.safetyplease.core.incidents.Routing
+import ro.safetyplease.core.incidents.StaffProfile
+import ro.safetyplease.core.incidents.StatusFilter
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppMenu
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -90,18 +101,7 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.largeFont
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
-import ro.safetyplease.core.control.isAssignedTo
 import ro.safetyplease.core.data.Role as AppRole
-import ro.safetyplease.core.data.StaffIncident
-import ro.safetyplease.core.incidents.Clustering
-import ro.safetyplease.core.incidents.DuplicateHint
-import ro.safetyplease.core.incidents.Priority
-import ro.safetyplease.core.incidents.Recognition
-import ro.safetyplease.core.incidents.Routing
-import ro.safetyplease.core.incidents.StaffProfile
-import ro.safetyplease.core.incidents.StatusFilter
-import ro.safetyplease.core.protocol.AckStatus
-import ro.safetyplease.core.protocol.Severity
 
 /**
  * Status icon and color for text: unassigned is orange, taken is gray, resolved is green.

@@ -6,7 +6,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.app.MainActivity
-import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.app.ui.common.onSite
 import ro.safetyplease.core.data.MyReport
@@ -26,6 +25,18 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
+import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.Tab
+import ro.safetyplease.ui.chatPoint
+import ro.safetyplease.ui.closedIncidents
+import ro.safetyplease.ui.closedReports
+import ro.safetyplease.ui.common.Nearby
+import ro.safetyplease.ui.currentPoint
+import ro.safetyplease.ui.isOpen
+import ro.safetyplease.ui.landing
+import ro.safetyplease.ui.pickedZoneAge
+import ro.safetyplease.ui.push
+import ro.safetyplease.ui.reportSpot
 
 class UiLogicTest {
     private fun square(id: String, lat: Double, lon: Double) =

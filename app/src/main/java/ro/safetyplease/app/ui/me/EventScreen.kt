@@ -37,7 +37,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okio.source
 import ro.safetyplease.app.R
-import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.core.event.Added
+import ro.safetyplease.core.event.EventKind
+import ro.safetyplease.core.event.EventPacks
+import ro.safetyplease.core.event.Loaded
+import ro.safetyplease.core.event.PackStatus
+import ro.safetyplease.core.event.StoredPack
+import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ConfirmDialog
@@ -51,12 +57,6 @@ import ro.safetyplease.ui.designsystem.NavScreen
 import ro.safetyplease.ui.designsystem.SectionTitle
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.footnote
-import ro.safetyplease.core.event.Added
-import ro.safetyplease.core.event.EventKind
-import ro.safetyplease.core.event.EventPacks
-import ro.safetyplease.core.event.Loaded
-import ro.safetyplease.core.event.PackStatus
-import ro.safetyplease.core.event.StoredPack
 import java.text.DateFormat
 import java.util.Date
 

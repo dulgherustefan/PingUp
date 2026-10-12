@@ -102,11 +102,20 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.hopsText
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.MapPin
 import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.app.ui.common.presenceText
+import ro.safetyplease.core.data.ChatMessage
+import ro.safetyplease.core.data.Conversations
+import ro.safetyplease.core.data.Friend
+import ro.safetyplease.core.data.Group
+import ro.safetyplease.core.data.MsgKind
+import ro.safetyplease.core.data.MsgStatus
+import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.QuickCode
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.ActionTile
 import ro.safetyplease.ui.designsystem.AppMenu
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -135,15 +144,6 @@ import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.screenBackground
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
-import ro.safetyplease.core.data.ChatMessage
-import ro.safetyplease.core.data.Conversations
-import ro.safetyplease.core.data.Friend
-import ro.safetyplease.core.data.Group
-import ro.safetyplease.core.data.MsgKind
-import ro.safetyplease.core.data.MsgStatus
-import ro.safetyplease.core.protocol.Limits
-import ro.safetyplease.core.protocol.QuickCode
-import ro.safetyplease.core.venue.GeoPoint
 import kotlin.math.max
 
 /** Messages from the same person closer than this form one run of grouped bubbles. */

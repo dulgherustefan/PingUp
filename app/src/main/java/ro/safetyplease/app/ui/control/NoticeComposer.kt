@@ -38,7 +38,11 @@ import ro.safetyplease.app.AppLocale
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.NoticeText
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.core.announce.NoticeLevel
+import ro.safetyplease.core.announce.NoticeTemplate
+import ro.safetyplease.core.announce.NoticeTemplates
+import ro.safetyplease.core.announce.NoticeTopic
+import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppMenu
@@ -56,10 +60,6 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
-import ro.safetyplease.core.announce.NoticeLevel
-import ro.safetyplease.core.announce.NoticeTemplate
-import ro.safetyplease.core.announce.NoticeTemplates
-import ro.safetyplease.core.announce.NoticeTopic
 
 /** How long a notice holds, in minutes; the operator picks one. */
 private val Durations = listOf(30, 60, 120, 240, 720)

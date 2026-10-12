@@ -93,6 +93,7 @@ import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.PointStatus
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
+import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.parse
@@ -215,6 +216,9 @@ open class PingUpSession(private val platform: AppPlatform) {
     )
 
     private val notifications = platform.notifications(venue, exercise)
+
+    /** The phone's last position, null without permission or a fix. */
+    val locationFix: StateFlow<GeoFix?> = platform.location
 
     /** The battery, with the power profile in force and how long it lasts at that profile's pace. */
     val battery = BatteryWatch(clock) { percent, charging ->
@@ -612,6 +616,9 @@ open class PingUpSession(private val platform: AppPlatform) {
     }
 
     fun wipeAllData() = platform.wipe()
+
+    /** A conversation came on screen: its notification goes. */
+    fun dismissConversation(conversation: String) = notifications.cancelConversation(conversation)
 
     /**
      * Stops all the session runs, so that a new one can take its place in the same process, as the iPhone app does to

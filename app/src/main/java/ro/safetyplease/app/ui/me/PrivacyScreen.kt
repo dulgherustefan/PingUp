@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.R
-import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.GlassIconButton
 import ro.safetyplease.ui.designsystem.Gutter

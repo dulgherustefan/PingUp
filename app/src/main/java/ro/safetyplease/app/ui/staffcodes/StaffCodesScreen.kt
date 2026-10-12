@@ -41,9 +41,12 @@ import kotlinx.coroutines.delay
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
-import ro.safetyplease.app.ui.StaffCodeResult
+import ro.safetyplease.core.control.PointBoard
+import ro.safetyplease.core.incidents.StaffCode
+import ro.safetyplease.core.incidents.StaffCodes
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.StaffCodeResult
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.GlassIconButton
 import ro.safetyplease.ui.designsystem.Gutter
@@ -56,9 +59,6 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
-import ro.safetyplease.core.control.PointBoard
-import ro.safetyplease.core.incidents.StaffCode
-import ro.safetyplease.core.incidents.StaffCodes
 
 /**
  * The field phone's quick codes: big buttons, one tap each, nothing typed. The first three go out as staff reports with
@@ -78,7 +78,7 @@ fun StaffCodesScreen(vm: AppViewModel) {
 
     // the position is attached to a report whenever there is a fix, so GPS starts with the screen
     LifecycleResumeEffect(Unit) {
-        vm.c.location.start()
+        vm.phone.startLocation()
         onPauseOrDispose { }
     }
     LaunchedEffect(result) {

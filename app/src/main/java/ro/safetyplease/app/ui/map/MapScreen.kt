@@ -59,8 +59,6 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.text.NoticeText
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.LowBatteryBanner
 import ro.safetyplease.app.ui.common.MapCamera
 import ro.safetyplease.app.ui.common.MapCorner
@@ -76,6 +74,17 @@ import ro.safetyplease.app.ui.common.spotColor
 import ro.safetyplease.app.ui.common.typeGlyph
 import ro.safetyplease.app.ui.common.venueAspect
 import ro.safetyplease.app.ui.common.zoneTone
+import ro.safetyplease.app.ui.notices.shadeType
+import ro.safetyplease.app.ui.rememberLocationRequest
+import ro.safetyplease.core.announce.NoticeTopic
+import ro.safetyplease.core.incidents.Priority
+import ro.safetyplease.core.mesh.PowerPolicy
+import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.core.venue.distanceMeters
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.GlassIconButton
@@ -96,15 +105,6 @@ import ro.safetyplease.ui.designsystem.largeFont
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
-import ro.safetyplease.app.ui.notices.shadeType
-import ro.safetyplease.app.ui.rememberLocationRequest
-import ro.safetyplease.core.announce.NoticeTopic
-import ro.safetyplease.core.incidents.Priority
-import ro.safetyplease.core.mesh.PowerPolicy
-import ro.safetyplease.core.protocol.AckStatus
-import ro.safetyplease.core.venue.GeoPoint
-import ro.safetyplease.core.venue.Venue
-import ro.safetyplease.core.venue.distanceMeters
 
 /** Places the quick chips lead to, in chip order. */
 private val SpotTypes = listOf("medical", "exit", Venue.MEETING, "water", "wc", "info", "charge", Venue.DEA)

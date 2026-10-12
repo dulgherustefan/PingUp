@@ -22,20 +22,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import ro.safetyplease.app.App
-import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.ui.common.freshExportDir
 import ro.safetyplease.app.ui.common.shareFiles
-import ro.safetyplease.ui.designsystem.AppDialog
-import ro.safetyplease.ui.designsystem.AppTheme
-import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.core.control.ConsoleView
 import ro.safetyplease.core.control.ExportNames
 import ro.safetyplease.core.control.LogExport
 import ro.safetyplease.core.report.EditionReport
 import ro.safetyplease.core.report.ReportExport
+import ro.safetyplease.core.session.PingUpSession
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.designsystem.AppDialog
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.footnote
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -53,7 +53,7 @@ class ExportShared : BroadcastReceiver() {
 
 /** Says what leaves the phone, then writes the files and opens the share sheet in [scope], which outlives the dialog. */
 @Composable
-internal fun ExportDialog(c: AppContainer, entries: Int, scope: CoroutineScope, onDismiss: () -> Unit) {
+internal fun ExportDialog(c: PingUpSession, entries: Int, scope: CoroutineScope, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val names = rememberExportNames(c.venue)
     AppDialog(
@@ -98,7 +98,7 @@ private fun rememberExportNames(venue: Venue): ExportNames {
  * The shift log as two CSV files and a JSON one, written to the app's cache, then the share sheet. The previous export's
  * files are deleted first; the log itself keeps everything and notes the export once an app was picked to receive it.
  */
-private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNames) {
+private suspend fun shareLog(context: Context, c: PingUpSession, names: ExportNames) {
     val now = c.clock.wallMs()
     val files = withContext(Dispatchers.IO) {
         val zone = TimeZone.currentSystemDefault()
@@ -124,7 +124,7 @@ private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNam
  * the share sheet. Like the log export, it replaces the files of the last export; it doesn't note an export in the log,
  * since the log itself stays on the phone.
  */
-internal suspend fun shareReport(context: Context, c: AppContainer, report: EditionReport, doc: ReportDoc) {
+internal suspend fun shareReport(context: Context, c: PingUpSession, report: EditionReport, doc: ReportDoc) {
     val files = withContext(Dispatchers.IO) {
         val res = context.resources
         val zone = TimeZone.currentSystemDefault()

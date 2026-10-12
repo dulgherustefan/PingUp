@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.ui.AppViewModel
+import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Avatar
 import ro.safetyplease.ui.designsystem.EmptyState

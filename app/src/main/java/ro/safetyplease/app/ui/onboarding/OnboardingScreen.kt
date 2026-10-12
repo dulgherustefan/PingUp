@@ -52,8 +52,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.R
-import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.common.MAX_NAME
+import ro.safetyplease.app.ui.startPermissions
+import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppLogo
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -72,8 +73,7 @@ import ro.safetyplease.ui.designsystem.body
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.largeTitle
 import ro.safetyplease.ui.designsystem.subheadline
-import ro.safetyplease.app.ui.push
-import ro.safetyplease.app.ui.startPermissions
+import ro.safetyplease.ui.push
 
 /** Onboarding page margin, wider than list margins. */
 private val PageGutter = 24.dp

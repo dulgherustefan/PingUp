@@ -18,6 +18,8 @@ datetime = "0.8.0"
 composeMultiplatform = "1.12.1"
 # Material 3 for Compose Multiplatform is versioned on its own; 1.9.0 is its latest stable release
 composeMaterial3 = "1.9.0"
+# Lifecycle for Compose Multiplatform, the same release as androidx's lifecycle above
+lifecycleMultiplatform = "2.11.0"
 
 [libraries]
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -53,6 +55,8 @@ compose-mp-foundation = { module = "org.jetbrains.compose.foundation:foundation"
 compose-mp-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
 compose-mp-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 compose-mp-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMaterial3" }
+compose-mp-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleMultiplatform" }
+compose-mp-lifecycle-runtime = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycleMultiplatform" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

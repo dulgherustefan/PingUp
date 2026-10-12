@@ -9,17 +9,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.LowBatteryBanner
 import ro.safetyplease.app.ui.common.chargerText
 import ro.safetyplease.app.ui.common.helpOrigin
+import ro.safetyplease.core.mesh.PowerProfile
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.GroupDivider
 import ro.safetyplease.ui.designsystem.GroupRow
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.InsetGroup
 import ro.safetyplease.ui.designsystem.Sym
-import ro.safetyplease.core.mesh.PowerProfile
 
 private const val MINUTES_IN_HOUR = 60
 private const val MAX_HOURS = 24

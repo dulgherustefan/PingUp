@@ -58,8 +58,6 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.CategoryCircle
 import ro.safetyplease.app.ui.common.MapCamera
 import ro.safetyplease.app.ui.common.MapPin
@@ -67,18 +65,6 @@ import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.app.ui.common.networkText
 import ro.safetyplease.app.ui.common.venueAspect
-import ro.safetyplease.ui.designsystem.AppButton
-import ro.safetyplease.ui.designsystem.AppTheme
-import ro.safetyplease.ui.designsystem.ButtonKind
-import ro.safetyplease.ui.designsystem.EmptyState
-import ro.safetyplease.ui.designsystem.GroupDivider
-import ro.safetyplease.ui.designsystem.Gutter
-import ro.safetyplease.ui.designsystem.NavHeight
-import ro.safetyplease.ui.designsystem.SegmentedControl
-import ro.safetyplease.ui.designsystem.Sym
-import ro.safetyplease.ui.designsystem.footnote
-import ro.safetyplease.ui.designsystem.headline
-import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
@@ -91,6 +77,20 @@ import ro.safetyplease.core.incidents.Recognition
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.designsystem.AppButton
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.ButtonKind
+import ro.safetyplease.ui.designsystem.EmptyState
+import ro.safetyplease.ui.designsystem.GroupDivider
+import ro.safetyplease.ui.designsystem.Gutter
+import ro.safetyplease.ui.designsystem.NavHeight
+import ro.safetyplease.ui.designsystem.SegmentedControl
+import ro.safetyplease.ui.designsystem.Sym
+import ro.safetyplease.ui.designsystem.footnote
+import ro.safetyplease.ui.designsystem.headline
+import ro.safetyplease.ui.designsystem.subheadline
 
 private enum class Pane(val label: Int) {
     QUEUE(R.string.control_pane_queue),

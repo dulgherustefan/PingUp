@@ -52,13 +52,21 @@ import ro.safetyplease.app.platform.power.BatteryExemption
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.listTime
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.RadioGate
 import ro.safetyplease.app.ui.common.RadioProblemBanner
 import ro.safetyplease.app.ui.common.networkText
 import ro.safetyplease.app.ui.common.problem
+import ro.safetyplease.app.ui.rememberRadioGate
+import ro.safetyplease.core.data.ChatMessage
+import ro.safetyplease.core.data.Conversations
+import ro.safetyplease.core.data.Friend
+import ro.safetyplease.core.data.Group
+import ro.safetyplease.core.data.MsgKind
+import ro.safetyplease.core.data.MsgStatus
+import ro.safetyplease.core.mesh.RadioStatus
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Avatar
@@ -76,14 +84,6 @@ import ro.safetyplease.ui.designsystem.UnreadBadge
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.subheadline
-import ro.safetyplease.app.ui.rememberRadioGate
-import ro.safetyplease.core.data.ChatMessage
-import ro.safetyplease.core.data.Conversations
-import ro.safetyplease.core.data.Friend
-import ro.safetyplease.core.data.Group
-import ro.safetyplease.core.data.MsgKind
-import ro.safetyplease.core.data.MsgStatus
-import ro.safetyplease.core.mesh.RadioStatus
 
 private class ConversationRow(
     val id: String,

@@ -91,6 +91,9 @@ interface Vault {
 interface Notifications {
     fun chatMessage(message: ChatMessage, senderName: String)
 
+    /** The conversation is on screen: its notification goes. */
+    fun cancelConversation(conversation: String)
+
     fun staffAlert(post: AlertPost)
 
     fun cancelStaffAlert(incidentId: String)
@@ -111,4 +114,7 @@ interface MeshRadio : Radio {
     fun stop()
 
     fun setPower(plan: PowerPlan)
+
+    /** Tries again to come up, after the person granted Bluetooth or turned it on. */
+    fun retry()
 }

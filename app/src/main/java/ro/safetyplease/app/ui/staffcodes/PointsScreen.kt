@@ -35,9 +35,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.rememberNow
-import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.common.pointLevelColor
 import ro.safetyplease.app.ui.common.pointLevelLabel
+import ro.safetyplease.core.control.PointBoard
+import ro.safetyplease.core.control.SentPoint
+import ro.safetyplease.core.protocol.PointLevel
+import ro.safetyplease.core.venue.Poi
+import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.GlassIconButton
 import ro.safetyplease.ui.designsystem.Gutter
@@ -49,10 +53,6 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
-import ro.safetyplease.core.control.PointBoard
-import ro.safetyplease.core.control.SentPoint
-import ro.safetyplease.core.protocol.PointLevel
-import ro.safetyplease.core.venue.Poi
 
 /**
  * A staff phone's points of the site, its team's first, each with its three levels: one tap sends the status to the

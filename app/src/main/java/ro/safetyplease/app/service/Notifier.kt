@@ -273,7 +273,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         manager.notify(message.conversation.hashCode(), notification)
     }
 
-    fun cancelConversation(conversation: String) = manager.cancel(conversation.hashCode())
+    override fun cancelConversation(conversation: String) = manager.cancel(conversation.hashCode())
 
     /**
      * A notice from the organiser, one notification per topic: a newer one replaces it, a withdrawn one takes it away.
