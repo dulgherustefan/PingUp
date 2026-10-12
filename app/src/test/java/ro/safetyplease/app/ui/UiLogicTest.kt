@@ -40,6 +40,17 @@ class UiLogicTest {
     private val t0 = 1_000_000L
     private val fix = GeoFix(inA.lat, inA.lon, 5f, t0)
 
+    // --- zone picked by hand ---
+
+    @Test
+    fun aZonePickedByHandShowsItsAgeOnceItIsFiveMinutesOld() {
+        val picked = Settings(manualZone = "bar", manualZoneAt = t0)
+        assertNull(pickedZoneAge(picked, t0 + 5 * 60_000L - 1))
+        assertEquals(5 * 60_000L, pickedZoneAge(picked, t0 + 5 * 60_000L))
+        assertNull("no zone", pickedZoneAge(Settings(manualZoneAt = t0), t0 + 60 * 60_000L))
+        assertNull("picked before the time was kept", pickedZoneAge(Settings(manualZone = "bar"), t0))
+    }
+
     @Test
     fun freshFixIsThePosition() {
         assertEquals(inA, currentPoint(Settings(), fix, t0))

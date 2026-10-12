@@ -158,6 +158,15 @@ fun currentPoint(settings: Settings, fix: GeoFix?, nowMs: Long): GeoPoint? {
     }
 }
 
+/** From this age on, a zone picked by hand says how old it is, so a stale one doesn't go into a report unnoticed. */
+const val ZONE_AGE_SHOWN_MS = 5 * 60_000L
+
+/** How long ago the zone was picked by hand, once that is worth saying; null if there's none or it's recent. */
+fun pickedZoneAge(settings: Settings, nowMs: Long): Long? {
+    if (settings.manualZone.isEmpty() || settings.manualZoneAt <= 0) return null
+    return (nowMs - settings.manualZoneAt).takeIf { it >= ZONE_AGE_SHOWN_MS }
+}
+
 /** A friend gets coordinates only if they agree with the zone sent with them; otherwise their map pin would contradict it. */
 fun chatPoint(zone: String, point: GeoPoint?, venue: Venue): GeoPoint? =
     point?.takeIf { zone.isEmpty() || venue.zoneAt(it.lat, it.lon)?.id == zone }
@@ -278,7 +287,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun currentZoneId(): String = autoZone()?.id ?: c.settings.value.manualZone
 
     /** Saved, so the zone you picked stands in for GPS even after Android kills the app. */
-    fun setManualZone(id: String) = c.settings.update { it.copy(manualZone = id) }
+    fun setManualZone(id: String) = c.settings.update { it.copy(manualZone = id, manualZoneAt = c.clock.wallMs()) }
 
     // --- settings ---
 

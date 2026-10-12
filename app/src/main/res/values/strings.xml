@@ -87,6 +87,8 @@
     <string name="mesh_switch_on">Pornită. Primești mesaje și le duci mai departe pentru alții.</string>
     <string name="mesh_switch_off">Oprită. Nu primești mesaje, iar rapoartele nu pleacă.</string>
     <string name="notif_mesh_stop">Oprește rețeaua</string>
+    <string name="report_zone_with_age">%1$s, %2$s</string>
+    <string name="report_zone_picked_ago">Aleasă %1$s</string>
 
     <string name="onboarding_welcome">Mesaje fără semnal</string>
     <string name="onboarding_intro">Scrii prietenilor și chemi ajutor chiar când rețeaua cade. Mesajele sar din telefon în telefon, prin Bluetooth.</string>

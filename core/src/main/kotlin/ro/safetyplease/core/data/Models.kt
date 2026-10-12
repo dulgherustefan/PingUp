@@ -30,6 +30,8 @@ data class Settings(
     val batteryHintDismissed: Boolean = false,
     /** Zone the user said they're in, used while there's no GPS fix. */
     val manualZone: String = "",
+    /** When [manualZone] was picked, on the wall clock; 0 if it was picked before this was kept. */
+    val manualZoneAt: Long = 0,
     /** The zone a staff or control QR names: urgencies there reach this phone on vibration. */
     val staffZone: String = "",
     /** "Șef de rol": the insistent alert rings here for the urgencies of the team's role, as on the console. */

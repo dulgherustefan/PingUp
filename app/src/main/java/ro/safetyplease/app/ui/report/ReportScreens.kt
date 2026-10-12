@@ -131,6 +131,7 @@ import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title2
 import ro.safetyplease.app.ui.isOpen
+import ro.safetyplease.app.ui.pickedZoneAge
 import ro.safetyplease.app.ui.rememberLocationRequest
 import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.core.data.MyReport
@@ -303,6 +304,9 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     // the keyboard covers the tab bar, so the button sits above the keyboard
     val typing = keyboard > clearance
     val now = rememberNow()
+    // a zone picked by hand a while ago says how old it is, so a stale one doesn't go out unnoticed
+    val zoneAge = pickedZoneAge(settings, now)?.takeIf { picked == null && autoZone == null && zone == settings.manualZone }
+        ?.let { agoText(settings.manualZoneAt, now) }
     // your still-open report sits above the form so you can see its progress without looking for it
     val active = incidents.mine.maxByOrNull { it.createdAt }?.takeIf { it.isOpen() && now - it.createdAt < ACTIVE_REPORT_MS }
     var activeMenu by remember { mutableStateOf(false) }
@@ -435,7 +439,11 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     val summary = listOf(
                         stringResource(Labels.urgency(severity)),
                         stringResource(if (anonymous) R.string.report_anonymous else R.string.report_named),
-                        if (zone.isNotEmpty()) vm.venue.zoneName(zone) else stringResource(R.string.report_zone_none),
+                        when {
+                            zone.isEmpty() -> stringResource(R.string.report_zone_none)
+                            zoneAge != null -> stringResource(R.string.report_zone_with_age, vm.venue.zoneName(zone), zoneAge)
+                            else -> vm.venue.zoneName(zone)
+                        },
                     ).joinToString(" · ")
                     InsetGroup(Modifier.padding(top = 20.dp)) {
                         GroupRow(
@@ -473,7 +481,8 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         GroupRow(
                             stringResource(R.string.report_zone),
                             subtitle = when {
-                                zone.isNotEmpty() -> if (autoZone?.id == zone) stringResource(R.string.map_source_gps).replaceFirstChar { it.uppercase() } else null
+                                zone.isNotEmpty() && autoZone?.id == zone -> stringResource(R.string.map_source_gps).replaceFirstChar { it.uppercase() }
+                                zone.isNotEmpty() -> zoneAge?.let { stringResource(R.string.report_zone_picked_ago, it) }
                                 // we have a GPS fix outside every zone: the position is still sent with the report
                                 position != null -> stringResource(R.string.report_zone_outside)
                                 else -> stringResource(R.string.report_zone_manual)
