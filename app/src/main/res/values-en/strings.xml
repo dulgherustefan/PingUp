@@ -687,6 +687,7 @@
     <string name="edition_anchors">Anchors heard</string>
     <string name="edition_anchors_silent">Anchors silent for over %1$d min</string>
     <string name="edition_anchor_row">Anchor %1$s, last heard</string>
+    <string name="edition_anchor_no_zone">—</string>
     <string name="edition_mobile_worked">Mobile data checks that worked</string>
     <string name="edition_mobile_no_data">Squares without mobile data</string>
     <string name="edition_delivery">Reports that reached the console, from reporters\' metrics</string>

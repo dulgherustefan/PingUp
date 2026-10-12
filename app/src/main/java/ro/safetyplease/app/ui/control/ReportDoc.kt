@@ -56,7 +56,7 @@ internal fun reportDoc(report: EditionReport, kind: String, res: Resources, venu
             add(DocLine(s(R.string.edition_anchors), n.anchors.size.toString()))
             add(DocLine(s(R.string.edition_anchors_silent, minutes(EditionReports.SILENT_ANCHOR_MS)), n.silentAnchors.size.toString()))
             for (anchor in n.silentAnchors) {
-                add(DocLine(s(R.string.edition_anchor_row, venue.zoneName(anchor.zone).ifEmpty { "—" }), recent.format(Date(anchor.lastHeardMs))))
+                add(DocLine(s(R.string.edition_anchor_row, venue.zoneName(anchor.zone).ifEmpty { s(R.string.edition_anchor_no_zone) }), recent.format(Date(anchor.lastHeardMs))))
             }
             if (n.mobileTested > 0) {
                 add(DocLine(s(R.string.edition_mobile_worked), s(R.string.edition_count_of, n.mobileWorked, n.mobileTested)))

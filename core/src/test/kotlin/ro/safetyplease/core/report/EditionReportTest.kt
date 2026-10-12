@@ -127,9 +127,24 @@ class EditionReportTest {
 
     @Test
     fun escalationsFollowTheRoutingDelays() {
-        assertEquals(4, report.real.widened)
+        assertEquals(3, report.real.widened)
         assertEquals(2, report.real.widenedToAll)
-        assertEquals(listOf(0, 2, 0, 1, 1, 2), report.real.rows.map { it.widened })
+        // F waited 61 s before its first close and 10 s after the reopen, never the time it spent closed
+        assertEquals(listOf(0, 2, 0, 0, 1, 2), report.real.rows.map { it.widened })
+    }
+
+    @Test
+    fun aLostFriendNeverWidensAndAReopenedIncidentWaitsFromTheReopen() {
+        val log = listOf(
+            report('g', t0, IncidentCategory.LOST_FRIEND, Severity.LOW, "A1"),
+            report('h', t0, IncidentCategory.MEDICAL, Severity.MEDIUM, "A1"),
+            decision('h', LogEvent.RESOLVE, t0 + 30_000),
+            decision('h', LogEvent.REOPEN, t0 + 20 * MIN),
+            decision('h', LogEvent.TAKE, t0 + 20 * MIN + 100_000),
+        )
+        val rows = EditionReports.rows(ModeLog(log), grid, t0, until)
+        assertEquals(listOf(0, 1), rows.map { it.widened })
+        assertEquals(listOf(0, 1), rows.map { it.reopened })
     }
 
     @Test

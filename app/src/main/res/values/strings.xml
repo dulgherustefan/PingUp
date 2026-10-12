@@ -707,6 +707,7 @@
     <string name="edition_anchors">Ancore auzite</string>
     <string name="edition_anchors_silent">Ancore tăcute de peste %1$d min</string>
     <string name="edition_anchor_row">Ancora %1$s, auzită ultima dată</string>
+    <string name="edition_anchor_no_zone">—</string>
     <string name="edition_mobile_worked">Probe de date mobile reușite</string>
     <string name="edition_mobile_no_data">Pătrate fără date mobile</string>
     <string name="edition_delivery">Rapoarte ajunse la consolă, din metricile raportorilor</string>

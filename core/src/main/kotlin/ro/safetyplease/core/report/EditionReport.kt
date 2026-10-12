@@ -7,6 +7,7 @@ import ro.safetyplease.core.control.LogEntry
 import ro.safetyplease.core.control.LogEvent
 import ro.safetyplease.core.control.MetricsJoin
 import ro.safetyplease.core.data.StaffIncident
+import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.incidents.Routing
 import ro.safetyplease.core.metrics.MeshSnapshot
 import ro.safetyplease.core.metrics.NetworkSample
@@ -194,16 +195,17 @@ object EditionReports {
     }
 
     fun rows(log: ModeLog, grid: SiteGrid, from: Long, until: Long): List<ReportRow> {
-        val reopens = log.entries.filter { it.event == LogEvent.REOPEN }.groupingBy { it.incidentId }.eachCount()
+        val byIncident = log.entries.filter { it.incidentId.isNotEmpty() }.groupBy { it.incidentId }
         return ConsoleView.cases(log.entries, log.incidents, grid).values
             .filter { it.report.at in from..until }
             .sortedBy { it.report.at }
-            .map { row(it, reopens[it.incidentId] ?: 0, until) }
+            .map { row(it, byIncident[it.incidentId].orEmpty(), grid, until) }
     }
 
-    private fun row(case: Case, reopened: Int, until: Long): ReportRow {
+    private fun row(case: Case, entries: List<LogEntry>, grid: SiteGrid, until: Long): ReportRow {
         val r = case.report
-        val waitedMs = (case.acknowledgedAt ?: case.closedAt ?: until) - r.reportedAt
+        // a lost friend never widens, as in Routing
+        val waitedMs = if (Priority.isInformational(r.category)) 0 else longestWait(case, entries, grid, until)
         return ReportRow(
             openedAt = r.at, grid = r.grid, category = r.category, severity = r.severity, fromStaff = r.fromStaff,
             outcome = outcome(case),
@@ -215,8 +217,29 @@ object EditionReports {
                 waitedMs >= Routing.WIDEN_AFTER_MS -> 1
                 else -> 0
             },
-            reopened = reopened, hops = r.hops,
+            reopened = entries.count { it.event == LogEvent.REOPEN }, hops = r.hops,
         )
+    }
+
+    /**
+     * The longest time nobody had it, as [Routing] counts it: from the report, or from the moment it opened again, to
+     * the moment a team had it or it closed; to [until] if that never came.
+     */
+    private fun longestWait(case: Case, entries: List<LogEntry>, grid: SiteGrid, until: Long): Long {
+        var since: Long? = case.report.reportedAt
+        var longest = 0L
+        for ((i, e) in entries.withIndex()) {
+            val open = ConsoleView.case(listOf(case.report) + entries.subList(0, i + 1), null, grid)?.state == CaseState.OPEN
+            val at = if (e.event == LogEvent.ACK && e.signedAt > 0) e.signedAt else e.at
+            val start = since
+            if (open && start == null) since = at
+            if (!open && start != null) {
+                longest = maxOf(longest, at - start)
+                since = null
+            }
+        }
+        val start = since
+        return if (start == null) longest else maxOf(longest, until - start)
     }
 
     private fun outcome(case: Case): Outcome = when (case.state) {
