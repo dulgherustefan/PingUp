@@ -92,6 +92,7 @@ import ro.safetyplease.app.ui.common.CategoryCircle
 import ro.safetyplease.app.ui.common.IncidentHeader
 import ro.safetyplease.app.ui.common.MapGlyph
 import ro.safetyplease.app.ui.common.MeButton
+import ro.safetyplease.app.ui.common.RadioProblemBanner
 import ro.safetyplease.app.ui.common.categoryIcon
 import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.app.ui.common.placeLine
@@ -131,6 +132,7 @@ import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title2
 import ro.safetyplease.app.ui.isOpen
 import ro.safetyplease.app.ui.rememberLocationRequest
+import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.Priority
@@ -243,8 +245,10 @@ private const val ACTIVE_REPORT_MS = 2 * 60 * 60_000L
  * of a staff report unfolded. The send button floats above the tab bar and rises above the keyboard while typing.
  */
 @Composable
-fun ReportScreen(vm: AppViewModel) {
+fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
+    val nearby by vm.nearby.collectAsStateWithLifecycle()
+    val gate = rememberRadioGate(vm, nearby.radio, onStartMesh)
     val position by vm.position.collectAsStateWithLifecycle()
     val spot by vm.spot.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -323,6 +327,8 @@ fun ReportScreen(vm: AppViewModel) {
                     .verticalScroll(scroll)
                     .padding(top = padding.calculateTopPadding(), bottom = if (typing) FadeZone + 8.dp else footer + 8.dp),
             ) {
+                // a report written now would only wait on this phone; say so before it's written
+                RadioProblemBanner(gate, Modifier.padding(horizontal = Gutter, vertical = 8.dp), forReport = true)
                 if (active != null) {
                     SectionTitle(stringResource(R.string.report_active), top = 8.dp)
                     InsetGroup(Modifier.padding(bottom = 24.dp)) {
@@ -732,8 +738,10 @@ private fun reportSubtitle(vm: AppViewModel, report: MyReport): String =
  * While no phone has taken the report, or an urgent one has gone unconfirmed too long, it says what to do meanwhile.
  */
 @Composable
-fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
+fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Unit) {
     val incidents by vm.incidents.collectAsStateWithLifecycle()
+    val nearby by vm.nearby.collectAsStateWithLifecycle()
+    val gate = rememberRadioGate(vm, nearby.radio, onStartMesh)
     val position by vm.position.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val report = incidents.mine.firstOrNull { it.incidentId == incidentId }
@@ -791,6 +799,8 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String) {
                     style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
                 )
+                // "it leaves on its own" holds only while the radio can send
+                if (waiting) RadioProblemBanner(gate, Modifier.padding(start = Gutter, end = Gutter, top = 20.dp), forReport = true)
                 if (report.responses.isNotEmpty()) Responses(vm, report)
                 if (escalated) {
                     Banner(

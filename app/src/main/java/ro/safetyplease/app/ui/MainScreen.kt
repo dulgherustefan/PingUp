@@ -309,7 +309,7 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         is Dest.Profile -> ProfileScreen(vm, dest.conversation)
         Dest.AddFriend -> AddFriendScreen(vm)
         Dest.NewGroup -> NewGroupScreen(vm)
-        is Dest.ReportSent -> ReportSentScreen(vm, dest.incidentId)
+        is Dest.ReportSent -> ReportSentScreen(vm, dest.incidentId, onStartMesh)
         Dest.MyReports -> MyReportsScreen(vm)
         Dest.Discreet -> DiscreetScreen(vm)
         Dest.StaffCodes -> StaffCodesScreen(vm)
@@ -384,7 +384,7 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
                     tabs.SaveableStateProvider(tab.name) {
                         when (tab) {
                             Tab.MESSAGES -> MessagesScreen(vm, onStartMesh)
-                            Tab.REPORT -> ReportScreen(vm)
+                            Tab.REPORT -> ReportScreen(vm, onStartMesh)
                             Tab.MAP -> MapScreen(vm, Dest.Map(), asTab = true)
                             Tab.INCIDENTS -> IncidentsScreen(vm)
                         }

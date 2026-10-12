@@ -1,7 +1,5 @@
 package ro.safetyplease.app.ui.chat
 
-import android.content.Intent
-import android.provider.Settings
 import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.snap
@@ -58,7 +56,9 @@ import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.RadioGate
+import ro.safetyplease.app.ui.common.RadioProblemBanner
 import ro.safetyplease.app.ui.common.networkText
+import ro.safetyplease.app.ui.common.problem
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.Avatar
@@ -220,20 +220,7 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate, batteryDismissed: Boolean, modifier: Modifier) {
     val context = LocalContext.current
     when {
-        !gate.hasAccess -> Banner(
-            stringResource(R.string.problem_access_title), stringResource(R.string.problem_access_text), modifier, warning = true,
-            action = stringResource(if (gate.accessBlocked) R.string.open_settings else R.string.problem_access_action),
-            onAction = gate.requestAccess,
-        )
-        !gate.bluetoothOn -> Banner(
-            stringResource(R.string.status_bt_off), stringResource(R.string.problem_bt_text), modifier, warning = true,
-            action = stringResource(R.string.status_bt_enable), onAction = gate.enableBluetooth,
-        )
-        gate.locationOff -> Banner(
-            stringResource(R.string.problem_location_title), stringResource(R.string.problem_location_text), modifier, warning = true,
-            action = stringResource(R.string.problem_location_action),
-            onAction = { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) },
-        )
+        gate.problem() != null -> RadioProblemBanner(gate, modifier)
         radio.bluetoothOn && !radio.canAdvertise -> Banner(
             stringResource(R.string.problem_leaf_title), stringResource(R.string.problem_leaf_text), modifier,
         )

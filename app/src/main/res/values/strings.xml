@@ -77,6 +77,9 @@
     <string name="problem_battery_text">Scoate aplicația din economisirea bateriei, ca mesajele să ajungă și cu ecranul stins.</string>
     <string name="problem_battery_action">Permite rularea în fundal</string>
     <string name="problem_dismiss">Am înțeles</string>
+    <string name="report_wait_access">Raportul nu poate pleca fără acces la Bluetooth.</string>
+    <string name="report_wait_bluetooth">Raportul pleacă imediat ce îl pornești.</string>
+    <string name="report_wait_location">Pe acest Android, raportul pleacă doar cu locația pornită.</string>
 
     <string name="onboarding_welcome">Mesaje fără semnal</string>
     <string name="onboarding_intro">Scrii prietenilor și chemi ajutor chiar când rețeaua cade. Mesajele sar din telefon în telefon, prin Bluetooth.</string>
