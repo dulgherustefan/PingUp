@@ -667,4 +667,36 @@
         <item>Alocat</item>
         <item>Închis</item>
     </string-array>
+    <!-- event packs and exercises -->
+    <string name="exercise_banner">EXERCIȚIU</string>
+    <string name="exercise_title">EXERCIȚIU · %1$s</string>
+    <string name="event_title">Eveniment</string>
+    <string name="event_bundled">Harta din aplicație</string>
+    <string name="event_bundled_text">Fără pachet de eveniment</string>
+    <string name="event_real">Eveniment real</string>
+    <string name="event_exercise">Exercițiu</string>
+    <string name="event_pack_line">%1$s · versiunea %2$d · până la %3$s</string>
+    <string name="event_packs">Pachetele de pe telefon</string>
+    <string name="event_in_use">Folosit acum</string>
+    <string name="event_load_file">Încarcă din fișier</string>
+    <string name="event_load_link">Încarcă de la un link</string>
+    <string name="event_load_hint">Organizatorul publică pachetul înainte de festival. La intrare, codul QR de pe afiș doar alege un pachet pe care îl ai deja.</string>
+    <string name="event_link_placeholder">https://…</string>
+    <string name="event_load">Încarcă</string>
+    <string name="event_switch_title">Folosești alt eveniment?</string>
+    <string name="event_switch_text">Aplicația repornește cu harta, fișele și cheile lui. Rolul de staff revine doar dacă ai cod pentru evenimentul acesta.</string>
+    <string name="event_switch">Repornește</string>
+    <string name="event_switch_exercise_text">E un exercițiu: tot ce vezi are banda EXERCIȚIU și nicio alertă nu sună. Rapoartele reale nu se deschid pe telefonul acesta până revii la evenimentul real.</string>
+    <string name="event_remove">Șterge pachetul</string>
+    <string name="event_remove_text">Pachetul dispare de pe telefon. Îl poți încărca din nou oricând.</string>
+    <string name="event_loaded">Pachetul e pe telefon. Alege-l din listă ca să-l folosești.</string>
+    <string name="event_known">Ai deja pachetul acesta.</string>
+    <string name="event_older">Ai deja o versiune mai nouă a acestui eveniment.</string>
+    <string name="event_shared_key">Exercițiul folosește cheile unui eveniment real, așa că nu e încărcat.</string>
+    <string name="event_malformed">Fișierul nu e un pachet de eveniment.</string>
+    <string name="event_tampered">Pachetul a fost schimbat după ce l-a semnat organizatorul. Nu e încărcat.</string>
+    <string name="event_wrong_chain">Pachetul nu e semnat de un organizator verificat de %1$s. Nu e încărcat.</string>
+    <string name="event_not_yet">Pachetul nu e valabil încă. Verifică ceasul telefonului.</string>
+    <string name="event_expired">Evenimentul acestui pachet s-a încheiat.</string>
+    <string name="event_download_failed">Pachetul nu s-a putut descărca. Linkul trebuie să înceapă cu https://.</string>
 </resources>

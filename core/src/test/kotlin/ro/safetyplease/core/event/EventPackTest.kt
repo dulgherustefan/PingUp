@@ -120,6 +120,12 @@ class EventPackTest {
     }
 
     @Test
+    fun anOrganiserCertifiedAfterTheDayBeganStillSignsIt() {
+        val late = issue(CertRole.ORGANISER, organiser.publicKey, root, t0 - 600, t0 + 365 * day, "Fest SRL")
+        assertEquals(PackStatus.VALID, Event(byCert = late).check().status)
+    }
+
+    @Test
     fun aChangedPackIsTampered() {
         val event = Event()
         val signed = event.text()
@@ -243,6 +249,14 @@ class EventPackTest {
         assertEquals("console_log.json", modeFileName("console_log.json", EventKind.REAL))
         assertEquals("console_log_exercise.json", modeFileName("console_log.json", EventKind.EXERCISE))
         assertEquals("incidents_exercise.json", modeFileName("incidents.json", EventKind.EXERCISE))
+        assertEquals("shift_exercise", modeFileName("shift", EventKind.EXERCISE))
+    }
+
+    @Test
+    fun aPackFileIsReadUpToItsLimit() {
+        val text = Event().text()
+        assertEquals(text, EventPacks.read(text.byteInputStream()))
+        assertNull(EventPacks.read(ByteArray(EventPacks.MAX_BYTES + 1).inputStream()))
     }
 
     @Test

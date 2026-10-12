@@ -83,6 +83,7 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.ui.chat.ConversationScreen
 import ro.safetyplease.app.ui.chat.MessagesScreen
+import ro.safetyplease.app.ui.common.ExerciseBanner
 import ro.safetyplease.app.ui.common.RadioGate
 import ro.safetyplease.app.ui.control.ControlScreen
 import ro.safetyplease.app.ui.control.ControlWindow
@@ -105,6 +106,7 @@ import ro.safetyplease.app.ui.firstaid.FirstAidSheetScreen
 import ro.safetyplease.app.ui.map.MapScreen
 import ro.safetyplease.app.ui.map.PinScreen
 import ro.safetyplease.app.ui.me.AnchorScreen
+import ro.safetyplease.app.ui.me.EventScreen
 import ro.safetyplease.app.ui.me.MeScreen
 import ro.safetyplease.app.ui.onboarding.OnboardingScreen
 import ro.safetyplease.app.ui.people.AddFriendScreen
@@ -251,6 +253,7 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
                 }
             }
         }
+        if (vm.c.exercise) ExerciseBanner()
     }
 }
 
@@ -268,6 +271,7 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         Dest.MyReports -> MyReportsScreen(vm)
         is Dest.Incident -> IncidentDetailScreen(vm, dest.id)
         Dest.Me -> MeScreen(vm, onStartMesh)
+        Dest.Event -> EventScreen(vm)
         Dest.Demo -> Demo.Screen(vm)
         is Dest.Pin -> PinScreen(vm, dest)
         is Dest.Map -> MapScreen(vm, dest)

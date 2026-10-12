@@ -28,9 +28,13 @@ import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.incidents.AlertReason
 import ro.safetyplease.core.venue.Venue
 
+/**
+ * The app's notifications. In an [exercise] every title says so and no alert sounds the alarm: the insistent level
+ * vibrates only.
+ */
 // Every notify() is preceded by canPost(); lint can't see a permission check made in a helper.
 @SuppressLint("MissingPermission")
-class Notifier(private val context: Context, private val venue: Venue) {
+class Notifier(private val context: Context, private val venue: Venue, private val exercise: Boolean) {
     private val manager = NotificationManagerCompat.from(context)
 
     init {
@@ -78,6 +82,8 @@ class Notifier(private val context: Context, private val venue: Venue) {
         )
     }
 
+    private fun marked(title: String): String = if (exercise) context.getString(R.string.exercise_title, title) else title
+
     fun foreground(links: Int, anchor: Boolean): Notification {
         val text = when {
             links == 0 -> context.getString(R.string.notif_mesh_searching)
@@ -85,7 +91,7 @@ class Notifier(private val context: Context, private val venue: Venue) {
         }
         val builder = NotificationCompat.Builder(context, CHANNEL_MESH)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(if (anchor) R.string.notif_mesh_title_anchor else R.string.notif_mesh_title))
+            .setContentTitle(marked(context.getString(if (anchor) R.string.notif_mesh_title_anchor else R.string.notif_mesh_title)))
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -145,7 +151,7 @@ class Notifier(private val context: Context, private val venue: Venue) {
         }
         val level = post.route.level
         val channel = when (level) {
-            AlertLevel.INSISTENT -> CHANNEL_ALARM
+            AlertLevel.INSISTENT -> if (exercise) CHANNEL_VIBRATE else CHANNEL_ALARM
             AlertLevel.VIBRATE -> CHANNEL_VIBRATE
             else -> CHANNEL_INCIDENT
         }
@@ -153,13 +159,13 @@ class Notifier(private val context: Context, private val venue: Venue) {
         val open = open(MainActivity.OPEN_INCIDENTS, id)
         val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
+            .setContentTitle(marked(title))
             .setContentText(if (incident.description.isEmpty()) zone else "$zone · ${incident.description}")
             .setAutoCancel(true)
             .setContentIntent(open)
             .setPriority(if (level == AlertLevel.NOTIFY) NotificationCompat.PRIORITY_DEFAULT else NotificationCompat.PRIORITY_HIGH)
             .setSilent(post.silent)
-        if (level == AlertLevel.INSISTENT) builder.setCategory(NotificationCompat.CATEGORY_ALARM)
+        if (level == AlertLevel.INSISTENT && !exercise) builder.setCategory(NotificationCompat.CATEGORY_ALARM)
         if (post.fullScreen) builder.setFullScreenIntent(open, true)
         manager.notify(id, builder.build())
     }
@@ -187,12 +193,12 @@ class Notifier(private val context: Context, private val venue: Venue) {
             val call = PendingIntent.getActivity(
                 context, id, Emergency.dialIntent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE,
             )
-            builder.setContentTitle(context.getString(R.string.report_escalate_title))
+            builder.setContentTitle(marked(context.getString(R.string.report_escalate_title)))
                 .setContentText(advice)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(listOfNotNull(advice, status).joinToString("\n")))
                 .addAction(R.drawable.ic_phone, context.getString(R.string.emergency_call), call)
         } else {
-            builder.setContentTitle(context.getString(R.string.notif_report_title)).setContentText(status)
+            builder.setContentTitle(marked(context.getString(R.string.notif_report_title))).setContentText(status)
         }
         manager.notify(id, builder.build())
     }

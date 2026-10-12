@@ -56,6 +56,9 @@ sealed interface Dest {
     /** Your profile and settings. */
     data object Me : Dest
     data object Demo : Dest
+
+    /** The event packs on this phone and the one in use. */
+    data object Event : Dest
     data class Pin(val lat: Double?, val lon: Double?, val zone: String, val label: String) : Dest
 
     /**
@@ -270,6 +273,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 CertStatus.OUTSIDE_WINDOW -> ScanOutcome.NotNow
                 CertStatus.UNKNOWN, CertStatus.FORGED -> ScanOutcome.WrongEvent
             }
+        }
+        QrCodes.decodeEventGate(text)?.let { hash ->
+            // the gate code only picks a pack loaded before; using it restarts the app
+            c.events.value.byHash(hash)?.takeIf(c::usable)?.let { c.switchEvent(it.hash) }
+            return ScanOutcome.Unknown
         }
         QrCodes.decodeRevocation(text)?.let { payload ->
             return if (c.applyRevocation(payload) != null) ScanOutcome.RevocationsApplied else ScanOutcome.WrongEvent

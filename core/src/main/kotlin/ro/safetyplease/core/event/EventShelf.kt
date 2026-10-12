@@ -64,6 +64,11 @@ data class EventShelf(val packs: List<StoredPack> = emptyList(), val active: Str
         active()?.let { EventPacks.check(it.text, crypto, root, now).pack }
 }
 
-/** An exercise keeps its incidents, its store-and-forward cache and its console log in files of its own. */
-fun modeFileName(name: String, kind: EventKind?): String =
-    if (kind != EventKind.EXERCISE) name else name.substringBeforeLast('.') + "_exercise." + name.substringAfterLast('.')
+/** An exercise keeps its incidents, store-and-forward cache, console log and staff keys under names of their own. */
+fun modeFileName(name: String, kind: EventKind?): String {
+    if (kind != EventKind.EXERCISE) return name
+    val dot = name.lastIndexOf('.')
+    return if (dot < 0) name + EXERCISE_SUFFIX else name.substring(0, dot) + EXERCISE_SUFFIX + name.substring(dot)
+}
+
+private const val EXERCISE_SUFFIX = "_exercise"

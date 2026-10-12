@@ -2,11 +2,15 @@ package ro.safetyplease.app
 
 import android.app.ActivityManager
 import android.app.Application
+import android.content.ComponentName
+import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
 import com.goterl.lazysodium.LazySodiumAndroid
 import com.goterl.lazysodium.SodiumAndroid
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.security.SecureRandom
 import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +25,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -61,6 +66,13 @@ import ro.safetyplease.core.data.IncidentData
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
+import ro.safetyplease.core.event.EventPack
+import ro.safetyplease.core.event.EventPacks
+import ro.safetyplease.core.event.EventShelf
+import ro.safetyplease.core.event.Loaded
+import ro.safetyplease.core.event.PackStatus
+import ro.safetyplease.core.event.StoredPack
+import ro.safetyplease.core.event.modeFileName
 import ro.safetyplease.core.incidents.AlertPlanner
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.Routing
@@ -104,14 +116,29 @@ class AppContainer(private val app: Application) {
     val friends = JsonStore(File(dataDir, "friends.json"), ListSerializer(Friend.serializer()), emptyList(), ioScope)
     val groups = JsonStore(File(dataDir, "groups.json"), ListSerializer(Group.serializer()), emptyList(), ioScope)
     val chatStore = ChatStore(dataDir, ioScope)
-    val incidentStore = JsonStore(File(dataDir, "incidents.json"), IncidentData.serializer(), IncidentData(), ioScope)
 
-    val venue: Venue = Venue.parse(asset("venue.json"), AppLocale.language(app))
-    val grid = SiteGrid.of(venue.bounds)
+    /** The event packs loaded on this phone and the one in use. */
+    val events = JsonStore(File(dataDir, "events.json"), EventShelf.serializer(), EventShelf(), ioScope)
+    private val bundledKeys = Json.parseToJsonElement(asset("staff_public.json")).jsonObject
+    private val root: ByteArray? = bundledKeys["root"]?.jsonPrimitive?.content?.hexToBytes()
+
+    /**
+     * The event in use, checked again at every start; null for the venue and keys the app ships, also once the
+     * active pack's event is over. Switching events restarts the app, so everything below is built for one event.
+     */
+    val event: EventPack? = events.value.activePack(crypto, root, clock.wallMs() / 1000)
+
+    /** An exercise: banner on every screen, no alarm sound, and its own incidents, cache, console log and staff keys. */
+    val exercise: Boolean = event?.exercise == true
+
+    val incidentStore = JsonStore(modeFile("incidents.json"), IncidentData.serializer(), IncidentData(), ioScope)
+
+    val venue: Venue = Venue.parse(event?.venue ?: asset("venue.json"), AppLocale.language(app))
+    val grid = SiteGrid.of(venue.bounds, event?.gridMeters ?: SiteGrid.CELL_METERS)
 
     /** The control console's shift log; written only while this phone is the console. */
     val consoleLog = JsonStore(
-        File(dataDir, "console_log.json"), ConsoleLog.serializer(), ConsoleLog(), ioScope, ConsoleLog.SCHEMA_VERSION,
+        modeFile("console_log.json"), ConsoleLog.serializer(), ConsoleLog(), ioScope, ConsoleLog.SCHEMA_VERSION,
     )
     val console = ConsoleRecorder(consoleLog, grid, clock) { id -> incidentStore.value.staff.firstOrNull { it.incidentId == id } }
 
@@ -136,15 +163,18 @@ class AppContainer(private val app: Application) {
     val staffCrypto: StaffCrypto
 
     init {
-        val json = Json.parseToJsonElement(asset("staff_public.json")).jsonObject
-        fun hex(name: String) = json.getValue(name).jsonPrimitive.content.hexToBytes()
+        fun hex(name: String) = bundledKeys.getValue(name).jsonPrimitive.content.hexToBytes()
         fun certificates(name: String) =
-            json[name]?.jsonArray.orEmpty().mapNotNull { Certificate.decode(it.jsonPrimitive.content.hexToBytes()) }
-        val public = StaffPublicKeys(hex("box"), hex("sign"))
-        val root = json["root"]?.jsonPrimitive?.content?.hexToBytes()
-        keyChain = KeyChain(crypto, clock, public.sign, root, certificates("chain"), certificates("reportKeys"))
+            bundledKeys[name]?.jsonArray.orEmpty().mapNotNull { Certificate.decode(it.jsonPrimitive.content.hexToBytes()) }
+        val bundled = StaffPublicKeys(hex("box"), hex("sign"))
+        val public = event?.publicKeys(bundled) ?: bundled
+        val issuers = event?.issuers ?: certificates("chain")
+        keyChain = KeyChain(crypto, clock, public.sign, root, issuers, event?.reportKeys ?: certificates("reportKeys"))
         staffCrypto = StaffCrypto(crypto, public, keyChain)
     }
+
+    private val vaultStaff = modeFileName(VAULT_STAFF, event?.kind)
+    private val vaultShift = modeFileName(VAULT_SHIFT, event?.kind)
 
     @Volatile
     var staffSecret: StaffSecretKeys? = loadStaffSecret()
@@ -154,7 +184,7 @@ class AppContainer(private val app: Application) {
     val radio = BleRadio(app, meshScope, identity.nodeId) { Log.i(TAG, it) }
 
     /** The reports and ACKs this phone carries for store-and-forward, so a restart doesn't lose them. */
-    private val meshCache = JsonStore(File(dataDir, "mesh_cache.json"), CachedIncidents.serializer(), CachedIncidents(), ioScope)
+    private val meshCache = JsonStore(modeFile("mesh_cache.json"), CachedIncidents.serializer(), CachedIncidents(), ioScope)
 
     val engine = MeshEngine(
         meshScope, radio, clock, SecureRandom().asKotlinRandom(), identity.nodeId,
@@ -163,7 +193,7 @@ class AppContainer(private val app: Application) {
         keyChain,
     )
 
-    val notifier = Notifier(app, venue)
+    val notifier = Notifier(app, venue, exercise)
     val location = LocationSource(app)
 
     /** Until when (monotonic) scanning and advertising stay at LOW_LATENCY after an incident is sent. */
@@ -332,14 +362,14 @@ class AppContainer(private val app: Application) {
     /** False if the QR belongs to another event. Anchors don't keep the secret keys, since they sit unattended. */
     fun activateStaff(card: StaffCard): Boolean {
         val secret = staffCrypto.secretFromSeeds(card.boxSeed, card.signSeed) ?: return false
-        vault.delete(VAULT_SHIFT)
+        vault.delete(vaultShift)
         keyChain.credential = null
         if (card.role == StaffRole.ANCHOR) {
-            vault.delete(VAULT_STAFF)
+            vault.delete(vaultStaff)
             staffSecret = null
             settings.update { it.copy(role = Role.ANCHOR, teamName = card.teamName, anchorZone = card.zone, staffZone = "", roleLead = false) }
         } else {
-            vault.save(VAULT_STAFF, card.boxSeed + card.signSeed)
+            vault.save(vaultStaff, card.boxSeed + card.signSeed)
             staffSecret = secret
             val role = if (card.role == StaffRole.CONTROL) Role.CONTROL else Role.STAFF
             settings.update { it.copy(role = role, teamName = card.teamName, anchorZone = "", staffZone = card.zone, roleLead = false) }
@@ -356,33 +386,73 @@ class AppContainer(private val app: Application) {
         val status = keyChain.status(card.certificate)
         if (status != CertStatus.VALID) return status
         val (credential, secret) = staffCrypto.credentialFrom(card) ?: return CertStatus.UNKNOWN
-        vault.delete(VAULT_STAFF)
-        vault.save(VAULT_SHIFT, text.trim().toByteArray())
+        vault.delete(vaultStaff)
+        vault.save(vaultShift, text.trim().toByteArray())
         keyChain.credential = credential
         card.reportKey?.let(keyChain::addReportKey)
         staffSecret = secret
+        settings.update { it.onShift(card).copy(roleLead = false) }
+        if (secret != null) incidents.reprocessCached()
+        return CertStatus.VALID
+    }
+
+    private fun Settings.onShift(card: ShiftCard): Settings {
         val role = when (card.role) {
             StaffRole.ANCHOR -> Role.ANCHOR
             StaffRole.CONTROL -> Role.CONTROL
             StaffRole.STAFF -> Role.STAFF
         }
-        settings.update {
-            val anchor = role == Role.ANCHOR
-            it.copy(
-                role = role, teamName = card.teamName, anchorZone = if (anchor) card.zone else "", staffZone = if (anchor) "" else card.zone,
-                roleLead = false,
-            )
-        }
-        if (secret != null) incidents.reprocessCached()
-        return CertStatus.VALID
+        val anchor = role == Role.ANCHOR
+        return copy(role = role, teamName = card.teamName, anchorZone = if (anchor) card.zone else "", staffZone = if (anchor) "" else card.zone)
     }
+
+    /** Checks a pack and keeps it; it is used only once selected. */
+    fun loadEventPack(text: String): Loaded {
+        var loaded: Loaded? = null
+        events.update { shelf -> shelf.load(text, crypto, root, clock.wallMs() / 1000).also { loaded = it.second }.first }
+        return loaded!!
+    }
+
+    /** A pack from an https link, as the organiser publishes it before the event; null if it can't be fetched. */
+    suspend fun downloadEventPack(link: String): String? = withContext(Dispatchers.IO) {
+        val url = runCatching { URL(link.trim()) }.getOrNull()?.takeIf { it.protocol == "https" } ?: return@withContext null
+        runCatching {
+            val connection = url.openConnection() as HttpURLConnection
+            connection.connectTimeout = DOWNLOAD_TIMEOUT_MS
+            connection.readTimeout = DOWNLOAD_TIMEOUT_MS
+            try {
+                if (connection.responseCode != HttpURLConnection.HTTP_OK) return@runCatching null
+                connection.inputStream.use(EventPacks::read)
+            } finally {
+                connection.disconnect()
+            }
+        }.getOrNull()
+    }
+
+    /**
+     * Makes [hash] the event in use, empty for what the app ships, and restarts the app to load it. The phone leaves
+     * its role here; the keys of each kind of event stay, and the shift it holds for the next one comes back on start.
+     */
+    fun switchEvent(hash: String) {
+        events.update { it.select(hash) }
+        events.flush()
+        settings.update { it.copy(role = Role.PARTICIPANT, teamName = "", anchorZone = "", staffZone = "", roleLead = false) }
+        settings.flush()
+        app.startActivity(Intent.makeRestartActivityTask(ComponentName(app, MainActivity::class.java)))
+        Runtime.getRuntime().exit(0)
+    }
+
+    fun removeEventPack(hash: String) = events.update { it.without(hash) }
+
+    /** The pack still holds now, so switching to it loads it. */
+    fun usable(pack: StoredPack): Boolean = EventPacks.check(pack.text, crypto, root, clock.wallMs() / 1000).status == PackStatus.VALID
 
     /** An SPR1 code: the certificate ids it newly revokes, or null if this event's keys didn't sign it. */
     fun applyRevocation(payload: ByteArray): List<Long>? = revocations.add(payload)
 
     fun leaveStaff() {
-        vault.delete(VAULT_STAFF)
-        vault.delete(VAULT_SHIFT)
+        vault.delete(vaultStaff)
+        vault.delete(vaultShift)
         keyChain.credential = null
         staffSecret = null
         mutedUntil.value = 0
@@ -393,6 +463,8 @@ class AppContainer(private val app: Application) {
         app.getSystemService(ActivityManager::class.java).clearApplicationUserData()
     }
 
+    private fun modeFile(name: String) = File(dataDir, modeFileName(name, event?.kind))
+
     private fun asset(name: String): String = app.assets.open(name).bufferedReader().use { it.readText() }
 
     private fun loadIdentity(): Identity {
@@ -401,14 +473,16 @@ class AppContainer(private val app: Application) {
     }
 
     private fun loadStaffSecret(): StaffSecretKeys? {
-        vault.load(VAULT_SHIFT)?.let { text ->
+        vault.load(vaultShift)?.let { text ->
             val card = QrCodes.decodeShift(String(text)) ?: return null
             val (credential, secret) = staffCrypto.credentialFrom(card) ?: return null
             keyChain.credential = credential
             card.reportKey?.let(keyChain::addReportKey)
+            // after a switch of events: the shift this phone holds for the one now in use
+            if (settings.value.role == Role.PARTICIPANT) settings.update { it.onShift(card) }
             return secret
         }
-        val seeds = vault.load(VAULT_STAFF) ?: return null
+        val seeds = vault.load(vaultStaff) ?: return null
         if (seeds.size != 2 * Crypto.SEED) return null
         return staffCrypto.secretFromSeeds(seeds.copyOfRange(0, Crypto.SEED), seeds.copyOfRange(Crypto.SEED, seeds.size))
     }
@@ -419,5 +493,6 @@ class AppContainer(private val app: Application) {
         private const val VAULT_STAFF = "staff"
         private const val VAULT_SHIFT = "shift"
         private const val SHIFT_CHECK_MS = 60_000L
+        private const val DOWNLOAD_TIMEOUT_MS = 20_000
     }
 }

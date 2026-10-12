@@ -151,6 +151,11 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 if (settings.role != AppRole.PARTICIPANT || vm.demoUnlocked) PilotGroup(vm, settings.role, settings.networkLog) { confirmMetrics = true }
 
                 InsetGroup {
+                    GroupRow(
+                        stringResource(R.string.event_title), icon = Sym.Flag, chevron = true, onClick = { vm.open(Dest.Event) },
+                        value = vm.c.event?.let { it.name.ifEmpty { it.id } } ?: stringResource(R.string.event_bundled),
+                    )
+                    GroupDivider()
                     GroupRow(stringResource(R.string.first_aid_title), icon = Sym.Medical, chevron = true, onClick = { vm.open(Dest.FirstAid) })
                 }
 

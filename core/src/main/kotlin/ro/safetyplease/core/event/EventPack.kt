@@ -22,6 +22,8 @@ import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.utf8
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 
 /** A real event, or an exercise: everything opened under an exercise pack is marked and never sounds a live alarm. */
 enum class EventKind(val code: String) { REAL("real"), EXERCISE("exercise") }
@@ -71,6 +73,19 @@ object EventPacks {
 
     fun signedMessage(body: String): ByteArray = DOMAIN + body.utf8()
 
+    /** A pack file as text, or null past [MAX_BYTES]: a file that big isn't a pack. */
+    fun read(input: InputStream): String? {
+        val out = ByteArrayOutputStream()
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val n = input.read(buffer)
+            if (n < 0) break
+            if (out.size() + n > MAX_BYTES) return null
+            out.write(buffer, 0, n)
+        }
+        return out.toString(Charsets.UTF_8.name())
+    }
+
     fun hashOf(body: String): ByteArray = sha256(body.utf8())
 
     /**
@@ -91,13 +106,12 @@ object EventPacks {
             else -> return PackCheck(PackStatus.WRONG_CHAIN)
         }
         if (!crypto.verify(signature, signedMessage(body), pack.organiser.key)) return PackCheck(PackStatus.TAMPERED)
+        // each key is checked at the moment of its window nearest to now; days already over don't matter any more
+        fun holds(cert: Certificate) = chain.status(cert, now.coerceIn(cert.validFrom, cert.validUntil)) == CertStatus.VALID
         val event = pack.event
-        if (event.role != CertRole.EVENT || chain.status(event, now.coerceIn(event.validFrom, event.validUntil)) != CertStatus.VALID) {
-            return PackCheck(PackStatus.WRONG_CHAIN)
-        }
-        if (pack.reportKeys.any { it.role != CertRole.REPORT_KEY || chain.status(it, it.validFrom) != CertStatus.VALID }) {
-            return PackCheck(PackStatus.WRONG_CHAIN)
-        }
+        if (event.role != CertRole.EVENT || !holds(event)) return PackCheck(PackStatus.WRONG_CHAIN)
+        val current = pack.reportKeys.filter { it.validUntil + KeyChain.SKEW_S >= now }
+        if (current.any { it.role != CertRole.REPORT_KEY || !holds(it) }) return PackCheck(PackStatus.WRONG_CHAIN)
         if (now < pack.validFrom - KeyChain.SKEW_S) return PackCheck(PackStatus.NOT_YET)
         if (now > minOf(pack.validUntil, event.validUntil) + KeyChain.SKEW_S) return PackCheck(PackStatus.EXPIRED)
         return PackCheck(PackStatus.VALID, pack)

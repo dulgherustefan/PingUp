@@ -67,7 +67,7 @@ private const val DEA_WORD = "DEA"
  */
 @Composable
 fun FirstAidScreen(vm: AppViewModel) {
-    val sheets = rememberSheets()
+    val sheets = rememberSheets(vm)
     FirstAidScaffold(vm) {
         Text(
             stringResource(R.string.first_aid_intro), style = MaterialTheme.typography.subheadline, color = AppTheme.colors.secondaryLabel,
@@ -87,7 +87,7 @@ fun FirstAidScreen(vm: AppViewModel) {
 /** One sheet: when it applies, the draft notice until it is approved, the numbered steps and the warnings. */
 @Composable
 fun FirstAidSheetScreen(vm: AppViewModel, id: String) {
-    val sheet = rememberSheets().firstOrNull { it.id == id }
+    val sheet = rememberSheets(vm).firstOrNull { it.id == id }
     if (sheet == null) {
         LaunchedEffect(Unit) { vm.back() }
         return
@@ -144,9 +144,11 @@ private fun FirstAidScaffold(vm: AppViewModel, content: @Composable () -> Unit) 
 }
 
 @Composable
-private fun rememberSheets(): List<FirstAidSheet> {
+private fun rememberSheets(vm: AppViewModel): List<FirstAidSheet> {
     val assets = LocalContext.current.assets
-    return remember(assets) { loadSheets(assets) }
+    // the event pack's sheets, approved by its medical lead, replace the ones the app ships
+    val pack = vm.c.event?.firstAid.orEmpty()
+    return remember(assets) { if (pack.isEmpty()) loadSheets(assets) else readSheets(pack.keys.toList(), pack::getValue) }
 }
 
 /** Shown on every sheet the event's medical lead has not approved yet. */
