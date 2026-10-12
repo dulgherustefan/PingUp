@@ -1,6 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.CInteropProcess
 import org.jetbrains.kotlin.konan.target.HostManager
+import java.time.Duration
 
 // App logic without Android: protocol, mesh, crypto, chat, incidents and the event map.
 // Kotlin Multiplatform: app/ uses the JVM target, where most tests run; the iOS targets are the same code for the
@@ -61,6 +62,26 @@ kotlin {
 }
 
 tasks.withType<CInteropProcess>().configureEach { dependsOn(buildLibsodium) }
+
+// The tests read the golden vectors and the app's assets by path: the iPhone simulator runs them off the Mac's disk too
+val testEnvironment = tasks.register("testEnvironment") {
+    val root = rootDir.absolutePath
+    val output = layout.buildDirectory.dir("generated/testEnvironment")
+    inputs.property("root", root)
+    outputs.dir(output)
+    doLast {
+        val file = output.get().file("ro/safetyplease/core/TestEnvironment.kt").asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            "package ro.safetyplease.core\n\n/** Where the repository is on the machine that built the tests. */\n" +
+                "internal const val REPO_ROOT = \"" + root.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\"\n",
+        )
+    }
+}
+kotlin.sourceSets.commonTest { kotlin.srcDir(testEnvironment) }
+
+// kotlin.test has no per-test timeout as JUnit had: a test stuck in a loop fails the run here instead of holding CI
+tasks.withType<AbstractTestTask>().configureEach { timeout.set(Duration.ofMinutes(15)) }
 
 // `./gradlew test`, as CI and the release workflow run it, keeps running the JVM tests here
 tasks.register("test") {

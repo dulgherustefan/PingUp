@@ -40,7 +40,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `venue/` | Harta evenimentului din `venue.json` sau din pachetul de eveniment: zone, punct de întâlnire, grila sitului (A1, B2...). |
 | `util/` | Octeți, hex, `sha256`, ceasul. |
 
-Testele de aici rulează pe JVM simplu, fără emulator (`./gradlew :core:test`). Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.
+Testele de aici stau în `commonTest` și rulează pe JVM, fără emulator (`./gradlew :core:test`); pe un Mac rulează și pe simulatorul de iPhone (`./gradlew :core:iosSimulatorArm64Test`). Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.
 
 ## `:app`: Android și interfața
 
@@ -84,7 +84,7 @@ Totul rămâne pe telefon, nimic nu circulă pe mesh. `BatteryMonitor` (`platfor
 
 ## Unde pun cod nou
 
-- Un tip de pachet nou sau o regulă de rutare: `core/protocol/` sau `core/mesh/`, cu test în `core/src/test/`. Dacă se schimbă octeții de pe fir, se actualizează și `PROTOCOL.md` și vectorii golden.
+- Un tip de pachet nou sau o regulă de rutare: `core/protocol/` sau `core/mesh/`, cu test în `core/src/commonTest/`. Dacă se schimbă octeții de pe fir, se actualizează și `PROTOCOL.md` și vectorii golden.
 - Un ecran nou: un pachet nou în `ui/`; mută în `ui/common/` doar ce ajunge să fie folosit și de alt ecran.
 - Ceva ce cere un API Android: o interfață în `:core` și implementarea în `platform/`.
 

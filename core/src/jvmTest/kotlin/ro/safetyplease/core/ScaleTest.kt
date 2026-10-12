@@ -4,11 +4,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Rule
-import org.junit.Test
-import org.junit.rules.TemporaryFolder
+import okio.Path
 import ro.safetyplease.core.crypto.Identity
 import ro.safetyplease.core.crypto.testCrypto
 import ro.safetyplease.core.data.Conversations
@@ -22,22 +18,30 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.Severity
-import java.io.File
+import ro.safetyplease.core.util.formatDecimal
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.random.Random
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Crowds of 50 and 200 phones: reports reach staff, chat reaches friends, and each run prints how many
  * transmissions a unique packet costs across the crowd and what was dropped, so traffic changes can be compared.
  * The simulated radio has no shared airtime and no loss: these are counts, not latency or capacity.
+ * JVM only: which links form follows the order the engine's hash maps iterate in, which Kotlin/Native doesn't share,
+ * so a run there takes another path and these counts no longer compare.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ScaleTest {
-    @get:Rule
-    val tmp = TemporaryFolder()
+    private val tmp = TempDir()
 
-    private class Crowd(scope: TestScope, dir: File, size: Int) {
+    @AfterTest
+    fun deleteTemp() = tmp.delete()
+
+    private class Crowd(scope: TestScope, dir: Path, size: Int) {
         val net = SimNet(scope.backgroundScope)
         private val clock = TestClock(scope.testScheduler)
         private val event = TestEvent()
@@ -79,12 +83,12 @@ class ScaleTest {
     ) {
         override fun toString(): String {
             fun line(name: String, t: SimNet.Traffic) =
-                "$name: ${t.packets} packets, ${t.transmissions} transmissions, ${"%.1f".format(t.perPacket)} per packet"
+                "$name: ${t.packets} packets, ${t.transmissions} transmissions, ${formatDecimal(t.perPacket, 1)} per packet"
             return listOf(
-                "$phones phones, ${"%.1f".format(links)} links each, reports held by ${"%.0f".format(coverage * 100)}% of phones",
+                "$phones phones, ${formatDecimal(links, 1)} links each, reports held by ${formatDecimal(coverage * 100, 0)}% of phones",
                 line("INCIDENT_REPORT", reports),
                 line("INCIDENT_ACK", acks),
-                line("PRIVATE", chat) + ", ${"%.1f".format(chat.transmissions.toDouble() / messages)} per chat message with receipt",
+                line("PRIVATE", chat) + ", ${formatDecimal(chat.transmissions.toDouble() / messages, 1)} per chat message with receipt",
                 "dropped $dropped, queue full $queueFull",
                 line("one message to a phone that is off, over ${unreachableMs / 1000} s", unreachable),
             ).joinToString("\n  ")
@@ -114,10 +118,10 @@ class ScaleTest {
         }
         advanceTimeBy(settleMs)
 
-        for (r in reporters) assertTrue(r.name, r.myReports.single().status >= AckStatus.RECEIVED)
+        for (r in reporters) assertTrue(r.myReports.single().status >= AckStatus.RECEIVED, r.name)
         for ((a, b) in chats) for (phone in listOf(a, b)) {
-            assertEquals(phone.name, MsgStatus.DELIVERED, phone.messages.single { it.fromMe }.status)
-            assertEquals(phone.name, 1, phone.messages.count { !it.fromMe })
+            assertEquals(MsgStatus.DELIVERED, phone.messages.single { it.fromMe }.status, phone.name)
+            assertEquals(1, phone.messages.count { !it.fromMe }, phone.name)
         }
         val phones = crowd.phones
         val states = phones.map { it.engine.state.value }
@@ -147,7 +151,7 @@ class ScaleTest {
         )
         // a flood crosses each link at most once each way, plus store-and-forward copies on request
         val ceiling = 2.0 * phones.size * LinkLimits.DEFAULT.total
-        assertTrue("$outcome", outcome.reports.perPacket <= ceiling && outcome.chat.perPacket <= ceiling)
+        assertTrue(outcome.reports.perPacket <= ceiling && outcome.chat.perPacket <= ceiling, "$outcome")
         return outcome
     }
 
@@ -168,7 +172,7 @@ class ScaleTest {
             settleMs = 120_000,
         )
         println("Grid:\n  $outcome")
-        assertEquals("every phone holds every report", 1.0, outcome.coverage, 0.0)
+        assertEquals(1.0, outcome.coverage, 0.0, "every phone holds every report")
     }
 
     /** 200 phones over 100 x 100 m, heard 15 m away, with staff near the middle of each quarter. */
@@ -176,7 +180,7 @@ class ScaleTest {
         val crowd = Crowd(this, tmp.root, 200)
         crowd.net.range = 15.0
         crowd.net.scatter(crowd.phones.map { it.radio }, width = 100.0, height = 100.0, random = Random(7))
-        assertTrue("the crowd starts as one network", crowd.net.connected())
+        assertTrue(crowd.net.connected(), "the crowd starts as one network")
         for (quarter in listOf(Position(25.0, 25.0), Position(75.0, 25.0), Position(25.0, 75.0), Position(75.0, 75.0))) {
             crowd.makeStaff(crowd.nearest(quarter, crowd.phones))
         }
@@ -199,7 +203,7 @@ class ScaleTest {
         }
         val outcome = exercise(crowd, reporters, chats, unreachable = others[10] to partners.first(), settleMs = 180_000)
         println("Random, walking:\n  $outcome")
-        assertEquals("every phone holds every report", 1.0, outcome.coverage, 0.0)
+        assertEquals(1.0, outcome.coverage, 0.0, "every phone holds every report")
     }
 
     @Test
@@ -232,7 +236,7 @@ class ScaleTest {
         }
         val confirmedMs = testScheduler.currentTime - start
         val stillOpen = reporters.filter { it.myReports.single().status < AckStatus.RECEIVED }.map { it.name }
-        assertTrue("not confirmed within 10 s: $stillOpen", stillOpen.isEmpty())
+        assertTrue(stillOpen.isEmpty(), "not confirmed within 10 s: $stillOpen")
         advanceTimeBy(60_000 - confirmedMs)
 
         val states = crowd.phones.map { it.engine.state.value }
@@ -240,12 +244,12 @@ class ScaleTest {
         val undelivered = pairs.filter { it.first.messages.single().status != MsgStatus.DELIVERED }.map { it.first.name }
         println(
             "Chat burst, ${pairs.size} messages at once among 200 phones, 5 reports 2 s later:\n" +
-                "  reports confirmed by staff after ${"%.2f".format(confirmedMs / 1000.0)} s\n" +
+                "  reports confirmed by staff after ${formatDecimal(confirmedMs / 1000.0, 2)} s\n" +
                 "  PRIVATE after 60 s: ${chat.packets} packets, ${chat.transmissions} transmissions\n" +
                 "  dropped ${states.sumOf { it.dropped }}, queue full ${states.sumOf { it.queueFull }}\n" +
                 "  delivered within 60 s: ${pairs.size - undelivered.size} of ${pairs.size}",
         )
-        assertTrue("not delivered within 60 s: $undelivered", undelivered.isEmpty())
-        for ((_, b) in pairs) assertEquals(b.name, 1, b.messages.size)
+        assertTrue(undelivered.isEmpty(), "not delivered within 60 s: $undelivered")
+        for ((_, b) in pairs) assertEquals(1, b.messages.size, b.name)
     }
 }
