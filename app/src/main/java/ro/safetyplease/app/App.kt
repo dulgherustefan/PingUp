@@ -3,12 +3,18 @@ package ro.safetyplease.app
 import android.app.Activity
 import android.app.Application
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 
 class App : Application() {
     val container: AppContainer by lazy { AppContainer(this) }
 
     override fun attachBaseContext(base: Context) = super.attachBaseContext(AppLocale.wrap(base))
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        AppLocale.repin(newConfig)
+    }
 
     override fun onCreate() {
         super.onCreate()

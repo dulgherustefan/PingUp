@@ -25,4 +25,13 @@ class AppLocaleTest {
         assertEquals("ro-RO", pick("de-DE", "fr-FR"))
         assertEquals("ro-RO", pick())
     }
+
+    @Test
+    fun theDefaultListPutsTheAppLanguageFirst() {
+        fun ordered(vararg tags: String) = AppLocale.ordered(tags.map(Locale::forLanguageTag)).map(Locale::toLanguageTag)
+        // Compose reads the first of the list: German there would make the shared texts say "8 de zone"
+        assertEquals(listOf("en-US", "de-DE"), ordered("de-DE", "en-US"))
+        assertEquals(listOf("ro-RO", "de-DE", "fr-FR"), ordered("de-DE", "fr-FR"))
+        assertEquals(listOf("ro-RO", "en-US"), ordered("ro-RO", "en-US"))
+    }
 }
