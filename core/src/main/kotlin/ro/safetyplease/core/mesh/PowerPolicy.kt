@@ -45,14 +45,22 @@ data class PowerPlan(val profile: PowerProfile, val scan: PowerMode, val adverti
  */
 object PowerPolicy {
     const val LOW_BATTERY_PERCENT = 20
+
+    /** Under this the phone shows text only: no map and no animations. */
+    const val TEXT_ONLY_PERCENT = 5
+
     const val BOOST_MS = 15_000L
 
     /** The 12 s pause stays under [ConnectionPolicy.FRESH_MS], so a peer heard in one window is still fresh in the next. */
     val LEAF_DUTY = ScanDuty(windowMs = 13_000, intervalMs = 25_000)
     val ECONOMY_DUTY = ScanDuty(windowMs = 13_000, intervalMs = 25_000)
 
+    fun lowBattery(batteryPercent: Int, charging: Boolean): Boolean = batteryPercent < LOW_BATTERY_PERCENT && !charging
+
+    fun textOnly(batteryPercent: Int, charging: Boolean): Boolean = batteryPercent < TEXT_ONLY_PERCENT && !charging
+
     fun profile(staff: Boolean, anchor: Boolean, batteryPercent: Int, charging: Boolean): PowerProfile = when {
-        batteryPercent < LOW_BATTERY_PERCENT && !charging -> PowerProfile.ECONOMY
+        lowBattery(batteryPercent, charging) -> PowerProfile.ECONOMY
         anchor -> PowerProfile.ANCHOR
         staff -> PowerProfile.STAFF
         // participants near a verified staff phone or anchor become leaves; until roles are verified, all of them

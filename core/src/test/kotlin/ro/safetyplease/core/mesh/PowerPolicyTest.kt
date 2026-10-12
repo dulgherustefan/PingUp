@@ -36,6 +36,20 @@ class PowerPolicyTest {
     }
 
     @Test
+    fun lowBatteryStartsBelowTwentyAndTextOnlyBelowFiveAndAChargerLiftsBoth() {
+        assertFalse(PowerPolicy.lowBattery(20, charging = false))
+        assertTrue(PowerPolicy.lowBattery(19, charging = false))
+        assertFalse(PowerPolicy.lowBattery(19, charging = true))
+        assertFalse(PowerPolicy.textOnly(5, charging = false))
+        assertTrue(PowerPolicy.textOnly(4, charging = false))
+        assertTrue(PowerPolicy.textOnly(0, charging = false))
+        assertFalse(PowerPolicy.textOnly(4, charging = true))
+        for (battery in 0..100) {
+            if (PowerPolicy.textOnly(battery, charging = false)) assertTrue("$battery%", PowerPolicy.lowBattery(battery, charging = false))
+        }
+    }
+
+    @Test
     fun theTableOfProfiles() {
         val leafDuty = PowerPolicy.LEAF_DUTY
         val economyDuty = PowerPolicy.ECONOMY_DUTY
