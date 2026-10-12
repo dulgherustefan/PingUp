@@ -69,3 +69,5 @@ base64 -i release.jks
 Cheile de staff ale unui eveniment: `python tools/gen_staff_keys.py`. Semințele rămân în `tools/out/`, nu în git.
 Build-ul debug are o pereche separată, publică (`--demo`), pe care release-ul nu o acceptă.
 
+Harta unui festival nou se pune în `app/src/main/assets/venue.json` și se verifică cu `python3 tools/check_venue.py app/src/main/assets/venue.json`: zonele nu au voie să se suprapună, id-urile încap în protocol, iar numerele reperelor sunt unice. Aceeași verificare rulează în CI și înainte ca `gen_staff_keys.py pack` să semneze pachetul de eveniment. Formatul e descris în script.
+
