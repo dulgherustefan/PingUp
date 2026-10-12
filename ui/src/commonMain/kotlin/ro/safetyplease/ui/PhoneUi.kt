@@ -1,5 +1,6 @@
 package ro.safetyplease.ui
 
+import okio.Path
 import org.jetbrains.compose.resources.StringResource
 
 /**
@@ -40,6 +41,9 @@ interface PhoneUi {
     fun toast(text: String, long: Boolean = false)
 
     fun copyText(text: String)
+
+    /** The share sheet for [files]; [onShared] once the person picked where they go, never when they back out. */
+    fun shareFiles(files: List<Path>, onShared: (() -> Unit)? = null)
 
     /** The phone's maker stops apps like this one in the background unless the person exempts it. */
     fun batteryHintNeeded(): Boolean

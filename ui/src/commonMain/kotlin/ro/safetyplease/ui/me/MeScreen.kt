@@ -1,8 +1,5 @@
-package ro.safetyplease.app.ui.me
+package ro.safetyplease.ui.me
 
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,8 +27,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -41,21 +36,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getPluralString
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.BuildConfig
-import ro.safetyplease.app.R
-import ro.safetyplease.app.platform.power.BatteryExemption
-import ro.safetyplease.app.text.quantityText
-import ro.safetyplease.app.text.text
-import ro.safetyplease.app.ui.common.BigCodeDialog
-import ro.safetyplease.app.ui.common.QrBadge
-import ro.safetyplease.ui.common.networkText
-import ro.safetyplease.ui.rememberRadioGate
+import ro.safetyplease.ui.common.BigCodeDialog
+import ro.safetyplease.ui.common.QrBadge
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.MAX_NAME
+import ro.safetyplease.ui.common.networkText
+import ro.safetyplease.ui.common.rememberFilePicker
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ConfirmDialog
@@ -74,6 +66,7 @@ import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title1
 import ro.safetyplease.ui.me.BatteryGroup
+import ro.safetyplease.ui.rememberRadioGate
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.anchor_cached
 import ro.safetyplease.ui.resources.anchor_peers
@@ -134,7 +127,6 @@ import ro.safetyplease.ui.resources.role_staff
 import ro.safetyplease.ui.resources.save
 import ro.safetyplease.ui.resources.staff_verified
 import ro.safetyplease.ui.resources.zone_unknown
-import androidx.compose.ui.res.stringResource as androidString
 import ro.safetyplease.core.data.Role as AppRole
 
 private const val DEMO_UNLOCK_TAPS = 7
@@ -150,13 +142,13 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val blocked by vm.blocked.collectAsStateWithLifecycle()
     val mesh by vm.mesh.collectAsStateWithLifecycle()
     val gate = rememberRadioGate(vm, mesh.radio, onStartMesh)
-    val context = LocalContext.current
     val colors = AppTheme.colors
     var editName by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var bigCode by remember { mutableStateOf(false) }
     var confirmMetrics by remember { mutableStateOf(false) }
     var versionTaps by remember { mutableIntStateOf(0) }
+    val unlocked = stringResource(Res.string.demo_unlocked)
     val haptics = rememberHaptics()
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
@@ -205,12 +197,12 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     } else {
                         GroupRow(stringResource(Res.string.me_leave_staff), icon = Sym.Logout, tint = colors.redInk, onClick = { confirmLeave = true })
                     }
-                    val vendor = BatteryExemption.vendor()
-                    if (vendor != null) {
+                    val steps = vm.phone.batterySteps
+                    if (steps != null) {
                         GroupDivider()
                         GroupRow(
-                            stringResource(Res.string.me_battery), subtitle = stringResource(vendor.steps), icon = Sym.Battery, chevron = true,
-                            onClick = { BatteryExemption.request(context) },
+                            stringResource(Res.string.me_battery), subtitle = stringResource(steps), icon = Sym.Battery, chevron = true,
+                            onClick = vm.phone::requestBatteryExemption,
                         )
                     }
                 }
@@ -267,8 +259,8 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     GroupDivider()
                     GroupRow(
                         stringResource(Res.string.me_version), icon = Sym.Info,
-                        // the app name comes from the Android build (resValue), not from the shared texts
-                        value = androidString(R.string.app_name) + " " + BuildConfig.VERSION_NAME,
+                        // the app's name as the phone shows it, set by the build, not one of the shared texts
+                        value = vm.phone.appName + " " + vm.phone.appVersion,
                         // like Android's "Build number": 7 taps unlock the test tools
                         onClick = if (vm.phone.demoAvailable && !vm.demoUnlocked) {
                             {
@@ -276,7 +268,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                                 if (versionTaps >= DEMO_UNLOCK_TAPS) {
                                     vm.demoUnlocked = true
                                     haptics.confirm()
-                                    Toast.makeText(context, context.text(Res.string.demo_unlocked), Toast.LENGTH_SHORT).show()
+                                    vm.phone.toast(unlocked)
                                 }
                             }
                         } else null,
@@ -301,7 +293,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         AppDialog(
             { confirmMetrics = false }, stringResource(Res.string.metrics_export_title), stringResource(Res.string.metrics_export_confirm),
             onConfirm = {
-                vm.viewModelScope.launch { shareMetrics(context, vm.c) }
+                vm.viewModelScope.launch { shareMetrics(vm.phone, vm.c) }
                 confirmMetrics = false
             },
         ) {
@@ -347,19 +339,11 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
  */
 @Composable
 private fun PilotGroup(vm: AppViewModel, role: AppRole, networkLog: Boolean, onExport: () -> Unit) {
-    val context = LocalContext.current
-    val resources = LocalResources.current
     val records by vm.c.reporterMetrics.state.collectAsStateWithLifecycle()
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+    val pick = rememberFilePicker(listOf("application/json", "application/octet-stream", "text/plain"), multiple = true) { files ->
         vm.viewModelScope.launch {
-            val added = importMetrics(context, vm.c, uris)
-            val text = if (added == 0) {
-                resources.text(Res.string.metrics_import_none)
-            } else {
-                resources.quantityText(Res.plurals.metrics_imported, added, added)
-            }
-            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+            val added = importMetrics(vm.c, files)
+            vm.phone.toast(if (added == 0) getString(Res.string.metrics_import_none) else getPluralString(Res.plurals.metrics_imported, added, added))
         }
     }
     InsetGroup {
@@ -381,7 +365,7 @@ private fun PilotGroup(vm: AppViewModel, role: AppRole, networkLog: Boolean, onE
                 stringResource(Res.string.me_metrics_import),
                 subtitle = if (count == 0) stringResource(Res.string.me_metrics_import_text) else pluralStringResource(Res.plurals.metrics_reporters, count, count),
                 icon = Sym.Add, chevron = true,
-                onClick = { pick.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) },
+                onClick = pick,
             )
         }
     }

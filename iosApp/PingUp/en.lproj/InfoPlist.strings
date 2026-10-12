@@ -1,0 +1,2 @@
+/* Why the app asks for each permission, as iOS shows it. */
+"NSCameraUsageDescription" = "The camera reads a friend's QR code or a staff code. Pictures aren't saved and never leave the phone.";

@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.people
+package ro.safetyplease.ui.people
 
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap

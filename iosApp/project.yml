@@ -32,6 +32,8 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         # Compose draws at the screen's own rate (120 Hz on ProMotion) only with this
         CADisableMinimumFrameDurationOnPhone: true
+        # why each permission is asked, in Romanian here and in each language in <language>.lproj/InfoPlist.strings
+        NSCameraUsageDescription: Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.pingup.app

@@ -5,9 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import kotlinx.datetime.TimeZone
+import okio.Path.Companion.toOkioPath
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
-import ro.safetyplease.app.ui.me.phoneMetrics
+import ro.safetyplease.ui.me.phoneMetrics
 import ro.safetyplease.core.crypto.QrCodes
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.protocol.AckStatus
@@ -110,7 +111,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
             "measure" -> measure(Demo.recorder(context, c), arg("action"), intent)
             "metrics" -> {
                 val dir = Demo.recorder(context, c).directory ?: error("external storage unavailable")
-                val files = c.phoneMetrics().writeTo(dir.apply { mkdirs() }, c.clock.wallMs(), TimeZone.currentSystemDefault())
+                val files = c.phoneMetrics().writeTo(dir.apply { mkdirs() }.toOkioPath(), c.clock.wallMs(), TimeZone.currentSystemDefault())
                 "${files.size} files: adb pull $dir/"
             }
             else -> "unknown command"

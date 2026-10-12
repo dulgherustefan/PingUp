@@ -620,6 +620,7 @@
     <string name="date_pattern_recent">d MMM, HH:mm</string>
     <string name="date_pattern_short">d MMM</string>
     <string name="date_pattern_day">EEEE, d MMMM</string>
+    <string name="date_pattern_date">d MMM yyyy</string>
     <!-- the letters MMMM, MMM, EEEE and EEE of the patterns above, Monday first, as java.text names them -->
     <string-array name="month_names">
         <item>ianuarie</item>

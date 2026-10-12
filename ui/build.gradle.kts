@@ -41,11 +41,18 @@ kotlin {
             implementation(libs.compose.mp.material3)
             implementation(libs.compose.mp.lifecycle.viewmodel)
             implementation(libs.compose.mp.lifecycle.runtime)
+            implementation(libs.qrcode)
         }
         androidMain.dependencies {
             // permissions and the activity's own windows: launchers, rationale, orientation
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.ktx)
+            // scanning QR codes: the camera's frames, read by zxing
+            implementation(libs.androidx.camera.core)
+            implementation(libs.androidx.camera.camera2)
+            implementation(libs.androidx.camera.lifecycle)
+            implementation(libs.androidx.camera.view)
+            implementation(libs.zxing.core)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

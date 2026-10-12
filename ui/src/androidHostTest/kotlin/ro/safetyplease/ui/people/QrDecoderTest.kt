@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.people
+package ro.safetyplease.ui.people
 
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
@@ -10,6 +10,7 @@ import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.QrCodes
 import ro.safetyplease.core.crypto.StaffCard
 import ro.safetyplease.core.crypto.StaffRole
+import ro.safetyplease.ui.common.qrModules
 import java.util.Random
 
 /**
@@ -24,6 +25,19 @@ class QrDecoderTest {
     private fun qrPixels(text: String, size: Int): Array<BooleanArray> {
         val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, mapOf(EncodeHintType.MARGIN to 2))
         return Array(size) { y -> BooleanArray(size) { x -> matrix[x, y] } }
+    }
+
+    /** Draws the code the way the app does now, from the shared module grid, [scale] pixels a module and a margin. */
+    private fun sharedPixels(text: String, size: Int, margin: Int = 2): Array<BooleanArray> {
+        val modules = qrModules(text)
+        val scale = size / (modules.size + 2 * margin)
+        return Array((modules.size + 2 * margin) * scale) { y ->
+            BooleanArray((modules.size + 2 * margin) * scale) { x ->
+                val row = y / scale - margin
+                val col = x / scale - margin
+                row in modules.indices && col in modules.indices && modules[row][col]
+            }
+        }
     }
 
     private class Plane(val data: ByteArray, val rowStride: Int, val width: Int, val height: Int)
@@ -58,6 +72,13 @@ class QrDecoderTest {
         val text = decode(frame(qrPixels(friendCode, 400), 640, 480, padding = 0))!!
         val card = QrCodes.decodeFriend(text)!!
         assertEquals("Ioana", card.nickname)
+    }
+
+    @Test
+    fun readsTheCodesTheAppDrawsOnEitherPhone() {
+        // an iPhone shows the same grid, so either phone scans the other's code
+        assertEquals(friendCode, decode(frame(sharedPixels(friendCode, 400), 640, 480, padding = 0)))
+        assertEquals(staffCode, decode(frame(sharedPixels(staffCode, 400), 640, 480, padding = 16, noise = 18)))
     }
 
     @Test

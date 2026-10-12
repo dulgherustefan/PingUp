@@ -1,18 +1,5 @@
-package ro.safetyplease.app.ui.people
+package ro.safetyplease.ui.people
 
-import android.Manifest
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.pm.PackageManager
-import androidx.activity.compose.LocalActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -62,7 +49,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -70,7 +56,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -80,29 +65,20 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleResumeEffect
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.ui.common.BigCodeDialog
-import ro.safetyplease.app.ui.common.QrBadge
-import ro.safetyplease.app.ui.common.QrCardWidth
-import ro.safetyplease.ui.deniedForGood
-import ro.safetyplease.ui.openAppSettings
+import ro.safetyplease.ui.common.BigCodeDialog
+import ro.safetyplease.ui.common.QrBadge
+import ro.safetyplease.ui.common.QrCardWidth
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.ui.AppViewModel
@@ -201,59 +177,6 @@ import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.ui.text.dateText
 import ro.safetyplease.ui.text.hopsText
 import ro.safetyplease.ui.text.rememberNow
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
-
-private class QrAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis.Analyzer {
-    override fun analyze(image: ImageProxy) {
-        try {
-            val plane = image.planes[0]
-            val data = ByteArray(plane.buffer.remaining()).also { plane.buffer.get(it) }
-            QrDecoder.decode(data, plane.rowStride, image.width, image.height)?.let(onResult)
-        } catch (_: RuntimeException) {
-        } finally {
-            image.close()
-        }
-    }
-}
-
-@Composable
-private fun QrCamera(onResult: (String) -> Unit, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val owner = LocalLifecycleOwner.current
-    val callback by rememberUpdatedState(onResult)
-    val executor = remember { Executors.newSingleThreadExecutor() }
-    val disposed = remember { AtomicBoolean(false) }
-    DisposableEffect(Unit) {
-        onDispose {
-            disposed.set(true)
-            // no blocking get(): if CameraX isn't ready yet, the listener below sees we've left and binds nothing
-            val future = ProcessCameraProvider.getInstance(context)
-            if (future.isDone) runCatching { future.get().unbindAll() }
-            executor.shutdown()
-        }
-    }
-    AndroidView(
-        modifier = modifier,
-        factory = { ctx ->
-            val view = PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
-            val future = ProcessCameraProvider.getInstance(ctx)
-            future.addListener({
-                if (disposed.get() || owner.lifecycle.currentState == Lifecycle.State.DESTROYED) return@addListener
-                runCatching {
-                    val provider = future.get()
-                    val preview = Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) }
-                    val analysis = ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-                    val main = ContextCompat.getMainExecutor(ctx)
-                    analysis.setAnalyzer(executor, QrAnalyzer { text -> main.execute { callback(text) } })
-                    provider.unbindAll()
-                    provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-                }
-            }, ContextCompat.getMainExecutor(ctx))
-            view
-        },
-    )
-}
 
 /** Viewfinder corners and a line sweeping up and down: the camera is looking for a code. */
 @Composable
@@ -292,25 +215,12 @@ private fun ScanFrame(modifier: Modifier = Modifier) {
 @Composable
 fun AddFriendScreen(vm: AppViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val haptics = rememberHaptics()
     val colors = AppTheme.colors
     val code = remember(settings.nickname) { vm.myQrText() }
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    val activity = LocalActivity.current
-    fun cameraAllowed() = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-    var granted by remember { mutableStateOf(cameraAllowed()) }
-    // denied for good, the camera can only be granted from settings; re-check on return
-    var blocked by rememberSaveable { mutableStateOf(false) }
-    LifecycleResumeEffect(Unit) {
-        granted = cameraAllowed()
-        onPauseOrDispose { }
-    }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        granted = it
-        blocked = !it && deniedForGood(activity, listOf(Manifest.permission.CAMERA))
-    }
-    LaunchedEffect(tab) { if (tab == 1 && !granted) launcher.launch(Manifest.permission.CAMERA) }
+    val camera = rememberCameraAccess()
+    LaunchedEffect(tab) { if (tab == 1 && !camera.granted) camera.request() }
     var outcome by remember { mutableStateOf<ScanOutcome?>(null) }
     var lastText by remember { mutableStateOf("") }
     var sheet by remember { mutableStateOf(false) }
@@ -382,17 +292,17 @@ fun AddFriendScreen(vm: AppViewModel) {
                 // scanning has its own tab above; this is the fallback for when the camera doesn't work
                 TextLink(stringResource(Res.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
             } else {
-                if (granted) {
+                if (camera.granted) {
                     Box(
                         Modifier.padding(top = 24.dp).widthIn(max = 360.dp).fillMaxWidth().aspectRatio(1f)
                             .clip(RoundedCornerShape(26.dp)).background(Color.Black),
                     ) {
-                        QrCamera(::handle, Modifier.fillMaxSize())
+                        QrScanner(::handle, Modifier.fillMaxSize())
                         ScanFrame(Modifier.fillMaxSize())
                     }
                 } else {
                     NoCamera(
-                        blocked, { if (blocked) openAppSettings(context) else launcher.launch(Manifest.permission.CAMERA) },
+                        camera.blocked, { if (camera.blocked) vm.phone.openAppSettings() else camera.request() },
                         Modifier.padding(top = 24.dp),
                     )
                 }
@@ -425,6 +335,7 @@ fun AddFriendScreen(vm: AppViewModel) {
     if (sheet) {
         CodeSheet(
             myCode = code,
+            onCopy = { vm.phone.copyText(code) },
             onUse = {
                 sheet = false
                 handle(it)
@@ -465,8 +376,7 @@ private fun NoCamera(blocked: Boolean, onAllow: () -> Unit, modifier: Modifier =
 /** Code-as-text sheet: your code to copy at the top, a field for your friend's code below. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CodeSheet(myCode: String, onUse: (String) -> Unit, onDismiss: () -> Unit) {
-    val context = LocalContext.current
+private fun CodeSheet(myCode: String, onCopy: () -> Unit, onUse: (String) -> Unit, onDismiss: () -> Unit) {
     val colors = AppTheme.colors
     var copied by remember { mutableStateOf(false) }
     var manual by rememberSaveable { mutableStateOf("") }
@@ -495,7 +405,7 @@ private fun CodeSheet(myCode: String, onUse: (String) -> Unit, onDismiss: () -> 
                     stringResource(if (copied) Res.string.code_sheet_copied else Res.string.code_sheet_copy),
                     icon = if (copied) Sym.Check else Sym.Copy, tint = colors.accent,
                     onClick = {
-                        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("cod", myCode))
+                        onCopy()
                         copied = true
                     },
                 )

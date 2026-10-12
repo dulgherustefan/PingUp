@@ -140,14 +140,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.service)
 
-    implementation(libs.androidx.camera.core)
-    implementation(libs.androidx.camera.camera2)
-    implementation(libs.androidx.camera.lifecycle)
-    implementation(libs.androidx.camera.view)
-
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.zxing.core)
 
     // "@aar" also turns off transitive deps; otherwise lazysodium pulls jna.jar on top of jna.aar and classes clash.
     implementation("${libs.lazysodium.android.get()}@aar")

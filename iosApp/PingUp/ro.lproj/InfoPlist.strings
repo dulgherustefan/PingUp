@@ -1,0 +1,2 @@
+/* Why the app asks for each permission, as iOS shows it. */
+"NSCameraUsageDescription" = "Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.";

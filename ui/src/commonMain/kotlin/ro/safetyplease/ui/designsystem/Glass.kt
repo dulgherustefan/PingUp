@@ -70,22 +70,23 @@ fun Modifier.glass(backdrop: Backdrop?, shape: Shape, blur: Dp = 24.dp, shadow: 
     val colors = AppTheme.colors
     val layer = rememberGraphicsLayer()
     var position by remember { mutableStateOf(Offset.Zero) }
-    val live = backdrop != null && CanBlur
+    // the content to blur, when there is some and the phone can
+    val live = backdrop?.takeIf { CanBlur }
     return this
         .then(if (shadow) Modifier.shadow(10.dp, shape, ambientColor = Color(0x14000000), spotColor = Color(0x29000000)) else Modifier)
         .onGloballyPositioned { position = it.positionInRoot() }
         .drawBehind {
-            if (live && backdrop != null) {
+            if (live != null) {
                 val radius = blur.toPx()
                 layer.renderEffect = BlurEffect(radius, radius, TileMode.Clamp)
                 layer.record {
-                    translate(backdrop.origin.x - position.x, backdrop.origin.y - position.y) { drawLayer(backdrop.layer) }
+                    translate(live.origin.x - position.x, live.origin.y - position.y) { drawLayer(live.layer) }
                 }
                 val outline = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawBehind)) }
                 clipPath(outline) { drawLayer(layer) }
             }
         }
-        .background(if (live) colors.glass else colors.glassSolid, shape)
+        .background(if (live != null) colors.glass else colors.glassSolid, shape)
         .border(0.75.dp, colors.glassRim, shape)
         .clip(shape)
 }

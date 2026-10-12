@@ -1,44 +1,5 @@
-package ro.safetyplease.app.ui.me
+package ro.safetyplease.ui.me
 
-import org.jetbrains.compose.resources.StringResource
-import ro.safetyplease.app.text.text
-import ro.safetyplease.ui.resources.event_download_failed
-import ro.safetyplease.ui.resources.event_exercise
-import ro.safetyplease.ui.resources.event_expired
-import ro.safetyplease.ui.resources.event_known
-import ro.safetyplease.ui.resources.event_loaded
-import ro.safetyplease.ui.resources.event_malformed
-import ro.safetyplease.ui.resources.event_not_yet
-import ro.safetyplease.ui.resources.event_older
-import ro.safetyplease.ui.resources.event_real
-import ro.safetyplease.ui.resources.event_revoked
-import ro.safetyplease.ui.resources.event_shared_key
-import ro.safetyplease.ui.resources.event_switch_exercise_text
-import ro.safetyplease.ui.resources.event_tampered
-import ro.safetyplease.ui.resources.event_wrong_chain
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.back
-import ro.safetyplease.ui.resources.event_bundled
-import ro.safetyplease.ui.resources.event_bundled_text
-import ro.safetyplease.ui.resources.event_in_use
-import ro.safetyplease.ui.resources.event_link_placeholder
-import ro.safetyplease.ui.resources.event_load
-import ro.safetyplease.ui.resources.event_load_file
-import ro.safetyplease.ui.resources.event_load_hint
-import ro.safetyplease.ui.resources.event_load_link
-import ro.safetyplease.ui.resources.event_pack_line
-import ro.safetyplease.ui.resources.event_packs
-import ro.safetyplease.ui.resources.event_remove
-import ro.safetyplease.ui.resources.event_remove_text
-import ro.safetyplease.ui.resources.event_switch
-import ro.safetyplease.ui.resources.event_switch_text
-import ro.safetyplease.ui.resources.event_switch_title
-import ro.safetyplease.ui.resources.event_title
-import android.content.Context
-import android.net.Uri
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -57,19 +18,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okio.source
-import ro.safetyplease.app.R
+import okio.use
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.event.Added
 import ro.safetyplease.core.event.EventKind
 import ro.safetyplease.core.event.EventPacks
@@ -77,6 +38,8 @@ import ro.safetyplease.core.event.Loaded
 import ro.safetyplease.core.event.PackStatus
 import ro.safetyplease.core.event.StoredPack
 import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.common.PickedFile
+import ro.safetyplease.ui.common.rememberFilePicker
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ConfirmDialog
@@ -90,8 +53,39 @@ import ro.safetyplease.ui.designsystem.NavScreen
 import ro.safetyplease.ui.designsystem.SectionTitle
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.footnote
-import java.text.DateFormat
-import java.util.Date
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.event_bundled
+import ro.safetyplease.ui.resources.event_bundled_text
+import ro.safetyplease.ui.resources.event_download_failed
+import ro.safetyplease.ui.resources.event_exercise
+import ro.safetyplease.ui.resources.event_expired
+import ro.safetyplease.ui.resources.event_in_use
+import ro.safetyplease.ui.resources.event_known
+import ro.safetyplease.ui.resources.event_link_placeholder
+import ro.safetyplease.ui.resources.event_load
+import ro.safetyplease.ui.resources.event_load_file
+import ro.safetyplease.ui.resources.event_load_hint
+import ro.safetyplease.ui.resources.event_load_link
+import ro.safetyplease.ui.resources.event_loaded
+import ro.safetyplease.ui.resources.event_malformed
+import ro.safetyplease.ui.resources.event_not_yet
+import ro.safetyplease.ui.resources.event_older
+import ro.safetyplease.ui.resources.event_pack_line
+import ro.safetyplease.ui.resources.event_packs
+import ro.safetyplease.ui.resources.event_real
+import ro.safetyplease.ui.resources.event_remove
+import ro.safetyplease.ui.resources.event_remove_text
+import ro.safetyplease.ui.resources.event_revoked
+import ro.safetyplease.ui.resources.event_shared_key
+import ro.safetyplease.ui.resources.event_switch
+import ro.safetyplease.ui.resources.event_switch_exercise_text
+import ro.safetyplease.ui.resources.event_switch_text
+import ro.safetyplease.ui.resources.event_switch_title
+import ro.safetyplease.ui.resources.event_tampered
+import ro.safetyplease.ui.resources.event_title
+import ro.safetyplease.ui.resources.event_wrong_chain
+import ro.safetyplease.ui.text.dayText
 
 /** What a load from a file or a link did, in a sentence. */
 fun loadMessage(loaded: Loaded): StringResource = when (loaded.status) {
@@ -117,8 +111,6 @@ fun loadMessage(loaded: Loaded): StringResource = when (loaded.status) {
 fun EventScreen(vm: AppViewModel) {
     val c = vm.c
     val shelf by c.events.state.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val resources = LocalResources.current
     val colors = AppTheme.colors
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
@@ -128,12 +120,12 @@ fun EventScreen(vm: AppViewModel) {
     var linkDialog by remember { mutableStateOf(false) }
     val inUse = c.event?.hashHex.orEmpty()
 
-    fun report(text: String?) {
+    suspend fun report(text: String?) {
         val message = if (text == null) Res.string.event_download_failed else loadMessage(c.loadEventPack(text))
-        Toast.makeText(context, resources.text(message, resources.getString(R.string.app_name)), Toast.LENGTH_LONG).show()
+        vm.phone.toast(getString(message, vm.phone.appName), long = true)
     }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) vm.viewModelScope.launch { report(readPack(context, uri) ?: "") }
+    val picker = rememberFilePicker(listOf("*/*")) { files ->
+        vm.viewModelScope.launch { report(readPack(files.first()) ?: "") }
     }
 
     NavScreen(
@@ -165,7 +157,7 @@ fun EventScreen(vm: AppViewModel) {
                 }
             }
             InsetGroup {
-                GroupRow(stringResource(Res.string.event_load_file), icon = Sym.Add, onClick = { picker.launch(arrayOf("*/*")) })
+                GroupRow(stringResource(Res.string.event_load_file), icon = Sym.Add, onClick = picker)
                 GroupDivider()
                 GroupRow(stringResource(Res.string.event_load_link), icon = Sym.Copy, onClick = { linkDialog = true })
             }
@@ -178,10 +170,11 @@ fun EventScreen(vm: AppViewModel) {
 
     switchTo?.let { pack ->
         val text = stringResource(if (pack.kind == EventKind.EXERCISE) Res.string.event_switch_exercise_text else Res.string.event_switch_text)
+        val expired = stringResource(Res.string.event_expired)
         ConfirmDialog(
             stringResource(Res.string.event_switch_title), text, { switchTo = null }, confirmLabel = stringResource(Res.string.event_switch),
         ) {
-            if (c.usable(pack)) c.switchEvent(pack.hash) else Toast.makeText(context, context.text(Res.string.event_expired), Toast.LENGTH_LONG).show()
+            if (c.usable(pack)) c.switchEvent(pack.hash) else vm.phone.toast(expired, long = true)
         }
     }
     if (backToBundled) {
@@ -223,10 +216,10 @@ fun EventScreen(vm: AppViewModel) {
 @Composable
 private fun packLine(pack: StoredPack): String {
     val kind = stringResource(if (pack.kind == EventKind.EXERCISE) Res.string.event_exercise else Res.string.event_real)
-    val until = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(pack.validUntil * 1000))
+    val until = dayText(pack.validUntil * 1000)
     return stringResource(Res.string.event_pack_line, kind, pack.version, until)
 }
 
-private suspend fun readPack(context: Context, uri: Uri): String? = withContext(Dispatchers.IO) {
-    runCatching { context.contentResolver.openInputStream(uri)?.use { EventPacks.read(it.source()) } }.getOrNull()
+private suspend fun readPack(file: PickedFile): String? = withContext(Dispatchers.IO) {
+    runCatching { file.open().use(EventPacks::read) }.getOrNull()
 }

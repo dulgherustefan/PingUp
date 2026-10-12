@@ -8,8 +8,10 @@ import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
 import kotlinx.coroutines.launch
+import okio.Path
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.platform.power.BatteryExemption
+import ro.safetyplease.app.platform.share.ShareSheet
 import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.ui.PhoneUi
 
@@ -51,6 +53,8 @@ class AndroidPhoneUi(private val app: Application, private val container: AppCon
     override fun copyText(text: String) {
         app.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("mesaj", text))
     }
+
+    override fun shareFiles(files: List<Path>, onShared: (() -> Unit)?) = open(ShareSheet.intent(app, files.map(Path::toFile), onShared))
 
     override fun batteryHintNeeded(): Boolean = BatteryExemption.hintNeeded(app)
 

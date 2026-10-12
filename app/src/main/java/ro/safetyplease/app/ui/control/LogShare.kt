@@ -1,9 +1,6 @@
 package ro.safetyplease.app.ui.control
 
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -13,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.style.TextAlign
-import androidx.core.content.FileProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,7 +18,6 @@ import kotlinx.datetime.TimeZone
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.App
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.quantityText
 import ro.safetyplease.app.text.text
@@ -54,16 +49,6 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-/** Hands the exported log and metrics to the share sheet; only the export folder in the app's cache is reachable through it. */
-class LogFiles : FileProvider(R.xml.log_paths)
-
-/** The share sheet calls it once the operator picked an app; backing out calls nothing, so nothing is logged. */
-class ExportShared : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        (context.applicationContext as App).container.console.exported()
-    }
-}
 
 /** Says what leaves the phone, then writes the files and opens the share sheet in [scope], which outlives the dialog. */
 @Composable
@@ -127,10 +112,8 @@ private suspend fun shareLog(context: Context, c: PingUpSession, names: ExportNa
             File(dir, "jurnal-$stamp.json").apply { writeText(json) },
         )
     }
-    val shared = PendingIntent.getBroadcast(
-        context, 0, Intent(context, ExportShared::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
-    shareFiles(context, files, shared.intentSender)
+    // backing out of the share sheet notes nothing
+    shareFiles(context, files) { c.console.exported() }
 }
 
 /**

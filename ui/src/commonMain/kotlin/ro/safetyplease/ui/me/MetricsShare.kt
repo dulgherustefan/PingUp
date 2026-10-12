@@ -1,12 +1,10 @@
-package ro.safetyplease.app.ui.me
+package ro.safetyplease.ui.me
 
-import android.content.Context
-import android.net.Uri
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
-import ro.safetyplease.app.ui.common.freshExportDir
-import ro.safetyplease.app.ui.common.shareFiles
+import okio.Path
 import ro.safetyplease.core.control.DeliveryRow
 import ro.safetyplease.core.control.MetricsExport
 import ro.safetyplease.core.control.MetricsJoin
@@ -16,15 +14,15 @@ import ro.safetyplease.core.metrics.NetworkSample
 import ro.safetyplease.core.metrics.ReportTiming
 import ro.safetyplease.core.session.PingUpSession
 import ro.safetyplease.core.venue.SiteGrid
-import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.InputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import ro.safetyplease.ui.PhoneUi
+import ro.safetyplease.ui.common.PickedFile
+import ro.safetyplease.ui.common.exportStamp
+import ro.safetyplease.ui.common.freshExportDir
+import ro.safetyplease.ui.common.readBounded
+import ro.safetyplease.ui.common.writeExport
 
 /** What this phone measured for the pilot; [delivery] only on the console. */
-internal class PhoneMetrics(
+class PhoneMetrics(
     val role: Role,
     val venue: String,
     val grid: SiteGrid,
@@ -37,9 +35,9 @@ internal class PhoneMetrics(
      * The CSV files and the JSON one, named by [nowMs]: the reports and the mesh always, the mobile network log once it
      * has samples, the delivery join on the console.
      */
-    fun writeTo(dir: File, nowMs: Long, zone: TimeZone): List<File> {
-        val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.ROOT).format(Date(nowMs))
-        fun file(suffix: String, text: String) = File(dir, "metrici-$stamp$suffix").apply { writeText(text) }
+    fun writeTo(dir: Path, nowMs: Long, zone: TimeZone): List<Path> {
+        val stamp = exportStamp(nowMs, zone)
+        fun file(suffix: String, text: String) = writeExport(dir, "metrici-$stamp$suffix", text)
         return buildList {
             add(file("-rapoarte.csv", MetricsExport.reportsCsv(reports, zone)))
             add(file("-retea.csv", MetricsExport.meshCsv(snapshots, zone)))
@@ -51,7 +49,7 @@ internal class PhoneMetrics(
 }
 
 /** The console joins its log with the reporters' records it was given and with its own reports. */
-internal fun PingUpSession.phoneMetrics(): PhoneMetrics {
+fun PingUpSession.phoneMetrics(): PhoneMetrics {
     val role = settings.value.role
     val reports = incidentStore.value.mine.map { ReportTiming.of(it, grid) }
     val delivery = if (role == Role.CONTROL) {
@@ -63,32 +61,19 @@ internal fun PingUpSession.phoneMetrics(): PhoneMetrics {
 }
 
 /** Writes the metrics to the export folder, replacing the last export's files, and opens the share sheet. */
-internal suspend fun shareMetrics(context: Context, c: PingUpSession) {
+suspend fun shareMetrics(phone: PhoneUi, c: PingUpSession) {
     val files = withContext(Dispatchers.IO) {
-        c.phoneMetrics().writeTo(freshExportDir(c.exportDir.toFile()), c.clock.wallMs(), TimeZone.currentSystemDefault())
+        c.phoneMetrics().writeTo(freshExportDir(c.exportDir), c.clock.wallMs(), TimeZone.currentSystemDefault())
     }
-    shareFiles(context, files)
+    phone.shareFiles(files)
 }
 
-/** Adds the reporters' records from metrics exports the operator picked; how many there were. */
-internal suspend fun importMetrics(context: Context, c: PingUpSession, uris: List<Uri>): Int = withContext(Dispatchers.IO) {
-    val records = uris.flatMap { uri ->
-        runCatching { context.contentResolver.openInputStream(uri)?.use(::readBounded) }.getOrNull()
-            ?.let(MetricsExport::reportsIn).orEmpty()
+/** Adds the reporters' records from the metrics exports the operator picked; how many there were. */
+suspend fun importMetrics(c: PingUpSession, files: List<PickedFile>): Int = withContext(Dispatchers.IO) {
+    // a file past the limit isn't an export
+    val records = files.flatMap { file ->
+        runCatching { readBounded(file.open(), MetricsExport.MAX_IMPORT_BYTES.toLong()) }.getOrNull()?.let(MetricsExport::reportsIn).orEmpty()
     }
     if (records.isNotEmpty()) c.reporterMetrics.update { it.merged(records) }
     records.size
-}
-
-/** The whole stream as text, or null past [MetricsExport.MAX_IMPORT_BYTES]: a file that big isn't an export. */
-internal fun readBounded(input: InputStream): String? {
-    val out = ByteArrayOutputStream()
-    val buffer = ByteArray(64 * 1024)
-    while (true) {
-        val n = input.read(buffer)
-        if (n < 0) break
-        if (out.size() + n > MetricsExport.MAX_IMPORT_BYTES) return null
-        out.write(buffer, 0, n)
-    }
-    return out.toString(Charsets.UTF_8.name())
 }

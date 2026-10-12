@@ -39,6 +39,7 @@ import ro.safetyplease.ui.resources.cat_violence
 import ro.safetyplease.ui.resources.cat_violence_example
 import ro.safetyplease.ui.resources.control_state_reopened
 import ro.safetyplease.ui.resources.control_state_unfounded
+import ro.safetyplease.ui.resources.date_pattern_date
 import ro.safetyplease.ui.resources.date_pattern_day
 import ro.safetyplease.ui.resources.date_pattern_full
 import ro.safetyplease.ui.resources.date_pattern_recent
@@ -223,6 +224,10 @@ fun dayLabel(timeMs: Long, nowMs: Long = wallNowMs()): String = when (Labels.day
 /** The full date and time: "12 octombrie, 14:30". */
 @Composable
 fun dateText(timeMs: Long): String = dateText(Res.string.date_pattern_full, timeMs)
+
+/** The day with its year, no time: "12 oct. 2026". */
+@Composable
+fun dayText(timeMs: Long): String = dateText(Res.string.date_pattern_date, timeMs)
 
 @Composable
 private fun dateText(pattern: StringResource, timeMs: Long): String = formatDate(stringResource(pattern), timeMs, rememberDateNames())

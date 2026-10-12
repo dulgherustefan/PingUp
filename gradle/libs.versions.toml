@@ -20,6 +20,8 @@ composeMultiplatform = "1.12.1"
 composeMaterial3 = "1.9.0"
 # the back events Compose Multiplatform itself dispatches, at the version it depends on
 navigationEvent = "1.1.0"
+# QR codes drawn in shared code; MIT, no dependencies past the standard library
+qrcode = "4.5.0"
 # Lifecycle for Compose Multiplatform, the same release as androidx's lifecycle above
 lifecycleMultiplatform = "2.11.0"
 
@@ -56,6 +58,7 @@ compose-mp-runtime = { module = "org.jetbrains.compose.runtime:runtime", version
 compose-mp-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
 compose-mp-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
 compose-mp-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
+qrcode = { module = "io.github.g0dkar:qrcode-kotlin", version.ref = "qrcode" }
 compose-mp-navigationevent = { module = "org.jetbrains.androidx.navigationevent:navigationevent-compose", version.ref = "navigationEvent" }
 compose-mp-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMaterial3" }
 compose-mp-lifecycle-viewmodel = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleMultiplatform" }

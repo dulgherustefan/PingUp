@@ -8,10 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		0106B4EACA1ACFE79E68FB0E /* PingUpApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */; };
+		B40911DAB3835CF043AA3473 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6398700908A499B5420D225D /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2BF05116436C360A237D2D81 /* ro */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ro; path = ro.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		6D82221C73CA4EAE2D81B56D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		AD80B33C55B538CF3FD3A1DA /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		F254425B1A6F3FAD5CBF58D2 /* PingUp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PingUp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingUpApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -38,6 +41,7 @@
 			children = (
 				6D82221C73CA4EAE2D81B56D /* Info.plist */,
 				FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */,
+				6398700908A499B5420D225D /* InfoPlist.strings */,
 			);
 			path = PingUp;
 			sourceTree = "<group>";
@@ -51,6 +55,7 @@
 			buildPhases = (
 				9508C55CDEDE51A63627C976 /* Build the Kotlin framework */,
 				8F00EDE8837FA041A9CC7B50 /* Sources */,
+				904624ACF758FDD304E7E37C /* Resources */,
 			);
 			buildRules = (
 			);
@@ -80,6 +85,7 @@
 			knownRegions = (
 				Base,
 				en,
+				ro,
 			);
 			mainGroup = 0426A7ADD28D327DEB1F6213;
 			minimizedProjectReferenceProxies = 1;
@@ -92,6 +98,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		904624ACF758FDD304E7E37C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B40911DAB3835CF043AA3473 /* InfoPlist.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
 		9508C55CDEDE51A63627C976 /* Build the Kotlin framework */ = {
@@ -125,6 +142,18 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		6398700908A499B5420D225D /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				AD80B33C55B538CF3FD3A1DA /* en */,
+				2BF05116436C360A237D2D81 /* ro */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		0A029994577EC93BDC297B4A /* Release */ = {

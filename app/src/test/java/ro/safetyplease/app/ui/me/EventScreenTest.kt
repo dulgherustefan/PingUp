@@ -1,5 +1,6 @@
 package ro.safetyplease.app.ui.me
 
+import ro.safetyplease.ui.me.loadMessage
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import ro.safetyplease.core.event.Added
