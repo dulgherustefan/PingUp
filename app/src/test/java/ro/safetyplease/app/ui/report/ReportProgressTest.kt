@@ -13,6 +13,7 @@ import ro.safetyplease.app.text.escalationAt
 import ro.safetyplease.app.text.escalationsBetween
 import ro.safetyplease.app.text.needsEscalation
 import ro.safetyplease.app.text.nextEscalation
+import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
@@ -156,5 +157,7 @@ class ReportProgressTest {
         assertEquals(camping.center, helpOrigin(null, report().copy(zone = "camping"), "", venue))
         assertEquals("the zone picked by hand", camping.center, helpOrigin(null, report(), "camping", venue))
         assertNull(helpOrigin(null, report(), "", venue))
+        assertEquals("no report: the zone picked by hand", camping.center, helpOrigin(null, null, "camping", venue))
+        assertEquals(here, helpOrigin(here, null, "camping", venue))
     }
 }

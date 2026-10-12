@@ -2,8 +2,8 @@ package ro.safetyplease.core.mesh
 
 /**
  * Our own on/off cycle on top of the stack's scan mode: scan for [windowMs] out of every [intervalMs].
- * Android lowers every scan mode except LOW_LATENCY on its own when the screen is off; this cycle works the same
- * with the screen on or off, and the pause also saves the wakeups for every advertisement heard.
+ * From Android 13 the stack lowers every scan mode except LOW_LATENCY when the screen is off; this cycle works the
+ * same with the screen on or off, and the pause also saves the wakeups for every advertisement heard.
  */
 data class ScanDuty(val windowMs: Long, val intervalMs: Long) {
     init {
@@ -29,14 +29,27 @@ enum class PowerProfile { LEAF, STAFF, ANCHOR, ECONOMY }
 /** What the radio applies: the stack's scan and advertise modes and our scan duty cycle. */
 data class PowerPlan(val profile: PowerProfile, val scan: PowerMode, val advertise: PowerMode, val duty: ScanDuty)
 
-/** How aggressively the phone scans and advertises, from its role, the battery, the screen and a report just sent. */
+/**
+ * How aggressively the phone scans and advertises, from its role, the battery, the screen and a report just sent.
+ *
+ * What the stack makes of each scan mode, as window/interval in ms (AOSP defaults; vendors and `Settings.Global` can
+ * change them). Android 8 has 500/5000, 2000/5000 and 5000/5000. Before 13 a filtered scan like ours keeps its mode
+ * with the screen off; from 13 a foreground app's (a foreground service counts) is lowered, except LOW_LATENCY, and a
+ * background app's gets 512/10240. Batched scans use their own, lower numbers.
+ *
+ * | Mode        | Android 9–12 | Android 13+ | Android 13+, screen off |
+ * |-------------|--------------|-------------|-------------------------|
+ * | LOW_POWER   | 512/5120     | 140/1400    | 512/10240               |
+ * | BALANCED    | 1024/4096    | 183/730     | 183/730                 |
+ * | LOW_LATENCY | 4096/4096    | 100/100     | 100/100                 |
+ */
 object PowerPolicy {
     const val LOW_BATTERY_PERCENT = 20
     const val BOOST_MS = 15_000L
 
-    /** The pause stays under [ConnectionPolicy.FRESH_MS], so a peer heard in one window can still be dialled. */
-    val LEAF_DUTY = ScanDuty(windowMs = 10_000, intervalMs = 25_000)
-    val ECONOMY_DUTY = ScanDuty(windowMs = 10_000, intervalMs = 25_000)
+    /** The 12 s pause stays under [ConnectionPolicy.FRESH_MS], so a peer heard in one window is still fresh in the next. */
+    val LEAF_DUTY = ScanDuty(windowMs = 13_000, intervalMs = 25_000)
+    val ECONOMY_DUTY = ScanDuty(windowMs = 13_000, intervalMs = 25_000)
 
     fun profile(staff: Boolean, anchor: Boolean, batteryPercent: Int, charging: Boolean): PowerProfile = when {
         batteryPercent < LOW_BATTERY_PERCENT && !charging -> PowerProfile.ECONOMY

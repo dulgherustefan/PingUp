@@ -45,7 +45,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +63,7 @@ import ro.safetyplease.app.ui.common.MapPin
 import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.app.ui.common.incidentPoint
+import ro.safetyplease.app.ui.common.routeText
 import ro.safetyplease.app.ui.common.spotColor
 import ro.safetyplease.app.ui.common.typeGlyph
 import ro.safetyplease.app.ui.common.venueAspect
@@ -92,7 +92,6 @@ import ro.safetyplease.app.ui.rememberLocationRequest
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
-import ro.safetyplease.core.venue.compassSector
 import ro.safetyplease.core.venue.distanceMeters
 import ro.safetyplease.core.data.Role as AppRole
 
@@ -245,21 +244,15 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                         MapFocus.SPOT -> {
                             val name = spot?.name?.takeIf { it.isNotEmpty() }
                                 ?: if (spotType == Venue.MEETING) stringResource(R.string.map_meeting_point) else spotLabel(spotType)
-                            val directions = stringArrayResource(R.array.map_directions)
                             GroupRow(
                                 name,
-                                subtitle = when {
-                                    spot == null -> null
-                                    origin != null -> stringResource(R.string.map_route, distanceMeters(origin, spot.point), directions[compassSector(origin, spot.point)])
-                                    else -> stringResource(R.string.map_route_unknown)
-                                },
+                                subtitle = spot?.let { routeText(origin, it.point) },
                                 leading = { IconCircle(typeGlyph(spotType) ?: Sym.Flag, spotColor(colors, spotType), Color.White, 36.dp) },
                             )
                         }
                         MapFocus.ZONE -> {
                             val index = vm.venue.zones.indexOfFirst { it.id == tapped }
                             val zone = vm.venue.zones.getOrNull(index)
-                            val directions = stringArrayResource(R.array.map_directions)
                             val canSet = here == null && tapped != myZoneId
                             // with large fonts the button goes under the name, so the name keeps the row's width
                             val stacked = largeFont()
@@ -268,9 +261,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                                 subtitle = when {
                                     tapped == myZoneId && autoZone != null -> stringResource(R.string.map_you_are_here)
                                     tapped == myZoneId -> stringResource(R.string.map_your_zone) + " · " + stringResource(R.string.map_source_manual)
-                                    origin != null && zone != null -> stringResource(
-                                        R.string.map_route, distanceMeters(origin, zone.center), directions[compassSector(origin, zone.center)],
-                                    )
+                                    origin != null && zone != null -> routeText(origin, zone.center)
                                     else -> stringResource(R.string.map_zone_tag)
                                 },
                                 leading = { if (zone != null) ZoneBadge(vm.venue, index) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },

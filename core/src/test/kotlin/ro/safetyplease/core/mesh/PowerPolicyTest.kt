@@ -111,8 +111,8 @@ class PowerPolicyTest {
     fun dutyCyclesFitAndroidAndTheConnectionPolicy() {
         for (duty in listOf(PowerPolicy.LEAF_DUTY, PowerPolicy.ECONOMY_DUTY)) {
             assertTrue("leaves room under Android's 5 starts in 30 s for mode changes", duty.startsIn(30_000) <= 2)
-            assertTrue("a peer heard in one window is still fresh at the next", duty.offMs <= ConnectionPolicy.FRESH_MS)
-            assertTrue("the window spans at least one screen-off LOW_POWER scan interval of the stack", duty.windowMs >= 10_000)
+            assertTrue("a peer heard at the end of one window is still fresh at the next", duty.offMs < ConnectionPolicy.FRESH_MS)
+            assertTrue("the window spans at least one screen-off LOW_POWER scan interval of the stack", duty.windowMs >= 10_240)
             assertTrue(duty.fraction < 1.0)
         }
     }

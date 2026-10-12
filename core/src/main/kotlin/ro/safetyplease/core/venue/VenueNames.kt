@@ -21,7 +21,6 @@ fun Venue.Companion.parse(text: String, language: String): Venue {
     )
 }
 
-/** The entry's name in [language] when it has a non-blank "name_<language>", otherwise [default]. */
 private fun displayName(entry: JsonObject?, default: String, language: String): String =
     (entry?.get("name_$language") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: default
 

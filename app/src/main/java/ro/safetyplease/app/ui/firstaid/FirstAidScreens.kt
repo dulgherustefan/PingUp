@@ -35,6 +35,7 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.MapGlyph
+import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.app.ui.common.routeText
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.Banner
@@ -50,6 +51,7 @@ import ro.safetyplease.app.ui.designsystem.footnote
 import ro.safetyplease.app.ui.designsystem.headline
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title2
+import ro.safetyplease.app.ui.isOpen
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 
@@ -195,12 +197,14 @@ private fun HelpGroup(vm: AppViewModel, dea: Boolean) {
     }
 }
 
-/** Where the way to the defibrillator is measured from: your position, else the zone you picked by hand. */
+/** Where the way to the defibrillator is measured from: as on the report screen, for our newest open report. */
 @Composable
 private fun rememberOrigin(vm: AppViewModel): GeoPoint? {
     val position by vm.position.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
-    return position ?: vm.venue.zone(settings.manualZone)?.center
+    val incidents by vm.incidents.collectAsStateWithLifecycle()
+    val report = incidents.mine.filter { it.isOpen() }.maxByOrNull { it.createdAt }
+    return helpOrigin(position, report, settings.manualZone, vm.venue)
 }
 
 /** What goes under the title and the summary, with consecutive steps kept together in one card. */

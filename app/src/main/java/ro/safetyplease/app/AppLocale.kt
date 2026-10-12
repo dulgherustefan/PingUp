@@ -13,7 +13,6 @@ object AppLocale {
 
     private val SUPPORTED = setOf("ro", "en")
 
-    /** The first of the phone's languages the app has strings for, in the phone's order; Romanian when none is. */
     fun pick(preferred: List<Locale>): Locale = preferred.firstOrNull { it.language in SUPPORTED } ?: ROMANIAN
 
     fun wrap(base: Context): Context {
@@ -23,6 +22,6 @@ object AppLocale {
         return base.createConfigurationContext(config)
     }
 
-    /** Language code of [context]'s strings, "ro" or "en", once [wrap] has pinned it. */
+    /** "ro" or "en", for a context [wrap] has pinned. */
     fun language(context: Context): String = context.resources.configuration.locales[0].language
 }

@@ -109,7 +109,6 @@ object Labels {
         else -> format(resources, R.string.date_pattern_day, timeMs)
     }
 
-    /** Month and weekday names come from the app's language; the word order from the pattern in strings.xml. */
     private fun format(resources: Resources, @StringRes pattern: Int, timeMs: Long): String =
         SimpleDateFormat(resources.getString(pattern), locale(resources)).format(Date(timeMs))
 

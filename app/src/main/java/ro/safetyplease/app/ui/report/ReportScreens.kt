@@ -59,7 +59,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -85,6 +84,7 @@ import ro.safetyplease.app.ui.common.IncidentHeader
 import ro.safetyplease.app.ui.common.MapGlyph
 import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.categoryIcon
+import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.app.ui.common.routeText
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppDialog
@@ -127,8 +127,6 @@ import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
-import ro.safetyplease.core.venue.compassSector
-import ro.safetyplease.core.venue.distanceMeters
 
 /** Categories that are urgent unless the user says otherwise. */
 private fun urgentByDefault(category: Int): Boolean =
@@ -647,17 +645,12 @@ private fun rememberEscalated(report: MyReport): Boolean {
 private fun HelpSteps(vm: AppViewModel, origin: GeoPoint?, stay: Boolean) {
     val context = LocalContext.current
     val medical = vm.venue.nearest(MEDICAL, origin)
-    val directions = stringArrayResource(R.array.map_directions)
     SectionTitle(stringResource(R.string.report_help_title))
     InsetGroup {
         if (medical != null) {
             GroupRow(
                 stringResource(R.string.report_help_medical),
-                subtitle = if (origin != null) {
-                    stringResource(R.string.map_route, distanceMeters(origin, medical.point), directions[compassSector(origin, medical.point)])
-                } else {
-                    stringResource(R.string.map_route_unknown)
-                },
+                subtitle = routeText(origin, medical.point),
                 icon = Sym.Walk, chevron = true, onClick = { vm.open(Dest.Map(spot = MEDICAL)) },
             )
         } else {

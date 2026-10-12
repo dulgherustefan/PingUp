@@ -4,7 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import ro.safetyplease.app.R
+import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.compassSector
 import ro.safetyplease.core.venue.distanceMeters
 
@@ -17,4 +19,15 @@ fun routeText(origin: GeoPoint?, to: GeoPoint): String {
     } else {
         stringResource(R.string.map_route_unknown)
     }
+}
+
+/**
+ * Where the way to help is measured from: your position now, else where [report] was sent from, else the zone
+ * you picked by hand. Null if we know none of them.
+ */
+fun helpOrigin(position: GeoPoint?, report: MyReport?, manualZone: String, venue: Venue): GeoPoint? {
+    val lat = report?.lat
+    val lon = report?.lon
+    val reported = if (lat != null && lon != null) GeoPoint(lat, lon) else null
+    return position ?: reported ?: report?.let { venue.zone(it.zone) }?.center ?: venue.zone(manualZone)?.center
 }

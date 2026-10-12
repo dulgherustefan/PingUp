@@ -428,7 +428,10 @@ class BleRadio(
         log("power: ${plan.profile} scan=${plan.scan} advertise=${plan.advertise} duty=${plan.duty}")
         val scanChanged = plan.scan != scanMode
         setPowerMode(plan.scan, plan.advertise)
-        if (!cycle.set(plan.duty) || !active || scanChanged) return
+        if (!cycle.set(plan.duty)) return
+        // the old duty's timer would otherwise end the new duty's first window early
+        cycleJob?.cancel()
+        if (!active || scanChanged) return
         // a scan already running keeps its start time; a paused one starts again under the new duty
         if (scanning) scheduleCycle() else requestScan()
     }
@@ -884,6 +887,8 @@ class BleRadio(
                 cycle.resume()
                 requestScan()
             } else {
+                // a batched scan still holds what it heard since its last report; stopping would drop it
+                if (scanning && scanBatched) runCatching { adapter?.bluetoothLeScanner?.flushPendingScanResults(scanCallback) }
                 stopScanNow()
                 cycle.pause(now())
                 scheduleCycle()
