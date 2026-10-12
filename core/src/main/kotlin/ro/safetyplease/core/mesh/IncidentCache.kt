@@ -27,6 +27,7 @@ class IncidentCache(
         var ackStatus = AckStatus.NONE
         var ackTimestamp = 0L
         var ackTeam = ""
+        var ackAssigned = false
         var touchedMs = 0L
 
         /** This phone wrote the report. */
@@ -81,7 +82,7 @@ class IncidentCache(
         e.report = null
     }
 
-    /** Keeps the ACK only if it beats the known one: higher status, then oldest, then team. */
+    /** Keeps the ACK only if it beats the known one: higher status, then a take over an assignment, then oldest, then team. */
     fun offerAck(ack: IncidentAck, packet: Packet, nowMs: Long): Boolean {
         purge(nowMs)
         val e = entry(ack.incidentId.toLong(), nowMs)
@@ -89,12 +90,15 @@ class IncidentCache(
         e.ackStatus = ack.status
         e.ackTimestamp = ack.timestamp
         e.ackTeam = ack.teamName
+        e.ackAssigned = ack.assigned
         e.ack = Stored(packet, nowMs)
         return true
     }
 
     private fun isBetter(ack: IncidentAck, e: Entry): Boolean {
         if (ack.status != e.ackStatus) return ack.status > e.ackStatus
+        // a team that took the incident has it, whatever the clocks say about the console's assignment
+        if (ack.assigned != e.ackAssigned) return !ack.assigned
         if (ack.timestamp != e.ackTimestamp) return ack.timestamp < e.ackTimestamp
         return ack.teamName < e.ackTeam
     }

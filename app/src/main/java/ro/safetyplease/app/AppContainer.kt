@@ -97,6 +97,9 @@ class AppContainer(private val app: Application) {
     /** When the console last heard each phone; kept while this phone is the console. */
     val heard = MutableStateFlow<Map<Int, HeardPeer>>(emptyMap())
 
+    /** The console's last shared log, in the cache; the share sheet reads the files from here. */
+    val exportDir = File(app.cacheDir, "export")
+
     val staffCrypto = StaffCrypto(crypto, loadStaffPublic())
 
     @Volatile
@@ -155,12 +158,22 @@ class AppContainer(private val app: Application) {
         }
         meshScope.launch { remindUnconfirmed() }
         meshScope.launch {
-            settings.state.map { it.role == Role.CONTROL }.distinctUntilChanged().collectLatest { control -> if (control) watchAsConsole() }
+            settings.state.map { it.role == Role.CONTROL }.distinctUntilChanged().collectLatest { control ->
+                if (control) {
+                    watchAsConsole()
+                } else {
+                    heard.value = emptyMap()
+                }
+            }
         }
     }
 
-    /** While this phone is the console: logs every report it opens and remembers when it last heard each phone. */
+    /**
+     * While this phone is the console: logs every report it opens and remembers when it last heard each phone.
+     * Files a past export left in the cache go when the console starts; the log keeps everything they held.
+     */
     private suspend fun watchAsConsole() = coroutineScope {
+        launch(Dispatchers.IO) { exportDir.deleteRecursively() }
         launch { incidentStore.state.collect { console.sawIncidents(it.staff) } }
         launch { engine.state.collect { heard.value = PeerBook.update(heard.value, it, clock.wallMs(), clock.monoMs()) } }
     }

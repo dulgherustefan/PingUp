@@ -16,10 +16,19 @@ class StaffCrypto(private val crypto: Crypto, val publicKeys: StaffPublicKeys) {
     fun openReport(sealed: ByteArray, secret: StaffSecretKeys): ByteArray? =
         crypto.sealOpen(sealed, publicKeys.box, secret.box.secretKey)
 
-    fun signAck(incidentId: ByteArray, status: Int, timestamp: Long, teamName: String, secret: StaffSecretKeys): IncidentAck {
-        val unsigned = IncidentAck.unsigned(incidentId, status, timestamp, teamName)
-        val signature = crypto.sign(IncidentAck.signedMessage(unsigned), secret.sign.secretKey)
-        return IncidentAck(incidentId, status, timestamp, teamName, signature)
+    /** [flags] are AckFlags bits; they travel in the ACK's extensions, under the signature. */
+    fun signAck(
+        incidentId: ByteArray,
+        status: Int,
+        timestamp: Long,
+        teamName: String,
+        secret: StaffSecretKeys,
+        flags: Int = 0,
+    ): IncidentAck {
+        val extensions = IncidentAck.extensions(flags)
+        val signed = IncidentAck.unsigned(incidentId, status, timestamp, teamName) + extensions
+        val signature = crypto.sign(IncidentAck.signedMessage(signed), secret.sign.secretKey)
+        return IncidentAck(incidentId, status, timestamp, teamName, signature, extensions)
     }
 
     fun verifyAck(payload: ByteArray): Boolean {

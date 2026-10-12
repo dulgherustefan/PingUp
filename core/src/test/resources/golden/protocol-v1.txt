@@ -102,7 +102,12 @@ frame.opaque.relayed 015503000123456789abcdef79388b6b02a70d4968e7780000066675747
 # incident.body with flag 0x80 from a newer version and its field, abcd, after the cancel hash.
 # 1.1 reads it as incident.body; 1.0 rejects it.
 incident.body.extended 010368e77800870a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef7abcd
-# INCIDENT_ACK from a newer version: INCIDENT_ID, status 7, TIME+120, team "Medical 1", then abcd, fields 1.1 doesn't
-# read, then the Ed25519 signature with the staff sign key over "SP-ACK-v1" and everything before it.
-# 1.1 verifies and relays it but doesn't store it; 1.0 rejects it.
+# INCIDENT_ACK from a newer version: INCIDENT_ID, status 7, TIME+120, team "Medical 1", then abcd, its extensions
+# (1.1 reads only the first byte, as ACK flags), then the Ed25519 signature with the staff sign key over "SP-ACK-v1"
+# and everything before it. 1.1 verifies and relays it but doesn't store it; 1.0 rejects it.
 incident.ack.future 00112233445566778899aabbccddeeff0768e77878094d65646963616c2031abcde68c5e0146c07167cabfe91c6c86c80d24ff25703f3dd8cad1c03bdc34f419f9ab710d07386b01372cba54f9d092973bfeea19ce3884069796d89595dae7e405
+# INCIDENT_ACK with which the control console assigns the incident (1.1): INCIDENT_ID, ACKNOWLEDGED, TIME+90,
+# team "Medical", then the ACK flags byte 01 (ASSIGNED), then the Ed25519 signature with the staff sign key over
+# "SP-ACK-v1" and everything before it. 1.1 reads it as an assignment, which a team's own take replaces; it never goes
+# to a 1.0 phone, which would reject it.
+incident.ack.assigned 00112233445566778899aabbccddeeff0268e7785a074d65646963616c011dc40b5dbfcf0d34e4104e7e7161b59b46c91381bebc3b55828203b9e12eceae5528556360be878d975c922004be5a54c86b2d9f1ef87dfd9504912f65bf4906

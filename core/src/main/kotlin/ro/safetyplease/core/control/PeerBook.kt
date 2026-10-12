@@ -1,14 +1,17 @@
 package ro.safetyplease.core.control
 
 import ro.safetyplease.core.mesh.MeshState
+import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.util.nodePrefix
 
 /** A phone the console heard, by the prefix it advertises; [lastHeardMs] is on the console's wall clock. */
-data class HeardPeer(val prefix: Int, val flags: Int, val linked: Boolean, val lastHeardMs: Long)
+data class HeardPeer(val prefix: Int, val flags: Int, val linked: Boolean, val lastHeardMs: Long) {
+    val anchor: Boolean get() = flags and NodeFlags.ANCHOR != 0
+}
 
 /**
  * When the console last heard each phone. A scan forgets a phone 30 s after its last advertisement; the console
- * keeps it, so an anchor that went quiet shows as quiet instead of vanishing.
+ * keeps it, so an anchor that went quiet shows as quiet instead of vanishing, however many phones come after it.
  */
 object PeerBook {
     const val MAX_PEERS = 500
@@ -26,10 +29,17 @@ object PeerBook {
             next[prefix] = HeardPeer(prefix, link.flags, true, wallMs)
         }
         if (next.size <= MAX_PEERS) return next
-        return next.values.sortedByDescending { it.lastHeardMs }.take(MAX_PEERS).associateBy { it.prefix }
+        return next.values.sortedWith(compareByDescending<HeardPeer> { it.anchor }.thenByDescending { it.lastHeardMs })
+            .take(MAX_PEERS).associateBy { it.prefix }
     }
 
     /** Linked phones first, then the most recently heard. */
     fun sorted(book: Map<Int, HeardPeer>): List<HeardPeer> =
         book.values.sortedWith(compareByDescending<HeardPeer> { it.linked }.thenByDescending { it.lastHeardMs })
+
+    /** What the console lists: every anchor, since a silent one is the warning, then at most [max] other phones. */
+    fun rows(book: Map<Int, HeardPeer>, max: Int): List<HeardPeer> {
+        val (anchors, others) = sorted(book).partition { it.anchor }
+        return anchors + others.take(max)
+    }
 }

@@ -104,6 +104,8 @@ data class MyReport(
     val createdAt: Long,
     val status: Int = 0,
     val teamName: String = "",
+    /** The control console gave the incident to [teamName]; the team hasn't taken it itself. */
+    val assigned: Boolean = false,
     val updatedAt: Long = 0,
     val sent: Boolean = false,
     /** Empty for reports made before cancelling existed; those can't be cancelled. */
@@ -129,6 +131,8 @@ data class StaffIncident(
     val hops: Int,
     val status: Int = 0,
     val teamName: String = "",
+    /** The control console gave the incident to [teamName]; the team hasn't taken it itself. */
+    val assigned: Boolean = false,
     val statusAt: Long = 0,
     val cancelHash: String = "",
 )

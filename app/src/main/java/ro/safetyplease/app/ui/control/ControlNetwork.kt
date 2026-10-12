@@ -48,13 +48,14 @@ private const val SILENT_ANCHOR_MIN = 10
 private const val MAX_HEARD_ROWS = 60
 
 /**
- * The network as this console sees it: what stops the radio, the counters since the app started and every phone
- * heard, with when it was last heard. Anchor heartbeats come later; until then, silence is the only signal.
+ * The network as this console sees it: what stops the radio, the counters since the app started and the phones heard,
+ * every anchor among them, with when each was last heard. Anchor heartbeats come later; until then, silence is the
+ * only signal.
  */
 @Composable
 internal fun NetworkPane(mesh: MeshState, heard: Map<Int, HeardPeer>, gate: RadioGate, now: Long, modifier: Modifier) {
     val colors = AppTheme.colors
-    val peers = remember(heard) { PeerBook.sorted(heard).take(MAX_HEARD_ROWS) }
+    val peers = remember(heard) { PeerBook.rows(heard, MAX_HEARD_ROWS) }
     val counters = listOf(
         mesh.readyLinks.toLong() to R.string.anchor_peers,
         mesh.visiblePeers.toLong() to R.string.anchor_visible,
@@ -118,7 +119,7 @@ private fun Counter(value: String, label: String, modifier: Modifier) {
 @Composable
 private fun HeardRow(peer: HeardPeer, now: Long) {
     val colors = AppTheme.colors
-    val anchor = peer.flags and NodeFlags.ANCHOR != 0
+    val anchor = peer.anchor
     val quietMin = ((now - peer.lastHeardMs) / 60_000).toInt()
     val silent = anchor && !peer.linked && quietMin >= SILENT_ANCHOR_MIN
     val role = when {

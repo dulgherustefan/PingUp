@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -61,16 +62,42 @@ class ConsoleFlowTest {
         val atMedic = s.medic.staffIncidents.single()
         assertEquals(AckStatus.ACKNOWLEDGED, atMedic.status)
         assertTrue(isAssignedTo(atMedic.teamName, s.medic.team))
+        assertTrue("flagged as the console's assignment", atMedic.assigned)
         assertEquals(AckStatus.ACKNOWLEDGED, s.reporter.myReports.single().status)
         assertEquals("Medical 2", s.reporter.myReports.single().teamName)
 
         val (signed, own, hops) = s.console.acks.last()
         assertEquals(AckStatus.ACKNOWLEDGED, signed.status)
         assertEquals("Medical 2", signed.teamName)
+        assertTrue(signed.assigned)
         assertTrue(own && hops == 0)
         val heard = s.medic.acks.single { it.first.status == AckStatus.ACKNOWLEDGED }
         assertTrue("signed elsewhere, it came over the radio", !heard.second && heard.third >= 1)
         assertTrue(heard.first.signature.contentEquals(signed.signature))
+    }
+
+    @Test
+    fun aTeamsOwnTakeReplacesTheAssignmentEverywhere() = runTest {
+        val s = site()
+        s.reporter.incidents.report(medical())
+        advanceTimeBy(15_000)
+        val id = s.console.staffIncidents.single().incidentId
+        s.console.incidents.assign(id, "Medical")
+        advanceTimeBy(15_000)
+        assertTrue(s.medic.staffIncidents.single().assigned)
+
+        // signed later than the assignment, and still the one that stands
+        s.medic.incidents.acknowledge(id)
+        advanceTimeBy(15_000)
+
+        for (phone in listOf(s.medic, s.console)) {
+            val incident = phone.staffIncidents.single()
+            assertEquals(phone.name, "Medical 2", incident.teamName)
+            assertFalse(phone.name, incident.assigned)
+        }
+        assertEquals("Medical 2", s.reporter.myReports.single().teamName)
+        val (take, own, _) = s.console.acks.last()
+        assertTrue(!own && !take.assigned && take.teamName == "Medical 2")
     }
 
     @Test

@@ -319,4 +319,18 @@ class ConsoleLogTest {
         assertEquals(PeerBook.MAX_PEERS, book.size)
         assertFalse("the oldest go", 0 in book)
     }
+
+    @Test
+    fun aSilentAnchorIsNeverCrowdedOut() {
+        val anchor = SeenPeer("anchor", 0x7fff_0000, NodeFlags.ANCHOR, -80, 0)
+        val crowd = (1..PeerBook.MAX_PEERS + 20).map { SeenPeer("a$it", it, 0, -80, it.toLong()) }
+        val book = PeerBook.update(emptyMap(), MeshState(seen = listOf(anchor) + crowd), t0, 10_000)
+        assertEquals(PeerBook.MAX_PEERS, book.size)
+        assertTrue("the oldest phone heard, but an anchor", 0x7fff_0000 in book)
+
+        val rows = PeerBook.rows(book, max = 60)
+        assertEquals(61, rows.size)
+        assertEquals("anchors first, past the cap for the others", 0x7fff_0000, rows.first().prefix)
+        assertEquals(60, rows.count { !it.anchor })
+    }
 }

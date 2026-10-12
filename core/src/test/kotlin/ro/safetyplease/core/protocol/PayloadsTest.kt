@@ -4,6 +4,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.core.util.sha256
@@ -67,6 +68,7 @@ class PayloadsTest {
         assertNull("1.0 SUMMARY stays strict", SummaryCodec.decode(future.copyOfRange(1, future.size)))
 
         assertEquals(Summary2(0x42, emptyList()), Summary2Codec.decode(byteArrayOf(0x42, 1, 2, 3)))
+        assertThrows("only INCIDENTS has entries", IllegalArgumentException::class.java) { Summary2Codec.encode(Summary2(0x42, entries)) }
         assertNull(Summary2Codec.decode(ByteArray(0)))
         assertNull("truncated entries", Summary2Codec.decode(bytes.copyOf(bytes.size - 1)))
         assertNull(Summary2Codec.decode(byteArrayOf(1, 60)))
@@ -83,6 +85,7 @@ class PayloadsTest {
         assertEquals(listOf(RequestEntry(3L, true, false)), Request2Codec.decode(future)!!.entries)
         assertNull("1.0 REQUEST stays strict", RequestCodec.decode(future.copyOfRange(1, future.size)))
         assertEquals(Request2(9, emptyList()), Request2Codec.decode(byteArrayOf(9)))
+        assertThrows("only INCIDENTS has entries", IllegalArgumentException::class.java) { Request2Codec.encode(Request2(9, entries)) }
     }
 
     @Test
@@ -211,6 +214,22 @@ class PayloadsTest {
         val newer = IncidentAck.decode(payload.clone().also { it[IncidentAck.STATUS_OFFSET] = 5 })!!
         assertEquals("a newer status is kept as a number", 5, newer.status)
         assertFalse(AckStatus.isKnown(newer.status))
+    }
+
+    @Test
+    fun ackFlagsAreTheFirstExtensionByte() {
+        val id = ByteArray(INCIDENT_ID_SIZE) { it.toByte() }
+        val sig = ByteArray(IncidentAck.SIGNATURE_SIZE) { 7 }
+        fun ack(extensions: ByteArray) =
+            IncidentAck.decode(IncidentAck(id, AckStatus.ACKNOWLEDGED, 99L, "Medical", sig, extensions).encode())!!
+        assertEquals("no flag, no byte: a plain ACK keeps the 1.0 layout", 0, IncidentAck.extensions(0).size)
+        assertFalse(ack(IncidentAck.extensions(0)).assigned)
+        val assigned = ack(IncidentAck.extensions(AckFlags.ASSIGNED))
+        assertTrue(assigned.assigned)
+        assertArrayEquals(byteArrayOf(AckFlags.ASSIGNED.toByte()), assigned.extensions)
+        val newer = ack(byteArrayOf(0x82.toByte(), 5, 6))
+        assertEquals("bits and fields of a newer version are kept", 0x82, newer.flags)
+        assertFalse(newer.assigned)
     }
 
     @Test

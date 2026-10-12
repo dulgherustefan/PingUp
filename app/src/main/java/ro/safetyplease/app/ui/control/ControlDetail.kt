@@ -106,6 +106,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
     val zoneName = if (r.zone.isEmpty()) "" else vm.venue.zoneName(r.zone)
     val phrase = radioPhrase(r, zoneName, rememberRadioWords())
     var copied by remember(phrase) { mutableStateOf(false) }
+    val clipLabel = stringResource(R.string.control_radio_clip)
     val history = remember(entries, case.incidentId) { entries.filter { it.incidentId == case.incidentId } }
     val nickname = incidents.staff.firstOrNull { it.incidentId == case.incidentId }?.nickname
     val (_, statusIcon, statusColor) = caseLook(case)
@@ -140,7 +141,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
             AppButton(
                 stringResource(if (copied) R.string.code_sheet_copied else R.string.msg_copy),
                 {
-                    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("stație", phrase))
+                    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(clipLabel, phrase))
                     copied = true
                     haptics.confirm()
                 },

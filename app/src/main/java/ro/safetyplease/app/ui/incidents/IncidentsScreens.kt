@@ -118,7 +118,7 @@ private fun statusWord(status: Int): Int = when (status) {
     else -> R.string.staff_status_new
 }
 
-/** Status with the team name: "Preluat de Echipa 2", or "Alocat echipei tale" when it's [mine]. */
+/** Status with the team name: "Preluat de Echipa 2", or "Alocat echipei tale" when the console gave it to this team. */
 @Composable
 private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier, mine: Boolean = false) {
     if (mine) {
@@ -132,9 +132,12 @@ private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier
 /** Taken in the name of [team] or its role, by the console or by the team itself, and not closed: its work comes first. */
 internal fun StaffIncident.isMine(team: String): Boolean = status == AckStatus.ACKNOWLEDGED && isAssignedTo(teamName, team)
 
+/** The console gave it to [team]: "Alocat echipei tale". A team's own take is not an assignment. */
+internal fun StaffIncident.isAssignedToMe(team: String): Boolean = assigned && isMine(team)
+
 /**
- * One row per report under [filter]: those assigned to [team] first, then unassigned urgent ones, closed ones last,
- * then severity and recency.
+ * One row per report under [filter]: those [team] has, assigned or taken, first, then unassigned urgent ones,
+ * closed ones last, then severity and recency.
  */
 internal fun incidentRows(staff: List<StaffIncident>, filter: StatusFilter, team: String = ""): List<StaffIncident> =
     staff.filter(filter::matches).sortedWith(
@@ -202,7 +205,7 @@ fun IncidentsScreen(vm: AppViewModel) {
             } else {
                 items(shown, key = { it.incidentId }) { incident ->
                     IncidentRow(
-                        vm, incident, hints[incident.incidentId], now, incident.isMine(settings.teamName),
+                        vm, incident, hints[incident.incidentId], now, incident.isAssignedToMe(settings.teamName),
                         onDismiss = { vm.dismissIncident(incident.incidentId) },
                         onAskDismiss = { confirmDismiss = incident },
                         modifier = Modifier.animateItem(),
@@ -416,7 +419,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
             IncidentHeader(
                 incident.category, incident.severity == Severity.URGENT, place + " · " + agoText(incident.reportedAt, now),
                 Modifier.onSizeChanged { headerPx = it.height },
-                status = { StaffStatus(incident.status, incident.teamName, mine = incident.isMine(settings.teamName)) },
+                status = { StaffStatus(incident.status, incident.teamName, mine = incident.isAssignedToMe(settings.teamName)) },
             )
             // one step at a time so staff can't close a case nobody took: first Take, then Mark resolved;
             // once resolved or cancelled the button goes away and the header shows the state
@@ -494,7 +497,9 @@ private fun StaffReportBlock(incident: StaffIncident, team: String, onOpen: (() 
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 2.dp),
             )
-            if (onOpen != null) StaffStatus(incident.status, incident.teamName, Modifier.padding(top = 8.dp), mine = incident.isMine(team))
+            if (onOpen != null) {
+                StaffStatus(incident.status, incident.teamName, Modifier.padding(top = 8.dp), mine = incident.isAssignedToMe(team))
+            }
         }
         if (onOpen != null) {
             Spacer(Modifier.width(8.dp))

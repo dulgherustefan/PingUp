@@ -77,6 +77,10 @@
             android:grantUriPermissions="true" />
 
         <receiver
+            android:name=".ui.control.ExportShared"
+            android:exported="false" />
+
+        <receiver
             android:name=".service.BootReceiver"
             android:exported="false">
             <intent-filter>

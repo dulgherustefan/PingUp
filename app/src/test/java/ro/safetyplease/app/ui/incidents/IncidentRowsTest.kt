@@ -2,6 +2,7 @@ package ro.safetyplease.app.ui.incidents
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.StatusFilter
@@ -17,9 +18,10 @@ class IncidentRowsTest {
         status: Int = AckStatus.RECEIVED,
         category: Int = IncidentCategory.MEDICAL,
         team: String = "",
+        assigned: Boolean = false,
     ) = StaffIncident(
         incidentId = id, category = category, severity = severity, zone = "main-stage",
-        reportedAt = atMin * 60_000L, receivedAt = atMin * 60_000L, hops = 1, status = status, teamName = team,
+        reportedAt = atMin * 60_000L, receivedAt = atMin * 60_000L, hops = 1, status = status, teamName = team, assigned = assigned,
     )
 
     @Test
@@ -37,6 +39,17 @@ class IncidentRowsTest {
         )
         assertEquals("without a team, the order stays", "nepreluat", incidentRows(staff, StatusFilter.ACTIVE).first().incidentId)
         assertFalse("closed work isn't the team's any more", staff.last().isMine("Medical 2"))
+    }
+
+    @Test
+    fun onlyTheConsolesAssignmentReadsAsAssignedToTheTeam() {
+        val assigned = incident("alocat", 0, status = AckStatus.ACKNOWLEDGED, team = "Medical", assigned = true)
+        val taken = incident("preluat", 1, status = AckStatus.ACKNOWLEDGED, team = "Medical 2")
+        assertTrue(assigned.isAssignedToMe("Medical 2"))
+        assertFalse("the team's own take is not an assignment", taken.isAssignedToMe("Medical 2"))
+        assertTrue("but it is still the team's work", taken.isMine("Medical 2"))
+        assertFalse("assigned to another team", assigned.isAssignedToMe("Securitate 1"))
+        assertFalse("closed", assigned.copy(status = AckStatus.RESOLVED).isAssignedToMe("Medical 2"))
     }
 
     @Test

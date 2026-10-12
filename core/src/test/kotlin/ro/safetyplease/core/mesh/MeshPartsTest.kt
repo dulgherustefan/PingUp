@@ -10,6 +10,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ro.safetyplease.core.protocol.AckFlags
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.INCIDENT_ID_SIZE
 import ro.safetyplease.core.protocol.IncidentAck
@@ -148,6 +149,8 @@ class MeshPartsTest {
         assertTrue("the first one left the window", w.tryAdd(60_000))
         assertFalse(w.tryAdd(60_500))
         assertFalse("a refusal doesn't count", w.isFull(61_000))
+        assertEquals(1, w.remaining(61_000))
+        assertEquals(6, w.remaining(200_000))
     }
 
     // --- store-and-forward ---
@@ -184,6 +187,23 @@ class MeshPartsTest {
         assertTrue(c.offerAck(ack(1, AckStatus.ACKNOWLEDGED, ts = 90, team = "C"), packet(PacketType.INCIDENT_ACK, 2), 0))
         assertTrue(c.offerAck(ack(1, AckStatus.ACKNOWLEDGED, ts = 90, team = "A"), packet(PacketType.INCIDENT_ACK, 3), 0))
         assertFalse(c.offerAck(ack(1, AckStatus.ACKNOWLEDGED, ts = 95, team = "A"), packet(PacketType.INCIDENT_ACK, 4), 0))
+    }
+
+    @Test
+    fun aTeamsTakeBeatsTheConsolesAssignmentWhateverTheClocks() {
+        val c = IncidentCache()
+        fun assignment(ts: Long, team: String) = IncidentAck(
+            id(1), AckStatus.ACKNOWLEDGED, ts, team, ByteArray(IncidentAck.SIGNATURE_SIZE), IncidentAck.extensions(AckFlags.ASSIGNED),
+        )
+        fun offer(ack: IncidentAck, id: Long) = c.offerAck(ack, packet(PacketType.INCIDENT_ACK, id), 0)
+        assertTrue(offer(assignment(50, "Medical"), 1))
+        assertFalse("a later assignment doesn't move it", offer(assignment(60, "Securitate"), 2))
+        assertTrue("an older one does", offer(assignment(40, "Securitate"), 3))
+        assertTrue("a take, even signed later", offer(ack(1, AckStatus.ACKNOWLEDGED, ts = 100, team = "Medical 2"), 4))
+        assertFalse("no assignment undoes a take", offer(assignment(10, "Medical"), 5))
+        assertTrue("between takes the older wins", offer(ack(1, AckStatus.ACKNOWLEDGED, ts = 90, team = "Pompieri"), 6))
+        assertEquals(6L, c.ack(1L)!!.id)
+        assertTrue("a higher status still wins", offer(ack(1, AckStatus.RESOLVED, ts = 200), 7))
     }
 
     @Test

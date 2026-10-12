@@ -80,6 +80,7 @@ class GoldenVectorsTest {
         "frame.opaque.relayed" to { PacketCodec.encode(Golden.opaquePacket.withTtl(PacketType.OPAQUE_MAX_TTL)).toHex() },
         "incident.body.extended" to { Golden.extendedBody().toHex() },
         "incident.ack.future" to { Golden.futureAck().encode().toHex() },
+        "incident.ack.assigned" to { Golden.assignedAck().encode().toHex() },
     )
 
     @Test
@@ -193,6 +194,15 @@ class GoldenVectorsTest {
         val ack = IncidentAck.decode(future)!!
         assertEquals(Golden.futureAck().fields() + Golden.futureAck().extensions.toHex(), ack.fields() + ack.extensions.toHex())
         assertFalse(AckStatus.isKnown(ack.status))
+
+        val assigned = bytes("incident.ack.assigned")
+        assertTrue(Golden.staff.verifyAck(assigned))
+        val decoded = IncidentAck.decode(assigned)!!
+        assertEquals(Golden.assignedAck().fields(), decoded.fields())
+        assertTrue(decoded.assigned)
+        assertEquals("01", decoded.extensions.toHex())
+        val packet = Packet(PacketType.INCIDENT_ACK, 7, 1L, 2L, Golden.TIME, null, false, assigned)
+        assertFalse("never to a 1.0 phone", Compat10.accepts(packet))
     }
 
     @Test
@@ -208,6 +218,7 @@ class GoldenVectorsTest {
         assertNull(Frozen10.hello(bytes("hello.extended")))
         assertNull(Frozen10.frame(bytes("frame.opaque")))
         assertNull(Frozen10.ack(bytes("incident.ack.future")))
+        assertNull(Frozen10.ack(bytes("incident.ack.assigned")))
         assertNull(Frozen10.body(bytes("incident.body.extended")))
     }
 
@@ -332,6 +343,10 @@ private object Golden {
         val signature = crypto.sign(IncidentAck.signedMessage(signed), staffSecret.sign.secretKey)
         return IncidentAck(INCIDENT_ID, 7, TIME + 120, "Medical 1", signature, EXTRA)
     }
+
+    /** The control console gives the incident to the role "Medical": ACKNOWLEDGED with the ASSIGNED flag. */
+    fun assignedAck(): IncidentAck =
+        staff.signAck(INCIDENT_ID, AckStatus.ACKNOWLEDGED, TIME + 90, "Medical", staffSecret, AckFlags.ASSIGNED)
 
     private val msgId = long("0102030405060708")
     private val groupId = long("1112131415161718")

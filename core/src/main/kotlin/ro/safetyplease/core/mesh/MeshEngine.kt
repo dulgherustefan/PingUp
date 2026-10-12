@@ -66,6 +66,13 @@ data class MeshConfig(
     val reportsPerMinute: Int = 6,
     /** Packets of types this version doesn't read, relayed from one link in a minute. */
     val opaquePerMinute: Int = 12,
+    /** The same for ANNOUNCEMENT, smaller while nothing signs announcements and any phone can send one. */
+    val announcementsPerMinute: Int = 4,
+    /**
+     * Frames, types and summary kinds this version can't use, accepted from one link in a minute. A peer may be a
+     * newer version, so they never ban it; past this the link is closed.
+     */
+    val unsupportedPerMinute: Int = 10,
     /** Nickname is included in HELLO only in debug builds, for the demo peer list. */
     val nicknameInHello: Boolean = false,
     val allowTestPackets: Boolean = false,
@@ -192,6 +199,8 @@ class MeshEngine(
         val malformedAt = ArrayDeque<Long>()
         val newReports = WindowLimit(config.reportsPerMinute, 60_000)
         val opaque = WindowLimit(config.opaquePerMinute, 60_000)
+        val announcements = WindowLimit(config.announcementsPerMinute, 60_000)
+        val unsupported = WindowLimit(config.unsupportedPerMinute, 60_000)
 
         val ready: Boolean get() = peerId != 0L && !muted && !closing
         val label: String get() = if (peerId != 0L) peerId.shortHex() else address.takeLast(5)
@@ -620,8 +629,22 @@ class MeshEngine(
             summary.entries
         }
         log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${entries.size} entries")
-        val wanted = cache.missing(entries, clock.monoMs())
+        val now = clock.monoMs()
+        val wanted = cache.missing(entries, now).withinReportBudget(link.newReports.remaining(now))
         if (wanted.isNotEmpty()) sendRequest(link, packet.type, wanted)
+    }
+
+    /** Reports past the link's budget for new ones would be dropped on arrival, so they wait for a later summary. */
+    private fun List<RequestEntry>.withinReportBudget(budget: Int): List<RequestEntry> {
+        var left = budget
+        return mapNotNull { e ->
+            when {
+                !e.wantReport -> e
+                left > 0 -> e.also { left-- }
+                e.wantAck -> e.copy(wantReport = false)
+                else -> null
+            }
+        }
     }
 
     private fun sendRequest(link: Link, summaryType: Int, wanted: List<RequestEntry>) {
@@ -701,7 +724,8 @@ class MeshEngine(
         if (PacketType.isLinkLocal(packet.type) || packet.recipient == nodeId || packet.ttl <= 1) {
             return drop(packet, link, DropReason.UNSUPPORTED)
         }
-        if (packet.payload.size > PacketType.opaqueMaxPayload(packet.type) || !link.opaque.tryAdd(now)) {
+        val budget = if (packet.type == PacketType.ANNOUNCEMENT) link.announcements else link.opaque
+        if (packet.payload.size > PacketType.opaqueMaxPayload(packet.type) || !budget.tryAdd(now)) {
             return drop(packet, link, DropReason.OPAQUE_LIMIT)
         }
         dedup.add(packet.dedupKey, now)
@@ -729,11 +753,26 @@ class MeshEngine(
     private fun drop(packet: Packet, link: Link, reason: DropReason) {
         drops.bump(reason)
         log.packet(clock.wallMs(), LogKind.DROP, packet, link.label, reason.label)
+        if (reason == DropReason.UNSUPPORTED) countUnsupported(link)
     }
 
     private fun unsupported(link: Link) {
         drops.bump(DropReason.UNSUPPORTED)
         log.link(clock.wallMs(), link.label, "frame from a newer version")
+        countUnsupported(link)
+    }
+
+    /**
+     * A link that brings mostly what this version can't use is closed, without a ban, and this node waits as after a
+     * rotation before connecting to that peer again; the peer may still connect to it.
+     */
+    private fun countUnsupported(link: Link) {
+        val now = clock.monoMs()
+        if (link.unsupported.tryAdd(now)) return
+        log.link(clock.wallMs(), link.label, "too much from a newer version, closing")
+        val prefix = if (link.peerId != 0L) link.peerId.nodePrefix() else link.advertisedPrefix
+        prefix?.let { prefixCooldownUntil[it] = now + config.rotationCooldownMs }
+        close(link)
     }
 
     private fun malformed(link: Link, reason: String) {

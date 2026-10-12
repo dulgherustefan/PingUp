@@ -83,10 +83,7 @@ fun reportEntry(incident: StaffIncident, grid: SiteGrid, at: Long = incident.rec
     )
 }
 
-/**
- * A team's phones take an incident as theirs when the console named their team, or their role: "Medical" reaches
- * "Medical 1" and "Medical 2". Until the protocol has assignments, the team in an ACKNOWLEDGED is the assignment.
- */
+/** The team named in an ACK is this phone's [team], or its role: "Medical" reaches "Medical 1" and "Medical 2". */
 fun isAssignedTo(assigned: String, team: String): Boolean {
     val a = assigned.trim()
     val t = team.trim()

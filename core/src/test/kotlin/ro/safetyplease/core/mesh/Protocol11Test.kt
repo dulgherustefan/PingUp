@@ -145,6 +145,19 @@ class Protocol11Test {
     }
 
     @Test
+    fun aLinkThatKeepsBringingWhatThisVersionCantUseIsClosedWithoutABan() = runTest {
+        val (a, b) = pair()
+        val foreign = PacketCodec.encode(packet(PacketType.PRIVATE, 1)).also { it[0] = 2 }
+        val link = a.radio.links.keys.single()
+        repeat(11) { a.radio.inject(link, foreign) }
+        advanceTimeBy(1_000)
+        assertTrue("closed past ten a minute", a.radio.links.isEmpty())
+        advanceTimeBy(10_000)
+        assertEquals("not banned: the peer connects again", 1, b.engine.state.value.readyLinks)
+        assertNothingMalformed(listOf(a, b))
+    }
+
+    @Test
     fun unknownTypesAreRelayedAsTheyAreButNotFar() = runTest {
         val (hub, leaves) = star(World(this), listOf("A" to A, "C" to C))
         val (a, c) = leaves
@@ -190,6 +203,18 @@ class Protocol11Test {
     }
 
     @Test
+    fun announcementsHaveASmallerBudgetUntilTheyAreSigned() = runTest {
+        val (hub, leaves) = star(World(this), listOf("A" to A, "C" to C))
+        val a = leaves.first()
+        repeat(6) { a.inject(packet(PacketType.ANNOUNCEMENT, 10L + it)) }
+        repeat(3) { a.inject(packet(UNKNOWN, 20L + it)) }
+        advanceTimeBy(5_000)
+        assertEquals(4, hub.sentTtls(PacketType.ANNOUNCEMENT).size)
+        assertEquals("other types keep their own budget", 3, hub.sentTtls(UNKNOWN).size)
+        assertEquals(2L, hub.drops[DropReason.OPAQUE_LIMIT])
+    }
+
+    @Test
     fun atMostSixNewReportsAMinuteFromOneLink() = runTest {
         val (a, b) = pair()
         val reports = List(8) { report(it) }
@@ -219,6 +244,7 @@ class Protocol11Test {
         assertEquals(6, b.ofType(PacketType.INCIDENT_REPORT).size)
         advanceTimeBy(150_000)
         assertEquals("the rest come with later summaries", 8, b.ofType(PacketType.INCIDENT_REPORT).size)
+        assertNull("what the budget can't take isn't requested, so nothing crosses only to be dropped", b.drops[DropReason.REPORT_LIMIT])
         assertNothingMalformed(listOf(a, b))
     }
 

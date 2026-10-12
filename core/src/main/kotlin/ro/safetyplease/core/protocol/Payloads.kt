@@ -150,6 +150,7 @@ data class Request2(val kind: Int, val entries: List<RequestEntry>)
 
 object Summary2Codec {
     fun encode(summary: Summary2): ByteArray {
+        require(summary.kind == SummaryKind.INCIDENTS || summary.entries.isEmpty()) { "only INCIDENTS has entries" }
         val w = WireWriter(2 + summary.entries.size * 9).u8(summary.kind)
         if (summary.kind == SummaryKind.INCIDENTS) w.summaryEntries(summary.entries)
         return w.toByteArray()
@@ -164,6 +165,7 @@ object Summary2Codec {
 
 object Request2Codec {
     fun encode(request: Request2): ByteArray {
+        require(request.kind == SummaryKind.INCIDENTS || request.entries.isEmpty()) { "only INCIDENTS has entries" }
         val w = WireWriter(2 + request.entries.size * 9).u8(request.kind)
         if (request.kind == SummaryKind.INCIDENTS) w.requestEntries(request.entries)
         return w.toByteArray()
@@ -274,10 +276,16 @@ object IncidentReportCodec {
     fun sealed(payload: ByteArray): ByteArray = payload.copyOfRange(INCIDENT_ID_SIZE, payload.size)
 }
 
+/** Bits of the first extension byte of an ACK (1.1). Bits this version doesn't know are ignored. */
+object AckFlags {
+    /** Signed by the control console in the named team's name: an assignment, not the team's own take. */
+    const val ASSIGNED = 0x01
+}
+
 /**
- * A status above [AckStatus.CANCELLED] comes from a newer version and is kept as a number. So are [extensions]:
- * fields a newer version puts between the team name and the signature. The signature always takes the last
- * 64 bytes, so it covers them.
+ * A status above [AckStatus.CANCELLED] comes from a newer version and is kept as a number. [extensions] sit between
+ * the team name and the signature, which always takes the last 64 bytes and so covers them: the first byte holds
+ * [AckFlags], and whatever follows it comes from a newer version and is kept as it came.
  */
 class IncidentAck(
     val incidentId: ByteArray,
@@ -289,10 +297,20 @@ class IncidentAck(
 ) {
     fun encode(): ByteArray = unsigned(incidentId, status, timestamp, teamName) + extensions + signature
 
+    val flags: Int get() = if (extensions.isEmpty()) 0 else extensions[0].toInt() and 0xFF
+
+    val assigned: Boolean get() = flags and AckFlags.ASSIGNED != 0
+
     companion object {
         const val SIGNATURE_SIZE = 64
         const val STATUS_OFFSET = INCIDENT_ID_SIZE
         private val DOMAIN = "SP-ACK-v1".utf8()
+
+        /** No byte at all without a flag, so a plain ACK keeps its 1.0 bytes and can still go to a 1.0 phone. */
+        fun extensions(flags: Int): ByteArray {
+            require(flags in 0..0xFF)
+            return if (flags == 0) ByteArray(0) else byteArrayOf(flags.toByte())
+        }
 
         fun unsigned(incidentId: ByteArray, status: Int, timestamp: Long, teamName: String): ByteArray {
             val team = teamName.utf8()

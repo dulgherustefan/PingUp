@@ -4,9 +4,12 @@ package ro.safetyplease.core.mesh
 class WindowLimit(private val limit: Int, private val windowMs: Long) {
     private val times = ArrayDeque<Long>()
 
-    fun isFull(nowMs: Long): Boolean {
+    fun isFull(nowMs: Long): Boolean = remaining(nowMs) <= 0
+
+    /** How many more events fit in the window now. */
+    fun remaining(nowMs: Long): Int {
         while (times.isNotEmpty() && nowMs - times.first() >= windowMs) times.removeFirst()
-        return times.size >= limit
+        return limit - times.size
     }
 
     /** Records an event if there is room; false if the window is full. */

@@ -14,6 +14,7 @@ import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.MeshEvent
+import ro.safetyplease.core.protocol.AckFlags
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.INCIDENT_ID_SIZE
 import ro.safetyplease.core.protocol.IncidentAck
@@ -171,10 +172,10 @@ class IncidentManager(
     fun resolve(incidentId: String) = sendAck(incidentId, AckStatus.RESOLVED)
 
     /**
-     * Gives the incident to [team]: an ACKNOWLEDGED signed in that team's name, which its phones show as theirs.
-     * Goes out only while nobody has taken the incident; the protocol can't reassign yet.
+     * Gives the incident to [team]: an ACKNOWLEDGED signed in that team's name and flagged as an assignment, which
+     * its phones show as theirs. Goes out only while nobody has taken the incident; the protocol can't reassign yet.
      */
-    fun assign(incidentId: String, team: String) = sendAck(incidentId, AckStatus.ACKNOWLEDGED, team)
+    fun assign(incidentId: String, team: String) = sendAck(incidentId, AckStatus.ACKNOWLEDGED, team, AckFlags.ASSIGNED)
 
     /** Removes the incident from this phone's list only, without sending anything. */
     fun dismiss(incidentId: String) {
@@ -187,12 +188,12 @@ class IncidentManager(
         onStaffAlertCleared(incidentId)
     }
 
-    private fun sendAck(incidentId: String, status: Int, team: String? = null) {
+    private fun sendAck(incidentId: String, status: Int, team: String? = null, flags: Int = 0) {
         scope.launch {
             val secret = staffSecret() ?: return@launch
             val name = (team ?: teamName()).truncateUtf8(Limits.TEAM_BYTES)
             val now = clock.wallMs()
-            val ack = staffCrypto.signAck(incidentId.hexToBytes(), status, now / 1000, name, secret)
+            val ack = staffCrypto.signAck(incidentId.hexToBytes(), status, now / 1000, name, secret, flags)
             publishOwn(ack)
             applyAck(ack)
         }
@@ -296,13 +297,15 @@ class IncidentManager(
         store.update { data ->
             data.copy(
                 mine = data.mine.map {
-                    if (it.incidentId == key && ack.status > it.status) {
-                        it.copy(status = ack.status, teamName = ack.teamName, updatedAt = now, sent = true).also { r -> updated = r }
+                    if (it.incidentId == key && supersedes(ack, it.status, it.assigned)) {
+                        it.copy(status = ack.status, teamName = ack.teamName, assigned = ack.assigned, updatedAt = now, sent = true)
+                            .also { r -> updated = r }
                     } else it
                 }.withoutStaleSeals(now),
                 staff = data.staff.map {
-                    if (it.incidentId == key && ack.status > it.status) it.copy(status = ack.status, teamName = ack.teamName, statusAt = now)
-                    else it
+                    if (it.incidentId == key && supersedes(ack, it.status, it.assigned)) {
+                        it.copy(status = ack.status, teamName = ack.teamName, assigned = ack.assigned, statusAt = now)
+                    } else it
                 },
             )
         }
@@ -354,6 +357,10 @@ class IncidentManager(
         private const val EARLY_CANCEL_MS = 60 * 60_000L
         private const val MAX_EARLY_CANCELS = 64
         private const val LINK_SETTLE_MS = 1_500L
+
+        /** A higher status, or, at the same one, a team's own take where the phone showed the console's assignment. */
+        private fun supersedes(ack: IncidentAck, status: Int, assigned: Boolean): Boolean =
+            ack.status > status || (ack.status == status && assigned && !ack.assigned)
 
         /** Our report that hasn't reached staff yet and wasn't withdrawn. */
         fun isPending(report: MyReport, nowMs: Long): Boolean =

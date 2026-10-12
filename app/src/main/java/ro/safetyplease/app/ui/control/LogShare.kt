@@ -1,5 +1,7 @@
 package ro.safetyplease.app.ui.control
 
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
@@ -37,7 +40,12 @@ import java.util.Locale
 /** Hands the exported log to the share sheet; only the export folder in the app's cache is reachable through it. */
 class LogFiles : FileProvider(R.xml.log_paths)
 
-private const val EXPORT_DIR = "export"
+/** The share sheet calls it once the operator picked an app; backing out calls nothing, so nothing is logged. */
+class ExportShared : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        (context.applicationContext as App).container.console.exported()
+    }
+}
 
 /** Says what leaves the phone, then writes the files and opens the share sheet in [scope], which outlives the dialog. */
 @Composable
@@ -83,7 +91,7 @@ private fun rememberExportNames(venue: Venue): ExportNames {
 
 /**
  * The shift log as two CSV files and a JSON one, written to the app's cache, then the share sheet. The previous export's
- * files are deleted first; the log itself notes the export and keeps everything.
+ * files are deleted first; the log itself keeps everything and notes the export once an app was picked to receive it.
  */
 private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNames) {
     val now = c.clock.wallMs()
@@ -91,7 +99,7 @@ private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNam
         val zone = ZoneId.systemDefault()
         val entries = c.consoleLog.value.entries
         val cases = ConsoleView.cases(entries, c.incidentStore.value.staff, c.grid).values
-        val dir = File(context.cacheDir, EXPORT_DIR).apply {
+        val dir = c.exportDir.apply {
             deleteRecursively()
             mkdirs()
         }
@@ -107,6 +115,8 @@ private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNam
     val send = Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*")
         .putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(Intent.createChooser(send, null))
-    c.console.exported()
+    val shared = PendingIntent.getBroadcast(
+        context, 0, Intent(context, ExportShared::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    context.startActivity(Intent.createChooser(send, null, shared.intentSender))
 }
