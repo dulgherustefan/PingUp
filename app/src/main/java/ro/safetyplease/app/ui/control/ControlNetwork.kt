@@ -1,5 +1,41 @@
 package ro.safetyplease.app.ui.control
 
+import ro.safetyplease.ui.resources.anchor_cached
+import ro.safetyplease.ui.resources.anchor_peers
+import ro.safetyplease.ui.resources.anchor_relayed
+import ro.safetyplease.ui.resources.anchor_title
+import ro.safetyplease.ui.resources.anchor_verified
+import ro.safetyplease.ui.resources.anchor_visible
+import ro.safetyplease.ui.resources.control_heard_staff
+import ro.safetyplease.ui.resources.control_network_dropped
+import ro.safetyplease.ui.resources.control_network_received
+import ro.safetyplease.ui.resources.control_network_sent
+import ro.safetyplease.ui.resources.control_network_served
+import ro.safetyplease.ui.resources.open_settings
+import ro.safetyplease.ui.resources.problem_access_action
+import ro.safetyplease.ui.resources.staff_verified
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.control_beat_battery
+import ro.safetyplease.ui.resources.control_beat_crowd
+import ro.safetyplease.ui.resources.control_beat_indicative
+import ro.safetyplease.ui.resources.control_beat_links
+import ro.safetyplease.ui.resources.control_beat_mobile
+import ro.safetyplease.ui.resources.control_beat_plugged
+import ro.safetyplease.ui.resources.control_beat_quiet
+import ro.safetyplease.ui.resources.control_beat_signal
+import ro.safetyplease.ui.resources.control_beat_square
+import ro.safetyplease.ui.resources.control_beat_temperature
+import ro.safetyplease.ui.resources.control_heard_at
+import ro.safetyplease.ui.resources.control_heard_empty
+import ro.safetyplease.ui.resources.control_heard_linked
+import ro.safetyplease.ui.resources.control_heard_silent
+import ro.safetyplease.ui.resources.control_heard_title
+import ro.safetyplease.ui.resources.problem_access_text
+import ro.safetyplease.ui.resources.problem_access_title
+import ro.safetyplease.ui.resources.problem_bt_text
+import ro.safetyplease.ui.resources.status_bt_enable
+import ro.safetyplease.ui.resources.status_bt_off
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,13 +59,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.agoText
+import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.app.ui.common.RadioGate
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Banner
@@ -66,14 +101,14 @@ internal fun NetworkPane(mesh: MeshState, heard: Map<Int, HeardPeer>, gate: Radi
     val colors = AppTheme.colors
     val peers = remember(heard) { PeerBook.rows(heard, MAX_HEARD_ROWS) }
     val counters = listOf(
-        mesh.readyLinks.toLong() to R.string.anchor_peers,
-        mesh.visiblePeers.toLong() to R.string.anchor_visible,
-        mesh.cachedReports.toLong() to R.string.anchor_cached,
-        mesh.counters.storeAndForward to R.string.control_network_served,
-        mesh.sent to R.string.control_network_sent,
-        mesh.received to R.string.control_network_received,
-        mesh.relayed to R.string.anchor_relayed,
-        mesh.dropped to R.string.control_network_dropped,
+        mesh.readyLinks.toLong() to Res.string.anchor_peers,
+        mesh.visiblePeers.toLong() to Res.string.anchor_visible,
+        mesh.cachedReports.toLong() to Res.string.anchor_cached,
+        mesh.counters.storeAndForward to Res.string.control_network_served,
+        mesh.sent to Res.string.control_network_sent,
+        mesh.received to Res.string.control_network_received,
+        mesh.relayed to Res.string.anchor_relayed,
+        mesh.dropped to Res.string.control_network_dropped,
     )
     Column(modifier.clip(PaneShape).background(colors.cell).verticalScroll(rememberScrollState()).padding(16.dp)) {
         RadioProblem(gate)
@@ -88,9 +123,9 @@ internal fun NetworkPane(mesh: MeshState, heard: Map<Int, HeardPeer>, gate: Radi
                 }
             }
         }
-        Text(stringResource(R.string.control_heard_title), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
+        Text(stringResource(Res.string.control_heard_title), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
         if (peers.isEmpty()) {
-            Text(stringResource(R.string.control_heard_empty), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
+            Text(stringResource(Res.string.control_heard_empty), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
         }
         peers.forEach { HeardRow(it, now, grid) }
     }
@@ -102,13 +137,13 @@ private fun RadioProblem(gate: RadioGate) {
     val modifier = Modifier.padding(bottom = 12.dp)
     when {
         !gate.hasAccess -> Banner(
-            stringResource(R.string.problem_access_title), stringResource(R.string.problem_access_text), modifier, warning = true,
-            action = stringResource(if (gate.accessBlocked) R.string.open_settings else R.string.problem_access_action),
+            stringResource(Res.string.problem_access_title), stringResource(Res.string.problem_access_text), modifier, warning = true,
+            action = stringResource(if (gate.accessBlocked) Res.string.open_settings else Res.string.problem_access_action),
             onAction = gate.requestAccess,
         )
         !gate.bluetoothOn -> Banner(
-            stringResource(R.string.status_bt_off), stringResource(R.string.problem_bt_text), modifier, warning = true,
-            action = stringResource(R.string.status_bt_enable), onAction = gate.enableBluetooth,
+            stringResource(Res.string.status_bt_off), stringResource(Res.string.problem_bt_text), modifier, warning = true,
+            action = stringResource(Res.string.status_bt_enable), onAction = gate.enableBluetooth,
         )
     }
 }
@@ -132,8 +167,8 @@ private fun HeardRow(peer: HeardPeer, now: Long, grid: SiteGrid) {
     val quietMin = ((now - peer.lastHeardMs) / 60_000).toInt()
     val silent = anchor && !peer.linked && quietMin >= SILENT_ANCHOR_MIN
     val role = when {
-        anchor -> stringResource(if (peer.verified) R.string.anchor_verified else R.string.anchor_title)
-        peer.flags and NodeFlags.STAFF != 0 -> stringResource(if (peer.verified) R.string.staff_verified else R.string.control_heard_staff)
+        anchor -> stringResource(if (peer.verified) Res.string.anchor_verified else Res.string.anchor_title)
+        peer.flags and NodeFlags.STAFF != 0 -> stringResource(if (peer.verified) Res.string.staff_verified else Res.string.control_heard_staff)
         else -> ""
     }
     Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
@@ -142,9 +177,9 @@ private fun HeardRow(peer: HeardPeer, now: Long, grid: SiteGrid) {
             Text(role, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.weight(1f))
             Text(
                 when {
-                    peer.linked -> stringResource(R.string.control_heard_linked)
-                    silent -> pluralStringResource(R.plurals.control_heard_silent, quietMin, quietMin)
-                    else -> stringResource(R.string.control_heard_at, agoText(peer.lastHeardMs, now))
+                    peer.linked -> stringResource(Res.string.control_heard_linked)
+                    silent -> pluralStringResource(Res.plurals.control_heard_silent, quietMin, quietMin)
+                    else -> stringResource(Res.string.control_heard_at, agoText(peer.lastHeardMs, now))
                 },
                 style = MaterialTheme.typography.footnote,
                 color = when {
@@ -168,19 +203,19 @@ private fun BeatLine(beat: Heartbeat, grid: SiteGrid) {
     val parts = buildList {
         val column = beat.column
         val row = beat.row
-        if (column != null && row != null) add(stringResource(R.string.control_beat_square, grid.columnLabel(column) + grid.rowLabel(row)))
+        if (column != null && row != null) add(stringResource(Res.string.control_beat_square, grid.columnLabel(column) + grid.rowLabel(row)))
         beat.mobile?.let { mobile ->
-            val technology = MobileReading.TECHNOLOGIES[mobile.technology].uppercase().ifEmpty { stringResource(R.string.control_beat_mobile) }
-            mobile.level?.let { add(stringResource(R.string.control_beat_signal, technology, it)) }
+            val technology = MobileReading.TECHNOLOGIES[mobile.technology].uppercase().ifEmpty { stringResource(Res.string.control_beat_mobile) }
+            mobile.level?.let { add(stringResource(Res.string.control_beat_signal, technology, it)) }
             add(stringResource(cellText(Coverage.data(mobile))))
         }
-        beat.batteryPercent?.let { add(stringResource(R.string.control_beat_battery, "$it%")) }
-        if (beat.charging) add(stringResource(R.string.control_beat_plugged))
-        beat.temperatureC?.let { add(stringResource(R.string.control_beat_temperature, it)) }
-        add(pluralStringResource(R.plurals.control_beat_links, beat.links, beat.links))
-        add(stringResource(R.string.control_beat_crowd, crowdText(beat.crowd)))
-        beat.quietS?.takeIf { it >= QUIET_S }?.let { add(stringResource(R.string.control_beat_quiet, it / 60)) }
-        add(stringResource(R.string.control_beat_indicative))
+        beat.batteryPercent?.let { add(stringResource(Res.string.control_beat_battery, "$it%")) }
+        if (beat.charging) add(stringResource(Res.string.control_beat_plugged))
+        beat.temperatureC?.let { add(stringResource(Res.string.control_beat_temperature, it)) }
+        add(pluralStringResource(Res.plurals.control_beat_links, beat.links, beat.links))
+        add(stringResource(Res.string.control_beat_crowd, crowdText(beat.crowd)))
+        beat.quietS?.takeIf { it >= QUIET_S }?.let { add(stringResource(Res.string.control_beat_quiet, it / 60)) }
+        add(stringResource(Res.string.control_beat_indicative))
     }
     val lowBattery = !beat.charging && (beat.batteryPercent ?: 100) < PowerPolicy.LOW_BATTERY_PERCENT
     val warning = lowBattery || (beat.temperatureC ?: 0) >= AnchorHeartbeat.HOT_C || (beat.quietS ?: 0) >= SILENT_ANCHOR_MIN * 60

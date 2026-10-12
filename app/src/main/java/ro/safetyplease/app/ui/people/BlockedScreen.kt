@@ -1,5 +1,13 @@
 package ro.safetyplease.app.ui.people
 
+import ro.safetyplease.ui.text.dateText
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.blocked_empty
+import ro.safetyplease.ui.resources.blocked_empty_text
+import ro.safetyplease.ui.resources.blocked_since
+import ro.safetyplease.ui.resources.blocked_title
+import ro.safetyplease.ui.resources.blocked_unblock
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -11,11 +19,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
+import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Avatar
@@ -38,22 +45,22 @@ fun BlockedScreen(vm: AppViewModel) {
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
 
     NavScreen(
-        title = stringResource(R.string.blocked_title),
+        title = stringResource(Res.string.blocked_title),
         background = colors.grouped,
         scrolled = scrolled,
-        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         if (blocked.isEmpty()) {
-            EmptyState(stringResource(R.string.blocked_empty), stringResource(R.string.blocked_empty_text), icon = Sym.Hidden, modifier = Modifier.padding(padding))
+            EmptyState(stringResource(Res.string.blocked_empty), stringResource(Res.string.blocked_empty_text), icon = Sym.Hidden, modifier = Modifier.padding(padding))
         } else {
             Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding).padding(top = 8.dp)) {
                 InsetGroup {
                     blocked.forEachIndexed { index, person ->
                         GroupRow(
                             person.nickname,
-                            subtitle = stringResource(R.string.blocked_since, Labels.date(resources, person.blockedAt)),
+                            subtitle = stringResource(Res.string.blocked_since, dateText(person.blockedAt)),
                             leading = { Avatar(person.nickname, 36.dp) },
-                            trailing = { TextLink(stringResource(R.string.blocked_unblock), { vm.unblock(person.nodeId) }, color = colors.accent) },
+                            trailing = { TextLink(stringResource(Res.string.blocked_unblock), { vm.unblock(person.nodeId) }, color = colors.accent) },
                         )
                         if (index < blocked.lastIndex) GroupDivider(start = 64.dp)
                     }

@@ -1,5 +1,12 @@
 package ro.safetyplease.app.ui.control
 
+import ro.safetyplease.app.text.text
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.edition_kind_edition
+import ro.safetyplease.ui.resources.edition_kind_shift
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.edition_share
+import ro.safetyplease.ui.resources.edition_title
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,7 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -24,7 +31,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
-import ro.safetyplease.app.R
 import ro.safetyplease.core.report.AnchorSeen
 import ro.safetyplease.core.report.EditionReport
 import ro.safetyplease.core.report.EditionReports
@@ -41,7 +47,7 @@ import ro.safetyplease.ui.designsystem.SectionTitle
 import ro.safetyplease.ui.designsystem.SegmentedControl
 import ro.safetyplease.ui.designsystem.subheadline
 
-internal enum class ReportKind(val label: Int) { SHIFT(R.string.edition_kind_shift), EDITION(R.string.edition_kind_edition) }
+internal enum class ReportKind(val label: StringResource) { SHIFT(Res.string.edition_kind_shift), EDITION(Res.string.edition_kind_edition) }
 
 /**
  * The shift or the whole edition, from this console's logs of both modes, its metrics and the anchors it heard. The
@@ -74,15 +80,15 @@ internal fun ReportDialog(c: PingUpSession, scope: CoroutineScope, onDismiss: ()
         value = withContext(Dispatchers.Default) {
             val now = c.clock.wallMs()
             val report = buildReport(c, kind, now)
-            report to reportDoc(report, res.getString(kind.label), res, c.venue, now)
+            report to reportDoc(report, res.text(kind.label), res, c.venue, now)
         }
     }
     Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false)) {
         ScreenScaffold(
-            stringResource(R.string.edition_title), onDismiss,
+            stringResource(Res.string.edition_title), onDismiss,
             actions = {
                 AppButton(
-                    stringResource(R.string.edition_share),
+                    stringResource(Res.string.edition_share),
                     { shown?.let { (report, doc) -> scope.launch { shareReport(context, c, report, doc) } } },
                     kind = ButtonKind.Secondary, enabled = shown != null, compact = true,
                 )

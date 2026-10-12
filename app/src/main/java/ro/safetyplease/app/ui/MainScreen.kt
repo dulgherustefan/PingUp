@@ -1,5 +1,14 @@
 package ro.safetyplease.app.ui
 
+import ro.safetyplease.app.text.text
+import ro.safetyplease.ui.resources.location_precise_needed
+import ro.safetyplease.ui.resources.map_title
+import ro.safetyplease.ui.resources.tab_incidents
+import ro.safetyplease.ui.resources.tab_messages
+import ro.safetyplease.ui.resources.tab_report
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.tab_unread
 import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
@@ -69,8 +78,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -82,9 +91,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.app.ui.chat.ConversationScreen
 import ro.safetyplease.app.ui.chat.MessagesScreen
 import ro.safetyplease.app.ui.common.ExerciseBanner
@@ -226,7 +234,7 @@ fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}):
         } else {
             vm.locationBlocked = deniedForGood(activity, listOf(Manifest.permission.ACCESS_FINE_LOCATION))
             if (result[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
-                Toast.makeText(context, R.string.location_precise_needed, Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.text(Res.string.location_precise_needed), Toast.LENGTH_LONG).show()
             }
         }
         onResult(granted)
@@ -363,7 +371,7 @@ private fun screenTransition(forward: Boolean, moving: Dest?, reduce: Boolean): 
     }
 }
 
-private class TabItem(val tab: Tab, val label: Int, val icon: ImageVector, val badge: Int = 0)
+private class TabItem(val tab: Tab, val label: StringResource, val icon: ImageVector, val badge: Int = 0)
 
 private val TabWidth = 84.dp
 private val TabBarHeight = 62.dp
@@ -379,10 +387,10 @@ private fun MainTabs(vm: AppViewModel, staff: Boolean, onStartMesh: () -> Unit) 
     val unreadChats = chat.messages.filter { !it.read }.map { it.conversation }.distinct().size
     val openIncidents = incidents.staff.count { !AckStatus.isTaken(it.status) && !AckStatus.isClosed(it.status) && !Priority.isInformational(it.category) }
     val items = buildList {
-        add(TabItem(Tab.MESSAGES, R.string.tab_messages, Sym.ChatFill, unreadChats))
-        add(TabItem(Tab.REPORT, R.string.tab_report, Sym.ReportFill))
-        add(TabItem(Tab.MAP, R.string.map_title, Sym.MapFill))
-        if (staff) add(TabItem(Tab.INCIDENTS, R.string.tab_incidents, Sym.BellFill, openIncidents))
+        add(TabItem(Tab.MESSAGES, Res.string.tab_messages, Sym.ChatFill, unreadChats))
+        add(TabItem(Tab.REPORT, Res.string.tab_report, Sym.ReportFill))
+        add(TabItem(Tab.MAP, Res.string.map_title, Sym.MapFill))
+        if (staff) add(TabItem(Tab.INCIDENTS, Res.string.tab_incidents, Sym.BellFill, openIncidents))
     }
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val barBottom = navBottom + 10.dp
@@ -425,7 +433,7 @@ private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> U
             for (item in items) {
                 val selected = item.tab == current
                 val tint by animateColorAsState(if (selected) colors.accent else colors.label, tween(Motion.QUICK), label = "tabTint")
-                val badgeText = if (item.badge > 0) pluralStringResource(R.plurals.tab_unread, item.badge, item.badge) else null
+                val badgeText = if (item.badge > 0) pluralStringResource(Res.plurals.tab_unread, item.badge, item.badge) else null
                 val press = remember { MutableInteractionSource() }
                 Column(
                     Modifier.width(TabWidth).fillMaxHeight().clip(CircleShape)

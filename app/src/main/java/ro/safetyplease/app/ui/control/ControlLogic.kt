@@ -1,7 +1,16 @@
 package ro.safetyplease.app.ui.control
 
-import androidx.annotation.StringRes
-import ro.safetyplease.app.R
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.control_ack_received
+import ro.safetyplease.ui.resources.control_state_reopened
+import ro.safetyplease.ui.resources.control_state_unfounded
+import ro.safetyplease.ui.resources.incident_state_handed_over
+import ro.safetyplease.ui.resources.incident_state_on_scene
+import ro.safetyplease.ui.resources.incident_state_taken
+import ro.safetyplease.ui.resources.staff_status_closed
+import ro.safetyplease.ui.resources.status_cancelled
+import ro.safetyplease.ui.resources.status_resolved
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry
@@ -60,17 +69,16 @@ internal fun actions(case: Case): List<Action> {
 }
 
 /** The ACK status in one word, for the history and the export. */
-@StringRes
-internal fun ackWord(status: Int): Int = when (status) {
-    AckStatus.RECEIVED -> R.string.control_ack_received
-    AckStatus.ACKNOWLEDGED -> R.string.incident_state_taken
-    AckStatus.RESOLVED -> R.string.status_resolved
-    AckStatus.ON_SCENE -> R.string.incident_state_on_scene
-    AckStatus.HANDED_OVER -> R.string.incident_state_handed_over
-    AckStatus.CLOSED_BY_CONTROL -> R.string.staff_status_closed
-    AckStatus.UNFOUNDED -> R.string.control_state_unfounded
-    AckStatus.REOPENED -> R.string.control_state_reopened
-    else -> R.string.status_cancelled
+internal fun ackWord(status: Int): StringResource = when (status) {
+    AckStatus.RECEIVED -> Res.string.control_ack_received
+    AckStatus.ACKNOWLEDGED -> Res.string.incident_state_taken
+    AckStatus.RESOLVED -> Res.string.status_resolved
+    AckStatus.ON_SCENE -> Res.string.incident_state_on_scene
+    AckStatus.HANDED_OVER -> Res.string.incident_state_handed_over
+    AckStatus.CLOSED_BY_CONTROL -> Res.string.staff_status_closed
+    AckStatus.UNFOUNDED -> Res.string.control_state_unfounded
+    AckStatus.REOPENED -> Res.string.control_state_reopened
+    else -> Res.string.status_cancelled
 }
 
 /**

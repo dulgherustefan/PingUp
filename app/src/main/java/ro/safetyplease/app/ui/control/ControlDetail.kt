@@ -1,5 +1,81 @@
 package ro.safetyplease.app.ui.control
 
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.text.staffStatusText
+import ro.safetyplease.ui.resources.close
+import ro.safetyplease.ui.resources.code_sheet_copied
+import ro.safetyplease.ui.resources.control_close
+import ro.safetyplease.ui.resources.control_close_text
+import ro.safetyplease.ui.resources.control_close_title
+import ro.safetyplease.ui.resources.control_confirm_cancel
+import ro.safetyplease.ui.resources.control_confirm_cancel_text
+import ro.safetyplease.ui.resources.control_confirm_cancel_title
+import ro.safetyplease.ui.resources.control_radio_no_place
+import ro.safetyplease.ui.resources.control_radio_not_urgent
+import ro.safetyplease.ui.resources.control_radio_recognition
+import ro.safetyplease.ui.resources.control_radio_triage
+import ro.safetyplease.ui.resources.control_radio_urgent
+import ro.safetyplease.ui.resources.control_reason
+import ro.safetyplease.ui.resources.control_reassign
+import ro.safetyplease.ui.resources.control_reopen
+import ro.safetyplease.ui.resources.control_reopen_text
+import ro.safetyplease.ui.resources.control_reopen_title
+import ro.safetyplease.ui.resources.control_state_open
+import ro.safetyplease.ui.resources.control_unfounded
+import ro.safetyplease.ui.resources.control_unfounded_text
+import ro.safetyplease.ui.resources.control_unfounded_title
+import ro.safetyplease.ui.resources.incident_danger_continues
+import ro.safetyplease.ui.resources.incident_people
+import ro.safetyplease.ui.resources.incident_take
+import ro.safetyplease.ui.resources.msg_copy
+import ro.safetyplease.ui.resources.place_near
+import ro.safetyplease.app.text.text
+import ro.safetyplease.app.text.quantityText
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.control_assign
+import ro.safetyplease.ui.resources.control_assign_other
+import ro.safetyplease.ui.resources.control_assign_taken
+import ro.safetyplease.ui.resources.control_assign_title
+import ro.safetyplease.ui.resources.control_event_ack
+import ro.safetyplease.ui.resources.control_event_assign
+import ro.safetyplease.ui.resources.control_event_cancel
+import ro.safetyplease.ui.resources.control_event_close
+import ro.safetyplease.ui.resources.control_event_report
+import ro.safetyplease.ui.resources.control_event_take
+import ro.safetyplease.ui.resources.control_history
+import ro.safetyplease.ui.resources.control_landmark_none
+import ro.safetyplease.ui.resources.control_landmark_title
+import ro.safetyplease.ui.resources.control_local_only
+import ro.safetyplease.ui.resources.control_none_selected
+import ro.safetyplease.ui.resources.control_none_selected_text
+import ro.safetyplease.ui.resources.control_radio_clip
+import ro.safetyplease.ui.resources.control_radio_title
+import ro.safetyplease.ui.resources.control_reason_optional
+import ro.safetyplease.ui.resources.control_respond_coming
+import ro.safetyplease.ui.resources.control_respond_landmark
+import ro.safetyplease.ui.resources.control_respond_medical
+import ro.safetyplease.ui.resources.control_respond_send
+import ro.safetyplease.ui.resources.control_respond_sent
+import ro.safetyplease.ui.resources.control_respond_title
+import ro.safetyplease.ui.resources.control_respond_unavailable
+import ro.safetyplease.ui.resources.control_roles
+import ro.safetyplease.ui.resources.control_signature
+import ro.safetyplease.ui.resources.control_signed_here
+import ro.safetyplease.ui.resources.control_state_assigned
+import ro.safetyplease.ui.resources.control_state_reopened
+import ro.safetyplease.ui.resources.control_state_unfounded
+import ro.safetyplease.ui.resources.incident_anonymous
+import ro.safetyplease.ui.resources.incident_cancel_requested
+import ro.safetyplease.ui.resources.incident_informational
+import ro.safetyplease.ui.resources.incident_no_description
+import ro.safetyplease.ui.resources.incident_recognition
+import ro.safetyplease.ui.resources.incident_reported_at
+import ro.safetyplease.ui.resources.incident_reporter
+import ro.safetyplease.ui.resources.incident_updates_title
+import ro.safetyplease.ui.resources.sev_urgent
+import ro.safetyplease.ui.resources.staff_status_cancelled
+import ro.safetyplease.ui.resources.staff_status_closed
+import ro.safetyplease.ui.resources.staff_status_resolved
 import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.compose.foundation.background
@@ -39,8 +115,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.stringArrayResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringArrayResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -48,11 +124,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.Replies
-import ro.safetyplease.app.text.agoText
-import ro.safetyplease.app.text.hopsText
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.Replies
+import ro.safetyplease.ui.text.agoText
+import ro.safetyplease.ui.text.hopsText
 import ro.safetyplease.app.ui.common.CategoryCircle
 import ro.safetyplease.app.ui.common.UpdateTimeline
 import ro.safetyplease.app.ui.common.placeText
@@ -96,7 +171,7 @@ private val PinActionsBelow: Dp = 420.dp
 internal fun DetailPane(vm: AppViewModel, case: Case?, entries: List<LogEntry>, now: Long, modifier: Modifier) {
     BoxWithConstraints(modifier.clip(PaneShape).background(AppTheme.colors.cell)) {
         if (case == null) {
-            EmptyState(stringResource(R.string.control_none_selected), stringResource(R.string.control_none_selected_text), icon = Sym.Notes)
+            EmptyState(stringResource(Res.string.control_none_selected), stringResource(Res.string.control_none_selected_text), icon = Sym.Notes)
         } else {
             // a new incident starts at the top, with no dialog left open
             key(case.incidentId) { CaseDetail(vm, case, entries, now, pinActions = maxHeight < PinActionsBelow) }
@@ -123,7 +198,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
     val phrase = radioPhrase(r, zoneName, vm.venue.landmark(r.landmark)?.name.orEmpty(), rememberRadioWords())
     val (hint, said) = Recognition.split(r.description)
     var copied by remember(phrase) { mutableStateOf(false) }
-    val clipLabel = stringResource(R.string.control_radio_clip)
+    val clipLabel = stringResource(Res.string.control_radio_clip)
     val history = remember(entries, case.incidentId) { entries.filter { it.incidentId == case.incidentId } }
     val incident = incidents.staff.firstOrNull { it.incidentId == case.incidentId }
     val nickname = incident?.nickname
@@ -153,23 +228,23 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
                 }
             }
             Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (case.urgent) StatusLabel(stringResource(R.string.sev_urgent), icon = Sym.Priority, color = colors.redInk)
+                if (case.urgent) StatusLabel(stringResource(Res.string.sev_urgent), icon = Sym.Priority, color = colors.redInk)
                 StatusLabel(statusText(case), icon = statusIcon, color = statusColor)
             }
             if (case.localOnly) {
-                Note(stringResource(R.string.control_local_only, Labels.staffStatus(context, case.network, case.networkTeam)), colors.orangeInk)
+                Note(stringResource(Res.string.control_local_only, context.text(Labels.staffStatus(case.network), case.networkTeam)), colors.orangeInk)
             }
-            if (case.cancelRequested) Note(stringResource(R.string.incident_cancel_requested), colors.orangeInk)
-            if (Priority.isInformational(r.category)) Note(stringResource(R.string.incident_informational), colors.secondaryLabel)
+            if (case.cancelRequested) Note(stringResource(Res.string.incident_cancel_requested), colors.orangeInk)
+            if (Priority.isInformational(r.category)) Note(stringResource(Res.string.incident_informational), colors.secondaryLabel)
 
             Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.fill).padding(12.dp)) {
                 Text(
-                    stringResource(R.string.control_radio_title), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.SemiBold,
+                    stringResource(Res.string.control_radio_title), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.SemiBold,
                     color = colors.secondaryLabel,
                 )
                 Text(phrase, style = MaterialTheme.typography.body, modifier = Modifier.padding(top = 4.dp))
                 AppButton(
-                    stringResource(if (copied) R.string.code_sheet_copied else R.string.msg_copy),
+                    stringResource(if (copied) Res.string.code_sheet_copied else Res.string.msg_copy),
                     {
                         context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(clipLabel, phrase))
                         copied = true
@@ -185,7 +260,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
             val updates = incident?.updates.orEmpty()
             if (updates.isNotEmpty()) {
                 Text(
-                    stringResource(R.string.incident_updates_title), style = MaterialTheme.typography.headline,
+                    stringResource(Res.string.incident_updates_title), style = MaterialTheme.typography.headline,
                     modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
                 )
                 UpdateTimeline(updates, vm.venue, c.grid)
@@ -193,19 +268,19 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
 
             if (hint.isNotEmpty()) {
                 Text(
-                    stringResource(R.string.incident_recognition, hint), style = MaterialTheme.typography.body, fontWeight = FontWeight.SemiBold,
+                    stringResource(Res.string.incident_recognition, hint), style = MaterialTheme.typography.body, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(top = 20.dp),
                 )
             }
             Text(
-                said.ifEmpty { stringResource(R.string.incident_no_description) }, style = MaterialTheme.typography.body,
+                said.ifEmpty { stringResource(Res.string.incident_no_description) }, style = MaterialTheme.typography.body,
                 color = if (said.isEmpty()) colors.secondaryLabel else colors.label,
                 modifier = Modifier.padding(top = if (hint.isEmpty()) 20.dp else 4.dp),
             )
             Text(
                 listOf(
-                    stringResource(R.string.incident_reported_at, Labels.clock(r.reportedAt)),
-                    nickname?.let { stringResource(R.string.incident_reporter, it) } ?: stringResource(R.string.incident_anonymous),
+                    stringResource(Res.string.incident_reported_at, Labels.clock(r.reportedAt)),
+                    nickname?.let { stringResource(Res.string.incident_reporter, it) } ?: stringResource(Res.string.incident_anonymous),
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 2.dp),
             )
@@ -213,7 +288,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
                 Text(it, style = MaterialTheme.typography.subheadline, modifier = Modifier.padding(top = 6.dp))
             }
 
-            Text(stringResource(R.string.control_history), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
+            Text(stringResource(Res.string.control_history), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
             history.forEach { HistoryRow(it) }
         }
         if (pinActions) {
@@ -225,7 +300,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
     when (val open = dialog) {
         null, Action.TAKE -> Unit
         Action.ASSIGN -> AssignDialog(
-            case, teamChoices(entries, stringArrayResource(R.array.control_roles).toList(), settings.teamName), { dialog = null },
+            case, teamChoices(entries, stringArrayResource(Res.array.control_roles).toList(), settings.teamName), { dialog = null },
         ) { team, reason ->
             decisions.run(case, Action.ASSIGN, team, reason)
             haptics.confirm()
@@ -247,9 +322,9 @@ private fun ReplyPanel(vm: AppViewModel, incident: StaffIncident?, near: Int) {
     val haptics = rememberHaptics()
     val res = LocalResources.current
     var picking by remember { mutableStateOf(false) }
-    Text(stringResource(R.string.control_respond_title), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
+    Text(stringResource(Res.string.control_respond_title), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
     if (incident == null || incident.replyKey.isEmpty()) {
-        Text(stringResource(R.string.control_respond_unavailable), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
+        Text(stringResource(Res.string.control_respond_unavailable), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
         return
     }
     fun send(code: Int, landmark: Int = 0) {
@@ -258,13 +333,13 @@ private fun ReplyPanel(vm: AppViewModel, incident: StaffIncident?, near: Int) {
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val wide = Modifier.fillMaxWidth()
-        AppButton(stringResource(R.string.control_respond_coming), { send(ResponseCode.COMING) }, wide, kind = ButtonKind.Secondary, compact = true)
-        AppButton(stringResource(R.string.control_respond_landmark), { picking = true }, wide, kind = ButtonKind.Secondary, compact = true)
-        AppButton(stringResource(R.string.control_respond_medical), { send(ResponseCode.GO_TO_MEDICAL) }, wide, kind = ButtonKind.Secondary, compact = true)
+        AppButton(stringResource(Res.string.control_respond_coming), { send(ResponseCode.COMING) }, wide, kind = ButtonKind.Secondary, compact = true)
+        AppButton(stringResource(Res.string.control_respond_landmark), { picking = true }, wide, kind = ButtonKind.Secondary, compact = true)
+        AppButton(stringResource(Res.string.control_respond_medical), { send(ResponseCode.GO_TO_MEDICAL) }, wide, kind = ButtonKind.Secondary, compact = true)
     }
     incident.responses.asReversed().forEach { r ->
         Text(
-            stringResource(R.string.control_respond_sent, Labels.clock(r.at), Replies.response(res, vm.venue, r.code, r.landmark)),
+            stringResource(Res.string.control_respond_sent, Labels.clock(r.at), res.text(Replies.response(r.code), Replies.landmarkName(vm.venue, r.landmark))),
             style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 6.dp),
         )
     }
@@ -277,7 +352,7 @@ private fun LandmarkDialog(venue: Venue, near: Int, onDismiss: () -> Unit, onPic
     val landmarks = remember(venue) { venue.pois.filter { venue.landmark(it.number) == it }.sortedBy { it.number } }
     var picked by remember { mutableIntStateOf(near.takeIf { n -> landmarks.any { it.number == n } } ?: 0) }
     AppDialog(
-        onDismiss, stringResource(R.string.control_landmark_title), stringResource(R.string.control_respond_send),
+        onDismiss, stringResource(Res.string.control_landmark_title), stringResource(Res.string.control_respond_send),
         onConfirm = {
             onPick(picked)
             onDismiss()
@@ -285,7 +360,7 @@ private fun LandmarkDialog(venue: Venue, near: Int, onDismiss: () -> Unit, onPic
         confirmEnabled = picked != 0,
     ) {
         if (landmarks.isEmpty()) {
-            Text(stringResource(R.string.control_landmark_none), style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel)
+            Text(stringResource(Res.string.control_landmark_none), style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel)
         }
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).selectableGroup(),
@@ -322,26 +397,26 @@ private fun ActionButtons(case: Case, modifier: Modifier, onAction: (Action) -> 
 /** The status in a sentence, for the detail; the queue uses the short form of [caseLook]. */
 @Composable
 private fun statusText(case: Case): String = when (case.state) {
-    CaseState.OPEN -> stringResource(if (case.reopened) R.string.control_state_reopened else R.string.control_state_open)
+    CaseState.OPEN -> stringResource(if (case.reopened) Res.string.control_state_reopened else Res.string.control_state_open)
     CaseState.ASSIGNED -> when (case.network) {
-        AckStatus.ON_SCENE, AckStatus.HANDED_OVER -> Labels.staffStatus(LocalContext.current, case.network, case.team)
-        else -> stringResource(R.string.control_state_assigned, case.team)
+        AckStatus.ON_SCENE, AckStatus.HANDED_OVER -> staffStatusText(case.network, case.team)
+        else -> stringResource(Res.string.control_state_assigned, case.team)
     }
     CaseState.CLOSED -> when {
-        case.unfounded -> stringResource(R.string.control_state_unfounded)
-        case.network == AckStatus.CANCELLED -> stringResource(R.string.staff_status_cancelled)
-        case.network == AckStatus.CLOSED_BY_CONTROL -> stringResource(R.string.staff_status_closed)
-        else -> stringResource(R.string.staff_status_resolved, case.team)
+        case.unfounded -> stringResource(Res.string.control_state_unfounded)
+        case.network == AckStatus.CANCELLED -> stringResource(Res.string.staff_status_cancelled)
+        case.network == AckStatus.CLOSED_BY_CONTROL -> stringResource(Res.string.staff_status_closed)
+        else -> stringResource(Res.string.staff_status_resolved, case.team)
     }
 }
 
-private fun actionLabel(action: Action, case: Case): Int = when (action) {
-    Action.ASSIGN -> if (case.state == CaseState.OPEN) R.string.control_assign else R.string.control_reassign
-    Action.TAKE -> R.string.incident_take
-    Action.CLOSE -> R.string.control_close
-    Action.UNFOUNDED -> R.string.control_unfounded
-    Action.CONFIRM_CANCEL -> R.string.control_confirm_cancel
-    Action.REOPEN -> R.string.control_reopen
+private fun actionLabel(action: Action, case: Case): StringResource = when (action) {
+    Action.ASSIGN -> if (case.state == CaseState.OPEN) Res.string.control_assign else Res.string.control_reassign
+    Action.TAKE -> Res.string.incident_take
+    Action.CLOSE -> Res.string.control_close
+    Action.UNFOUNDED -> Res.string.control_unfounded
+    Action.CONFIRM_CANCEL -> Res.string.control_confirm_cancel
+    Action.REOPEN -> Res.string.control_reopen
 }
 
 @Composable
@@ -358,17 +433,17 @@ private fun rememberRadioWords(): RadioWords {
     val res = LocalResources.current
     return remember(res) {
         RadioWords(
-            category = { res.getString(Labels.category(it)) },
-            urgent = res.getString(R.string.control_radio_urgent),
-            notUrgent = res.getString(R.string.control_radio_not_urgent),
-            unknownPlace = res.getString(R.string.control_radio_no_place),
+            category = { res.text(Labels.category(it)) },
+            urgent = res.text(Res.string.control_radio_urgent),
+            notUrgent = res.text(Res.string.control_radio_not_urgent),
+            unknownPlace = res.text(Res.string.control_radio_no_place),
             triage = { responds, breathes ->
-                res.getString(R.string.control_radio_triage, res.getString(Labels.answer(responds)), res.getString(Labels.answer(breathes)))
+                res.text(Res.string.control_radio_triage, res.text(Labels.answer(responds)), res.text(Labels.answer(breathes)))
             },
-            people = { res.getQuantityString(R.plurals.incident_people, it, it) },
-            dangerContinues = res.getString(R.string.incident_danger_continues),
-            near = { res.getString(R.string.place_near, it) },
-            recognition = { res.getString(R.string.control_radio_recognition, it) },
+            people = { res.quantityText(Res.plurals.incident_people, it, it) },
+            dangerContinues = res.text(Res.string.incident_danger_continues),
+            near = { res.text(Res.string.place_near, it) },
+            recognition = { res.text(Res.string.control_radio_recognition, it) },
         )
     }
 }
@@ -378,22 +453,22 @@ private fun rememberRadioWords(): RadioWords {
 private fun HistoryRow(e: LogEntry) {
     val colors = AppTheme.colors
     val title = when (e.event) {
-        LogEvent.REPORT -> stringResource(R.string.control_event_report)
-        LogEvent.ACK -> stringResource(R.string.control_event_ack, stringResource(ackWord(e.status)), e.team)
-        LogEvent.ASSIGN -> stringResource(R.string.control_event_assign, e.team)
-        LogEvent.TAKE -> stringResource(R.string.control_event_take)
-        LogEvent.RESOLVE -> stringResource(R.string.control_event_close)
-        LogEvent.UNFOUNDED -> stringResource(R.string.control_state_unfounded)
-        LogEvent.REOPEN -> stringResource(R.string.control_state_reopened)
-        LogEvent.CANCEL_REQUEST -> stringResource(R.string.incident_cancel_requested)
-        LogEvent.CANCEL -> stringResource(R.string.control_event_cancel)
+        LogEvent.REPORT -> stringResource(Res.string.control_event_report)
+        LogEvent.ACK -> stringResource(Res.string.control_event_ack, stringResource(ackWord(e.status)), e.team)
+        LogEvent.ASSIGN -> stringResource(Res.string.control_event_assign, e.team)
+        LogEvent.TAKE -> stringResource(Res.string.control_event_take)
+        LogEvent.RESOLVE -> stringResource(Res.string.control_event_close)
+        LogEvent.UNFOUNDED -> stringResource(Res.string.control_state_unfounded)
+        LogEvent.REOPEN -> stringResource(Res.string.control_state_reopened)
+        LogEvent.CANCEL_REQUEST -> stringResource(Res.string.incident_cancel_requested)
+        LogEvent.CANCEL -> stringResource(Res.string.control_event_cancel)
         LogEvent.EXPORT, LogEvent.NOTICE, LogEvent.NOTICE_CANCEL -> return
     }
     val detail = when (e.event) {
         LogEvent.REPORT -> hopsText(e.hops)
         LogEvent.ACK -> listOf(
-            if (e.own) stringResource(R.string.control_signed_here) else hopsText(e.hops),
-            stringResource(R.string.control_signature, e.signature.take(8)),
+            if (e.own) stringResource(Res.string.control_signed_here) else hopsText(e.hops),
+            stringResource(Res.string.control_signature, e.signature.take(8)),
         ).joinToString(" · ")
         else -> e.reason
     }
@@ -416,7 +491,7 @@ private fun AssignDialog(case: Case, choices: List<String>, onDismiss: () -> Uni
     var reason by remember { mutableStateOf("") }
     val team = other.trim().ifEmpty { picked }
     AppDialog(
-        onDismiss, stringResource(R.string.control_assign_title), stringResource(R.string.control_assign),
+        onDismiss, stringResource(Res.string.control_assign_title), stringResource(Res.string.control_assign),
         onConfirm = {
             onAssign(team, reason)
             onDismiss()
@@ -425,7 +500,7 @@ private fun AssignDialog(case: Case, choices: List<String>, onDismiss: () -> Uni
     ) {
         if (ackFor(Action.ASSIGN, case.network) == null) {
             Text(
-                stringResource(R.string.control_assign_taken, Labels.staffStatus(context, case.network, case.networkTeam)),
+                stringResource(Res.string.control_assign_taken, context.text(Labels.staffStatus(case.network), case.networkTeam)),
                 style = MaterialTheme.typography.footnote, color = colors.orangeInk, modifier = Modifier.padding(bottom = 10.dp),
             )
         }
@@ -441,10 +516,10 @@ private fun AssignDialog(case: Case, choices: List<String>, onDismiss: () -> Uni
             }
         }
         InputField(
-            other, { other = it.truncateUtf8(Limits.TEAM_BYTES) }, stringResource(R.string.control_assign_other),
+            other, { other = it.truncateUtf8(Limits.TEAM_BYTES) }, stringResource(Res.string.control_assign_other),
             Modifier.padding(top = 10.dp),
         )
-        InputField(reason, { reason = it.take(MAX_REASON) }, stringResource(R.string.control_reason_optional), Modifier.padding(top = 8.dp))
+        InputField(reason, { reason = it.take(MAX_REASON) }, stringResource(Res.string.control_reason_optional), Modifier.padding(top = 8.dp))
     }
 }
 
@@ -471,10 +546,10 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun ReasonDialog(action: Action, onDismiss: () -> Unit, onConfirm: (reason: String) -> Unit) {
     val (title, text, confirm) = when (action) {
-        Action.CLOSE -> Triple(R.string.control_close_title, R.string.control_close_text, R.string.control_close)
-        Action.UNFOUNDED -> Triple(R.string.control_unfounded_title, R.string.control_unfounded_text, R.string.close)
-        Action.CONFIRM_CANCEL -> Triple(R.string.control_confirm_cancel_title, R.string.control_confirm_cancel_text, R.string.control_confirm_cancel)
-        else -> Triple(R.string.control_reopen_title, R.string.control_reopen_text, R.string.control_reopen)
+        Action.CLOSE -> Triple(Res.string.control_close_title, Res.string.control_close_text, Res.string.control_close)
+        Action.UNFOUNDED -> Triple(Res.string.control_unfounded_title, Res.string.control_unfounded_text, Res.string.close)
+        Action.CONFIRM_CANCEL -> Triple(Res.string.control_confirm_cancel_title, Res.string.control_confirm_cancel_text, Res.string.control_confirm_cancel)
+        else -> Triple(Res.string.control_reopen_title, Res.string.control_reopen_text, Res.string.control_reopen)
     }
     val required = action != Action.CLOSE
     var reason by remember { mutableStateOf("") }
@@ -492,7 +567,7 @@ private fun ReasonDialog(action: Action, onDismiss: () -> Unit, onConfirm: (reas
         )
         InputField(
             reason, { reason = it.take(MAX_REASON) },
-            stringResource(if (required) R.string.control_reason else R.string.control_reason_optional), Modifier.padding(top = 12.dp),
+            stringResource(if (required) Res.string.control_reason else Res.string.control_reason_optional), Modifier.padding(top = 12.dp),
         )
     }
 }

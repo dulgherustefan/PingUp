@@ -18,8 +18,7 @@ import androidx.core.content.ContextCompat
 import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.Replies
+import ro.safetyplease.app.text.text
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.data.ChatMessage
@@ -32,6 +31,8 @@ import ro.safetyplease.core.incidents.Discreet
 import ro.safetyplease.core.incidents.needsEscalation
 import ro.safetyplease.core.session.Notifications
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.Replies
 
 /**
  * The app's notifications. In an [exercise] every title says so and no alert sounds the alarm: the insistent level
@@ -170,12 +171,12 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         if (!canPost()) return
         val incident = post.incident
         val zone = if (incident.zone.isEmpty()) context.getString(R.string.zone_unknown) else venue.zoneName(incident.zone)
-        val category = context.getString(Labels.category(incident.category))
+        val category = context.text(Labels.category(incident.category))
         val title = when (post.route.reason) {
             AlertReason.ASSIGNED -> context.getString(R.string.notif_assigned_title, category)
             AlertReason.UNACCEPTED -> context.getString(R.string.notif_unaccepted_title, incident.teamName, category)
             AlertReason.ROLE, AlertReason.EVERYONE -> context.getString(R.string.notif_widened_title, category)
-            else -> context.getString(R.string.notif_incident_title, category, context.getString(Labels.urgency(incident.severity)))
+            else -> context.getString(R.string.notif_incident_title, category, context.text(Labels.urgency(incident.severity)))
         }
         val level = post.route.level
         val channel = when (level) {
@@ -207,9 +208,8 @@ class Notifier(private val context: Context, private val venue: Venue, private v
      */
     override fun reportUpdate(report: MyReport, nowMs: Long) {
         if (!canPost()) return
-        val status = Labels.myReportStatus(report.status, report.teamName.isNotEmpty())?.let {
-            if (it == R.string.status_acknowledged) context.getString(it, report.teamName) else context.getString(it)
-        }
+        // only the acknowledged status names the team; the others leave the argument out
+        val status = Labels.myReportStatus(report.status, report.teamName.isNotEmpty())?.let { context.text(it, report.teamName) }
         val escalate = report.needsEscalation(nowMs)
         if (status == null && !escalate) return
         val id = report.incidentId.hashCode() xor 0x5a5a
@@ -242,7 +242,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         val response = report.responses.lastOrNull() ?: return
         if (!canPost()) return
         val id = report.incidentId.hashCode() xor 0x2b2b
-        val text = Replies.response(context.resources, venue, response.code, response.landmark)
+        val text = context.text(Replies.response(response.code), Replies.landmarkName(venue, response.landmark))
         val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.notif_response_title))
@@ -258,9 +258,9 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         if (!canPost()) return
         val text = when (message.kind) {
             MsgKind.TEXT -> message.text
-            MsgKind.QUICK -> context.getString(Labels.quick(message.quickCode))
+            MsgKind.QUICK -> context.text(Labels.quick(message.quickCode))
             MsgKind.ZONE -> context.getString(R.string.msg_zone, venue.zoneName(message.zone))
-            MsgKind.SYSTEM -> context.getString(Labels.systemNotice(message.conversation), senderName)
+            MsgKind.SYSTEM -> context.text(Labels.systemNotice(message.conversation), senderName)
             MsgKind.LEFT -> context.getString(R.string.msg_group_left, message.text)
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_CHAT)

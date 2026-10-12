@@ -31,11 +31,12 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":core"))
+            // the screens' API speaks in the session's types and the shared texts' resources
+            api(project(":core"))
             implementation(libs.compose.mp.runtime)
             implementation(libs.compose.mp.foundation)
             implementation(libs.compose.mp.ui)
-            implementation(libs.compose.mp.resources)
+            api(libs.compose.mp.resources)
             implementation(libs.compose.mp.material3)
             implementation(libs.compose.mp.lifecycle.viewmodel)
             implementation(libs.compose.mp.lifecycle.runtime)
@@ -48,6 +49,8 @@ kotlin {
 
 compose.resources {
     packageOfResClass = "ro.safetyplease.ui.resources"
+    // the Android app still uses them from code that isn't shared yet
+    publicResClass = true
 }
 
 // `./gradlew test`, as CI runs it, runs the shared tests here on the JVM

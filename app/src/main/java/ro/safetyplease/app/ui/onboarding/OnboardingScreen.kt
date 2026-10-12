@@ -1,5 +1,26 @@
 package ro.safetyplease.app.ui.onboarding
 
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.name_hint
+import ro.safetyplease.ui.resources.name_label
+import ro.safetyplease.ui.resources.name_placeholder
+import ro.safetyplease.ui.resources.name_reserved
+import ro.safetyplease.ui.resources.next
+import ro.safetyplease.ui.resources.onboarding_intro
+import ro.safetyplease.ui.resources.onboarding_later
+import ro.safetyplease.ui.resources.onboarding_not_112
+import ro.safetyplease.ui.resources.onboarding_not_now
+import ro.safetyplease.ui.resources.onboarding_permissions
+import ro.safetyplease.ui.resources.onboarding_permissions_text
+import ro.safetyplease.ui.resources.onboarding_start
+import ro.safetyplease.ui.resources.onboarding_welcome
+import ro.safetyplease.ui.resources.perm_bluetooth_text
+import ro.safetyplease.ui.resources.perm_bluetooth_title
+import ro.safetyplease.ui.resources.perm_location_text
+import ro.safetyplease.ui.resources.perm_location_title
+import ro.safetyplease.ui.resources.perm_notifications_text
+import ro.safetyplease.ui.resources.perm_notifications_title
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -46,12 +67,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.common.MAX_NAME
 import ro.safetyplease.app.ui.startPermissions
 import ro.safetyplease.ui.AppViewModel
@@ -119,15 +139,15 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         if (current == 0) {
             StepPage(
                 onBack = null,
-                bottom = { AppButton(stringResource(R.string.next), next, Modifier.fillMaxWidth(), enabled = name.isNotBlank() && vm.nameAllowed(name)) },
+                bottom = { AppButton(stringResource(Res.string.next), next, Modifier.fillMaxWidth(), enabled = name.isNotBlank() && vm.nameAllowed(name)) },
             ) {
                 AppLogo(96.dp, Modifier.padding(bottom = 20.dp))
-                Text(stringResource(R.string.onboarding_welcome), style = MaterialTheme.typography.largeTitle, color = colors.label)
+                Text(stringResource(Res.string.onboarding_welcome), style = MaterialTheme.typography.largeTitle, color = colors.label)
                 Text(
-                    stringResource(R.string.onboarding_intro), style = MaterialTheme.typography.body, color = colors.secondaryLabel,
+                    stringResource(Res.string.onboarding_intro), style = MaterialTheme.typography.body, color = colors.secondaryLabel,
                     modifier = Modifier.padding(top = 12.dp),
                 )
-                Hint(stringResource(R.string.onboarding_not_112), Modifier.padding(top = 12.dp))
+                Hint(stringResource(Res.string.onboarding_not_112), Modifier.padding(top = 12.dp))
                 Box(Modifier.fillMaxWidth().padding(vertical = 28.dp), contentAlignment = Alignment.Center) {
                     if (name.isBlank()) {
                         Box(Modifier.size(72.dp).clip(CircleShape).background(colors.fill), contentAlignment = Alignment.Center) {
@@ -138,13 +158,13 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     }
                 }
                 InputField(
-                    name, { name = it.take(MAX_NAME) }, stringResource(R.string.name_placeholder), Modifier.fillMaxWidth(),
+                    name, { name = it.take(MAX_NAME) }, stringResource(Res.string.name_placeholder), Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank() && vm.nameAllowed(name)) next() }),
                     supporting = if (vm.nameAllowed(name)) {
-                        stringResource(R.string.name_label) + ". " + stringResource(R.string.name_hint)
+                        stringResource(Res.string.name_label) + ". " + stringResource(Res.string.name_hint)
                     } else {
-                        stringResource(R.string.name_reserved)
+                        stringResource(Res.string.name_reserved)
                     },
                     background = colors.fill,
                 )
@@ -153,24 +173,24 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             StepPage(
                 onBack = { step = 0 },
                 bottom = {
-                    AppButton(stringResource(R.string.onboarding_start), { permissions.launch(startPermissions()) }, Modifier.fillMaxWidth())
+                    AppButton(stringResource(Res.string.onboarding_start), { permissions.launch(startPermissions()) }, Modifier.fillMaxWidth())
                     Spacer(Modifier.height(4.dp))
-                    TextLink(stringResource(R.string.onboarding_not_now), finish)
+                    TextLink(stringResource(Res.string.onboarding_not_now), finish)
                 },
             ) {
-                Text(stringResource(R.string.onboarding_permissions), style = MaterialTheme.typography.largeTitle, color = colors.label)
+                Text(stringResource(Res.string.onboarding_permissions), style = MaterialTheme.typography.largeTitle, color = colors.label)
                 Text(
-                    stringResource(R.string.onboarding_permissions_text), style = MaterialTheme.typography.body, color = colors.secondaryLabel,
+                    stringResource(Res.string.onboarding_permissions_text), style = MaterialTheme.typography.body, color = colors.secondaryLabel,
                     modifier = Modifier.padding(top = 12.dp, bottom = 32.dp),
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    Reason(Sym.Bluetooth, stringResource(R.string.perm_bluetooth_title), stringResource(R.string.perm_bluetooth_text))
-                    Reason(Sym.Bell, stringResource(R.string.perm_notifications_title), stringResource(R.string.perm_notifications_text))
+                    Reason(Sym.Bluetooth, stringResource(Res.string.perm_bluetooth_title), stringResource(Res.string.perm_bluetooth_text))
+                    Reason(Sym.Bell, stringResource(Res.string.perm_notifications_title), stringResource(Res.string.perm_notifications_text))
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                        Reason(Sym.Place, stringResource(R.string.perm_location_title), stringResource(R.string.perm_location_text))
+                        Reason(Sym.Place, stringResource(Res.string.perm_location_title), stringResource(Res.string.perm_location_text))
                     }
                 }
-                Hint(stringResource(R.string.onboarding_later), Modifier.padding(top = 28.dp))
+                Hint(stringResource(Res.string.onboarding_later), Modifier.padding(top = 28.dp))
             }
         }
     }
@@ -184,7 +204,7 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 private fun StepPage(onBack: (() -> Unit)?, bottom: @Composable ColumnScope.() -> Unit, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxSize().background(AppTheme.colors.background).safeDrawingPadding().imePadding()) {
         Box(Modifier.fillMaxWidth().height(NavHeight).padding(horizontal = Gutter), contentAlignment = Alignment.CenterStart) {
-            if (onBack != null) GlassIconButton(Sym.Back, stringResource(R.string.back), onBack, null)
+            if (onBack != null) GlassIconButton(Sym.Back, stringResource(Res.string.back), onBack, null)
         }
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = PageGutter, vertical = 12.dp),

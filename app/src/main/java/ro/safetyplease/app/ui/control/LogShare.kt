@@ -1,5 +1,18 @@
 package ro.safetyplease.app.ui.control
 
+import ro.safetyplease.app.text.textArray
+import ro.safetyplease.ui.resources.control_case_states
+import ro.safetyplease.ui.resources.control_log_events
+import ro.safetyplease.ui.resources.edition_footer
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.app.text.text
+import ro.safetyplease.app.text.quantityText
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.control_entries
+import ro.safetyplease.ui.resources.control_export_confirm
+import ro.safetyplease.ui.resources.control_export_empty
+import ro.safetyplease.ui.resources.control_export_text
+import ro.safetyplease.ui.resources.control_export_title
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -12,8 +25,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +36,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import ro.safetyplease.app.App
 import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
+import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.app.ui.common.freshExportDir
 import ro.safetyplease.app.ui.common.shareFiles
 import ro.safetyplease.core.control.ConsoleView
@@ -57,7 +70,7 @@ internal fun ExportDialog(c: PingUpSession, entries: Int, scope: CoroutineScope,
     val context = LocalContext.current
     val names = rememberExportNames(c.venue)
     AppDialog(
-        onDismiss, stringResource(R.string.control_export_title), stringResource(R.string.control_export_confirm),
+        onDismiss, stringResource(Res.string.control_export_title), stringResource(Res.string.control_export_confirm),
         onConfirm = {
             scope.launch { shareLog(context, c, names) }
             onDismiss()
@@ -66,9 +79,9 @@ internal fun ExportDialog(c: PingUpSession, entries: Int, scope: CoroutineScope,
     ) {
         Text(
             if (entries > 0) {
-                stringResource(R.string.control_export_text, pluralStringResource(R.plurals.control_entries, entries, entries))
+                stringResource(Res.string.control_export_text, pluralStringResource(Res.plurals.control_entries, entries, entries))
             } else {
-                stringResource(R.string.control_export_empty)
+                stringResource(Res.string.control_export_empty)
             },
             style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
@@ -80,16 +93,16 @@ internal fun ExportDialog(c: PingUpSession, entries: Int, scope: CoroutineScope,
 private fun rememberExportNames(venue: Venue): ExportNames {
     val res = LocalResources.current
     return remember(res, venue) {
-        val events = res.getStringArray(R.array.control_log_events)
-        val states = res.getStringArray(R.array.control_case_states)
+        val events = res.textArray(Res.array.control_log_events)
+        val states = res.textArray(Res.array.control_case_states)
         ExportNames(
             event = { events[it.ordinal] },
-            category = { res.getString(Labels.category(it)) },
-            severity = { res.getString(Labels.urgency(it)) },
-            status = { res.getString(ackWord(it)) },
+            category = { res.text(Labels.category(it)) },
+            severity = { res.text(Labels.urgency(it)) },
+            status = { res.text(ackWord(it)) },
             state = { states[it.ordinal] },
             zone = { if (it.isEmpty()) "" else venue.zoneName(it) },
-            answer = { res.getString(Labels.answer(it)) },
+            answer = { res.text(Labels.answer(it)) },
         )
     }
 }
@@ -132,7 +145,7 @@ internal suspend fun shareReport(context: Context, c: PingUpSession, report: Edi
         val dir = freshExportDir(c.exportDir.toFile())
         val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.ROOT).format(Date(report.until))
         val appName = res.getString(R.string.app_name)
-        val footer = { page: Int -> res.getString(R.string.edition_footer, appName, c.venue.name, page) }
+        val footer = { page: Int -> res.text(Res.string.edition_footer, appName, c.venue.name, page) }
         listOf(
             File(dir, "raport-$stamp.pdf").also { writeReportPdf(doc, footer, it) },
             File(dir, "raport-$stamp-incidente.csv").apply { writeText(ReportExport.incidentsCsv(report, names, zone)) },

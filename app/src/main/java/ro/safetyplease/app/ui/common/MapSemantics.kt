@@ -1,5 +1,28 @@
 package ro.safetyplease.app.ui.common
 
+import ro.safetyplease.app.text.textArray
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.map_a11y_here
+import ro.safetyplease.ui.resources.map_a11y_incident
+import ro.safetyplease.ui.resources.map_directions
+import ro.safetyplease.ui.resources.map_meeting_point
+import ro.safetyplease.ui.resources.map_route
+import ro.safetyplease.ui.resources.map_type_bar
+import ro.safetyplease.ui.resources.map_type_camping
+import ro.safetyplease.ui.resources.map_type_charge
+import ro.safetyplease.ui.resources.map_type_chill
+import ro.safetyplease.ui.resources.map_type_dea
+import ro.safetyplease.ui.resources.map_type_entrance
+import ro.safetyplease.ui.resources.map_type_exit
+import ro.safetyplease.ui.resources.map_type_food
+import ro.safetyplease.ui.resources.map_type_info
+import ro.safetyplease.ui.resources.map_type_medical
+import ro.safetyplease.ui.resources.map_type_stage
+import ro.safetyplease.ui.resources.map_type_water
+import ro.safetyplease.ui.resources.map_type_wc
+import ro.safetyplease.ui.resources.map_type_zone
+import ro.safetyplease.app.text.text
+import ro.safetyplease.app.text.quantityText
 import android.content.res.Resources
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
@@ -20,8 +43,7 @@ import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
+import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
@@ -85,19 +107,19 @@ internal fun rememberMapWords(): MapWords {
 
 private fun mapWords(resources: Resources) = MapWords(
     types = mapOf(
-        "stage" to R.string.map_type_stage, "food" to R.string.map_type_food, "bar" to R.string.map_type_bar,
-        "medical" to R.string.map_type_medical, "entrance" to R.string.map_type_entrance, "exit" to R.string.map_type_exit,
-        "camping" to R.string.map_type_camping, "chill" to R.string.map_type_chill, "water" to R.string.map_type_water,
-        "wc" to R.string.map_type_wc, "info" to R.string.map_type_info, "charge" to R.string.map_type_charge,
-        Venue.DEA to R.string.map_type_dea,
-    ).mapValues { resources.getString(it.value) },
-    zone = resources.getString(R.string.map_type_zone),
-    here = resources.getString(R.string.map_a11y_here),
-    meeting = resources.getString(R.string.map_meeting_point),
-    incident = resources.getString(R.string.map_a11y_incident),
-    urgency = { resources.getString(Labels.urgency(it)) },
-    directions = resources.getStringArray(R.array.map_directions).toList(),
-    route = { meters, direction -> resources.getString(R.string.map_route, meters, direction) },
+        "stage" to Res.string.map_type_stage, "food" to Res.string.map_type_food, "bar" to Res.string.map_type_bar,
+        "medical" to Res.string.map_type_medical, "entrance" to Res.string.map_type_entrance, "exit" to Res.string.map_type_exit,
+        "camping" to Res.string.map_type_camping, "chill" to Res.string.map_type_chill, "water" to Res.string.map_type_water,
+        "wc" to Res.string.map_type_wc, "info" to Res.string.map_type_info, "charge" to Res.string.map_type_charge,
+        Venue.DEA to Res.string.map_type_dea,
+    ).mapValues { resources.text(it.value) },
+    zone = resources.text(Res.string.map_type_zone),
+    here = resources.text(Res.string.map_a11y_here),
+    meeting = resources.text(Res.string.map_meeting_point),
+    incident = resources.text(Res.string.map_a11y_incident),
+    urgency = { resources.text(Labels.urgency(it)) },
+    directions = resources.textArray(Res.array.map_directions).toList(),
+    route = { meters, direction -> resources.text(Res.string.map_route, meters, direction) },
 )
 
 /** Touch area of a point for exploring by touch. */

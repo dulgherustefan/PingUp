@@ -1,6 +1,57 @@
 package ro.safetyplease.app.ui.incidents
 
-import androidx.annotation.StringRes
+import ro.safetyplease.ui.text.staffStatusText
+import ro.safetyplease.ui.resources.control_state_reopened
+import ro.safetyplease.ui.resources.control_word_unfounded
+import ro.safetyplease.ui.resources.incident_accept
+import ro.safetyplease.ui.resources.incident_handed_over
+import ro.safetyplease.ui.resources.incident_on_scene
+import ro.safetyplease.ui.resources.incident_same_zone_title
+import ro.safetyplease.ui.resources.incident_state_closed
+import ro.safetyplease.ui.resources.incident_state_handed_over
+import ro.safetyplease.ui.resources.incident_state_on_scene
+import ro.safetyplease.ui.resources.incident_state_taken
+import ro.safetyplease.ui.resources.incident_take
+import ro.safetyplease.ui.resources.staff_status_new
+import ro.safetyplease.ui.resources.status_cancelled
+import ro.safetyplease.ui.resources.status_resolved
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.delete
+import ro.safetyplease.ui.resources.filter_all
+import ro.safetyplease.ui.resources.filter_for_me
+import ro.safetyplease.ui.resources.filter_resolved
+import ro.safetyplease.ui.resources.incident_anonymous
+import ro.safetyplease.ui.resources.incident_cancel_requested
+import ro.safetyplease.ui.resources.incident_cancel_requested_text
+import ro.safetyplease.ui.resources.incident_dismiss
+import ro.safetyplease.ui.resources.incident_dismiss_text
+import ro.safetyplease.ui.resources.incident_dismiss_title
+import ro.safetyplease.ui.resources.incident_each_separately
+import ro.safetyplease.ui.resources.incident_mark_resolved
+import ro.safetyplease.ui.resources.incident_maybe_same
+import ro.safetyplease.ui.resources.incident_no_description
+import ro.safetyplease.ui.resources.incident_recognition
+import ro.safetyplease.ui.resources.incident_reported_at
+import ro.safetyplease.ui.resources.incident_reporter
+import ro.safetyplease.ui.resources.incident_same_zone
+import ro.safetyplease.ui.resources.incident_updates_title
+import ro.safetyplease.ui.resources.incidents_dismiss_closed
+import ro.safetyplease.ui.resources.incidents_dismiss_closed_text
+import ro.safetyplease.ui.resources.incidents_dismiss_closed_title
+import ro.safetyplease.ui.resources.incidents_empty_text
+import ro.safetyplease.ui.resources.incidents_empty_title
+import ro.safetyplease.ui.resources.incidents_filter_empty
+import ro.safetyplease.ui.resources.incidents_for_me_empty
+import ro.safetyplease.ui.resources.incidents_for_me_empty_text
+import ro.safetyplease.ui.resources.more_options
+import ro.safetyplease.ui.resources.reports
+import ro.safetyplease.ui.resources.sev_urgent
+import ro.safetyplease.ui.resources.staff_codes_open
+import ro.safetyplease.ui.resources.staff_status_mine
+import ro.safetyplease.ui.resources.tab_incidents
+import ro.safetyplease.ui.resources.zone_unknown
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -39,8 +90,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -49,11 +100,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.agoText
-import ro.safetyplease.app.text.hopsText
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.agoText
+import ro.safetyplease.ui.text.hopsText
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.app.ui.common.IncidentHeader
 import ro.safetyplease.app.ui.common.MapPin
 import ro.safetyplease.app.ui.common.MeButton
@@ -119,17 +169,16 @@ private fun statusLook(status: Int): Pair<ImageVector, Color> {
 }
 
 /** Status in one word, for list rows. */
-@StringRes
-private fun statusWord(status: Int): Int = when (status) {
-    AckStatus.CANCELLED -> R.string.status_cancelled
-    AckStatus.RESOLVED -> R.string.status_resolved
-    AckStatus.ACKNOWLEDGED -> R.string.incident_state_taken
-    AckStatus.ON_SCENE -> R.string.incident_state_on_scene
-    AckStatus.HANDED_OVER -> R.string.incident_state_handed_over
-    AckStatus.CLOSED_BY_CONTROL -> R.string.incident_state_closed
-    AckStatus.UNFOUNDED -> R.string.control_word_unfounded
-    AckStatus.REOPENED -> R.string.control_state_reopened
-    else -> R.string.staff_status_new
+private fun statusWord(status: Int): StringResource = when (status) {
+    AckStatus.CANCELLED -> Res.string.status_cancelled
+    AckStatus.RESOLVED -> Res.string.status_resolved
+    AckStatus.ACKNOWLEDGED -> Res.string.incident_state_taken
+    AckStatus.ON_SCENE -> Res.string.incident_state_on_scene
+    AckStatus.HANDED_OVER -> Res.string.incident_state_handed_over
+    AckStatus.CLOSED_BY_CONTROL -> Res.string.incident_state_closed
+    AckStatus.UNFOUNDED -> Res.string.control_word_unfounded
+    AckStatus.REOPENED -> Res.string.control_state_reopened
+    else -> Res.string.staff_status_new
 }
 
 /** The field steps after a take, one at a time; null once nothing is left but resolving it. */
@@ -141,9 +190,7 @@ internal fun nextFieldStep(status: Int): Int? = when (status) {
 
 /** Nobody has it and it isn't closed: a team can take it. */
 internal fun StaffIncident.isOpen(): Boolean = !AckStatus.isTaken(status) && !AckStatus.isClosed(status)
-
-@StringRes
-private fun fieldStepLabel(step: Int): Int = if (step == AckStatus.ON_SCENE) R.string.incident_on_scene else R.string.incident_handed_over
+private fun fieldStepLabel(step: Int): StringResource = if (step == AckStatus.ON_SCENE) Res.string.incident_on_scene else Res.string.incident_handed_over
 
 private fun AppViewModel.fieldStep(incidentId: String, step: Int) = if (step == AckStatus.ON_SCENE) onScene(incidentId) else handOver(incidentId)
 
@@ -151,11 +198,11 @@ private fun AppViewModel.fieldStep(incidentId: String, step: Int) = if (step == 
 @Composable
 private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier, mine: Boolean = false) {
     if (mine) {
-        StatusLabel(stringResource(R.string.staff_status_mine), modifier, icon = Sym.Person, color = AppTheme.colors.label)
+        StatusLabel(stringResource(Res.string.staff_status_mine), modifier, icon = Sym.Person, color = AppTheme.colors.label)
         return
     }
     val (icon, color) = statusLook(status)
-    StatusLabel(Labels.staffStatus(LocalContext.current, status, team), modifier, icon = icon, color = color)
+    StatusLabel(staffStatusText(status, team), modifier, icon = icon, color = color)
 }
 
 /** Taken in the name of [team] or its role, by the console or by the team itself, and not closed: its work comes first. */
@@ -201,8 +248,8 @@ internal fun listRows(staff: List<StaffIncident>, list: IncidentList, me: StaffP
  */
 @Composable
 private fun hintText(hint: DuplicateHint): String =
-    if (hint.sameEvent) stringResource(R.string.incident_maybe_same) + " · " + pluralStringResource(R.plurals.reports, hint.count, hint.count)
-    else pluralStringResource(R.plurals.incident_same_zone, hint.count - 1, hint.count - 1)
+    if (hint.sameEvent) stringResource(Res.string.incident_maybe_same) + " · " + pluralStringResource(Res.plurals.reports, hint.count, hint.count)
+    else pluralStringResource(Res.plurals.incident_same_zone, hint.count - 1, hint.count - 1)
 
 /**
  * Incidents tab: your avatar top left, a segmented filter under the bar, then one row per incident. "Pentru mine"
@@ -225,23 +272,23 @@ fun IncidentsScreen(vm: AppViewModel) {
     val me = remember(settings) { Routing.profile(settings) }
     val shown = remember(staff, list, me, now) { listRows(staff, list, me, now) }
     val forMeCount = remember(staff, me, now) { listRows(staff, IncidentList.FOR_ME, me, now).size }
-    val forMeLabel = stringResource(R.string.filter_for_me)
+    val forMeLabel = stringResource(Res.string.filter_for_me)
     val closedCount = staff.count(StatusFilter.RESOLVED::matches)
     val options = listOf(
         IncidentList.FOR_ME to if (forMeCount > 0) "$forMeLabel · $forMeCount" else forMeLabel,
-        IncidentList.ALL to stringResource(R.string.filter_all),
-        IncidentList.CLOSED to stringResource(R.string.filter_resolved),
+        IncidentList.ALL to stringResource(Res.string.filter_all),
+        IncidentList.CLOSED to stringResource(Res.string.filter_resolved),
     )
     val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
 
     NavScreen(
-        title = stringResource(R.string.tab_incidents),
+        title = stringResource(Res.string.tab_incidents),
         scrolled = scrolled,
         leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
         trailing = { backdrop ->
             // the console has its own screen; a team in the field gets its one-tap codes here
-            if (settings.role == AppRole.STAFF) GlassIconButton(Sym.Flag, stringResource(R.string.staff_codes_open), { vm.open(Dest.StaffCodes) }, backdrop)
+            if (settings.role == AppRole.STAFF) GlassIconButton(Sym.Flag, stringResource(Res.string.staff_codes_open), { vm.open(Dest.StaffCodes) }, backdrop)
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
@@ -254,11 +301,11 @@ fun IncidentsScreen(vm: AppViewModel) {
                 item(key = "empty") {
                     // an empty filter doesn't mean nothing arrived
                     when {
-                        staff.isEmpty() -> EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), icon = Sym.Bell)
+                        staff.isEmpty() -> EmptyState(stringResource(Res.string.incidents_empty_title), stringResource(Res.string.incidents_empty_text), icon = Sym.Bell)
                         list == IncidentList.FOR_ME -> EmptyState(
-                            stringResource(R.string.incidents_for_me_empty), stringResource(R.string.incidents_for_me_empty_text), icon = Sym.Check,
+                            stringResource(Res.string.incidents_for_me_empty), stringResource(Res.string.incidents_for_me_empty_text), icon = Sym.Check,
                         )
-                        else -> EmptyState(stringResource(R.string.incidents_filter_empty), null, icon = Sym.Check)
+                        else -> EmptyState(stringResource(Res.string.incidents_filter_empty), null, icon = Sym.Check)
                     }
                 }
             } else {
@@ -274,7 +321,7 @@ fun IncidentsScreen(vm: AppViewModel) {
                 if (list == IncidentList.CLOSED) {
                     item(key = "clear") {
                         TextLink(
-                            stringResource(R.string.incidents_dismiss_closed), { confirmClear = true },
+                            stringResource(Res.string.incidents_dismiss_closed), { confirmClear = true },
                             Modifier.animateItem().fillMaxWidth().wrapContentWidth().padding(top = 8.dp), color = colors.redInk,
                         )
                     }
@@ -285,8 +332,8 @@ fun IncidentsScreen(vm: AppViewModel) {
 
     confirmDismiss?.let { incident ->
         ConfirmDialog(
-            stringResource(R.string.incident_dismiss_title), stringResource(R.string.incident_dismiss_text),
-            onDismiss = { confirmDismiss = null }, confirmLabel = stringResource(R.string.delete), destructive = true,
+            stringResource(Res.string.incident_dismiss_title), stringResource(Res.string.incident_dismiss_text),
+            onDismiss = { confirmDismiss = null }, confirmLabel = stringResource(Res.string.delete), destructive = true,
         ) {
             vm.dismissIncident(incident.incidentId)
             haptics.confirm()
@@ -294,9 +341,9 @@ fun IncidentsScreen(vm: AppViewModel) {
     }
     if (confirmClear) {
         ConfirmDialog(
-            pluralStringResource(R.plurals.incidents_dismiss_closed_title, closedCount, closedCount),
-            stringResource(R.string.incidents_dismiss_closed_text),
-            onDismiss = { confirmClear = false }, confirmLabel = stringResource(R.string.delete), destructive = true,
+            pluralStringResource(Res.plurals.incidents_dismiss_closed_title, closedCount, closedCount),
+            stringResource(Res.string.incidents_dismiss_closed_text),
+            onDismiss = { confirmClear = false }, confirmLabel = stringResource(Res.string.delete), destructive = true,
         ) {
             vm.dismissClosedIncidents()
             haptics.confirm()
@@ -328,20 +375,20 @@ private fun IncidentRow(
     var menu by remember { mutableStateOf(false) }
     val closed = AckStatus.isClosed(incident.status)
     val alarm = incident.severity == Severity.URGENT && incident.isOpen()
-    val place = if (incident.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(incident.zone)
+    val place = if (incident.zone.isEmpty()) stringResource(Res.string.zone_unknown) else vm.venue.zoneName(incident.zone)
     val (statusIcon, statusColor) = if (mine) Sym.Person to colors.label else statusLook(incident.status)
     val next = nextFieldStep(incident.status)
     // with large fonts the title and details wrap instead of losing the place
     val lines = if (largeFont()) Int.MAX_VALUE else 1
     SwipeRow(
-        Sym.Delete, stringResource(R.string.delete), keep = !closed,
+        Sym.Delete, stringResource(Res.string.delete), keep = !closed,
         onAction = if (closed) onDismiss else onAskDismiss, modifier = modifier,
     ) {
         Box {
             Row(
                 Modifier.fillMaxWidth()
                     .combinedClickable(
-                        role = Role.Button, onLongClickLabel = stringResource(R.string.more_options), onLongClick = { menu = true },
+                        role = Role.Button, onLongClickLabel = stringResource(Res.string.more_options), onLongClick = { menu = true },
                     ) { vm.open(Dest.Incident(incident.incidentId)) }
                     .padding(horizontal = Gutter, vertical = 12.dp),
                 verticalAlignment = Alignment.Top,
@@ -361,13 +408,13 @@ private fun IncidentRow(
                         Icon(statusIcon, null, Modifier.size(16.dp), tint = statusColor)
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            stringResource(if (mine) R.string.staff_status_mine else statusWord(incident.status)),
+                            stringResource(if (mine) Res.string.staff_status_mine else statusWord(incident.status)),
                             style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
                             color = statusColor, maxLines = 1,
                         )
                     }
                     // urgency is spelled out, not only colored: a red circle alone fails people who can't tell colors apart
-                    val urgent = stringResource(R.string.sev_urgent)
+                    val urgent = stringResource(Res.string.sev_urgent)
                     // how many phones it passed through is in the detail; for triage the row needs urgency, place and time
                     val details = listOf(place, agoText(incident.reportedAt, now)).joinToString(" · ")
                     Text(
@@ -388,7 +435,7 @@ private fun IncidentRow(
                         )
                     }
                     if (incident.cancelRequested && !closed) {
-                        StatusLabel(stringResource(R.string.incident_cancel_requested), Modifier.padding(top = 4.dp), icon = Sym.Info, color = colors.orangeInk)
+                        StatusLabel(stringResource(Res.string.incident_cancel_requested), Modifier.padding(top = 4.dp), icon = Sym.Info, color = colors.orangeInk)
                     }
                     if (hint != null) StatusLabel(hintText(hint), Modifier.padding(top = 4.dp), icon = Sym.Copy)
                 }
@@ -396,7 +443,7 @@ private fun IncidentRow(
             // like the incident page: what's already done isn't offered
             AppMenu(menu, { menu = false }) {
                 if (incident.isOpen() || awaitsMe) {
-                    MenuRow(stringResource(if (awaitsMe) R.string.incident_accept else R.string.incident_take), {
+                    MenuRow(stringResource(if (awaitsMe) Res.string.incident_accept else Res.string.incident_take), {
                         menu = false
                         vm.acknowledge(incident.incidentId)
                         haptics.confirm()
@@ -410,13 +457,13 @@ private fun IncidentRow(
                     }, icon = Sym.Walk)
                 }
                 if (!closed) {
-                    MenuRow(stringResource(R.string.incident_mark_resolved), {
+                    MenuRow(stringResource(Res.string.incident_mark_resolved), {
                         menu = false
                         vm.resolve(incident.incidentId)
                         haptics.confirm()
                     }, icon = Sym.CheckCircle)
                 }
-                MenuRow(stringResource(R.string.incident_dismiss), {
+                MenuRow(stringResource(Res.string.incident_dismiss), {
                     menu = false
                     onAskDismiss()
                 }, icon = Sym.Delete, danger = true)
@@ -458,13 +505,13 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
     val pins = others.mapNotNull { other ->
         incidentPoint(vm.venue, other)?.let { MapPin(it, colors.severity(other.severity).copy(alpha = 0.45f), other.incidentId, other.severity) }
     } + listOfNotNull(incidentPoint(vm.venue, incident)?.let { MapPin(it, colors.severity(incident.severity), incident.incidentId, incident.severity) })
-    val place = if (incident.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(incident.zone)
+    val place = if (incident.zone.isEmpty()) stringResource(Res.string.zone_unknown) else vm.venue.zoneName(incident.zone)
     var menu by remember { mutableStateOf(false) }
     var confirmDismiss by remember { mutableStateOf(false) }
     if (confirmDismiss) {
         ConfirmDialog(
-            stringResource(R.string.incident_dismiss_title), stringResource(R.string.incident_dismiss_text),
-            onDismiss = { confirmDismiss = false }, confirmLabel = stringResource(R.string.delete), destructive = true,
+            stringResource(Res.string.incident_dismiss_title), stringResource(Res.string.incident_dismiss_text),
+            onDismiss = { confirmDismiss = false }, confirmLabel = stringResource(Res.string.delete), destructive = true,
         ) {
             // without the incident this screen pops itself; another back() would also pop the screen below
             vm.dismissIncident(incident.incidentId)
@@ -476,12 +523,12 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
         title = if (pastHeader) stringResource(Labels.category(incident.category)) else "",
         background = colors.grouped,
         scrolled = scrolled,
-        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
         trailing = { backdrop ->
             Box {
-                GlassIconButton(Sym.More, stringResource(R.string.more_options), { menu = true }, backdrop)
+                GlassIconButton(Sym.More, stringResource(Res.string.more_options), { menu = true }, backdrop)
                 AppMenu(menu, { menu = false }) {
-                    MenuRow(stringResource(R.string.incident_dismiss), {
+                    MenuRow(stringResource(Res.string.incident_dismiss), {
                         menu = false
                         confirmDismiss = true
                     }, icon = Sym.Delete, danger = true)
@@ -497,7 +544,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
             )
             if (incident.cancelRequested && !closed) {
                 Banner(
-                    stringResource(R.string.incident_cancel_requested), stringResource(R.string.incident_cancel_requested_text),
+                    stringResource(Res.string.incident_cancel_requested), stringResource(Res.string.incident_cancel_requested_text),
                     Modifier.padding(start = Gutter, end = Gutter, bottom = 16.dp), warning = true,
                 )
             }
@@ -507,7 +554,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
             when {
                 closed -> Unit
                 incident.isOpen() || awaitsMe -> AppButton(
-                    stringResource(if (awaitsMe) R.string.incident_accept else R.string.incident_take),
+                    stringResource(if (awaitsMe) Res.string.incident_accept else Res.string.incident_take),
                     {
                         vm.acknowledge(incident.incidentId)
                         haptics.confirm()
@@ -524,7 +571,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                         Modifier.fillMaxWidth().padding(horizontal = Gutter),
                     )
                     TextLink(
-                        stringResource(R.string.incident_mark_resolved),
+                        stringResource(Res.string.incident_mark_resolved),
                         {
                             vm.resolve(incident.incidentId)
                             haptics.confirm()
@@ -533,7 +580,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                     )
                 }
                 else -> AppButton(
-                    stringResource(R.string.incident_mark_resolved),
+                    stringResource(Res.string.incident_mark_resolved),
                     {
                         vm.resolve(incident.incidentId)
                         haptics.confirm()
@@ -550,11 +597,11 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
             )
             InsetGroup(Modifier.padding(top = 20.dp)) { StaffReportBlock(incident, settings.teamName, incidentPlace(vm, incident)) }
             if (incident.updates.isNotEmpty()) {
-                SectionTitle(stringResource(R.string.incident_updates_title))
+                SectionTitle(stringResource(Res.string.incident_updates_title))
                 InsetGroup { UpdateTimeline(incident.updates, vm.venue, vm.c.grid, Modifier.padding(horizontal = Gutter, vertical = 10.dp)) }
             }
             if (hint != null && others.isNotEmpty()) {
-                SectionTitle(stringResource(if (hint.sameEvent) R.string.incident_maybe_same else R.string.incident_same_zone_title))
+                SectionTitle(stringResource(if (hint.sameEvent) Res.string.incident_maybe_same else Res.string.incident_same_zone_title))
                 InsetGroup {
                     others.forEachIndexed { index, other ->
                         StaffReportBlock(other, settings.teamName, incidentPlace(vm, other)) { vm.open(Dest.Incident(other.incidentId)) }
@@ -562,7 +609,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                     }
                 }
                 Text(
-                    stringResource(R.string.incident_each_separately), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                    stringResource(Res.string.incident_each_separately), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                     modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
                 )
             }
@@ -599,20 +646,20 @@ private fun StaffReportBlock(incident: StaffIncident, team: String, place: Strin
             if (place.isNotEmpty()) StatusLabel(place, Modifier.padding(bottom = 6.dp), icon = Sym.Place, color = colors.label)
             if (recognition.isNotEmpty()) {
                 Text(
-                    stringResource(R.string.incident_recognition, recognition), style = MaterialTheme.typography.body,
+                    stringResource(Res.string.incident_recognition, recognition), style = MaterialTheme.typography.body,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 4.dp),
                 )
             }
             Text(
-                if (empty) stringResource(R.string.incident_no_description) else said,
+                if (empty) stringResource(Res.string.incident_no_description) else said,
                 style = MaterialTheme.typography.body, color = if (empty) colors.secondaryLabel else colors.label,
                 fontWeight = if (incident.severity == Severity.URGENT) FontWeight.Medium else null,
                 maxLines = 6, overflow = TextOverflow.Ellipsis,
             )
             Text(
                 listOf(
-                    stringResource(R.string.incident_reported_at, Labels.clock(incident.reportedAt)),
-                    incident.nickname?.let { stringResource(R.string.incident_reporter, it) } ?: stringResource(R.string.incident_anonymous),
+                    stringResource(Res.string.incident_reported_at, Labels.clock(incident.reportedAt)),
+                    incident.nickname?.let { stringResource(Res.string.incident_reporter, it) } ?: stringResource(Res.string.incident_anonymous),
                     hopsText(incident.hops),
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 2.dp),

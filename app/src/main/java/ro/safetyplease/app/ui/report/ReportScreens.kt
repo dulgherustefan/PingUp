@@ -1,5 +1,123 @@
 package ro.safetyplease.app.ui.report
 
+import ro.safetyplease.ui.resources.location_open_settings
+import ro.safetyplease.ui.resources.place_accuracy
+import ro.safetyplease.ui.resources.place_near
+import ro.safetyplease.ui.resources.report_anonymous_off
+import ro.safetyplease.ui.resources.report_anonymous_on
+import ro.safetyplease.ui.resources.report_cancel_checked
+import ro.safetyplease.ui.resources.report_cancel_checked_text
+import ro.safetyplease.ui.resources.report_cancel_text
+import ro.safetyplease.ui.resources.report_cancel_text_checked
+import ro.safetyplease.ui.resources.report_cancelled_text
+import ro.safetyplease.ui.resources.report_cancelling
+import ro.safetyplease.ui.resources.report_cancelling_text
+import ro.safetyplease.ui.resources.report_description
+import ro.safetyplease.ui.resources.report_description_staff
+import ro.safetyplease.ui.resources.report_location_blocked
+import ro.safetyplease.ui.resources.report_location_gps
+import ro.safetyplease.ui.resources.report_location_missing
+import ro.safetyplease.ui.resources.report_lost_friend_sent_text
+import ro.safetyplease.ui.resources.report_named
+import ro.safetyplease.ui.resources.report_next_text
+import ro.safetyplease.ui.resources.report_update_moved_text
+import ro.safetyplease.ui.resources.report_update_moved_unknown
+import ro.safetyplease.ui.resources.report_use_location
+import ro.safetyplease.ui.resources.report_waiting_text
+import ro.safetyplease.ui.resources.status_acknowledged
+import ro.safetyplease.ui.resources.torch_failed
+import ro.safetyplease.ui.resources.torch_off
+import ro.safetyplease.ui.resources.torch_on
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.app.text.text
+import ro.safetyplease.app.text.quantityText
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.delete
+import ro.safetyplease.ui.resources.discreet_row_text
+import ro.safetyplease.ui.resources.discreet_title
+import ro.safetyplease.ui.resources.done
+import ro.safetyplease.ui.resources.emergency_call
+import ro.safetyplease.ui.resources.first_aid_title
+import ro.safetyplease.ui.resources.map_meeting_point
+import ro.safetyplease.ui.resources.map_source_gps
+import ro.safetyplease.ui.resources.more_options
+import ro.safetyplease.ui.resources.nearest_dea
+import ro.safetyplease.ui.resources.report_active
+import ro.safetyplease.ui.resources.report_add_details
+import ro.safetyplease.ui.resources.report_anonymous
+import ro.safetyplease.ui.resources.report_cancel
+import ro.safetyplease.ui.resources.report_cancel_confirm
+import ro.safetyplease.ui.resources.report_cancel_title
+import ro.safetyplease.ui.resources.report_cancelled
+import ro.safetyplease.ui.resources.report_delete
+import ro.safetyplease.ui.resources.report_delete_closed
+import ro.safetyplease.ui.resources.report_delete_closed_text
+import ro.safetyplease.ui.resources.report_delete_closed_title
+import ro.safetyplease.ui.resources.report_delete_text
+import ro.safetyplease.ui.resources.report_delete_title
+import ro.safetyplease.ui.resources.report_details
+import ro.safetyplease.ui.resources.report_escalate_text
+import ro.safetyplease.ui.resources.report_escalate_title
+import ro.safetyplease.ui.resources.report_help_call_text
+import ro.safetyplease.ui.resources.report_help_first_aid_text
+import ro.safetyplease.ui.resources.report_help_info
+import ro.safetyplease.ui.resources.report_help_info_text
+import ro.safetyplease.ui.resources.report_help_medical
+import ro.safetyplease.ui.resources.report_help_meeting
+import ro.safetyplease.ui.resources.report_help_stay
+import ro.safetyplease.ui.resources.report_help_stay_text
+import ro.safetyplease.ui.resources.report_help_steward
+import ro.safetyplease.ui.resources.report_help_title
+import ro.safetyplease.ui.resources.report_location
+import ro.safetyplease.ui.resources.report_location_gps_off
+import ro.safetyplease.ui.resources.report_location_note
+import ro.safetyplease.ui.resources.report_location_searching
+import ro.safetyplease.ui.resources.report_lost_child_note
+import ro.safetyplease.ui.resources.report_lost_friend_note
+import ro.safetyplease.ui.resources.report_mine
+import ro.safetyplease.ui.resources.report_mine_empty_text
+import ro.safetyplease.ui.resources.report_mine_empty_title
+import ro.safetyplease.ui.resources.report_next_title
+import ro.safetyplease.ui.resources.report_not_112
+import ro.safetyplease.ui.resources.report_rate_limited
+import ro.safetyplease.ui.resources.report_recognition
+import ro.safetyplease.ui.resources.report_recognition_hint
+import ro.safetyplease.ui.resources.report_responses_title
+import ro.safetyplease.ui.resources.report_send
+import ro.safetyplease.ui.resources.report_staff_danger
+import ro.safetyplease.ui.resources.report_staff_danger_text
+import ro.safetyplease.ui.resources.report_staff_fewer
+import ro.safetyplease.ui.resources.report_staff_more
+import ro.safetyplease.ui.resources.report_staff_people
+import ro.safetyplease.ui.resources.report_staff_people_unknown
+import ro.safetyplease.ui.resources.report_staff_team
+import ro.safetyplease.ui.resources.report_staff_title
+import ro.safetyplease.ui.resources.report_stay_text
+import ro.safetyplease.ui.resources.report_stay_title
+import ro.safetyplease.ui.resources.report_title
+import ro.safetyplease.ui.resources.report_triage_breathes
+import ro.safetyplease.ui.resources.report_triage_note
+import ro.safetyplease.ui.resources.report_triage_responds
+import ro.safetyplease.ui.resources.report_triage_title
+import ro.safetyplease.ui.resources.report_update_active
+import ro.safetyplease.ui.resources.report_update_last
+import ro.safetyplease.ui.resources.report_update_moved
+import ro.safetyplease.ui.resources.report_update_resolved
+import ro.safetyplease.ui.resources.report_update_title
+import ro.safetyplease.ui.resources.report_update_wait
+import ro.safetyplease.ui.resources.report_urgent
+import ro.safetyplease.ui.resources.report_urgent_label
+import ro.safetyplease.ui.resources.report_zone
+import ro.safetyplease.ui.resources.report_zone_manual
+import ro.safetyplease.ui.resources.report_zone_none
+import ro.safetyplease.ui.resources.report_zone_outside
+import ro.safetyplease.ui.resources.report_zone_pick
+import ro.safetyplease.ui.resources.report_zone_picked_ago
+import ro.safetyplease.ui.resources.report_zone_with_age
+import ro.safetyplease.ui.resources.save
+import ro.safetyplease.ui.resources.sev_urgent
+import ro.safetyplease.ui.resources.tab_report
 import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
@@ -64,8 +182,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -78,12 +196,11 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import ro.safetyplease.app.Emergency
-import ro.safetyplease.app.R
 import ro.safetyplease.app.platform.torch.Torch
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.Replies
-import ro.safetyplease.app.text.agoText
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.Replies
+import ro.safetyplease.ui.text.agoText
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.app.ui.common.CategoryCircle
 import ro.safetyplease.app.ui.common.IncidentHeader
 import ro.safetyplease.app.ui.common.MapGlyph
@@ -227,16 +344,16 @@ private fun TriageQuestion(question: String, answer: Int, onAnswer: (Int) -> Uni
 private fun PeopleRow(people: Int, onChange: (Int) -> Unit) {
     val colors = AppTheme.colors
     GroupRow(
-        stringResource(R.string.report_staff_people), icon = Sym.Group,
+        stringResource(Res.string.report_staff_people), icon = Sym.Group,
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconBtn(Sym.Remove, stringResource(R.string.report_staff_fewer), { onChange((people - 1).coerceAtLeast(0)) }, tint = colors.accent)
+                IconBtn(Sym.Remove, stringResource(Res.string.report_staff_fewer), { onChange((people - 1).coerceAtLeast(0)) }, tint = colors.accent)
                 Text(
-                    if (people == 0) stringResource(R.string.report_staff_people_unknown) else people.toString(),
+                    if (people == 0) stringResource(Res.string.report_staff_people_unknown) else people.toString(),
                     style = MaterialTheme.typography.body, color = colors.label, textAlign = TextAlign.Center,
                     modifier = Modifier.width(64.dp),
                 )
-                IconBtn(Sym.Add, stringResource(R.string.report_staff_more), { onChange((people + 1).coerceAtMost(MAX_PEOPLE)) }, tint = colors.accent)
+                IconBtn(Sym.Add, stringResource(Res.string.report_staff_more), { onChange((people + 1).coerceAtMost(MAX_PEOPLE)) }, tint = colors.accent)
             }
         },
     )
@@ -323,13 +440,13 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         NavScreen(
-            title = stringResource(R.string.tab_report),
+            title = stringResource(Res.string.tab_report),
             background = colors.grouped,
             scrolled = scrolled,
             leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
             trailing = { backdrop ->
                 if (incidents.mine.isNotEmpty()) {
-                    GlassIconButton(Sym.History, stringResource(R.string.report_mine), { vm.open(Dest.MyReports) }, backdrop)
+                    GlassIconButton(Sym.History, stringResource(Res.string.report_mine), { vm.open(Dest.MyReports) }, backdrop)
                 }
             },
         ) { padding ->
@@ -343,7 +460,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 // a report written now would only wait on this phone; say so before it's written
                 RadioProblemBanner(gate, Modifier.padding(horizontal = Gutter, vertical = 8.dp), forReport = true)
                 if (active != null) {
-                    SectionTitle(stringResource(R.string.report_active), top = 8.dp)
+                    SectionTitle(stringResource(Res.string.report_active), top = 8.dp)
                     InsetGroup(Modifier.padding(bottom = 24.dp)) {
                         Box {
                             GroupRow(
@@ -355,7 +472,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                                 leading = { CategoryCircle(active.category, active.severity == Severity.URGENT, 36.dp) },
                             )
                             AppMenu(activeMenu, { activeMenu = false }) {
-                                MenuRow(stringResource(R.string.report_cancel), {
+                                MenuRow(stringResource(Res.string.report_cancel), {
                                     activeMenu = false
                                     cancelId = active.incidentId
                                 }, icon = Sym.Close, danger = true)
@@ -364,7 +481,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     }
                 }
                 Text(
-                    stringResource(R.string.report_title), style = MaterialTheme.typography.title2, color = colors.label,
+                    stringResource(Res.string.report_title), style = MaterialTheme.typography.title2, color = colors.label,
                     modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 14.dp),
                 )
                 // two columns of low buttons with the icon on the left: they read as a list of options.
@@ -405,7 +522,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 if (vm.venue.safeguarding) {
                     InsetGroup(Modifier.padding(top = 12.dp)) {
                         GroupRow(
-                            stringResource(R.string.discreet_title), subtitle = stringResource(R.string.discreet_row_text),
+                            stringResource(Res.string.discreet_title), subtitle = stringResource(Res.string.discreet_row_text),
                             icon = Sym.Hidden, chevron = true, onClick = { vm.open(Dest.Discreet) },
                         )
                     }
@@ -419,93 +536,93 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 }
                 // the questions sit on the screen with Send, so a medical report stays two or three taps
                 if (category == IncidentCategory.MEDICAL) {
-                    SectionTitle(stringResource(R.string.report_triage_title), top = 20.dp)
-                    TriageQuestion(stringResource(R.string.report_triage_responds), responds) { responds = it }
-                    TriageQuestion(stringResource(R.string.report_triage_breathes), breathes) { breathes = it }
+                    SectionTitle(stringResource(Res.string.report_triage_title), top = 20.dp)
+                    TriageQuestion(stringResource(Res.string.report_triage_responds), responds) { responds = it }
+                    TriageQuestion(stringResource(Res.string.report_triage_breathes), breathes) { breathes = it }
                     Text(
-                        stringResource(R.string.report_triage_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                        stringResource(Res.string.report_triage_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                         modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp),
                     )
                 }
                 if (category == IncidentCategory.LOST_FRIEND) {
                     Banner(
-                        stringResource(R.string.report_help_meeting), stringResource(R.string.report_lost_friend_note),
+                        stringResource(Res.string.report_help_meeting), stringResource(Res.string.report_lost_friend_note),
                         Modifier.padding(start = Gutter, end = Gutter, top = 16.dp),
-                        action = stringResource(R.string.map_meeting_point), onAction = { vm.open(Dest.Map(spot = Venue.MEETING)) },
+                        action = stringResource(Res.string.map_meeting_point), onAction = { vm.open(Dest.Map(spot = Venue.MEETING)) },
                     )
                 }
                 if (category == IncidentCategory.LOST_CHILD) {
                     Banner(
-                        stringResource(R.string.sev_urgent), stringResource(R.string.report_lost_child_note),
+                        stringResource(Res.string.sev_urgent), stringResource(Res.string.report_lost_child_note),
                         Modifier.padding(start = Gutter, end = Gutter, top = 16.dp), warning = true,
                     )
                 }
                 if (category != 0) {
                     InsetGroup(Modifier.padding(top = 20.dp)) { LocationRow(vm, spot, locationCheck, requestLocation) }
                     Text(
-                        stringResource(R.string.report_location_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                        stringResource(Res.string.report_location_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                         modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
                     )
                 }
                 if (recognisable) {
                     InputField(
-                        recognition, { recognition = it.take(Recognition.MAX_CHARS) }, stringResource(R.string.report_recognition),
+                        recognition, { recognition = it.take(Recognition.MAX_CHARS) }, stringResource(Res.string.report_recognition),
                         Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 16.dp).onFocusChanged { describing = it.hasFocus },
-                        supporting = stringResource(R.string.report_recognition_hint), background = colors.cell,
+                        supporting = stringResource(Res.string.report_recognition_hint), background = colors.cell,
                     )
                 }
 
                 if (category != 0 && !showDetails && !staff) {
                     val summary = listOf(
                         stringResource(Labels.urgency(severity)),
-                        stringResource(if (anonymous) R.string.report_anonymous else R.string.report_named),
+                        stringResource(if (anonymous) Res.string.report_anonymous else Res.string.report_named),
                         when {
-                            zone.isEmpty() -> stringResource(R.string.report_zone_none)
-                            zoneAge != null -> stringResource(R.string.report_zone_with_age, vm.venue.zoneName(zone), zoneAge)
+                            zone.isEmpty() -> stringResource(Res.string.report_zone_none)
+                            zoneAge != null -> stringResource(Res.string.report_zone_with_age, vm.venue.zoneName(zone), zoneAge)
                             else -> vm.venue.zoneName(zone)
                         },
                     ).joinToString(" · ")
                     InsetGroup(Modifier.padding(top = 20.dp)) {
                         GroupRow(
-                            stringResource(R.string.report_add_details), subtitle = summary, icon = Sym.Notes,
+                            stringResource(Res.string.report_add_details), subtitle = summary, icon = Sym.Notes,
                             chevron = true, onClick = { showDetails = true },
                         )
                     }
                 }
                 if (category != 0 && (showDetails || staff)) {
                     if (staff) {
-                        SectionTitle(stringResource(R.string.report_staff_title))
+                        SectionTitle(stringResource(Res.string.report_staff_title))
                         InsetGroup {
                             PeopleRow(people) { people = it }
                             GroupDivider()
                             SwitchRow(
-                                stringResource(R.string.report_staff_danger), danger, { danger = it },
-                                subtitle = stringResource(R.string.report_staff_danger_text), icon = Sym.Priority,
+                                stringResource(Res.string.report_staff_danger), danger, { danger = it },
+                                subtitle = stringResource(Res.string.report_staff_danger_text), icon = Sym.Priority,
                             )
                         }
                         Text(
-                            stringResource(R.string.report_staff_team, settings.teamName), style = MaterialTheme.typography.footnote,
+                            stringResource(Res.string.report_staff_team, settings.teamName), style = MaterialTheme.typography.footnote,
                             color = colors.secondaryLabel, modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
                         )
                     }
-                    SectionTitle(stringResource(R.string.report_details))
+                    SectionTitle(stringResource(Res.string.report_details))
                     InsetGroup {
                         // a "no" to a triage question already made it urgent
                         if (!hasFixedUrgency(category) && triage?.critical != true) {
                             SwitchRow(
-                                stringResource(R.string.report_urgent), urgent, { urgent = it },
-                                subtitle = stringResource(R.string.report_urgent_label), icon = Sym.Priority,
+                                stringResource(Res.string.report_urgent), urgent, { urgent = it },
+                                subtitle = stringResource(Res.string.report_urgent_label), icon = Sym.Priority,
                             )
                             GroupDivider()
                         }
                         GroupRow(
-                            stringResource(R.string.report_zone),
+                            stringResource(Res.string.report_zone),
                             subtitle = when {
-                                zone.isNotEmpty() && autoZone?.id == zone -> stringResource(R.string.map_source_gps).replaceFirstChar { it.uppercase() }
-                                zone.isNotEmpty() -> zoneAge?.let { stringResource(R.string.report_zone_picked_ago, it) }
+                                zone.isNotEmpty() && autoZone?.id == zone -> stringResource(Res.string.map_source_gps).replaceFirstChar { it.uppercase() }
+                                zone.isNotEmpty() -> zoneAge?.let { stringResource(Res.string.report_zone_picked_ago, it) }
                                 // we have a GPS fix outside every zone: the position is still sent with the report
-                                position != null -> stringResource(R.string.report_zone_outside)
-                                else -> stringResource(R.string.report_zone_manual)
+                                position != null -> stringResource(Res.string.report_zone_outside)
+                                else -> stringResource(Res.string.report_zone_manual)
                             },
                             value = if (zone.isNotEmpty()) vm.venue.zoneName(zone) else null,
                             icon = Sym.Place, chevron = true, onClick = { pickZone = true },
@@ -514,14 +631,14 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         if (!staff) {
                             GroupDivider()
                             SwitchRow(
-                                stringResource(R.string.report_anonymous), anonymous, { anonymous = it },
-                                subtitle = stringResource(if (anonymous) R.string.report_anonymous_on else R.string.report_anonymous_off), icon = Sym.Hidden,
+                                stringResource(Res.string.report_anonymous), anonymous, { anonymous = it },
+                                subtitle = stringResource(if (anonymous) Res.string.report_anonymous_on else Res.string.report_anonymous_off), icon = Sym.Hidden,
                             )
                         }
                     }
                     InputField(
                         description, { description = it.take(Limits.DESCRIPTION_CHARS) },
-                        stringResource(if (staff) R.string.report_description_staff else R.string.report_description),
+                        stringResource(if (staff) Res.string.report_description_staff else Res.string.report_description),
                         Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 20.dp)
                             .onFocusChanged { describing = it.hasFocus },
                         maxLines = 4,
@@ -537,7 +654,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             if (!(describing && typing)) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(R.string.report_not_112), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                        stringResource(Res.string.report_not_112), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                         modifier = Modifier.weight(1f).padding(end = 12.dp),
                     )
                     Call112Button(compact = true)
@@ -545,13 +662,13 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             }
             if (waitMs > 0) {
                 StatusLabel(
-                    pluralStringResource(R.plurals.report_rate_limited, vm.rateLimitMax(), vm.rateLimitMax(), (waitMs / 60_000 + 1).toInt()),
+                    pluralStringResource(Res.plurals.report_rate_limited, vm.rateLimitMax(), vm.rateLimitMax(), (waitMs / 60_000 + 1).toInt()),
                     Modifier.padding(bottom = 8.dp),
                     icon = Sym.Info, color = colors.redInk,
                 )
             }
             AppButton(
-                stringResource(R.string.report_send),
+                stringResource(Res.string.report_send),
                 {
                     val fields = if (staff) StaffFields(people, danger) else null
                     val id = vm.report(category, severity, zone, description, anonymous, triage, fields, if (recognisable) recognition else "")
@@ -580,15 +697,15 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         var choice by remember { mutableStateOf(zone) }
         AppDialog(
             onDismiss = { pickZone = false },
-            title = stringResource(R.string.report_zone_pick),
-            confirmLabel = stringResource(R.string.save),
+            title = stringResource(Res.string.report_zone_pick),
+            confirmLabel = stringResource(Res.string.save),
             onConfirm = {
                 picked = choice
                 pickZone = false
             },
         ) {
             Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()).selectableGroup()) {
-                ZoneOption(stringResource(R.string.report_zone_none), choice.isEmpty()) { choice = "" }
+                ZoneOption(stringResource(Res.string.report_zone_none), choice.isEmpty()) { choice = "" }
                 for (z in vm.venue.zones) {
                     GroupDivider(start = 4.dp)
                     ZoneOption(z.name, choice == z.id) { choice = z.id }
@@ -596,7 +713,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             }
             if (position == null && !vm.phone.locationAllowed()) {
                 TextLink(
-                    stringResource(if (vm.locationBlocked) R.string.location_open_settings else R.string.report_use_location),
+                    stringResource(if (vm.locationBlocked) Res.string.location_open_settings else Res.string.report_use_location),
                     {
                         pickZone = false
                         requestLocation()
@@ -637,19 +754,19 @@ private fun LocationRow(vm: AppViewModel, spot: ReportSpot?, check: Int, onAllow
         spot != null -> {
             val zone = vm.venue.zoneAt(spot.point.lat, spot.point.lon)?.name.orEmpty()
             val landmark = spot.landmark?.name.orEmpty()
-            val where = zone.ifEmpty { if (landmark.isEmpty()) res.getString(R.string.report_location_gps) else "" }
+            val where = zone.ifEmpty { if (landmark.isEmpty()) res.text(Res.string.report_location_gps) else "" }
             val line = placeLine(
-                where, landmark, spot.accuracyM, { res.getString(R.string.place_near, it) }, { res.getString(R.string.place_accuracy, it) },
+                where, landmark, spot.accuracyM, { res.text(Res.string.place_near, it) }, { res.text(Res.string.place_accuracy, it) },
             )
             line.replaceFirstChar { it.uppercase() } to null
         }
-        !permitted -> stringResource(if (vm.locationBlocked) R.string.report_location_blocked else R.string.report_location_missing) to onAllow
-        !gpsOn -> stringResource(R.string.report_location_gps_off) to { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
-        else -> stringResource(R.string.report_location_searching) to null
+        !permitted -> stringResource(if (vm.locationBlocked) Res.string.report_location_blocked else Res.string.report_location_missing) to onAllow
+        !gpsOn -> stringResource(Res.string.report_location_gps_off) to { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+        else -> stringResource(Res.string.report_location_searching) to null
     }
     val (subtitle, onClick) = row
     GroupRow(
-        stringResource(R.string.report_location), subtitle = subtitle, icon = Sym.MyLocation, chevron = onClick != null, onClick = onClick,
+        stringResource(Res.string.report_location), subtitle = subtitle, icon = Sym.MyLocation, chevron = onClick != null, onClick = onClick,
     )
 }
 
@@ -687,16 +804,16 @@ private fun FloatingFooter(
  */
 @Composable
 private fun stepText(report: MyReport, now: Long): String = when {
-    report.status == AckStatus.CANCELLED -> stringResource(R.string.report_cancelled)
+    report.status == AckStatus.CANCELLED -> stringResource(Res.string.report_cancelled)
     report.cancelled && !AckStatus.isClosed(report.status) ->
-        stringResource(if (IncidentManager.cancelIsChecked(report)) R.string.report_cancel_checked else R.string.report_cancelling)
-    report.needsEscalation(now) -> stringResource(R.string.report_escalate_title)
+        stringResource(if (IncidentManager.cancelIsChecked(report)) Res.string.report_cancel_checked else Res.string.report_cancelling)
+    report.needsEscalation(now) -> stringResource(Res.string.report_escalate_title)
     else -> stepName(reportStep(report), report)
 }
 
 @Composable
 private fun stepName(step: Int, report: MyReport): String = stepLabel(step, report).let { label ->
-    if (label == R.string.status_acknowledged) stringResource(label, report.teamName) else stringResource(label)
+    if (label == Res.string.status_acknowledged) stringResource(label, report.teamName) else stringResource(label)
 }
 
 /** Opens the dialer with 112 filled in; the person places the call. */
@@ -704,7 +821,7 @@ private fun stepName(step: Int, report: MyReport): String = stepLabel(step, repo
 private fun Call112Button(modifier: Modifier = Modifier, compact: Boolean = false) {
     val context = LocalContext.current
     AppButton(
-        stringResource(R.string.emergency_call), { Emergency.dial(context) }, modifier, ButtonKind.Secondary,
+        stringResource(Res.string.emergency_call), { Emergency.dial(context) }, modifier, ButtonKind.Secondary,
         compact = compact, icon = Sym.Phone,
     )
 }
@@ -795,10 +912,10 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
     }
     Box(Modifier.fillMaxSize()) {
         NavScreen(
-            title = stringResource(R.string.report_next_title),
+            title = stringResource(Res.string.report_next_title),
             background = colors.grouped,
             scrolled = scrolled,
-            leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+            leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
         ) { padding ->
             Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(top = padding.calculateTopPadding(), bottom = footer + 8.dp)) {
                 // where staff checks the cancel, help may still come, so the path to staff stays on screen
@@ -817,12 +934,12 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
                 Text(
                     stringResource(
                         when {
-                            report.status == AckStatus.CANCELLED -> R.string.report_cancelled_text
-                            checking -> R.string.report_cancel_checked_text
-                            report.cancelled && !AckStatus.isClosed(report.status) -> R.string.report_cancelling_text
-                            waiting -> R.string.report_waiting_text
-                            lostFriend -> R.string.report_lost_friend_sent_text
-                            else -> R.string.report_next_text
+                            report.status == AckStatus.CANCELLED -> Res.string.report_cancelled_text
+                            checking -> Res.string.report_cancel_checked_text
+                            report.cancelled && !AckStatus.isClosed(report.status) -> Res.string.report_cancelling_text
+                            waiting -> Res.string.report_waiting_text
+                            lostFriend -> Res.string.report_lost_friend_sent_text
+                            else -> Res.string.report_next_text
                         },
                     ),
                     style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
@@ -833,7 +950,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
                 if (report.responses.isNotEmpty()) Responses(vm, report)
                 if (escalated) {
                     Banner(
-                        stringResource(R.string.report_escalate_title), stringResource(R.string.report_escalate_text),
+                        stringResource(Res.string.report_escalate_title), stringResource(Res.string.report_escalate_text),
                         Modifier.padding(start = Gutter, end = Gutter, top = 20.dp), warning = true,
                     )
                 }
@@ -859,12 +976,12 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
             // the call button keeps its full label; Done takes the rest of the row
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Call112Button()
-                AppButton(stringResource(R.string.done), { vm.back() }, Modifier.weight(1f))
+                AppButton(stringResource(Res.string.done), { vm.back() }, Modifier.weight(1f))
             }
             if (report.isOpen()) {
-                TextLink(stringResource(R.string.report_cancel), { confirm = Confirm.CANCEL }, Modifier.padding(top = 4.dp), color = colors.redInk)
+                TextLink(stringResource(Res.string.report_cancel), { confirm = Confirm.CANCEL }, Modifier.padding(top = 4.dp), color = colors.redInk)
             } else {
-                TextLink(stringResource(R.string.report_delete), { confirm = Confirm.DELETE }, Modifier.padding(top = 4.dp), color = colors.redInk)
+                TextLink(stringResource(Res.string.report_delete), { confirm = Confirm.DELETE }, Modifier.padding(top = 4.dp), color = colors.redInk)
             }
         }
     }
@@ -904,9 +1021,9 @@ private fun StayPutBanner(modifier: Modifier = Modifier) {
         onDispose { torch.release() }
     }
     Banner(
-        stringResource(R.string.report_stay_title), stringResource(R.string.report_stay_text), modifier,
-        action = if (torch.available) stringResource(if (lit) R.string.torch_off else R.string.torch_on) else null,
-        onAction = { if (!torch.set(!lit)) Toast.makeText(context, R.string.torch_failed, Toast.LENGTH_LONG).show() },
+        stringResource(Res.string.report_stay_title), stringResource(Res.string.report_stay_text), modifier,
+        action = if (torch.available) stringResource(if (lit) Res.string.torch_off else Res.string.torch_on) else null,
+        onAction = { if (!torch.set(!lit)) Toast.makeText(context, context.text(Res.string.torch_failed), Toast.LENGTH_LONG).show() },
     )
 }
 
@@ -918,36 +1035,36 @@ private fun StayPutBanner(modifier: Modifier = Modifier) {
 private fun HelpSteps(vm: AppViewModel, origin: GeoPoint?, stay: Boolean) {
     val context = LocalContext.current
     val medical = vm.venue.nearest(MEDICAL, origin)
-    SectionTitle(stringResource(R.string.report_help_title))
+    SectionTitle(stringResource(Res.string.report_help_title))
     InsetGroup {
         if (medical != null) {
             GroupRow(
-                stringResource(R.string.report_help_medical),
+                stringResource(Res.string.report_help_medical),
                 subtitle = routeText(origin, medical.point),
                 icon = Sym.Walk, chevron = true, onClick = { vm.open(Dest.Map(spot = MEDICAL)) },
             )
         } else {
-            GroupRow(stringResource(R.string.report_help_steward), icon = Sym.Walk)
+            GroupRow(stringResource(Res.string.report_help_steward), icon = Sym.Walk)
         }
         if (stay) {
             GroupDivider()
-            GroupRow(stringResource(R.string.report_help_stay), subtitle = stringResource(R.string.report_help_stay_text), icon = Sym.Place)
+            GroupRow(stringResource(Res.string.report_help_stay), subtitle = stringResource(Res.string.report_help_stay_text), icon = Sym.Place)
         }
         GroupDivider()
         GroupRow(
-            stringResource(R.string.first_aid_title), subtitle = stringResource(R.string.report_help_first_aid_text), icon = Sym.Medical,
+            stringResource(Res.string.first_aid_title), subtitle = stringResource(Res.string.report_help_first_aid_text), icon = Sym.Medical,
             chevron = true, onClick = { vm.open(Dest.FirstAid) },
         )
         vm.venue.nearest(Venue.DEA, origin)?.let { dea ->
             GroupDivider()
             GroupRow(
-                stringResource(R.string.nearest_dea), subtitle = routeText(origin, dea.point), icon = MapGlyph.Dea,
+                stringResource(Res.string.nearest_dea), subtitle = routeText(origin, dea.point), icon = MapGlyph.Dea,
                 chevron = true, onClick = { vm.open(Dest.Map(spot = Venue.DEA)) },
             )
         }
         GroupDivider()
         GroupRow(
-            stringResource(R.string.emergency_call), subtitle = stringResource(R.string.report_help_call_text), icon = Sym.Phone,
+            stringResource(Res.string.emergency_call), subtitle = stringResource(Res.string.report_help_call_text), icon = Sym.Phone,
             onClick = { Emergency.dial(context) },
         )
     }
@@ -957,16 +1074,16 @@ private fun HelpSteps(vm: AppViewModel, origin: GeoPoint?, stay: Boolean) {
 @Composable
 private fun MeetingSteps(vm: AppViewModel, origin: GeoPoint?) {
     val meeting = vm.venue.nearest(Venue.MEETING, origin)
-    SectionTitle(stringResource(R.string.report_help_title))
+    SectionTitle(stringResource(Res.string.report_help_title))
     InsetGroup {
         if (meeting != null) {
             GroupRow(
-                stringResource(R.string.report_help_meeting), subtitle = routeText(origin, meeting.point),
+                stringResource(Res.string.report_help_meeting), subtitle = routeText(origin, meeting.point),
                 icon = Sym.Walk, chevron = true, onClick = { vm.open(Dest.Map(spot = Venue.MEETING)) },
             )
             GroupDivider()
         }
-        GroupRow(stringResource(R.string.report_help_info), subtitle = stringResource(R.string.report_help_info_text), icon = Sym.Info)
+        GroupRow(stringResource(Res.string.report_help_info), subtitle = stringResource(Res.string.report_help_info_text), icon = Sym.Info)
     }
 }
 
@@ -974,13 +1091,13 @@ private fun MeetingSteps(vm: AppViewModel, origin: GeoPoint?) {
 @Composable
 private fun Responses(vm: AppViewModel, report: MyReport) {
     val res = LocalResources.current
-    SectionTitle(stringResource(R.string.report_responses_title))
+    SectionTitle(stringResource(Res.string.report_responses_title))
     InsetGroup {
         report.responses.asReversed().forEachIndexed { i, r ->
             if (i > 0) GroupDivider()
             val medical = r.code == ResponseCode.GO_TO_MEDICAL
             GroupRow(
-                Replies.response(res, vm.venue, r.code, r.landmark), subtitle = Labels.clock(r.receivedAt),
+                res.text(Replies.response(r.code), Replies.landmarkName(vm.venue, r.landmark)), subtitle = Labels.clock(r.receivedAt),
                 icon = if (medical) Sym.Medical else Sym.Chat, chevron = medical,
                 onClick = if (medical) ({ vm.open(Dest.Map(spot = MEDICAL)) }) else null,
             )
@@ -1001,29 +1118,29 @@ private fun UpdateSteps(vm: AppViewModel, report: MyReport) {
     val ready = wait == 0L
     val located = vm.knowsWhereIAm()
     fun send(kind: Int) = if (vm.updateReport(report.incidentId, kind)) haptics.confirm() else haptics.reject()
-    SectionTitle(stringResource(R.string.report_update_title))
+    SectionTitle(stringResource(Res.string.report_update_title))
     InsetGroup {
         GroupRow(
-            stringResource(R.string.report_update_active), icon = Sym.Bell, tint = if (ready) colors.label else colors.secondaryLabel,
+            stringResource(Res.string.report_update_active), icon = Sym.Bell, tint = if (ready) colors.label else colors.secondaryLabel,
             onClick = { send(UpdateKind.STILL_ACTIVE) }.takeIf { ready },
         )
         GroupDivider()
         GroupRow(
-            stringResource(R.string.report_update_moved),
-            subtitle = stringResource(if (located) R.string.report_update_moved_text else R.string.report_update_moved_unknown),
+            stringResource(Res.string.report_update_moved),
+            subtitle = stringResource(if (located) Res.string.report_update_moved_text else Res.string.report_update_moved_unknown),
             icon = Sym.MyLocation, tint = if (ready && located) colors.label else colors.secondaryLabel,
             onClick = { send(UpdateKind.MOVED) }.takeIf { ready && located },
         )
         GroupDivider()
         GroupRow(
-            stringResource(R.string.report_update_resolved), icon = Sym.CheckCircle, tint = if (ready) colors.label else colors.secondaryLabel,
+            stringResource(Res.string.report_update_resolved), icon = Sym.CheckCircle, tint = if (ready) colors.label else colors.secondaryLabel,
             onClick = { send(UpdateKind.RESOLVED_ITSELF) }.takeIf { ready },
         )
     }
     report.updates.lastOrNull()?.let { last ->
         Text(
             listOfNotNull(
-                stringResource(R.string.report_update_last, Labels.clock(last.at)), stringResource(R.string.report_update_wait).takeIf { !ready },
+                stringResource(Res.string.report_update_last, Labels.clock(last.at)), stringResource(Res.string.report_update_wait).takeIf { !ready },
             ).joinToString(" "),
             style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
             modifier = Modifier.fillMaxWidth().padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
@@ -1038,9 +1155,9 @@ private fun CancelReportDialog(vm: AppViewModel, incidentId: String, onDismiss: 
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val checked = incidents.mine.firstOrNull { it.incidentId == incidentId }?.let(IncidentManager::cancelIsChecked) == true
     ConfirmDialog(
-        stringResource(R.string.report_cancel_title),
-        stringResource(if (checked) R.string.report_cancel_text_checked else R.string.report_cancel_text),
-        onDismiss = onDismiss, confirmLabel = stringResource(R.string.report_cancel_confirm), destructive = true,
+        stringResource(Res.string.report_cancel_title),
+        stringResource(if (checked) Res.string.report_cancel_text_checked else Res.string.report_cancel_text),
+        onDismiss = onDismiss, confirmLabel = stringResource(Res.string.report_cancel_confirm), destructive = true,
     ) {
         vm.cancelReport(incidentId)
         haptics.confirm()
@@ -1051,8 +1168,8 @@ private fun CancelReportDialog(vm: AppViewModel, incidentId: String, onDismiss: 
 private fun DeleteReportDialog(vm: AppViewModel, incidentId: String, onDismiss: () -> Unit) {
     val haptics = rememberHaptics()
     ConfirmDialog(
-        stringResource(R.string.report_delete_title), stringResource(R.string.report_delete_text),
-        onDismiss = onDismiss, confirmLabel = stringResource(R.string.delete), destructive = true,
+        stringResource(Res.string.report_delete_title), stringResource(Res.string.report_delete_text),
+        onDismiss = onDismiss, confirmLabel = stringResource(Res.string.delete), destructive = true,
     ) {
         vm.deleteReport(incidentId)
         haptics.confirm()
@@ -1075,16 +1192,16 @@ fun MyReportsScreen(vm: AppViewModel) {
     var deleteId by remember { mutableStateOf<String?>(null) }
     var clearClosed by remember { mutableStateOf(false) }
     NavScreen(
-        title = stringResource(R.string.report_mine),
+        title = stringResource(Res.string.report_mine),
         background = colors.grouped,
         scrolled = scrolled,
-        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
         trailing = { backdrop ->
             if (closed > 0) {
                 Box {
-                    GlassIconButton(Sym.More, stringResource(R.string.more_options), { menu = true }, backdrop)
+                    GlassIconButton(Sym.More, stringResource(Res.string.more_options), { menu = true }, backdrop)
                     AppMenu(menu, { menu = false }) {
-                        MenuRow(stringResource(R.string.report_delete_closed), {
+                        MenuRow(stringResource(Res.string.report_delete_closed), {
                             menu = false
                             clearClosed = true
                         }, icon = Sym.Delete, danger = true)
@@ -1095,7 +1212,7 @@ fun MyReportsScreen(vm: AppViewModel) {
     ) { padding ->
         if (mine.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                EmptyState(stringResource(R.string.report_mine_empty_title), stringResource(R.string.report_mine_empty_text), icon = Sym.Report)
+                EmptyState(stringResource(Res.string.report_mine_empty_title), stringResource(Res.string.report_mine_empty_text), icon = Sym.Report)
             }
         } else {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
@@ -1118,8 +1235,8 @@ fun MyReportsScreen(vm: AppViewModel) {
     deleteId?.let { DeleteReportDialog(vm, it) { deleteId = null } }
     if (clearClosed) {
         ConfirmDialog(
-            pluralStringResource(R.plurals.report_delete_closed_title, closed, closed), stringResource(R.string.report_delete_closed_text),
-            onDismiss = { clearClosed = false }, confirmLabel = stringResource(R.string.delete), destructive = true,
+            pluralStringResource(Res.plurals.report_delete_closed_title, closed, closed), stringResource(Res.string.report_delete_closed_text),
+            onDismiss = { clearClosed = false }, confirmLabel = stringResource(Res.string.delete), destructive = true,
         ) {
             vm.deleteClosedReports()
             haptics.confirm()
@@ -1137,7 +1254,7 @@ private fun MyReportRow(vm: AppViewModel, report: MyReport, now: Long, onCancel:
     var menu by remember { mutableStateOf(false) }
     SwipeRow(
         if (open) Sym.Close else Sym.Delete,
-        stringResource(if (open) R.string.report_cancel_confirm else R.string.delete),
+        stringResource(if (open) Res.string.report_cancel_confirm else Res.string.delete),
         keep = open,
         onAction = { if (open) onCancel() else vm.deleteReport(report.incidentId) },
     ) {
@@ -1152,12 +1269,12 @@ private fun MyReportRow(vm: AppViewModel, report: MyReport, now: Long, onCancel:
             )
             AppMenu(menu, { menu = false }) {
                 if (open) {
-                    MenuRow(stringResource(R.string.report_cancel), {
+                    MenuRow(stringResource(Res.string.report_cancel), {
                         menu = false
                         onCancel()
                     }, icon = Sym.Close, danger = true)
                 } else {
-                    MenuRow(stringResource(R.string.report_delete), {
+                    MenuRow(stringResource(Res.string.report_delete), {
                         menu = false
                         onDelete()
                     }, icon = Sym.Delete, danger = true)

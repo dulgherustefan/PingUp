@@ -7,20 +7,26 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.annotation.StringRes
-import ro.safetyplease.app.R
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.battery_huawei
+import ro.safetyplease.ui.resources.battery_oneplus
+import ro.safetyplease.ui.resources.battery_oppo
+import ro.safetyplease.ui.resources.battery_samsung
+import ro.safetyplease.ui.resources.battery_vivo
+import ro.safetyplease.ui.resources.battery_xiaomi
 
 /**
  * Vendors that kill background apps unless the user exempts them, with the steps for each; sub-brands go under their
  * parent. The worst offenders ranked on dontkillmyapp.com; near-stock Android doesn't need the hint.
  */
-enum class BatteryVendor(@StringRes val steps: Int) {
-    HUAWEI(R.string.battery_huawei),
-    XIAOMI(R.string.battery_xiaomi),
-    ONEPLUS(R.string.battery_oneplus),
-    SAMSUNG(R.string.battery_samsung),
-    OPPO(R.string.battery_oppo),
-    VIVO(R.string.battery_vivo),
+enum class BatteryVendor(val steps: StringResource) {
+    HUAWEI(Res.string.battery_huawei),
+    XIAOMI(Res.string.battery_xiaomi),
+    ONEPLUS(Res.string.battery_oneplus),
+    SAMSUNG(Res.string.battery_samsung),
+    OPPO(Res.string.battery_oppo),
+    VIVO(Res.string.battery_vivo),
 }
 
 fun batteryVendor(manufacturer: String): BatteryVendor? = when (manufacturer.lowercase()) {

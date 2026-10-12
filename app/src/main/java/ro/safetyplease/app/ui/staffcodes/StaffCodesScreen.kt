@@ -1,5 +1,23 @@
 package ro.safetyplease.app.ui.staffcodes
 
+import ro.safetyplease.ui.resources.staff_code_handed_over
+import ro.safetyplease.ui.resources.staff_code_on_scene
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.cancel
+import ro.safetyplease.ui.resources.report_rate_limited
+import ro.safetyplease.ui.resources.staff_code_danger
+import ro.safetyplease.ui.resources.staff_code_medic
+import ro.safetyplease.ui.resources.staff_code_reinforcements
+import ro.safetyplease.ui.resources.staff_codes_intro
+import ro.safetyplease.ui.resources.staff_codes_moved
+import ro.safetyplease.ui.resources.staff_codes_none
+import ro.safetyplease.ui.resources.staff_codes_nothing
+import ro.safetyplease.ui.resources.staff_codes_sent
+import ro.safetyplease.ui.resources.staff_codes_state_title
+import ro.safetyplease.ui.resources.staff_codes_title
+import ro.safetyplease.ui.resources.staff_points_open
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,17 +48,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.incidents.StaffCode
 import ro.safetyplease.core.incidents.StaffCodes
@@ -94,22 +111,22 @@ fun StaffCodesScreen(vm: AppViewModel) {
         else haptics.reject()
     }
 
-    val medic = stringResource(R.string.staff_code_medic)
-    val reinforcements = stringResource(R.string.staff_code_reinforcements)
-    val danger = stringResource(R.string.staff_code_danger)
+    val medic = stringResource(Res.string.staff_code_medic)
+    val reinforcements = stringResource(Res.string.staff_code_reinforcements)
+    val danger = stringResource(Res.string.staff_code_danger)
 
     NavScreen(
-        title = stringResource(R.string.staff_codes_title),
+        title = stringResource(Res.string.staff_codes_title),
         background = colors.grouped,
         scrolled = scrolled,
-        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         Column(
             Modifier.fillMaxSize().verticalScroll(scroll).padding(padding).padding(horizontal = Gutter).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                stringResource(R.string.staff_codes_intro), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                stringResource(Res.string.staff_codes_intro), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
                 modifier = Modifier.padding(horizontal = Gutter, vertical = 4.dp),
             )
             CodeButton(medic, Sym.Medical, colors.red, Color.White) { send(StaffCode.MEDIC, medic) }
@@ -118,19 +135,19 @@ fun StaffCodesScreen(vm: AppViewModel) {
 
             Feedback(result, vm)
 
-            SectionTitle(stringResource(R.string.staff_codes_state_title), top = 12.dp)
+            SectionTitle(stringResource(Res.string.staff_codes_state_title), top = 12.dp)
             for ((code, label, icon) in FIELD_CODES) {
                 val target = remember(incidents.staff, settings.teamName, code) { StaffCodes.target(code, incidents.staff, settings.teamName) }
                 val text = stringResource(label)
                 CodeButton(
                     text, icon, colors.accent, colors.onAccent, enabled = target != null,
                     subtitle = target?.let { listOf(stringResource(Labels.category(it.category)), vm.venue.zoneName(it.zone)).filter { part -> part.isNotEmpty() }.joinToString(" · ") }
-                        ?: stringResource(R.string.staff_codes_none),
+                        ?: stringResource(Res.string.staff_codes_none),
                 ) { send(code, text) }
             }
 
             if (PointBoard.points(vm.venue).isNotEmpty()) {
-                val points = stringResource(R.string.staff_points_open)
+                val points = stringResource(Res.string.staff_points_open)
                 CodeButton(points, Sym.Flag, colors.fill, colors.label) { vm.open(Dest.Points) }
             }
         }
@@ -138,8 +155,8 @@ fun StaffCodesScreen(vm: AppViewModel) {
 }
 
 private val FIELD_CODES = listOf(
-    Triple(StaffCode.ON_SCENE, R.string.staff_code_on_scene, Sym.MyLocation),
-    Triple(StaffCode.HANDED_OVER, R.string.staff_code_handed_over, Sym.CheckCircle),
+    Triple(StaffCode.ON_SCENE, Res.string.staff_code_on_scene, Sym.MyLocation),
+    Triple(StaffCode.HANDED_OVER, Res.string.staff_code_handed_over, Sym.CheckCircle),
 )
 
 private const val RESULT_MS = 10_000L
@@ -150,16 +167,16 @@ private fun Feedback(result: StaffCodeResult?, vm: AppViewModel) {
     when (result) {
         null -> Unit
         is StaffCodeResult.Reported -> Row(Modifier.fillMaxWidth().padding(horizontal = Gutter), verticalAlignment = Alignment.CenterVertically) {
-            StatusLabel(stringResource(R.string.staff_codes_sent), Modifier.weight(1f), icon = Sym.CheckCircle, color = colors.accent)
-            TextLink(stringResource(R.string.cancel), { vm.cancelReport(result.incidentId) })
+            StatusLabel(stringResource(Res.string.staff_codes_sent), Modifier.weight(1f), icon = Sym.CheckCircle, color = colors.accent)
+            TextLink(stringResource(Res.string.cancel), { vm.cancelReport(result.incidentId) })
         }
-        StaffCodeResult.Moved -> StatusLabel(stringResource(R.string.staff_codes_moved), Modifier.padding(horizontal = Gutter), icon = Sym.CheckCircle, color = colors.accent)
+        StaffCodeResult.Moved -> StatusLabel(stringResource(Res.string.staff_codes_moved), Modifier.padding(horizontal = Gutter), icon = Sym.CheckCircle, color = colors.accent)
         StaffCodeResult.NothingToMove ->
-            StatusLabel(stringResource(R.string.staff_codes_nothing), Modifier.padding(horizontal = Gutter), icon = Sym.Info, color = colors.redInk)
+            StatusLabel(stringResource(Res.string.staff_codes_nothing), Modifier.padding(horizontal = Gutter), icon = Sym.Info, color = colors.redInk)
         StaffCodeResult.RateLimited -> {
             val waitMs = vm.rateLimitWaitMs()
             StatusLabel(
-                pluralStringResource(R.plurals.report_rate_limited, vm.rateLimitMax(), vm.rateLimitMax(), (waitMs / 60_000 + 1).toInt()),
+                pluralStringResource(Res.plurals.report_rate_limited, vm.rateLimitMax(), vm.rateLimitMax(), (waitMs / 60_000 + 1).toInt()),
                 Modifier.padding(horizontal = Gutter), icon = Sym.Info, color = colors.redInk,
             )
         }

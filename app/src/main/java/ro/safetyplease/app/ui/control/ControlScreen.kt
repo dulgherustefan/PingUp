@@ -1,5 +1,37 @@
 package ro.safetyplease.app.ui.control
 
+import ro.safetyplease.ui.resources.control_coverage_cellular_legend
+import ro.safetyplease.ui.resources.control_coverage_mesh_legend
+import ro.safetyplease.ui.resources.control_pane_incident
+import ro.safetyplease.ui.resources.control_pane_points
+import ro.safetyplease.ui.resources.control_pane_queue
+import ro.safetyplease.ui.resources.control_state_open
+import ro.safetyplease.ui.resources.control_state_reopened
+import ro.safetyplease.ui.resources.map_title
+import ro.safetyplease.ui.resources.me_network
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.control_export
+import ro.safetyplease.ui.resources.control_filter_assigned
+import ro.safetyplease.ui.resources.control_mute
+import ro.safetyplease.ui.resources.control_muted
+import ro.safetyplease.ui.resources.control_queue_cancel_requested
+import ro.safetyplease.ui.resources.control_title
+import ro.safetyplease.ui.resources.control_word_unfounded
+import ro.safetyplease.ui.resources.crowd_signal
+import ro.safetyplease.ui.resources.edition_open
+import ro.safetyplease.ui.resources.filter_active
+import ro.safetyplease.ui.resources.filter_resolved
+import ro.safetyplease.ui.resources.incident_informational
+import ro.safetyplease.ui.resources.incident_state_closed
+import ro.safetyplease.ui.resources.incidents_empty_text
+import ro.safetyplease.ui.resources.incidents_empty_title
+import ro.safetyplease.ui.resources.incidents_filter_empty
+import ro.safetyplease.ui.resources.notice_composer_title
+import ro.safetyplease.ui.resources.sev_urgent
+import ro.safetyplease.ui.resources.status_cancelled
+import ro.safetyplease.ui.resources.status_resolved
+import ro.safetyplease.ui.resources.zone_unknown
 import android.content.pm.ActivityInfo
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
@@ -39,8 +71,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -54,10 +86,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.agoText
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.agoText
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.app.ui.common.CategoryCircle
 import ro.safetyplease.app.ui.common.MapCamera
 import ro.safetyplease.app.ui.common.MapPin
@@ -92,12 +123,12 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
 
-private enum class Pane(val label: Int) {
-    QUEUE(R.string.control_pane_queue),
-    INCIDENT(R.string.control_pane_incident),
-    MAP(R.string.map_title),
-    POINTS(R.string.control_pane_points),
-    NETWORK(R.string.me_network),
+private enum class Pane(val label: StringResource) {
+    QUEUE(Res.string.control_pane_queue),
+    INCIDENT(Res.string.control_pane_incident),
+    MAP(Res.string.map_title),
+    POINTS(Res.string.control_pane_points),
+    NETWORK(Res.string.me_network),
 }
 
 /** From this width the map sits between the queue and the incident; below it, the queue sits beside one pane. */
@@ -148,7 +179,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             MeButton(settings.nickname) { vm.open(Dest.Me) }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.control_title), style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(Res.string.control_title), style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     listOf(settings.teamName, networkText(mesh.readyLinks, gate)).filter { it.isNotEmpty() }.joinToString(" · "),
                     style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -157,16 +188,16 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             // the alarms sound until someone has the incident; the operator can buy ten quiet minutes, never more
             val muted = mutedMinutes(mutedUntil, now)
             AppButton(
-                if (muted > 0) stringResource(R.string.control_muted, muted) else stringResource(R.string.control_mute),
+                if (muted > 0) stringResource(Res.string.control_muted, muted) else stringResource(Res.string.control_mute),
                 { c.mutedUntil.value = if (muted > 0) 0 else c.clock.wallMs() + AlertPlanner.MUTE_MS },
                 kind = if (muted > 0) ButtonKind.Primary else ButtonKind.Secondary, compact = true, icon = Sym.Bell,
             )
             Spacer(Modifier.width(8.dp))
-            AppButton(stringResource(R.string.edition_open), { showReport = true }, kind = ButtonKind.Secondary, compact = true)
+            AppButton(stringResource(Res.string.edition_open), { showReport = true }, kind = ButtonKind.Secondary, compact = true)
             Spacer(Modifier.width(8.dp))
-            AppButton(stringResource(R.string.control_export), { confirmExport = true }, kind = ButtonKind.Secondary, compact = true)
+            AppButton(stringResource(Res.string.control_export), { confirmExport = true }, kind = ButtonKind.Secondary, compact = true)
             Spacer(Modifier.width(8.dp))
-            AppButton(stringResource(R.string.notice_composer_title), { composeNotice = true }, compact = true, icon = Sym.Report)
+            AppButton(stringResource(Res.string.notice_composer_title), { composeNotice = true }, compact = true, icon = Sym.Report)
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(start = PaneGap, end = PaneGap, bottom = PaneGap)) {
             val wide = maxWidth >= WideWidth
@@ -249,14 +280,14 @@ internal fun caseLook(case: Case): Triple<String, ImageVector, Color> {
     val colors = AppTheme.colors
     return when (case.state) {
         CaseState.OPEN -> Triple(
-            stringResource(if (case.reopened) R.string.control_state_reopened else R.string.control_state_open), Sym.Bell, colors.orangeInk,
+            stringResource(if (case.reopened) Res.string.control_state_reopened else Res.string.control_state_open), Sym.Bell, colors.orangeInk,
         )
         CaseState.ASSIGNED -> Triple(case.team, Sym.Person, colors.label)
         CaseState.CLOSED -> when {
-            case.unfounded -> Triple(stringResource(R.string.control_word_unfounded), Sym.Close, colors.secondaryLabel)
-            case.network == AckStatus.CANCELLED -> Triple(stringResource(R.string.status_cancelled), Sym.Close, colors.secondaryLabel)
-            case.network == AckStatus.CLOSED_BY_CONTROL -> Triple(stringResource(R.string.incident_state_closed), Sym.CheckCircle, colors.accent)
-            else -> Triple(stringResource(R.string.status_resolved), Sym.CheckCircle, colors.accent)
+            case.unfounded -> Triple(stringResource(Res.string.control_word_unfounded), Sym.Close, colors.secondaryLabel)
+            case.network == AckStatus.CANCELLED -> Triple(stringResource(Res.string.status_cancelled), Sym.Close, colors.secondaryLabel)
+            case.network == AckStatus.CLOSED_BY_CONTROL -> Triple(stringResource(Res.string.incident_state_closed), Sym.CheckCircle, colors.accent)
+            else -> Triple(stringResource(Res.string.status_resolved), Sym.CheckCircle, colors.accent)
         }
     }
 }
@@ -279,9 +310,9 @@ private fun QueuePane(
         return if (count > 0) "$label · $count" else label
     }
     val options = listOf(
-        CaseState.OPEN to counted(stringResource(R.string.filter_active), CaseState.OPEN),
-        CaseState.ASSIGNED to counted(stringResource(R.string.control_filter_assigned), CaseState.ASSIGNED),
-        CaseState.CLOSED to stringResource(R.string.filter_resolved),
+        CaseState.OPEN to counted(stringResource(Res.string.filter_active), CaseState.OPEN),
+        CaseState.ASSIGNED to counted(stringResource(Res.string.control_filter_assigned), CaseState.ASSIGNED),
+        CaseState.CLOSED to stringResource(Res.string.filter_resolved),
     )
     Column(modifier.clip(PaneShape).background(colors.cell)) {
         SegmentedControl(options, filter, onFilter, Modifier.padding(12.dp))
@@ -293,8 +324,8 @@ private fun QueuePane(
         }
         if (rows.isEmpty()) {
             // an empty filter doesn't mean nothing arrived
-            if (cases.isEmpty()) EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), icon = Sym.Bell)
-            else EmptyState(stringResource(R.string.incidents_filter_empty), null, icon = Sym.Check)
+            if (cases.isEmpty()) EmptyState(stringResource(Res.string.incidents_empty_title), stringResource(Res.string.incidents_empty_text), icon = Sym.Bell)
+            else EmptyState(stringResource(Res.string.incidents_filter_empty), null, icon = Sym.Check)
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(rows, key = { it.incidentId }) { case ->
@@ -313,10 +344,10 @@ private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, onC
     val r = case.report
     val (status, icon, color) = caseLook(case)
     val place = listOf(r.grid, if (r.zone.isEmpty()) "" else venue.zoneName(r.zone)).filter { it.isNotEmpty() }
-        .ifEmpty { listOf(stringResource(R.string.zone_unknown)) }
-    val urgent = stringResource(R.string.sev_urgent)
-    val cancelToCheck = stringResource(R.string.control_queue_cancel_requested).takeIf { case.cancelRequested }
-    val informational = stringResource(R.string.incident_informational).takeIf { Priority.isInformational(r.category) }
+        .ifEmpty { listOf(stringResource(Res.string.zone_unknown)) }
+    val urgent = stringResource(Res.string.sev_urgent)
+    val cancelToCheck = stringResource(Res.string.control_queue_cancel_requested).takeIf { case.cancelRequested }
+    val informational = stringResource(Res.string.incident_informational).takeIf { Priority.isInformational(r.category) }
     Row(
         Modifier.fillMaxWidth().background(if (selected) colors.fill else Color.Transparent)
             .selectable(selected, role = Role.Button, onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
@@ -388,7 +419,7 @@ private fun MapPane(
         SegmentedControl(MapLayer.entries.map { it to stringResource(it.label) }, layer, onLayer)
         if (layer != MapLayer.INCIDENTS) {
             Text(
-                stringResource(if (layer == MapLayer.MESH) R.string.control_coverage_mesh_legend else R.string.control_coverage_cellular_legend),
+                stringResource(if (layer == MapLayer.MESH) Res.string.control_coverage_mesh_legend else Res.string.control_coverage_cellular_legend),
                 style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
             )
         }
@@ -421,7 +452,7 @@ private fun CrowdSignalRow(signal: CrowdSignal, venue: Venue) {
         Icon(Sym.Groups, null, Modifier.size(18.dp), tint = colors.orangeInk)
         Spacer(Modifier.width(8.dp))
         Text(
-            pluralStringResource(R.plurals.crowd_signal, signal.count, signal.count, venue.zoneName(signal.zone), signal.minutes),
+            pluralStringResource(Res.plurals.crowd_signal, signal.count, signal.count, venue.zoneName(signal.zone), signal.minutes),
             style = MaterialTheme.typography.footnote, color = colors.label,
         )
     }

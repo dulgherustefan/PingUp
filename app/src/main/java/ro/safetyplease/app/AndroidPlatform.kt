@@ -20,7 +20,7 @@ import ro.safetyplease.app.platform.location.LocationSource
 import ro.safetyplease.app.platform.network.MobileNetwork
 import ro.safetyplease.app.platform.power.BatteryMonitor
 import ro.safetyplease.app.service.Notifier
-import ro.safetyplease.app.text.NoticeText
+import ro.safetyplease.app.text.text
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.crypto.Crypto
@@ -29,6 +29,7 @@ import ro.safetyplease.core.mesh.BatteryReading
 import ro.safetyplease.core.session.AppPlatform
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.text.NoticeText
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -74,10 +75,12 @@ class AndroidPlatform(private val app: Application) : AppPlatform {
 
     override suspend fun sampleMobileNetwork(atMs: Long, cell: String) = withContext(Dispatchers.IO) { mobileNetwork.sample(atMs, cell) }
 
-    override fun noticeTitle(notice: Notice): String = NoticeText.title(app.resources, notice)
+    override fun noticeTitle(notice: Notice): String = app.text(NoticeText.title(notice.topic, notice.level), notice.level)
 
     override fun noticeBody(templates: NoticeTemplates, venue: Venue, notice: Notice): String =
-        NoticeText.body(app.resources, templates, venue, notice, language())
+        (NoticeText.text(templates, notice, language()) ?: app.text(NoticeText.noText)).let { text ->
+            if (notice.zone.isEmpty()) text else app.text(NoticeText.inZone, venue.zoneName(notice.zone), text)
+        }
 
     override suspend fun download(url: String, limit: Long): ByteArray? = withContext(Dispatchers.IO) {
         val link = runCatching { URL(url) }.getOrNull()?.takeIf { it.protocol == "https" } ?: return@withContext null

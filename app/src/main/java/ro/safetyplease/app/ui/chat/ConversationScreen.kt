@@ -1,5 +1,23 @@
 package ro.safetyplease.app.ui.chat
 
+import ro.safetyplease.ui.text.dayLabel
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.chat_empty_text
+import ro.safetyplease.ui.resources.chat_hint
+import ro.safetyplease.ui.resources.chat_quick
+import ro.safetyplease.ui.resources.chat_send_zone
+import ro.safetyplease.ui.resources.group_members
+import ro.safetyplease.ui.resources.more_options
+import ro.safetyplease.ui.resources.msg_copy
+import ro.safetyplease.ui.resources.msg_delete
+import ro.safetyplease.ui.resources.msg_failed
+import ro.safetyplease.ui.resources.msg_group_delivered
+import ro.safetyplease.ui.resources.msg_queued
+import ro.safetyplease.ui.resources.msg_resend
+import ro.safetyplease.ui.resources.open_profile
+import ro.safetyplease.ui.resources.open_zone
+import ro.safetyplease.ui.resources.send
 import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.activity.compose.BackHandler
@@ -83,8 +101,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -98,10 +116,9 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.hopsText
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.hopsText
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.app.ui.common.MapPin
 import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.app.ui.common.presenceText
@@ -236,7 +253,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     val title = friend?.nickname ?: group!!.name
     val subtitle = when {
         friend != null -> presenceText(friend, nearby, now)
-        else -> pluralStringResource(R.plurals.group_members, group!!.members.size, group.members.size)
+        else -> pluralStringResource(Res.plurals.group_members, group!!.members.size, group.members.size)
     }
     val lastMine = messages.lastOrNull { it.fromMe && !it.kind.isNotice }
     val sendZone = {
@@ -291,11 +308,11 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                 .padding(horizontal = Gutter),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop)
+            GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop)
             Spacer(Modifier.width(10.dp))
             Row(
                 Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
-                    .clickable(onClickLabel = stringResource(R.string.open_profile), role = Role.Button) { vm.open(Dest.Profile(conversation)) }
+                    .clickable(onClickLabel = stringResource(Res.string.open_profile), role = Role.Button) { vm.open(Dest.Profile(conversation)) }
                     .padding(vertical = 4.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -355,7 +372,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
 @Composable
 private fun DayHeader(timeMs: Long, modifier: Modifier = Modifier) {
     Text(
-        Labels.dayLabel(LocalResources.current, timeMs), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
+        dayLabel(timeMs), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
         color = AppTheme.colors.secondaryLabel, textAlign = TextAlign.Center,
         modifier = modifier.fillMaxWidth().padding(horizontal = 28.dp).padding(top = 16.dp, bottom = 4.dp),
     )
@@ -375,13 +392,13 @@ private fun Composer(
 ) {
     val colors = AppTheme.colors
     val hasText = draft.isNotBlank()
-    val hint = stringResource(R.string.chat_hint)
+    val hint = stringResource(Res.string.chat_hint)
     val turn by animateFloatAsState(if (quickOpen) 45f else 0f, spring(dampingRatio = 0.6f, stiffness = 500f), label = "plus")
     Row(Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
         Box(
             Modifier.size(TouchTarget).glass(backdrop, CircleShape).clickable(role = Role.Button, onClick = onToggleQuick),
             contentAlignment = Alignment.Center,
-        ) { Icon(Sym.Add, stringResource(R.string.chat_quick), Modifier.size(20.dp).rotate(turn), tint = colors.label) }
+        ) { Icon(Sym.Add, stringResource(Res.string.chat_quick), Modifier.size(20.dp).rotate(turn), tint = colors.label) }
         Spacer(Modifier.width(12.dp))
         Row(
             Modifier.weight(1f).heightIn(min = TouchTarget).glass(backdrop, RoundedCornerShape(24.dp)),
@@ -403,7 +420,7 @@ private fun Composer(
                     }
                 },
             )
-            if (!hasText) IconBtn(Sym.Place, stringResource(R.string.chat_send_zone), onZone)
+            if (!hasText) IconBtn(Sym.Place, stringResource(Res.string.chat_send_zone), onZone)
         }
         AnimatedContent(
             hasText,
@@ -413,9 +430,9 @@ private fun Composer(
             if (text) {
                 Box(
                     Modifier.padding(start = 12.dp).size(TouchTarget).clip(CircleShape).background(colors.accent)
-                        .clickable(onClickLabel = stringResource(R.string.send), role = Role.Button, onClick = onSend),
+                        .clickable(onClickLabel = stringResource(Res.string.send), role = Role.Button, onClick = onSend),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Sym.Send, stringResource(R.string.send), Modifier.size(20.dp), tint = colors.onAccent) }
+                ) { Icon(Sym.Send, stringResource(Res.string.send), Modifier.size(20.dp), tint = colors.onAccent) }
             } else {
                 Spacer(Modifier.width(0.dp))
             }
@@ -457,7 +474,7 @@ private fun FirstMessage(title: String, near: Boolean, group: Boolean, onQuick: 
             modifier = Modifier.padding(top = 12.dp),
         )
         Text(
-            stringResource(R.string.chat_empty_text), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+            stringResource(Res.string.chat_empty_text), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
             textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp),
         )
         Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -538,8 +555,8 @@ private fun MessageItem(
                         .clip(shape)
                         .combinedClickable(
                             // keep enabled: disabling would also block the long-press menu
-                            onClickLabel = if (message.kind == MsgKind.ZONE) stringResource(R.string.open_zone) else null,
-                            onLongClickLabel = stringResource(R.string.more_options),
+                            onClickLabel = if (message.kind == MsgKind.ZONE) stringResource(Res.string.open_zone) else null,
+                            onLongClickLabel = stringResource(Res.string.more_options),
                             onClick = {
                                 if (message.kind == MsgKind.ZONE) {
                                     vm.open(Dest.Pin(message.lat, message.lon, message.zone, vm.c.chat.nameOf(message.senderId)))
@@ -575,17 +592,17 @@ private fun MessageItem(
                     }
                 }
                 AppMenu(menu, { menu = false }) {
-                    MenuRow(stringResource(R.string.msg_copy), {
+                    MenuRow(stringResource(Res.string.msg_copy), {
                         menu = false
                         onCopy(preview)
                     }, icon = Sym.Copy)
                     if (mine && message.status != MsgStatus.DELIVERED) {
-                        MenuRow(stringResource(R.string.msg_resend), {
+                        MenuRow(stringResource(Res.string.msg_resend), {
                             menu = false
                             vm.resend(message)
                         }, icon = Sym.Refresh)
                     }
-                    MenuRow(stringResource(R.string.msg_delete), {
+                    MenuRow(stringResource(Res.string.msg_delete), {
                         menu = false
                         vm.deleteMessage(message)
                     }, icon = Sym.Delete, danger = true)
@@ -654,16 +671,16 @@ private fun OwnState(message: ChatMessage, detail: Boolean, onResend: () -> Unit
     val colors = AppTheme.colors
     when {
         message.status == MsgStatus.FAILED -> Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.msg_failed), style = MaterialTheme.typography.footnote, color = colors.redInk)
-            TextLink(stringResource(R.string.msg_resend), onResend)
+            Text(stringResource(Res.string.msg_failed), style = MaterialTheme.typography.footnote, color = colors.redInk)
+            TextLink(stringResource(Res.string.msg_resend), onResend)
         }
         !detail -> Unit
         message.status == MsgStatus.QUEUED -> Text(
-            stringResource(R.string.msg_queued), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+            stringResource(Res.string.msg_queued), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
             modifier = Modifier.padding(top = 4.dp, end = Gutter),
         )
         message.recipients > 1 -> Text(
-            stringResource(R.string.msg_group_delivered, message.delivered, message.recipients), style = MaterialTheme.typography.footnote,
+            stringResource(Res.string.msg_group_delivered, message.delivered, message.recipients), style = MaterialTheme.typography.footnote,
             color = colors.secondaryLabel, modifier = Modifier.padding(top = 4.dp, end = Gutter),
         )
     }

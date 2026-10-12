@@ -1,5 +1,13 @@
 package ro.safetyplease.app.ui.info
 
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.first_aid_warning
+import ro.safetyplease.ui.resources.pages_approved
+import ro.safetyplease.ui.resources.pages_draft_text
+import ro.safetyplease.ui.resources.pages_draft_title
+import ro.safetyplease.ui.resources.pages_intro
+import ro.safetyplease.ui.resources.pages_title
 import android.content.res.AssetManager
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,12 +23,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.AppLocale
-import ro.safetyplease.app.R
 import ro.safetyplease.core.event.InfoPage
 import ro.safetyplease.core.event.InfoPages
 import ro.safetyplease.core.event.PageBlock
@@ -61,7 +68,7 @@ fun PagesScreen(vm: AppViewModel) {
     val pages = rememberPages(vm)
     PagesScaffold(vm) {
         Text(
-            stringResource(R.string.pages_intro), style = MaterialTheme.typography.subheadline, color = AppTheme.colors.secondaryLabel,
+            stringResource(Res.string.pages_intro), style = MaterialTheme.typography.subheadline, color = AppTheme.colors.secondaryLabel,
             modifier = Modifier.padding(horizontal = TextInset),
         )
         if (pages.any { it.draft }) DraftBanner()
@@ -109,7 +116,7 @@ fun PageScreen(vm: AppViewModel, id: String) {
                     }
                 }
                 is PageBlock.Warning -> Banner(
-                    stringResource(R.string.first_aid_warning), first.text, Modifier.padding(start = Gutter, end = Gutter, top = 16.dp),
+                    stringResource(Res.string.first_aid_warning), first.text, Modifier.padding(start = Gutter, end = Gutter, top = 16.dp),
                     warning = true,
                 )
                 is PageBlock.Paragraph -> Text(
@@ -120,7 +127,7 @@ fun PageScreen(vm: AppViewModel, id: String) {
         }
         page.approval?.let {
             Text(
-                stringResource(R.string.pages_approved, it), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                stringResource(Res.string.pages_approved, it), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                 modifier = Modifier.padding(start = TextInset, end = TextInset, top = 24.dp),
             )
         }
@@ -132,8 +139,8 @@ private fun PagesScaffold(vm: AppViewModel, content: @Composable () -> Unit) {
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     NavScreen(
-        title = stringResource(R.string.pages_title), background = AppTheme.colors.grouped, scrolled = scrolled,
-        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        title = stringResource(Res.string.pages_title), background = AppTheme.colors.grouped, scrolled = scrolled,
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding).padding(top = 8.dp, bottom = 24.dp)) { content() }
     }
@@ -155,7 +162,7 @@ private fun rememberPages(vm: AppViewModel): List<InfoPage> {
 @Composable
 private fun DraftBanner() {
     Banner(
-        stringResource(R.string.pages_draft_title), stringResource(R.string.pages_draft_text),
+        stringResource(Res.string.pages_draft_title), stringResource(Res.string.pages_draft_text),
         Modifier.padding(start = Gutter, end = Gutter, top = 16.dp), warning = true,
     )
 }

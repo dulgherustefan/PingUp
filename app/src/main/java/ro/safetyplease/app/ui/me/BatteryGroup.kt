@@ -1,14 +1,29 @@
 package ro.safetyplease.app.ui.me
 
+import ro.safetyplease.ui.resources.autonomy_profile_anchor
+import ro.safetyplease.ui.resources.autonomy_profile_economy
+import ro.safetyplease.ui.resources.autonomy_profile_leaf
+import ro.safetyplease.ui.resources.autonomy_profile_staff
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.autonomy_charger
+import ro.safetyplease.ui.resources.autonomy_charging
+import ro.safetyplease.ui.resources.autonomy_hours
+import ro.safetyplease.ui.resources.autonomy_hours_minutes
+import ro.safetyplease.ui.resources.autonomy_left
+import ro.safetyplease.ui.resources.autonomy_left_charging
+import ro.safetyplease.ui.resources.autonomy_left_measuring
+import ro.safetyplease.ui.resources.autonomy_left_text
+import ro.safetyplease.ui.resources.autonomy_level
+import ro.safetyplease.ui.resources.autonomy_minutes
+import ro.safetyplease.ui.resources.autonomy_over_day
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.common.LowBatteryBanner
 import ro.safetyplease.app.ui.common.chargerText
 import ro.safetyplease.app.ui.common.helpOrigin
@@ -38,34 +53,34 @@ fun BatteryGroup(vm: AppViewModel) {
     val charger = chargerText(vm.venue, origin)
     val profile = stringResource(
         when (battery.profile) {
-            PowerProfile.LEAF -> R.string.autonomy_profile_leaf
-            PowerProfile.STAFF -> R.string.autonomy_profile_staff
-            PowerProfile.ANCHOR -> R.string.autonomy_profile_anchor
-            PowerProfile.ECONOMY -> R.string.autonomy_profile_economy
+            PowerProfile.LEAF -> Res.string.autonomy_profile_leaf
+            PowerProfile.STAFF -> Res.string.autonomy_profile_staff
+            PowerProfile.ANCHOR -> Res.string.autonomy_profile_anchor
+            PowerProfile.ECONOMY -> Res.string.autonomy_profile_economy
         },
     )
     Column {
         LowBatteryBanner(battery, vm.venue, origin, Modifier.padding(start = Gutter, end = Gutter, bottom = 20.dp)) { vm.open(Dest.Map(spot = "charge")) }
         InsetGroup {
             GroupRow(
-                stringResource(R.string.autonomy_level), value = "${battery.percent}%", icon = Sym.Battery,
-                subtitle = if (battery.charging) stringResource(R.string.autonomy_charging) else profile,
+                stringResource(Res.string.autonomy_level), value = "${battery.percent}%", icon = Sym.Battery,
+                subtitle = if (battery.charging) stringResource(Res.string.autonomy_charging) else profile,
             )
             GroupDivider()
             val minutes = battery.minutesLeft
             GroupRow(
-                stringResource(R.string.autonomy_left),
+                stringResource(Res.string.autonomy_left),
                 value = if (battery.charging || minutes == null) null else timeLeft(minutes),
                 subtitle = when {
-                    battery.charging -> stringResource(R.string.autonomy_left_charging)
-                    minutes == null -> stringResource(R.string.autonomy_left_measuring)
-                    else -> stringResource(R.string.autonomy_left_text)
+                    battery.charging -> stringResource(Res.string.autonomy_left_charging)
+                    minutes == null -> stringResource(Res.string.autonomy_left_measuring)
+                    else -> stringResource(Res.string.autonomy_left_text)
                 },
             )
             if (charger != null) {
                 GroupDivider()
                 GroupRow(
-                    stringResource(R.string.autonomy_charger), subtitle = charger, chevron = true,
+                    stringResource(Res.string.autonomy_charger), subtitle = charger, chevron = true,
                     onClick = { vm.open(Dest.Map(spot = "charge")) },
                 )
             }
@@ -78,9 +93,9 @@ private fun timeLeft(minutes: Int): String {
     val hours = minutes / MINUTES_IN_HOUR
     val rest = minutes % MINUTES_IN_HOUR
     return when {
-        hours >= MAX_HOURS -> stringResource(R.string.autonomy_over_day, MAX_HOURS)
-        hours == 0 -> stringResource(R.string.autonomy_minutes, rest)
-        rest == 0 -> stringResource(R.string.autonomy_hours, hours)
-        else -> stringResource(R.string.autonomy_hours_minutes, hours, rest)
+        hours >= MAX_HOURS -> stringResource(Res.string.autonomy_over_day, MAX_HOURS)
+        hours == 0 -> stringResource(Res.string.autonomy_minutes, rest)
+        rest == 0 -> stringResource(Res.string.autonomy_hours, hours)
+        else -> stringResource(Res.string.autonomy_hours_minutes, hours, rest)
     }
 }

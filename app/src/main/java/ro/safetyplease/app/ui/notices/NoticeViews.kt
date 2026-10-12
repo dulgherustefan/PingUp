@@ -1,5 +1,13 @@
 package ro.safetyplease.app.ui.notices
 
+import ro.safetyplease.ui.text.noticeBody
+import ro.safetyplease.ui.text.noticeTitle
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.exercise_banner
+import ro.safetyplease.ui.resources.map_quick_shade
+import ro.safetyplease.ui.resources.map_quick_water
+import ro.safetyplease.ui.resources.notice_hide
+import ro.safetyplease.ui.resources.notice_read
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,7 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -43,8 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.AppLocale
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.NoticeText
+import ro.safetyplease.ui.text.NoticeText
 import ro.safetyplease.core.announce.HeldNotice
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeLevel
@@ -71,7 +78,7 @@ fun shownNotices(vm: AppViewModel, active: List<Pair<HeldNotice, Notice>>): List
     val res = LocalResources.current
     val language = AppLocale.language(LocalContext.current)
     return active.map { (held, notice) ->
-        ShownNotice(held, notice, NoticeText.title(res, notice), NoticeText.body(res, vm.c.noticeTemplates, vm.venue, notice, language))
+        ShownNotice(held, notice, noticeTitle(notice), noticeBody(vm.c.noticeTemplates, vm.venue, notice, language))
     }
 }
 
@@ -116,13 +123,13 @@ private fun NoticeBand(vm: AppViewModel, shown: ShownNotice, modifier: Modifier)
                     maxLines = if (open) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            IconBtn(Sym.Close, stringResource(R.string.notice_hide), { vm.c.notices.dismiss(notice.topic, notice.seq) }, tint = ink)
+            IconBtn(Sym.Close, stringResource(Res.string.notice_hide), { vm.c.notices.dismiss(notice.topic, notice.seq) }, tint = ink)
         }
         if (notice.topic == NoticeTopic.HEAT) {
             Row(Modifier.padding(top = 4.dp, bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AppButton(stringResource(R.string.map_quick_water), { vm.open(Dest.Map(spot = "water")) }, kind = ButtonKind.Secondary, compact = true)
+                AppButton(stringResource(Res.string.map_quick_water), { vm.open(Dest.Map(spot = "water")) }, kind = ButtonKind.Secondary, compact = true)
                 shadeType(vm.venue)?.let { shade ->
-                    AppButton(stringResource(R.string.map_quick_shade), { vm.open(Dest.Map(spot = shade)) }, kind = ButtonKind.Secondary, compact = true)
+                    AppButton(stringResource(Res.string.map_quick_shade), { vm.open(Dest.Map(spot = shade)) }, kind = ButtonKind.Secondary, compact = true)
                 }
             }
         }
@@ -162,7 +169,7 @@ fun NoticeAlert(shown: ShownNotice, exercise: Boolean, onRead: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
         ) {
             if (exercise) {
-                Text(stringResource(R.string.exercise_banner), style = MaterialTheme.typography.headline, fontWeight = FontWeight.Bold, color = ink)
+                Text(stringResource(Res.string.exercise_banner), style = MaterialTheme.typography.headline, fontWeight = FontWeight.Bold, color = ink)
                 Spacer(Modifier.height(16.dp))
             }
             Icon(Sym.Report, null, Modifier.size(64.dp), tint = ink)
@@ -174,7 +181,7 @@ fun NoticeAlert(shown: ShownNotice, exercise: Boolean, onRead: () -> Unit) {
             Spacer(Modifier.height(12.dp))
             Text(shown.text, style = MaterialTheme.typography.title3, color = ink, textAlign = TextAlign.Center)
             Spacer(Modifier.height(32.dp))
-            AppButton(stringResource(R.string.notice_read), onRead, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary)
+            AppButton(stringResource(Res.string.notice_read), onRead, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary)
         }
     }
 }

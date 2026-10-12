@@ -1,5 +1,9 @@
 package ro.safetyplease.app.ui.common
 
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.add_friend_enlarge
+import ro.safetyplease.ui.resources.add_friend_mine
+import ro.safetyplease.ui.resources.close
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,7 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,7 +39,6 @@ import androidx.compose.ui.window.DialogProperties
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
-import ro.safetyplease.app.R
 import ro.safetyplease.ui.designsystem.title1
 import ro.safetyplease.ui.designsystem.title3
 
@@ -61,12 +64,12 @@ fun QrBadge(code: String, name: String, onClick: () -> Unit, modifier: Modifier 
     val bitmap = remember(code) { qrBitmap(code, ink = QrInk).asImageBitmap() }
     Column(
         modifier.widthIn(max = QrCardWidth).fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(QrBorder)
-            .clickable(onClickLabel = stringResource(R.string.add_friend_enlarge), role = Role.Button, onClick = onClick),
+            .clickable(onClickLabel = stringResource(Res.string.add_friend_enlarge), role = Role.Button, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // white in every theme so any camera can read it
         Image(
-            bitmap, stringResource(R.string.add_friend_mine),
+            bitmap, stringResource(Res.string.add_friend_mine),
             Modifier.padding(start = 40.dp, end = 40.dp, top = 32.dp).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp))
                 .background(Color.White).border(2.dp, QrFrame, RoundedCornerShape(12.dp)).padding(16.dp),
         )
@@ -83,11 +86,11 @@ fun BigCodeDialog(code: String, name: String, onDismiss: () -> Unit) {
     val bitmap = remember(code) { qrBitmap(code).asImageBitmap() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.fillMaxSize().clickable(onClickLabel = stringResource(R.string.close), onClick = onDismiss).padding(24.dp),
+            Modifier.fillMaxSize().clickable(onClickLabel = stringResource(Res.string.close), onClick = onDismiss).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
         ) {
             Image(
-                bitmap, stringResource(R.string.add_friend_mine),
+                bitmap, stringResource(Res.string.add_friend_mine),
                 Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(24.dp)).background(Color.White).padding(20.dp),
             )
             Spacer(Modifier.height(24.dp))

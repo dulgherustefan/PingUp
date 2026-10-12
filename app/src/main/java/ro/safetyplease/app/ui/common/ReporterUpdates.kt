@@ -11,10 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.Replies
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.Replies
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.subheadline

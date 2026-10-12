@@ -1,5 +1,38 @@
 package ro.safetyplease.app.ui.control
 
+import ro.safetyplease.ui.text.noticeBody
+import ro.safetyplease.ui.text.noticeTitle
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.notice_not_sent
+import ro.safetyplease.ui.resources.notice_sent
+import ro.safetyplease.ui.resources.notice_topic_alert
+import ro.safetyplease.ui.resources.notice_topic_heat
+import ro.safetyplease.ui.resources.notice_topic_schedule
+import ro.safetyplease.ui.resources.notice_topic_transport
+import ro.safetyplease.ui.resources.notice_withdrawn
+import ro.safetyplease.app.text.text
+import ro.safetyplease.app.text.quantityText
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.cancel
+import ro.safetyplease.ui.resources.notice_composer_title
+import ro.safetyplease.ui.resources.notice_confirm_title
+import ro.safetyplease.ui.resources.notice_duration
+import ro.safetyplease.ui.resources.notice_hours
+import ro.safetyplease.ui.resources.notice_in_force
+import ro.safetyplease.ui.resources.notice_minutes
+import ro.safetyplease.ui.resources.notice_new
+import ro.safetyplease.ui.resources.notice_no_shift
+import ro.safetyplease.ui.resources.notice_preview
+import ro.safetyplease.ui.resources.notice_reach
+import ro.safetyplease.ui.resources.notice_second_text
+import ro.safetyplease.ui.resources.notice_second_title
+import ro.safetyplease.ui.resources.notice_second_word
+import ro.safetyplease.ui.resources.notice_send
+import ro.safetyplease.ui.resources.notice_withdraw
+import ro.safetyplease.ui.resources.notice_withdraw_text
+import ro.safetyplease.ui.resources.notice_withdraw_title
+import ro.safetyplease.ui.resources.notice_zone
+import ro.safetyplease.ui.resources.notice_zone_all
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,16 +61,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.AppLocale
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.NoticeText
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.NoticeText
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.announce.NoticeTemplate
 import ro.safetyplease.core.announce.NoticeTemplates
@@ -100,7 +132,7 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     fun send() {
         val t = template ?: return
         val sent = c.notices.publish(t, params.map { it.trim() }, zone, minutes * 60L)
-        Toast.makeText(context, if (sent != null) R.string.notice_sent else R.string.notice_not_sent, Toast.LENGTH_LONG).show()
+        Toast.makeText(context, context.text(if (sent != null) Res.string.notice_sent else Res.string.notice_not_sent), Toast.LENGTH_LONG).show()
         if (sent != null) onDismiss()
     }
 
@@ -110,33 +142,33 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
                 .clip(RoundedCornerShape(28.dp)).background(colors.grouped).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(R.string.notice_composer_title), style = MaterialTheme.typography.title2)
-            Text(stringResource(R.string.notice_reach), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
-            if (!c.notices.canSign) Text(stringResource(R.string.notice_no_shift), style = MaterialTheme.typography.subheadline, color = colors.red)
+            Text(stringResource(Res.string.notice_composer_title), style = MaterialTheme.typography.title2)
+            Text(stringResource(Res.string.notice_reach), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
+            if (!c.notices.canSign) Text(stringResource(Res.string.notice_no_shift), style = MaterialTheme.typography.subheadline, color = colors.red)
 
             val active = board.active(now / 1000)
             if (active.isNotEmpty()) {
-                Text(stringResource(R.string.notice_in_force), style = MaterialTheme.typography.headline)
+                Text(stringResource(Res.string.notice_in_force), style = MaterialTheme.typography.headline)
                 InsetGroup {
                     active.forEachIndexed { i, (_, notice) ->
                         if (i > 0) GroupDivider(start = 16.dp)
                         GroupRow(
-                            NoticeText.title(res, notice), subtitle = NoticeText.body(res, c.noticeTemplates, vm.venue, notice, language),
+                            noticeTitle(notice), subtitle = noticeBody(c.noticeTemplates, vm.venue, notice, language),
                             trailing = {
-                                AppButton(stringResource(R.string.notice_withdraw), { withdraw = notice.topic }, kind = ButtonKind.Danger, compact = true, enabled = c.notices.canSign)
+                                AppButton(stringResource(Res.string.notice_withdraw), { withdraw = notice.topic }, kind = ButtonKind.Danger, compact = true, enabled = c.notices.canSign)
                             },
                         )
                     }
                 }
             }
 
-            Text(stringResource(R.string.notice_new), style = MaterialTheme.typography.headline)
-            SegmentedControl(NoticeTopic.KNOWN.map { it to res.getString(topicLabel(it)) }, topic, { topic = it })
+            Text(stringResource(Res.string.notice_new), style = MaterialTheme.typography.headline)
+            SegmentedControl(NoticeTopic.KNOWN.map { it to res.text(topicLabel(it)) }, topic, { topic = it })
             InsetGroup {
                 c.noticeTemplates.forTopic(topic).forEachIndexed { i, t ->
                     if (i > 0) GroupDivider(start = 16.dp)
                     GroupRow(
-                        NoticeText.title(res, t.topic, t.level), subtitle = t.text(language),
+                        noticeTitle(t.topic, t.level), subtitle = t.text(language),
                         icon = if (t.id == templateId) Sym.CheckCircle else null, tint = colors.accent, onClick = { choose(t) },
                     )
                 }
@@ -149,11 +181,11 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
                 }
                 Box {
                     GroupRow(
-                        stringResource(R.string.notice_zone), value = if (zone.isEmpty()) stringResource(R.string.notice_zone_all) else vm.venue.zoneName(zone),
+                        stringResource(Res.string.notice_zone), value = if (zone.isEmpty()) stringResource(Res.string.notice_zone_all) else vm.venue.zoneName(zone),
                         chevron = true, onClick = { zoneMenu = true }, modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(colors.cell),
                     )
                     AppMenu(zoneMenu, { zoneMenu = false }) {
-                        MenuRow(stringResource(R.string.notice_zone_all), {
+                        MenuRow(stringResource(Res.string.notice_zone_all), {
                             zone = ""
                             zoneMenu = false
                         })
@@ -165,9 +197,9 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
                         }
                     }
                 }
-                Text(stringResource(R.string.notice_duration), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
+                Text(stringResource(Res.string.notice_duration), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
                 SegmentedControl(Durations.map { it to durationLabel(it) }, minutes, { minutes = it })
-                Text(stringResource(R.string.notice_preview), style = MaterialTheme.typography.headline)
+                Text(stringResource(Res.string.notice_preview), style = MaterialTheme.typography.headline)
                 for (lang in listOf("ro", "en")) {
                     Text(
                         NoticeTemplates.fill(template.text(lang), params), style = MaterialTheme.typography.subheadline,
@@ -177,9 +209,9 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
             }
             Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AppButton(stringResource(R.string.cancel), onDismiss, Modifier.weight(1f), kind = ButtonKind.Secondary)
+                AppButton(stringResource(Res.string.cancel), onDismiss, Modifier.weight(1f), kind = ButtonKind.Secondary)
                 AppButton(
-                    stringResource(R.string.notice_send), { confirm = true }, Modifier.weight(1f), enabled = ready,
+                    stringResource(Res.string.notice_send), { confirm = true }, Modifier.weight(1f), enabled = ready,
                     kind = if (template?.let { it.topic == NoticeTopic.ALERT && it.level == NoticeLevel.EVACUATION } == true) ButtonKind.Danger else ButtonKind.Primary,
                 )
             }
@@ -189,9 +221,9 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     if (confirm && template != null) {
         val evacuation = template.topic == NoticeTopic.ALERT && template.level == NoticeLevel.EVACUATION
         ConfirmDialog(
-            stringResource(R.string.notice_confirm_title, NoticeText.title(res, template.topic, template.level)),
-            NoticeTemplates.fill(template.text(language), params) + "\n\n" + stringResource(R.string.notice_reach),
-            { confirm = false }, stringResource(R.string.notice_send), destructive = evacuation,
+            stringResource(Res.string.notice_confirm_title, noticeTitle(template.topic, template.level)),
+            NoticeTemplates.fill(template.text(language), params) + "\n\n" + stringResource(Res.string.notice_reach),
+            { confirm = false }, stringResource(Res.string.notice_send), destructive = evacuation,
         ) { if (evacuation) second = true else send() }
     }
     if (second) SecondOperator({ second = false }) {
@@ -200,10 +232,10 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     }
     withdraw?.let { t ->
         ConfirmDialog(
-            stringResource(R.string.notice_withdraw_title, NoticeText.title(res, t, board.notices.firstOrNull { it.topic == t }?.notice()?.level ?: 0)),
-            stringResource(R.string.notice_withdraw_text), { withdraw = null }, stringResource(R.string.notice_withdraw), destructive = true,
+            stringResource(Res.string.notice_withdraw_title, noticeTitle(t, board.notices.firstOrNull { it.topic == t }?.notice()?.level ?: 0)),
+            stringResource(Res.string.notice_withdraw_text), { withdraw = null }, stringResource(Res.string.notice_withdraw), destructive = true,
         ) {
-            Toast.makeText(context, if (c.notices.cancel(t) != null) R.string.notice_withdrawn else R.string.notice_not_sent, Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.text(if (c.notices.cancel(t) != null) Res.string.notice_withdrawn else Res.string.notice_not_sent), Toast.LENGTH_LONG).show()
         }
     }
 }
@@ -212,26 +244,26 @@ internal fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
 @Composable
 private fun SecondOperator(onDismiss: () -> Unit, onConfirm: () -> Unit) {
     var typed by remember { mutableStateOf("") }
-    val word = stringResource(R.string.notice_second_word)
+    val word = stringResource(Res.string.notice_second_word)
     AppDialog(
-        onDismiss, stringResource(R.string.notice_second_title), stringResource(R.string.notice_send), onConfirm,
+        onDismiss, stringResource(Res.string.notice_second_title), stringResource(Res.string.notice_send), onConfirm,
         confirmEnabled = typed.trim().equals(word, ignoreCase = true), destructive = true,
     ) {
         Text(
-            stringResource(R.string.notice_second_text, word), style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
+            stringResource(Res.string.notice_second_text, word), style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
             textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
         )
         InputField(typed, { typed = it }, word)
     }
 }
 
-private fun topicLabel(topic: Int): Int = when (topic) {
-    NoticeTopic.ALERT -> R.string.notice_topic_alert
-    NoticeTopic.HEAT -> R.string.notice_topic_heat
-    NoticeTopic.SCHEDULE -> R.string.notice_topic_schedule
-    else -> R.string.notice_topic_transport
+private fun topicLabel(topic: Int): StringResource = when (topic) {
+    NoticeTopic.ALERT -> Res.string.notice_topic_alert
+    NoticeTopic.HEAT -> Res.string.notice_topic_heat
+    NoticeTopic.SCHEDULE -> Res.string.notice_topic_schedule
+    else -> Res.string.notice_topic_transport
 }
 
 @Composable
 private fun durationLabel(minutes: Int): String =
-    if (minutes < 60) stringResource(R.string.notice_minutes, minutes) else stringResource(R.string.notice_hours, minutes / 60)
+    if (minutes < 60) stringResource(Res.string.notice_minutes, minutes) else stringResource(Res.string.notice_hours, minutes / 60)

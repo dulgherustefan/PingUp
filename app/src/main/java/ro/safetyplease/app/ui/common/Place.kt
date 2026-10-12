@@ -1,8 +1,12 @@
 package ro.safetyplease.app.ui.common
 
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.place_accuracy
+import ro.safetyplease.ui.resources.place_near
+import ro.safetyplease.app.text.text
+import ro.safetyplease.app.text.quantityText
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalResources
-import ro.safetyplease.app.R
 import ro.safetyplease.core.venue.Venue
 
 /**
@@ -24,6 +28,6 @@ fun placeText(square: String, landmark: Int, accuracyM: Int, venue: Venue): Stri
     val res = LocalResources.current
     return placeLine(
         square, venue.landmark(landmark)?.name.orEmpty(), accuracyM,
-        { res.getString(R.string.place_near, it) }, { res.getString(R.string.place_accuracy, it) },
+        { res.text(Res.string.place_near, it) }, { res.text(Res.string.place_accuracy, it) },
     )
 }

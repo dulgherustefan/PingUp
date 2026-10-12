@@ -1,5 +1,66 @@
 package ro.safetyplease.app.ui.people
 
+import ro.safetyplease.ui.text.dateText
+import ro.safetyplease.ui.resources.add_friend_allow_camera
+import ro.safetyplease.ui.resources.code_sheet_copied
+import ro.safetyplease.ui.resources.code_sheet_copy
+import ro.safetyplease.ui.resources.event_expired
+import ro.safetyplease.ui.resources.friend_remove_text
+import ro.safetyplease.ui.resources.group_leave_text
+import ro.safetyplease.ui.resources.open_settings
+import ro.safetyplease.ui.resources.profile_leave_group
+import ro.safetyplease.ui.resources.profile_remove_friend
+import ro.safetyplease.ui.resources.scan_event_in_use
+import ro.safetyplease.ui.resources.scan_not_now
+import ro.safetyplease.ui.resources.scan_own_code
+import ro.safetyplease.ui.resources.scan_revoked
+import ro.safetyplease.ui.resources.scan_unknown
+import ro.safetyplease.ui.resources.scan_wrong_event
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.add_friend_done
+import ro.safetyplease.ui.resources.add_friend_mine_hint
+import ro.safetyplease.ui.resources.add_friend_no_camera
+import ro.safetyplease.ui.resources.add_friend_scan
+import ro.safetyplease.ui.resources.add_friend_scan_hint
+import ro.safetyplease.ui.resources.add_friend_tab_code
+import ro.safetyplease.ui.resources.add_friend_tab_scan
+import ro.safetyplease.ui.resources.add_friend_text_link
+import ro.safetyplease.ui.resources.add_friend_title
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.block_text
+import ro.safetyplease.ui.resources.block_title
+import ro.safetyplease.ui.resources.close
+import ro.safetyplease.ui.resources.code_sheet_mine
+import ro.safetyplease.ui.resources.code_sheet_placeholder
+import ro.safetyplease.ui.resources.code_sheet_theirs
+import ro.safetyplease.ui.resources.code_sheet_use
+import ro.safetyplease.ui.resources.done
+import ro.safetyplease.ui.resources.friend_remove_title
+import ro.safetyplease.ui.resources.group_create
+import ro.safetyplease.ui.resources.group_leave_title
+import ro.safetyplease.ui.resources.group_members
+import ro.safetyplease.ui.resources.group_name
+import ro.safetyplease.ui.resources.group_new
+import ro.safetyplease.ui.resources.group_no_friends
+import ro.safetyplease.ui.resources.group_pick
+import ro.safetyplease.ui.resources.menu_add_friend
+import ro.safetyplease.ui.resources.msg_you
+import ro.safetyplease.ui.resources.presence_never
+import ro.safetyplease.ui.resources.profile_added
+import ro.safetyplease.ui.resources.profile_block
+import ro.safetyplease.ui.resources.profile_created
+import ro.safetyplease.ui.resources.profile_last_seen
+import ro.safetyplease.ui.resources.profile_last_zone
+import ro.safetyplease.ui.resources.profile_last_zone_none
+import ro.safetyplease.ui.resources.profile_message
+import ro.safetyplease.ui.resources.profile_where_are_you
+import ro.safetyplease.ui.resources.profile_where_asked
+import ro.safetyplease.ui.resources.remove
+import ro.safetyplease.ui.resources.scan_anchor_on
+import ro.safetyplease.ui.resources.scan_control_on
+import ro.safetyplease.ui.resources.scan_revocations
+import ro.safetyplease.ui.resources.scan_staff_on
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -83,8 +144,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -97,11 +158,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.agoText
-import ro.safetyplease.app.text.hopsText
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.agoText
+import ro.safetyplease.ui.text.hopsText
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.app.ui.common.BigCodeDialog
 import ro.safetyplease.app.ui.common.QrBadge
 import ro.safetyplease.app.ui.common.QrCardWidth
@@ -269,17 +329,17 @@ fun AddFriendScreen(vm: AppViewModel) {
 
     val success = outcome?.takeIf { it.success }
     NavScreen(
-        title = stringResource(R.string.add_friend_title),
+        title = stringResource(Res.string.add_friend_title),
         background = colors.grouped,
         scrolled = scrolled,
-        trailing = { backdrop -> GlassIconButton(Sym.Close, stringResource(R.string.close), { vm.back() }, backdrop) },
+        trailing = { backdrop -> GlassIconButton(Sym.Close, stringResource(Res.string.close), { vm.back() }, backdrop) },
     ) { padding ->
         Column(
             Modifier.fillMaxSize().verticalScroll(scroll).padding(padding).padding(horizontal = Gutter),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SegmentedControl(
-                listOf(0 to stringResource(R.string.add_friend_tab_code), 1 to stringResource(R.string.add_friend_tab_scan)),
+                listOf(0 to stringResource(Res.string.add_friend_tab_code), 1 to stringResource(Res.string.add_friend_tab_scan)),
                 tab,
                 {
                     tab = it
@@ -292,11 +352,11 @@ fun AddFriendScreen(vm: AppViewModel) {
                 Icon(Sym.CheckCircle, null, Modifier.padding(top = 48.dp).size(64.dp), tint = colors.accent)
                 Text(
                     when (success) {
-                        is ScanOutcome.FriendAdded -> stringResource(R.string.add_friend_done, success.name)
-                        ScanOutcome.AnchorOn -> stringResource(R.string.scan_anchor_on)
-                        ScanOutcome.ControlOn -> stringResource(R.string.scan_control_on)
-                        ScanOutcome.RevocationsApplied -> stringResource(R.string.scan_revocations)
-                        else -> stringResource(R.string.scan_staff_on)
+                        is ScanOutcome.FriendAdded -> stringResource(Res.string.add_friend_done, success.name)
+                        ScanOutcome.AnchorOn -> stringResource(Res.string.scan_anchor_on)
+                        ScanOutcome.ControlOn -> stringResource(Res.string.scan_control_on)
+                        ScanOutcome.RevocationsApplied -> stringResource(Res.string.scan_revocations)
+                        else -> stringResource(Res.string.scan_staff_on)
                     },
                     style = MaterialTheme.typography.body, color = colors.label, textAlign = TextAlign.Center,
                     modifier = Modifier.widthIn(max = 320.dp).padding(top = 16.dp),
@@ -305,7 +365,7 @@ fun AddFriendScreen(vm: AppViewModel) {
                     Modifier.widthIn(max = QrCardWidth).fillMaxWidth().padding(top = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    AppButton(stringResource(R.string.done), {
+                    AppButton(stringResource(Res.string.done), {
                         when (success) {
                             ScanOutcome.StaffOn -> vm.home(Tab.INCIDENTS)
                             ScanOutcome.AnchorOn, ScanOutcome.ControlOn -> vm.stack.clear()
@@ -316,11 +376,11 @@ fun AddFriendScreen(vm: AppViewModel) {
             } else if (tab == 0) {
                 QrBadge(code, settings.nickname, { bigCode = true }, Modifier.padding(top = 24.dp))
                 Text(
-                    stringResource(R.string.add_friend_mine_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                    stringResource(Res.string.add_friend_mine_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
                     textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = QrCardWidth).padding(top = 16.dp),
                 )
                 // scanning has its own tab above; this is the fallback for when the camera doesn't work
-                TextLink(stringResource(R.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
+                TextLink(stringResource(Res.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
             } else {
                 if (granted) {
                     Box(
@@ -337,27 +397,27 @@ fun AddFriendScreen(vm: AppViewModel) {
                     )
                 }
                 Text(
-                    stringResource(R.string.add_friend_scan_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                    stringResource(Res.string.add_friend_scan_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
                     textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 320.dp).padding(top = 16.dp),
                 )
                 AnimatedVisibility(outcome != null, enter = fadeIn(tween(Motion.QUICK)) + expandVertically(), exit = fadeOut(tween(100)) + shrinkVertically()) {
                     StatusLabel(
                         stringResource(
                             when (outcome) {
-                                ScanOutcome.OwnCode -> R.string.scan_own_code
-                                ScanOutcome.WrongEvent -> R.string.scan_wrong_event
-                                ScanOutcome.Revoked -> R.string.scan_revoked
-                                ScanOutcome.NotNow -> R.string.scan_not_now
-                                ScanOutcome.EventInUse -> R.string.scan_event_in_use
-                                ScanOutcome.EventOver -> R.string.event_expired
-                                else -> R.string.scan_unknown
+                                ScanOutcome.OwnCode -> Res.string.scan_own_code
+                                ScanOutcome.WrongEvent -> Res.string.scan_wrong_event
+                                ScanOutcome.Revoked -> Res.string.scan_revoked
+                                ScanOutcome.NotNow -> Res.string.scan_not_now
+                                ScanOutcome.EventInUse -> Res.string.scan_event_in_use
+                                ScanOutcome.EventOver -> Res.string.event_expired
+                                else -> Res.string.scan_unknown
                             }
                         ),
                         Modifier.padding(top = 12.dp), icon = Sym.Info,
                         color = if (outcome == ScanOutcome.EventInUse) colors.secondaryLabel else colors.redInk,
                     )
                 }
-                TextLink(stringResource(R.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
+                TextLink(stringResource(Res.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
             }
         }
     }
@@ -388,15 +448,15 @@ private fun NoCamera(blocked: Boolean, onAllow: () -> Unit, modifier: Modifier =
     ) {
         Icon(Sym.QrScan, null, Modifier.size(44.dp), tint = colors.secondaryLabel)
         Text(
-            stringResource(R.string.add_friend_scan), style = MaterialTheme.typography.headline, color = colors.label,
+            stringResource(Res.string.add_friend_scan), style = MaterialTheme.typography.headline, color = colors.label,
             textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp),
         )
         Text(
-            stringResource(R.string.add_friend_no_camera), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+            stringResource(Res.string.add_friend_no_camera), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
             textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp),
         )
         AppButton(
-            stringResource(if (blocked) R.string.open_settings else R.string.add_friend_allow_camera), onAllow,
+            stringResource(if (blocked) Res.string.open_settings else Res.string.add_friend_allow_camera), onAllow,
             Modifier.padding(top = 16.dp), compact = true,
         )
     }
@@ -421,10 +481,10 @@ private fun CodeSheet(myCode: String, onUse: (String) -> Unit, onDismiss: () -> 
     ) {
         Column(Modifier.fillMaxWidth().padding(bottom = 24.dp).imePadding()) {
             Text(
-                stringResource(R.string.add_friend_text_link), style = MaterialTheme.typography.headline, color = colors.label,
+                stringResource(Res.string.add_friend_text_link), style = MaterialTheme.typography.headline, color = colors.label,
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 4.dp),
             )
-            SectionTitle(stringResource(R.string.code_sheet_mine))
+            SectionTitle(stringResource(Res.string.code_sheet_mine))
             InsetGroup {
                 Text(
                     myCode, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, maxLines = 3,
@@ -432,7 +492,7 @@ private fun CodeSheet(myCode: String, onUse: (String) -> Unit, onDismiss: () -> 
                 )
                 GroupDivider(start = Gutter)
                 GroupRow(
-                    stringResource(if (copied) R.string.code_sheet_copied else R.string.code_sheet_copy),
+                    stringResource(if (copied) Res.string.code_sheet_copied else Res.string.code_sheet_copy),
                     icon = if (copied) Sym.Check else Sym.Copy, tint = colors.accent,
                     onClick = {
                         context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("cod", myCode))
@@ -440,15 +500,15 @@ private fun CodeSheet(myCode: String, onUse: (String) -> Unit, onDismiss: () -> 
                     },
                 )
             }
-            SectionTitle(stringResource(R.string.code_sheet_theirs))
+            SectionTitle(stringResource(Res.string.code_sheet_theirs))
             InputField(
-                manual, { manual = it.trim() }, stringResource(R.string.code_sheet_placeholder), Modifier.fillMaxWidth().padding(horizontal = Gutter),
+                manual, { manual = it.trim() }, stringResource(Res.string.code_sheet_placeholder), Modifier.fillMaxWidth().padding(horizontal = Gutter),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { if (manual.isNotBlank()) onUse(manual) }),
                 background = colors.cell,
             )
             AppButton(
-                stringResource(R.string.code_sheet_use), { onUse(manual) },
+                stringResource(Res.string.code_sheet_use), { onUse(manual) },
                 Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 16.dp), enabled = manual.isNotBlank(),
             )
         }
@@ -477,10 +537,10 @@ fun NewGroupScreen(vm: AppViewModel) {
     val fade = with(LocalDensity.current) { 24.dp.toPx() }
 
     NavScreen(
-        title = stringResource(R.string.group_new),
+        title = stringResource(Res.string.group_new),
         background = colors.grouped,
         scrolled = scrolled,
-        trailing = { backdrop -> GlassIconButton(Sym.Close, stringResource(R.string.close), { vm.back() }, backdrop) },
+        trailing = { backdrop -> GlassIconButton(Sym.Close, stringResource(Res.string.close), { vm.back() }, backdrop) },
     ) { padding ->
         Box(Modifier.fillMaxSize()) {
             LazyColumn(
@@ -490,7 +550,7 @@ fun NewGroupScreen(vm: AppViewModel) {
             ) {
                 item(key = "name") {
                     InputField(
-                        name, { name = it.take(24) }, stringResource(R.string.group_name),
+                        name, { name = it.take(24) }, stringResource(Res.string.group_name),
                         Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 8.dp), background = colors.cell,
                     )
                 }
@@ -513,14 +573,14 @@ fun NewGroupScreen(vm: AppViewModel) {
                     item(key = "empty") {
                         Column(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                stringResource(R.string.group_no_friends), style = MaterialTheme.typography.subheadline,
+                                stringResource(Res.string.group_no_friends), style = MaterialTheme.typography.subheadline,
                                 color = colors.secondaryLabel, textAlign = TextAlign.Center,
                             )
-                            TextLink(stringResource(R.string.menu_add_friend), { vm.open(Dest.AddFriend) }, Modifier.padding(top = 4.dp))
+                            TextLink(stringResource(Res.string.menu_add_friend), { vm.open(Dest.AddFriend) }, Modifier.padding(top = 4.dp))
                         }
                     }
                 } else {
-                    item(key = "header") { SectionTitle(stringResource(R.string.group_pick, max)) }
+                    item(key = "header") { SectionTitle(stringResource(Res.string.group_pick, max)) }
                     item(key = "friends") {
                         InsetGroup {
                             sorted.forEachIndexed { index, friend ->
@@ -551,7 +611,7 @@ fun NewGroupScreen(vm: AppViewModel) {
                     .padding(start = Gutter, end = Gutter, top = 24.dp, bottom = bottom + 8.dp),
             ) {
                 AppButton(
-                    stringResource(R.string.group_create),
+                    stringResource(Res.string.group_create),
                     {
                         vm.createGroup(name, selected.toList())
                         vm.home(Tab.MESSAGES)
@@ -569,7 +629,7 @@ private fun SelectedMember(name: String, onRemove: () -> Unit) {
     val colors = AppTheme.colors
     Column(
         Modifier.width(64.dp).clip(RoundedCornerShape(12.dp))
-            .clickable(onClickLabel = stringResource(R.string.remove), role = Role.Button, onClick = onRemove).padding(vertical = 4.dp),
+            .clickable(onClickLabel = stringResource(Res.string.remove), role = Role.Button, onClick = onRemove).padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box {
@@ -647,41 +707,41 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
         title = if (nameUnderBar) title else "",
         background = colors.grouped,
         scrolled = scrolled,
-        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding)) {
             PersonHeader(
                 title,
                 if (friend != null) friendStatus(friend, nearby, now, vm.venue)
-                else pluralStringResource(R.plurals.group_members, group!!.members.size, group.members.size),
+                else pluralStringResource(Res.plurals.group_members, group!!.members.size, group.members.size),
                 near = friend != null && nearby.isInRange(friend.nodeId), group = group != null, size = 88.dp,
             )
             ActionTile(
-                Sym.Chat, stringResource(R.string.profile_message), { vm.back() },
+                Sym.Chat, stringResource(Res.string.profile_message), { vm.back() },
                 Modifier.align(Alignment.CenterHorizontally).width(80.dp), background = colors.cell,
             )
             InsetGroup(Modifier.padding(top = 24.dp)) {
                 if (friend != null) {
-                    GroupRow(stringResource(R.string.profile_added), value = Labels.date(LocalResources.current, friend.addedAt), icon = Sym.PersonAdd)
+                    GroupRow(stringResource(Res.string.profile_added), value = dateText(friend.addedAt), icon = Sym.PersonAdd)
                     GroupDivider()
                     // the route goes under the title so the value on the right stays short on narrow screens
                     GroupRow(
-                        stringResource(R.string.profile_last_seen),
+                        stringResource(Res.string.profile_last_seen),
                         subtitle = if (friend.lastSeenAt > 0) hopsText(friend.lastHops) else null,
-                        value = if (friend.lastSeenAt > 0) agoText(friend.lastSeenAt, now) else stringResource(R.string.presence_never),
+                        value = if (friend.lastSeenAt > 0) agoText(friend.lastSeenAt, now) else stringResource(Res.string.presence_never),
                         icon = Sym.History,
                     )
                     GroupDivider()
                     GroupRow(
-                        stringResource(R.string.profile_last_zone),
+                        stringResource(Res.string.profile_last_zone),
                         subtitle = if (friend.lastZone.isNotEmpty()) agoText(friend.lastZoneAt, now) else null,
-                        value = if (friend.lastZone.isNotEmpty()) vm.venue.zoneName(friend.lastZone) else stringResource(R.string.profile_last_zone_none),
+                        value = if (friend.lastZone.isNotEmpty()) vm.venue.zoneName(friend.lastZone) else stringResource(Res.string.profile_last_zone_none),
                         icon = Sym.Place,
                     )
                     GroupDivider()
                     GroupRow(
-                        stringResource(R.string.profile_where_are_you),
-                        subtitle = if (asked) stringResource(R.string.profile_where_asked) else null,
+                        stringResource(Res.string.profile_where_are_you),
+                        subtitle = if (asked) stringResource(Res.string.profile_where_asked) else null,
                         icon = Sym.MyLocation, tint = colors.accent,
                         onClick = {
                             vm.requestZone(friend)
@@ -689,22 +749,22 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                         },
                     )
                 } else if (group != null) {
-                    GroupRow(stringResource(R.string.profile_created), value = Labels.date(LocalResources.current, group.createdAt), icon = Sym.Clock)
+                    GroupRow(stringResource(Res.string.profile_created), value = dateText(group.createdAt), icon = Sym.Clock)
                 }
             }
             if (group != null) {
-                SectionTitle(pluralStringResource(R.plurals.group_members, group.members.size, group.members.size))
+                SectionTitle(pluralStringResource(Res.plurals.group_members, group.members.size, group.members.size))
                 InsetGroup {
                     group.members.forEachIndexed { index, member ->
                         val known = friends.firstOrNull { it.nodeId == member.nodeId }
                         val me = member.nodeId == vm.c.identity.nodeId
                         GroupRow(
-                            if (me) stringResource(R.string.msg_you) else known?.nickname ?: member.nickname,
+                            if (me) stringResource(Res.string.msg_you) else known?.nickname ?: member.nickname,
                             subtitle = known?.let { friendStatus(it, nearby, now, vm.venue) },
                             leading = { Avatar(member.nickname, 36.dp, near = known != null && nearby.isInRange(known.nodeId)) },
                             onClick = if (me) null else ({ blocking = member.nodeId to (known?.nickname ?: member.nickname) }),
                             trailing = if (me) null else ({
-                                Text(stringResource(R.string.profile_block), style = MaterialTheme.typography.footnote, color = colors.redInk)
+                                Text(stringResource(Res.string.profile_block), style = MaterialTheme.typography.footnote, color = colors.redInk)
                             }),
                         )
                         if (index < group.members.lastIndex) GroupDivider(start = 64.dp)
@@ -714,13 +774,13 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
             InsetGroup(Modifier.padding(top = 24.dp)) {
                 if (friend != null) {
                     GroupRow(
-                        stringResource(R.string.profile_block), icon = Sym.Hidden, tint = colors.redInk,
+                        stringResource(Res.string.profile_block), icon = Sym.Hidden, tint = colors.redInk,
                         onClick = { blocking = friend.nodeId to friend.nickname },
                     )
                     GroupDivider()
                 }
                 GroupRow(
-                    stringResource(if (friend != null) R.string.profile_remove_friend else R.string.profile_leave_group),
+                    stringResource(if (friend != null) Res.string.profile_remove_friend else Res.string.profile_leave_group),
                     icon = if (friend != null) Sym.Delete else Sym.Logout, tint = colors.redInk, onClick = { confirm = true },
                 )
             }
@@ -729,10 +789,10 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
 
     if (confirm) {
         ConfirmDialog(
-            title = if (friend != null) stringResource(R.string.friend_remove_title, friend.nickname) else stringResource(R.string.group_leave_title, group!!.name),
-            text = stringResource(if (friend != null) R.string.friend_remove_text else R.string.group_leave_text),
+            title = if (friend != null) stringResource(Res.string.friend_remove_title, friend.nickname) else stringResource(Res.string.group_leave_title, group!!.name),
+            text = stringResource(if (friend != null) Res.string.friend_remove_text else Res.string.group_leave_text),
             onDismiss = { confirm = false },
-            confirmLabel = stringResource(if (friend != null) R.string.remove else R.string.profile_leave_group),
+            confirmLabel = stringResource(if (friend != null) Res.string.remove else Res.string.profile_leave_group),
             destructive = true,
         ) {
             vm.home(Tab.MESSAGES)
@@ -741,10 +801,10 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
     }
     blocking?.let { (nodeId, name) ->
         ConfirmDialog(
-            title = stringResource(R.string.block_title, name),
-            text = stringResource(R.string.block_text),
+            title = stringResource(Res.string.block_title, name),
+            text = stringResource(Res.string.block_text),
             onDismiss = { blocking = null },
-            confirmLabel = stringResource(R.string.profile_block),
+            confirmLabel = stringResource(Res.string.profile_block),
             destructive = true,
         ) {
             blocking = null

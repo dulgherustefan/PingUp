@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.AppContainer
-import ro.safetyplease.app.text.Labels
 import ro.safetyplease.core.mesh.MeshEvent
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
@@ -17,6 +16,7 @@ import ro.safetyplease.core.protocol.parseOrNull
 import ro.safetyplease.core.util.nodePrefix
 import ro.safetyplease.core.util.shortHex
 import ro.safetyplease.core.util.toHex
+import ro.safetyplease.ui.text.Labels
 
 /**
  * TEST packets: a broadcast ping that every node answers with an addressed echo.

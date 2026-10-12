@@ -1,5 +1,13 @@
 package ro.safetyplease.app.ui.common
 
+import ro.safetyplease.ui.resources.map_meters
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.app.text.text
+import ro.safetyplease.app.text.quantityText
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.map_a11y_summary
+import ro.safetyplease.ui.resources.map_north
+import ro.safetyplease.ui.resources.map_you
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
@@ -59,8 +67,8 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
@@ -75,7 +83,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.launch
-import ro.safetyplease.app.R
 import ro.safetyplease.ui.designsystem.AppColors
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.LocalReduceMotion
@@ -268,8 +275,8 @@ fun VenueMap(
     val flag = rememberVectorPainter(Sym.Flag)
     val resources = LocalResources.current
     val density = LocalDensity.current
-    val youLabel = stringResource(R.string.map_you)
-    val north = stringResource(R.string.map_north)
+    val youLabel = stringResource(Res.string.map_you)
+    val north = stringResource(Res.string.map_north)
     val currentPins by rememberUpdatedState(pins)
     val currentTap by rememberUpdatedState(onTap)
     val currentPinTap by rememberUpdatedState(onPinTap)
@@ -280,7 +287,7 @@ fun VenueMap(
     val nodes = if (compact) emptyList() else remember(venue, words, position, myZone, pins, onPinTap != null) {
         mapNodes(venue, words, position, myZone, if (onPinTap != null) pins else emptyList())
     }
-    val summary = pluralStringResource(R.plurals.map_a11y_summary, venue.zones.size, venue.zones.size)
+    val summary = pluralStringResource(Res.plurals.map_a11y_summary, venue.zones.size, venue.zones.size)
     val pulse: State<Float>? = if (!compact && animateMoves && (position != null || target != null)) {
         rememberInfiniteTransition(label = "map").animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "pulse")
     } else null
@@ -469,7 +476,7 @@ fun VenueMap(
             val steps = intArrayOf(5, 10, 20, 25, 50, 100, 200, 250, 500)
             val meters = steps.firstOrNull { it * meter >= 44.dp.toPx() } ?: steps.last()
             val barLength = meters * meter
-            val scaleText = measurer.measure(resources.getString(R.string.map_meters, meters), smallStyle.copy(color = colors.label))
+            val scaleText = measurer.measure(resources.text(Res.string.map_meters, meters), smallStyle.copy(color = colors.label))
             val tick = 5.dp.toPx()
             val textRise = 7.dp.toPx() + scaleText.size.height
             val barWidth = max(barLength, scaleText.size.width + 2.dp.toPx())

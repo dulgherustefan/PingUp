@@ -1,5 +1,46 @@
 package ro.safetyplease.app.ui.map
 
+import ro.safetyplease.ui.text.noticeTitle
+import ro.safetyplease.ui.resources.map_quick_charge
+import ro.safetyplease.ui.resources.map_quick_dea
+import ro.safetyplease.ui.resources.map_quick_exit
+import ro.safetyplease.ui.resources.map_quick_info
+import ro.safetyplease.ui.resources.map_quick_medical
+import ro.safetyplease.ui.resources.map_quick_meeting
+import ro.safetyplease.ui.resources.map_quick_shade
+import ro.safetyplease.ui.resources.map_quick_water
+import ro.safetyplease.ui.resources.map_quick_wc
+import ro.safetyplease.ui.resources.map_source_gps
+import ro.safetyplease.ui.resources.map_source_simulated
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.clear
+import ro.safetyplease.ui.resources.demo_simulate_location
+import ro.safetyplease.ui.resources.map_center_me
+import ro.safetyplease.ui.resources.map_distance
+import ro.safetyplease.ui.resources.map_here_at
+import ro.safetyplease.ui.resources.map_meeting_point
+import ro.safetyplease.ui.resources.map_meters
+import ro.safetyplease.ui.resources.map_no_position
+import ro.safetyplease.ui.resources.map_outside
+import ro.safetyplease.ui.resources.map_outside_text
+import ro.safetyplease.ui.resources.map_pick_zone
+import ro.safetyplease.ui.resources.map_pick_zone_text
+import ro.safetyplease.ui.resources.map_pin_outside
+import ro.safetyplease.ui.resources.map_quick_me
+import ro.safetyplease.ui.resources.map_set_zone
+import ro.safetyplease.ui.resources.map_source_manual
+import ro.safetyplease.ui.resources.map_title
+import ro.safetyplease.ui.resources.map_where_tap
+import ro.safetyplease.ui.resources.map_you_are_here
+import ro.safetyplease.ui.resources.map_your_zone
+import ro.safetyplease.ui.resources.map_zone_tag
+import ro.safetyplease.ui.resources.map_zones
+import ro.safetyplease.ui.resources.map_zoom_in
+import ro.safetyplease.ui.resources.map_zoom_out
+import ro.safetyplease.ui.resources.pages_map_text
+import ro.safetyplease.ui.resources.pages_title
+import ro.safetyplease.ui.resources.zone_unknown
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,7 +87,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -55,10 +96,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
-import ro.safetyplease.app.text.NoticeText
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.NoticeText
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.app.ui.common.LowBatteryBanner
 import ro.safetyplease.app.ui.common.MapCamera
 import ro.safetyplease.app.ui.common.MapCorner
@@ -195,12 +235,12 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     }
 
     NavScreen(
-        title = stringResource(R.string.map_title),
+        title = stringResource(Res.string.map_title),
         background = colors.grouped,
         scrolled = scrolled,
         leading = { backdrop ->
             if (asTab) MeButton(settings.nickname) { vm.open(Dest.Me) }
-            else GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop)
+            else GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop)
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
@@ -232,10 +272,10 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     ),
                 ) {
                     val whereText = when {
-                        autoZone != null -> stringResource(R.string.map_here_at, autoZone.name)
-                        here != null -> stringResource(R.string.map_outside)
-                        manualZone.isNotEmpty() -> stringResource(R.string.map_here_at, vm.venue.zoneName(manualZone))
-                        else -> stringResource(R.string.map_where_tap)
+                        autoZone != null -> stringResource(Res.string.map_here_at, autoZone.name)
+                        here != null -> stringResource(Res.string.map_outside)
+                        manualZone.isNotEmpty() -> stringResource(Res.string.map_here_at, vm.venue.zoneName(manualZone))
+                        else -> stringResource(Res.string.map_where_tap)
                     }
                     // clear of the compass in the top right corner
                     WherePill(whereText, known = origin != null, Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 10.dp, end = 48.dp)) { showMine() }
@@ -254,7 +294,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                         .selectableGroup(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    QuickChip(Sym.MyLocation, stringResource(R.string.map_quick_me), null, colors.accent, focus == MapFocus.MINE) { showMine() }
+                    QuickChip(Sym.MyLocation, stringResource(Res.string.map_quick_me), null, colors.accent, focus == MapFocus.MINE) { showMine() }
                     quickTypes.forEach { type ->
                         val near = vm.venue.nearest(type, origin) ?: return@forEach
                         QuickChip(
@@ -269,7 +309,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     when (focus) {
                         MapFocus.SPOT -> {
                             val name = spot?.name?.takeIf { it.isNotEmpty() }
-                                ?: if (spotType == Venue.MEETING) stringResource(R.string.map_meeting_point) else spotLabel(spotType)
+                                ?: if (spotType == Venue.MEETING) stringResource(Res.string.map_meeting_point) else spotLabel(spotType)
                             GroupRow(
                                 name,
                                 subtitle = spot?.let { routeText(origin, it.point) },
@@ -283,34 +323,34 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             // with large fonts the button goes under the name, so the name keeps the row's width
                             val stacked = largeFont()
                             GroupRow(
-                                zone?.name ?: stringResource(R.string.zone_unknown),
+                                zone?.name ?: stringResource(Res.string.zone_unknown),
                                 subtitle = when {
-                                    tapped == myZoneId && autoZone != null -> stringResource(R.string.map_you_are_here)
-                                    tapped == myZoneId -> stringResource(R.string.map_your_zone) + " · " + stringResource(R.string.map_source_manual)
+                                    tapped == myZoneId && autoZone != null -> stringResource(Res.string.map_you_are_here)
+                                    tapped == myZoneId -> stringResource(Res.string.map_your_zone) + " · " + stringResource(Res.string.map_source_manual)
                                     origin != null && zone != null -> routeText(origin, zone.center)
-                                    else -> stringResource(R.string.map_zone_tag)
+                                    else -> stringResource(Res.string.map_zone_tag)
                                 },
                                 leading = { if (zone != null) ZoneBadge(vm.venue, index) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },
                                 trailing = if (canSet && !stacked) {
-                                    { AppButton(stringResource(R.string.map_set_zone), { setMine(tapped) }, compact = true) }
+                                    { AppButton(stringResource(Res.string.map_set_zone), { setMine(tapped) }, compact = true) }
                                 } else null,
                             )
                             if (canSet && stacked) {
                                 AppButton(
-                                    stringResource(R.string.map_set_zone), { setMine(tapped) },
+                                    stringResource(Res.string.map_set_zone), { setMine(tapped) },
                                     Modifier.padding(start = 64.dp, end = Gutter, bottom = 12.dp), compact = true,
                                 )
                             }
                         }
                         MapFocus.MINE -> {
-                            val yourZone = stringResource(R.string.map_your_zone)
-                            val source = stringResource(if (simulated) R.string.map_source_simulated else R.string.map_source_gps)
-                            val manual = stringResource(R.string.map_source_manual)
+                            val yourZone = stringResource(Res.string.map_your_zone)
+                            val source = stringResource(if (simulated) Res.string.map_source_simulated else Res.string.map_source_gps)
+                            val manual = stringResource(Res.string.map_source_manual)
                             val (title, subtitle) = when {
                                 autoZone != null -> autoZone.name to "$yourZone · $source"
-                                here != null -> stringResource(R.string.map_outside) to stringResource(R.string.map_outside_text)
+                                here != null -> stringResource(Res.string.map_outside) to stringResource(Res.string.map_outside_text)
                                 manualZone.isNotEmpty() -> vm.venue.zoneName(manualZone) to "$yourZone · $manual"
-                                else -> stringResource(R.string.map_pick_zone) to stringResource(R.string.map_pick_zone_text)
+                                else -> stringResource(Res.string.map_pick_zone) to stringResource(Res.string.map_pick_zone_text)
                             }
                             GroupRow(
                                 title, subtitle = subtitle,
@@ -326,7 +366,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                 item(key = "pages") {
                     InsetGroup(Modifier.padding(top = 20.dp)) {
                         GroupRow(
-                            stringResource(R.string.pages_title), subtitle = stringResource(R.string.pages_map_text), icon = Sym.Info,
+                            stringResource(Res.string.pages_title), subtitle = stringResource(Res.string.pages_map_text), icon = Sym.Info,
                             chevron = true, onClick = { vm.open(Dest.Pages) },
                         )
                     }
@@ -336,18 +376,18 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
             if (Demo.AVAILABLE && (vm.demoUnlocked || simulated)) {
                 item(key = "simulate") {
                     InsetGroup(Modifier.padding(top = 20.dp)) {
-                        SwitchRow(stringResource(R.string.demo_simulate_location), simulate, { simulate = it }, icon = Sym.Science)
+                        SwitchRow(stringResource(Res.string.demo_simulate_location), simulate, { simulate = it }, icon = Sym.Science)
                         if (simulated) {
                             GroupDivider()
                             // align the link text with the row text above
-                            TextLink(stringResource(R.string.clear), { vm.setSimulatedLocation(null) }, Modifier.padding(start = 48.dp, top = 4.dp, bottom = 4.dp))
+                            TextLink(stringResource(Res.string.clear), { vm.setSimulatedLocation(null) }, Modifier.padding(start = 48.dp, top = 4.dp, bottom = 4.dp))
                         }
                     }
                 }
             }
-            item(key = "zones-title") { SectionTitle(stringResource(R.string.map_zones)) }
+            item(key = "zones-title") { SectionTitle(stringResource(Res.string.map_zones)) }
             item(key = "zones") {
-                val hereLabel = stringResource(R.string.map_you_are_here)
+                val hereLabel = stringResource(Res.string.map_you_are_here)
                 // with large fonts "Ești aici" goes under the name instead of squeezing it
                 val stacked = largeFont()
                 InsetGroup {
@@ -382,15 +422,15 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
 @Composable
 private fun spotLabel(type: String): String = stringResource(
     when (type) {
-        "medical" -> R.string.map_quick_medical
-        "exit" -> R.string.map_quick_exit
-        Venue.MEETING -> R.string.map_quick_meeting
-        "water" -> R.string.map_quick_water
-        "wc" -> R.string.map_quick_wc
-        "info" -> R.string.map_quick_info
-        Venue.DEA -> R.string.map_quick_dea
-        Venue.SHADE, "chill" -> R.string.map_quick_shade
-        else -> R.string.map_quick_charge
+        "medical" -> Res.string.map_quick_medical
+        "exit" -> Res.string.map_quick_exit
+        Venue.MEETING -> Res.string.map_quick_meeting
+        "water" -> Res.string.map_quick_water
+        "wc" -> Res.string.map_quick_wc
+        "info" -> Res.string.map_quick_info
+        Venue.DEA -> Res.string.map_quick_dea
+        Venue.SHADE, "chill" -> Res.string.map_quick_shade
+        else -> Res.string.map_quick_charge
     },
 )
 
@@ -426,7 +466,7 @@ private fun HeatPill(level: Int, modifier: Modifier) {
         Icon(Sym.Fire, null, Modifier.size(16.dp), tint = colors.orange)
         Spacer(Modifier.width(6.dp))
         Text(
-            NoticeText.title(LocalResources.current, NoticeTopic.HEAT, level),
+            noticeTitle(NoticeTopic.HEAT, level),
             style = MaterialTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold), color = colors.label, maxLines = 1,
         )
     }
@@ -448,12 +488,12 @@ private fun MapControls(modifier: Modifier, onZoomIn: () -> Unit, onZoomOut: () 
             Modifier.shadow(6.dp, RoundedCornerShape(19.dp)).clip(RoundedCornerShape(19.dp)).background(colors.cell),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            MapButton(MapGlyph.Plus, stringResource(R.string.map_zoom_in), onZoomIn)
+            MapButton(MapGlyph.Plus, stringResource(Res.string.map_zoom_in), onZoomIn)
             Box(Modifier.width(22.dp).height(1.dp).background(colors.separator))
-            MapButton(MapGlyph.Minus, stringResource(R.string.map_zoom_out), onZoomOut)
+            MapButton(MapGlyph.Minus, stringResource(Res.string.map_zoom_out), onZoomOut)
         }
         Box(Modifier.shadow(6.dp, CircleShape).clip(CircleShape).background(colors.cell)) {
-            MapButton(Sym.MyLocation, stringResource(R.string.map_center_me), onLocate, tint = colors.accent)
+            MapButton(Sym.MyLocation, stringResource(Res.string.map_center_me), onLocate, tint = colors.accent)
         }
     }
 }
@@ -494,7 +534,7 @@ private fun QuickChip(icon: ImageVector, label: String, meters: Int?, tone: Colo
         )
         if (meters != null) {
             Text(
-                " · " + stringResource(R.string.map_meters, meters), style = MaterialTheme.typography.subheadline,
+                " · " + stringResource(Res.string.map_meters, meters), style = MaterialTheme.typography.subheadline,
                 color = if (selected) Color.White.copy(alpha = 0.85f) else colors.secondaryLabel, maxLines = 1,
             )
         }
@@ -539,9 +579,9 @@ fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
     val camera = remember { MapCamera() }
     val near = onSite(here, vm.venue)
     val detail = when {
-        point == null -> stringResource(R.string.map_no_position)
-        !vm.venue.bounds.contains(point.lat, point.lon) -> stringResource(R.string.map_pin_outside)
-        near != null -> stringResource(R.string.map_distance, distanceMeters(near, point)).replaceFirstChar { it.titlecase() }
+        point == null -> stringResource(Res.string.map_no_position)
+        !vm.venue.bounds.contains(point.lat, point.lon) -> stringResource(Res.string.map_pin_outside)
+        near != null -> stringResource(Res.string.map_distance, distanceMeters(near, point)).replaceFirstChar { it.titlecase() }
         else -> null
     }
 
@@ -554,7 +594,7 @@ fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
         title = pin.label,
         background = colors.grouped,
         scrolled = scrolled,
-        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding)) {
             VenueMap(
@@ -568,7 +608,7 @@ fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
             )
             InsetGroup(Modifier.padding(top = 16.dp)) {
                 GroupRow(
-                    if (zoneName.isEmpty()) stringResource(R.string.zone_unknown) else zoneName,
+                    if (zoneName.isEmpty()) stringResource(Res.string.zone_unknown) else zoneName,
                     subtitle = detail,
                     leading = { if (index >= 0) ZoneBadge(vm.venue, index) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },
                 )

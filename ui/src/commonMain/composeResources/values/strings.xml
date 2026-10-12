@@ -620,6 +620,53 @@
     <string name="date_pattern_recent">d MMM, HH:mm</string>
     <string name="date_pattern_short">d MMM</string>
     <string name="date_pattern_day">EEEE, d MMMM</string>
+    <!-- the letters MMMM, MMM, EEEE and EEE of the patterns above, Monday first, as java.text names them -->
+    <string-array name="month_names">
+        <item>ianuarie</item>
+        <item>februarie</item>
+        <item>martie</item>
+        <item>aprilie</item>
+        <item>mai</item>
+        <item>iunie</item>
+        <item>iulie</item>
+        <item>august</item>
+        <item>septembrie</item>
+        <item>octombrie</item>
+        <item>noiembrie</item>
+        <item>decembrie</item>
+    </string-array>
+    <string-array name="month_short_names">
+        <item>ian.</item>
+        <item>feb.</item>
+        <item>mar.</item>
+        <item>apr.</item>
+        <item>mai</item>
+        <item>iun.</item>
+        <item>iul.</item>
+        <item>aug.</item>
+        <item>sept.</item>
+        <item>oct.</item>
+        <item>nov.</item>
+        <item>dec.</item>
+    </string-array>
+    <string-array name="day_names">
+        <item>luni</item>
+        <item>marți</item>
+        <item>miercuri</item>
+        <item>joi</item>
+        <item>vineri</item>
+        <item>sâmbătă</item>
+        <item>duminică</item>
+    </string-array>
+    <string-array name="day_short_names">
+        <item>lun.</item>
+        <item>mar.</item>
+        <item>mie.</item>
+        <item>joi</item>
+        <item>vin.</item>
+        <item>sâm.</item>
+        <item>dum.</item>
+    </string-array>
 
     <!-- Control-room console: the queue, the map with the site grid, assignments, the shift log and the network -->
     <string name="role_control">Control · %1$s</string>

@@ -1,5 +1,7 @@
 package ro.safetyplease.app.ui.common
 
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.sev_urgent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,12 +14,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
+import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.IconCircle
@@ -64,7 +65,7 @@ fun IncidentHeader(category: Int, urgent: Boolean, subtitle: String, modifier: M
         )
         // status sits under the name, not lost between the buttons and the map
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (urgent) StatusLabel(stringResource(R.string.sev_urgent), icon = Sym.Priority, color = colors.redInk)
+            if (urgent) StatusLabel(stringResource(Res.string.sev_urgent), icon = Sym.Priority, color = colors.redInk)
             status()
         }
     }

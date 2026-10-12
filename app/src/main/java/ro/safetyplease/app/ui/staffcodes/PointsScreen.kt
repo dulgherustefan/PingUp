@@ -1,5 +1,13 @@
 package ro.safetyplease.app.ui.staffcodes
 
+import ro.safetyplease.ui.resources.staff_points_other
+import ro.safetyplease.ui.resources.staff_points_team
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.staff_points_intro
+import ro.safetyplease.ui.resources.staff_points_sent
+import ro.safetyplease.ui.resources.staff_points_title
+import ro.safetyplease.ui.resources.staff_points_wait
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,15 +34,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.app.ui.common.pointLevelColor
 import ro.safetyplease.app.ui.common.pointLevelLabel
 import ro.safetyplease.core.control.PointBoard
@@ -78,24 +85,24 @@ fun PointsScreen(vm: AppViewModel) {
     }
 
     NavScreen(
-        title = stringResource(R.string.staff_points_title),
+        title = stringResource(Res.string.staff_points_title),
         background = colors.grouped,
         scrolled = scrolled,
-        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         Column(
             Modifier.fillMaxSize().verticalScroll(scroll).padding(padding).padding(horizontal = Gutter).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                stringResource(R.string.staff_points_intro), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                stringResource(Res.string.staff_points_intro), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
                 modifier = Modifier.padding(horizontal = Gutter, vertical = 4.dp),
             )
             if (refused) {
-                StatusLabel(stringResource(R.string.staff_points_wait), Modifier.padding(horizontal = Gutter), icon = Sym.Info, color = colors.orangeInk)
+                StatusLabel(stringResource(Res.string.staff_points_wait), Modifier.padding(horizontal = Gutter), icon = Sym.Info, color = colors.orangeInk)
             }
             val (own, other) = points.partition { settings.teamName.isNotEmpty() && it.team == settings.teamName }
-            for ((title, group) in listOf(R.string.staff_points_team to own, R.string.staff_points_other to other)) {
+            for ((title, group) in listOf(Res.string.staff_points_team to own, Res.string.staff_points_other to other)) {
                 if (group.isEmpty()) continue
                 if (own.isNotEmpty()) SectionTitle(stringResource(title), top = 8.dp)
                 for (poi in group) {
@@ -124,7 +131,7 @@ private fun PointCard(poi: Poi, sent: SentPoint?, now: Long, onLevel: (Int) -> U
         Text(poi.name.ifEmpty { "#${poi.number}" }, style = MaterialTheme.typography.headline)
         if (sent != null) {
             Text(
-                stringResource(R.string.staff_points_sent, stringResource(pointLevelLabel(sent.level)), ((now - sent.atMs) / 60_000).toInt()),
+                stringResource(Res.string.staff_points_sent, stringResource(pointLevelLabel(sent.level)), ((now - sent.atMs) / 60_000).toInt()),
                 style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
             )
         }

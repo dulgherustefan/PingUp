@@ -5,8 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.incidents.ESCALATE_AFTER_MS
@@ -22,6 +20,21 @@ import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.status_acknowledged
+import ro.safetyplease.ui.resources.status_acknowledged_pending
+import ro.safetyplease.ui.resources.status_closed_by_control
+import ro.safetyplease.ui.resources.status_handed_over
+import ro.safetyplease.ui.resources.status_on_scene
+import ro.safetyplease.ui.resources.status_received
+import ro.safetyplease.ui.resources.status_received_full
+import ro.safetyplease.ui.resources.status_received_note
+import ro.safetyplease.ui.resources.status_reopened
+import ro.safetyplease.ui.resources.status_resolved
+import ro.safetyplease.ui.resources.status_sending
+import ro.safetyplease.ui.resources.status_unfounded
+import ro.safetyplease.ui.resources.status_waiting_link
+import ro.safetyplease.ui.text.Labels
 
 class ReportProgressTest {
     private val t0 = 1_000_000L
@@ -45,31 +58,31 @@ class ReportProgressTest {
     fun receivedSpeaksOfAPhoneNotOfSomeoneWhoSawIt() {
         val received = report(status = AckStatus.RECEIVED, sent = true)
         assertEquals(2, reportStep(received))
-        assertEquals(R.string.status_received, stepLabel(2, received))
-        assertEquals(R.string.status_received_note, stepNote(2))
-        assertEquals(R.string.status_received_full, Labels.myReportStatus(AckStatus.RECEIVED, hasTeam = false))
+        assertEquals(Res.string.status_received, stepLabel(2, received))
+        assertEquals(Res.string.status_received_note, stepNote(2))
+        assertEquals(Res.string.status_received_full, Labels.myReportStatus(AckStatus.RECEIVED, hasTeam = false))
     }
 
     @Test
     fun seenOnlyOnceAPersonOnStaffTookIt() {
         val taken = report(status = AckStatus.ACKNOWLEDGED, sent = true, team = "Medical 1")
         assertEquals(3, reportStep(taken))
-        assertEquals(R.string.status_acknowledged, stepLabel(3, taken))
-        assertEquals(R.string.status_acknowledged, Labels.myReportStatus(AckStatus.ACKNOWLEDGED, hasTeam = true))
-        assertEquals(R.string.status_acknowledged_pending, Labels.myReportStatus(AckStatus.ACKNOWLEDGED, hasTeam = false))
+        assertEquals(Res.string.status_acknowledged, stepLabel(3, taken))
+        assertEquals(Res.string.status_acknowledged, Labels.myReportStatus(AckStatus.ACKNOWLEDGED, hasTeam = true))
+        assertEquals(Res.string.status_acknowledged_pending, Labels.myReportStatus(AckStatus.ACKNOWLEDGED, hasTeam = false))
         assertNull("no note once a person confirmed", stepNote(3))
         // the step still to come names no team
-        assertEquals(R.string.status_acknowledged_pending, stepLabel(3, report(status = AckStatus.RECEIVED, team = "Medical 1")))
+        assertEquals(Res.string.status_acknowledged_pending, stepLabel(3, report(status = AckStatus.RECEIVED, team = "Medical 1")))
     }
 
     @Test
     fun stepsFollowTheReportFromWaitingToResolved() {
         assertEquals(0, reportStep(report()))
-        assertEquals(R.string.status_waiting_link, stepLabel(0, report()))
+        assertEquals(Res.string.status_waiting_link, stepLabel(0, report()))
         assertEquals(1, reportStep(report(sent = true)))
-        assertEquals(R.string.status_sending, stepLabel(1, report(sent = true)))
+        assertEquals(Res.string.status_sending, stepLabel(1, report(sent = true)))
         assertEquals(4, reportStep(report(status = AckStatus.RESOLVED)))
-        assertEquals(R.string.status_resolved, Labels.myReportStatus(AckStatus.RESOLVED, hasTeam = true))
+        assertEquals(Res.string.status_resolved, Labels.myReportStatus(AckStatus.RESOLVED, hasTeam = true))
         assertNull("nothing to tell before a staff phone has it", Labels.myReportStatus(AckStatus.NONE, hasTeam = false))
         assertNull(Labels.myReportStatus(AckStatus.CANCELLED, hasTeam = false))
     }
@@ -78,21 +91,21 @@ class ReportProgressTest {
     fun fieldStatesAndClosingsNameTheirOwnStep() {
         val onScene = report(status = AckStatus.ON_SCENE, sent = true, team = "Medical 1")
         assertEquals(3, reportStep(onScene))
-        assertEquals(R.string.status_on_scene, stepLabel(3, onScene))
-        assertEquals(R.string.status_handed_over, stepLabel(3, report(status = AckStatus.HANDED_OVER, team = "Medical 1")))
+        assertEquals(Res.string.status_on_scene, stepLabel(3, onScene))
+        assertEquals(Res.string.status_handed_over, stepLabel(3, report(status = AckStatus.HANDED_OVER, team = "Medical 1")))
         val reopened = report(status = AckStatus.REOPENED, team = "Control")
         assertEquals("back with staff", 3, reportStep(reopened))
-        assertEquals(R.string.status_reopened, stepLabel(3, reopened))
+        assertEquals(Res.string.status_reopened, stepLabel(3, reopened))
         val closed = report(status = AckStatus.CLOSED_BY_CONTROL, team = "Control")
         assertEquals(4, reportStep(closed))
-        assertEquals(R.string.status_closed_by_control, stepLabel(4, closed))
-        assertEquals(R.string.status_acknowledged, stepLabel(3, closed))
-        assertEquals(R.string.status_unfounded, stepLabel(4, report(status = AckStatus.UNFOUNDED)))
-        assertEquals(R.string.status_resolved, stepLabel(4, report(status = AckStatus.RESOLVED)))
+        assertEquals(Res.string.status_closed_by_control, stepLabel(4, closed))
+        assertEquals(Res.string.status_acknowledged, stepLabel(3, closed))
+        assertEquals(Res.string.status_unfounded, stepLabel(4, report(status = AckStatus.UNFOUNDED)))
+        assertEquals(Res.string.status_resolved, stepLabel(4, report(status = AckStatus.RESOLVED)))
         val words = mapOf(
-            AckStatus.ON_SCENE to R.string.status_on_scene, AckStatus.HANDED_OVER to R.string.status_handed_over,
-            AckStatus.CLOSED_BY_CONTROL to R.string.status_closed_by_control, AckStatus.UNFOUNDED to R.string.status_unfounded,
-            AckStatus.REOPENED to R.string.status_reopened,
+            AckStatus.ON_SCENE to Res.string.status_on_scene, AckStatus.HANDED_OVER to Res.string.status_handed_over,
+            AckStatus.CLOSED_BY_CONTROL to Res.string.status_closed_by_control, AckStatus.UNFOUNDED to Res.string.status_unfounded,
+            AckStatus.REOPENED to Res.string.status_reopened,
         )
         for ((status, word) in words) assertEquals(word, Labels.myReportStatus(status, hasTeam = true))
     }

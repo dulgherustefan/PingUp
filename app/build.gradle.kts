@@ -106,6 +106,10 @@ abstract class SharedStrings : DefaultTask() {
         composeResources.get().asFile.listFiles()?.filter { it.isDirectory && it.name.startsWith("values") }?.forEach { dir ->
             File(dir, "strings.xml").takeIf { it.exists() }?.copyTo(File(out, "${dir.name}/strings.xml"))
         }
+        // code reads some of them by name (SharedTexts), which the resource shrinker can't see
+        File(out, "raw/keep.xml").apply { parentFile.mkdirs() }.writeText(
+            "<resources xmlns:tools=\"http://schemas.android.com/tools\" tools:keep=\"@string/*,@plurals/*,@array/*\" />\n",
+        )
     }
 }
 

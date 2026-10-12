@@ -1,6 +1,32 @@
 package ro.safetyplease.app.ui.chat
 
-import androidx.annotation.StringRes
+import ro.safetyplease.ui.resources.msg_delivered
+import ro.safetyplease.ui.resources.msg_failed
+import ro.safetyplease.ui.resources.msg_queued
+import ro.safetyplease.ui.resources.msg_sent
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.identity_new_text
+import ro.safetyplease.ui.resources.identity_new_title
+import ro.safetyplease.ui.resources.menu_add_friend
+import ro.safetyplease.ui.resources.menu_new_group
+import ro.safetyplease.ui.resources.messages_empty_action
+import ro.safetyplease.ui.resources.messages_empty_text
+import ro.safetyplease.ui.resources.messages_empty_title
+import ro.safetyplease.ui.resources.messages_no_messages
+import ro.safetyplease.ui.resources.msg_group_left
+import ro.safetyplease.ui.resources.msg_you
+import ro.safetyplease.ui.resources.msg_zone
+import ro.safetyplease.ui.resources.presence_near
+import ro.safetyplease.ui.resources.problem_battery_action
+import ro.safetyplease.ui.resources.problem_battery_text
+import ro.safetyplease.ui.resources.problem_battery_title
+import ro.safetyplease.ui.resources.problem_dismiss
+import ro.safetyplease.ui.resources.problem_leaf_text
+import ro.safetyplease.ui.resources.problem_leaf_title
+import ro.safetyplease.ui.resources.tab_messages
+import ro.safetyplease.ui.resources.unread_messages
+import ro.safetyplease.ui.resources.zone_unknown
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -35,8 +61,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -47,11 +73,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.R
 import ro.safetyplease.app.platform.power.BatteryExemption
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.listTime
-import ro.safetyplease.app.text.rememberNow
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.listTime
+import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.RadioGate
 import ro.safetyplease.app.ui.common.RadioProblemBanner
@@ -98,22 +123,21 @@ private class ConversationRow(
 fun messagePreview(vm: AppViewModel, message: ChatMessage): String = when (message.kind) {
     MsgKind.TEXT -> message.text
     MsgKind.QUICK -> stringResource(Labels.quick(message.quickCode))
-    MsgKind.ZONE -> stringResource(R.string.msg_zone, zoneLabel(vm, message))
+    MsgKind.ZONE -> stringResource(Res.string.msg_zone, zoneLabel(vm, message))
     MsgKind.SYSTEM -> stringResource(Labels.systemNotice(message.conversation), vm.c.chat.nameOf(message.senderId))
-    MsgKind.LEFT -> stringResource(R.string.msg_group_left, message.text)
+    MsgKind.LEFT -> stringResource(Res.string.msg_group_left, message.text)
 }
 
 @Composable
 fun zoneLabel(vm: AppViewModel, message: ChatMessage): String =
-    if (message.zone.isEmpty()) stringResource(R.string.zone_unknown) else vm.venue.zoneName(message.zone)
+    if (message.zone.isEmpty()) stringResource(Res.string.zone_unknown) else vm.venue.zoneName(message.zone)
 
 /** Words for the state of a message we sent. */
-@StringRes
-fun messageStateLabel(status: MsgStatus): Int = when (status) {
-    MsgStatus.QUEUED -> R.string.msg_queued
-    MsgStatus.SENT -> R.string.msg_sent
-    MsgStatus.DELIVERED -> R.string.msg_delivered
-    else -> R.string.msg_failed
+fun messageStateLabel(status: MsgStatus): StringResource = when (status) {
+    MsgStatus.QUEUED -> Res.string.msg_queued
+    MsgStatus.SENT -> Res.string.msg_sent
+    MsgStatus.DELIVERED -> Res.string.msg_delivered
+    else -> Res.string.msg_failed
 }
 
 /**
@@ -145,7 +169,7 @@ private fun AddFriendButton(onClick: () -> Unit, modifier: Modifier = Modifier) 
     ) {
         Icon(Sym.PersonAdd, null, Modifier.size(22.dp), tint = colors.onAccent)
         Spacer(Modifier.width(10.dp))
-        Text(stringResource(R.string.menu_add_friend), style = MaterialTheme.typography.headline, color = colors.onAccent, maxLines = 1)
+        Text(stringResource(Res.string.menu_add_friend), style = MaterialTheme.typography.headline, color = colors.onAccent, maxLines = 1)
     }
 }
 
@@ -178,13 +202,13 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         NavScreen(
-            title = stringResource(R.string.tab_messages),
+            title = stringResource(Res.string.tab_messages),
             subtitle = networkText(nearby.readyLinks, gate),
             subtitleLeading = { NetworkDot(nearby.readyLinks, gate) },
             scrolled = scrolled,
             leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
             trailing = { backdrop ->
-                if (friends.size >= 2) GlassIconButton(Sym.Group, stringResource(R.string.menu_new_group), { vm.open(Dest.NewGroup) }, backdrop)
+                if (friends.size >= 2) GlassIconButton(Sym.Group, stringResource(Res.string.menu_new_group), { vm.open(Dest.NewGroup) }, backdrop)
             },
         ) { padding ->
             // room under the last row so the bottom button doesn't cover it
@@ -193,9 +217,9 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 if (settings.identityReplaced) {
                     item(key = "identity") {
                         Banner(
-                            stringResource(R.string.identity_new_title), stringResource(R.string.identity_new_text),
+                            stringResource(Res.string.identity_new_title), stringResource(Res.string.identity_new_text),
                             Modifier.padding(horizontal = Gutter, vertical = 6.dp), warning = true,
-                            dismiss = stringResource(R.string.problem_dismiss), onDismiss = { vm.dismissIdentityNotice() },
+                            dismiss = stringResource(Res.string.problem_dismiss), onDismiss = { vm.dismissIdentityNotice() },
                         )
                     }
                 }
@@ -203,10 +227,10 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 when {
                     rows.isEmpty() -> item(key = "empty") {
                         EmptyState(
-                            stringResource(R.string.messages_empty_title), stringResource(R.string.messages_empty_text),
+                            stringResource(Res.string.messages_empty_title), stringResource(Res.string.messages_empty_text),
                             illustration = { PinMascot(120.dp) },
                         ) {
-                            AppButton(stringResource(R.string.messages_empty_action), { vm.open(Dest.AddFriend) }, compact = true)
+                            AppButton(stringResource(Res.string.messages_empty_action), { vm.open(Dest.AddFriend) }, compact = true)
                         }
                     }
                     else -> items(rows, key = { it.id }) { row ->
@@ -232,13 +256,13 @@ private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate
     when {
         gate.problem() != null -> RadioProblemBanner(gate, modifier)
         radio.bluetoothOn && !radio.canAdvertise -> Banner(
-            stringResource(R.string.problem_leaf_title), stringResource(R.string.problem_leaf_text), modifier,
+            stringResource(Res.string.problem_leaf_title), stringResource(Res.string.problem_leaf_text), modifier,
         )
         !batteryDismissed && BatteryExemption.hintNeeded(context) -> Banner(
-            stringResource(R.string.problem_battery_title), stringResource(R.string.problem_battery_text), modifier,
-            action = stringResource(R.string.problem_battery_action),
+            stringResource(Res.string.problem_battery_title), stringResource(Res.string.problem_battery_text), modifier,
+            action = stringResource(Res.string.problem_battery_action),
             onAction = { BatteryExemption.request(context) },
-            dismiss = stringResource(R.string.problem_dismiss), onDismiss = { vm.dismissBatteryHint() },
+            dismiss = stringResource(Res.string.problem_dismiss), onDismiss = { vm.dismissBatteryHint() },
         )
     }
 }
@@ -248,13 +272,13 @@ private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate
 private fun ConversationItem(vm: AppViewModel, row: ConversationRow, near: Boolean, now: Long, modifier: Modifier = Modifier) {
     val last = row.last
     val colors = AppTheme.colors
-    val unreadLabel = if (row.unread > 0) pluralStringResource(R.plurals.unread_messages, row.unread, row.unread) else null
-    val nearLabel = if (near) stringResource(R.string.presence_near) else null
+    val unreadLabel = if (row.unread > 0) pluralStringResource(Res.plurals.unread_messages, row.unread, row.unread) else null
+    val nearLabel = if (near) stringResource(Res.string.presence_near) else null
     // state is read after name, preview and time; a content description would replace the row's text
     val state = listOfNotNull(unreadLabel, nearLabel).joinToString(", ")
-    val you = stringResource(R.string.msg_you)
+    val you = stringResource(Res.string.msg_you)
     val snippet = when {
-        last == null -> buildAnnotatedString { append(stringResource(R.string.messages_no_messages)) }
+        last == null -> buildAnnotatedString { append(stringResource(Res.string.messages_no_messages)) }
         else -> {
             val prefix = when {
                 last.kind.isNotice -> null

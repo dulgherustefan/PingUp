@@ -1,5 +1,13 @@
 package ro.safetyplease.app.ui.common
 
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.low_battery_charger
+import ro.safetyplease.ui.resources.low_battery_show
+import ro.safetyplease.ui.resources.low_battery_text
+import ro.safetyplease.ui.resources.low_battery_text_only
+import ro.safetyplease.ui.resources.low_battery_title
+import ro.safetyplease.ui.resources.map_quick_charge
+import ro.safetyplease.ui.resources.map_text_only
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -12,10 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.R
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Banner
 import ro.safetyplease.ui.designsystem.subheadline
@@ -28,7 +35,7 @@ import ro.safetyplease.core.venue.Venue
 @Composable
 fun chargerText(venue: Venue, origin: GeoPoint?): String? {
     val spot = venue.nearest("charge", origin) ?: return null
-    val name = spot.name.ifEmpty { stringResource(R.string.map_quick_charge) }
+    val name = spot.name.ifEmpty { stringResource(Res.string.map_quick_charge) }
     return name + " · " + routeText(origin, spot.point)
 }
 
@@ -48,14 +55,14 @@ fun LowBatteryBanner(
     val textOnly = PowerPolicy.textOnly(battery.percent, battery.charging)
     val charger = chargerText(venue, origin)
     val text = buildString {
-        append(stringResource(R.string.low_battery_text))
-        if (textOnly) append(" ").append(stringResource(R.string.low_battery_text_only))
-        if (charger != null) append("\n").append(stringResource(R.string.low_battery_charger, charger))
+        append(stringResource(Res.string.low_battery_text))
+        if (textOnly) append(" ").append(stringResource(Res.string.low_battery_text_only))
+        if (charger != null) append("\n").append(stringResource(Res.string.low_battery_charger, charger))
     }
     Banner(
-        stringResource(R.string.low_battery_title, "${if (textOnly) PowerPolicy.TEXT_ONLY_PERCENT else PowerPolicy.LOW_BATTERY_PERCENT}%"),
+        stringResource(Res.string.low_battery_title, "${if (textOnly) PowerPolicy.TEXT_ONLY_PERCENT else PowerPolicy.LOW_BATTERY_PERCENT}%"),
         text, modifier, warning = true,
-        action = stringResource(R.string.low_battery_show).takeIf { charger != null && onShowCharger != null }, onAction = { onShowCharger?.invoke() },
+        action = stringResource(Res.string.low_battery_show).takeIf { charger != null && onShowCharger != null }, onAction = { onShowCharger?.invoke() },
     )
 }
 
@@ -67,7 +74,7 @@ fun TextOnlyMapNote(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            stringResource(R.string.map_text_only), style = MaterialTheme.typography.subheadline, color = AppTheme.colors.secondaryLabel,
+            stringResource(Res.string.map_text_only), style = MaterialTheme.typography.subheadline, color = AppTheme.colors.secondaryLabel,
             textAlign = TextAlign.Center,
         )
     }

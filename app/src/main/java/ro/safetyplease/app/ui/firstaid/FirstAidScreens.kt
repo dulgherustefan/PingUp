@@ -1,5 +1,16 @@
 package ro.safetyplease.app.ui.firstaid
 
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.emergency_call
+import ro.safetyplease.ui.resources.first_aid_approved
+import ro.safetyplease.ui.resources.first_aid_draft_text
+import ro.safetyplease.ui.resources.first_aid_draft_title
+import ro.safetyplease.ui.resources.first_aid_intro
+import ro.safetyplease.ui.resources.first_aid_title
+import ro.safetyplease.ui.resources.first_aid_warning
+import ro.safetyplease.ui.resources.nearest_dea
+import ro.safetyplease.ui.resources.report_help_call_text
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -32,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.AppLocale
 import ro.safetyplease.app.Emergency
-import ro.safetyplease.app.R
 import ro.safetyplease.app.ui.common.MapGlyph
 import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.app.ui.common.routeText
@@ -71,7 +81,7 @@ fun FirstAidScreen(vm: AppViewModel) {
     val sheets = rememberSheets(vm)
     FirstAidScaffold(vm) {
         Text(
-            stringResource(R.string.first_aid_intro), style = MaterialTheme.typography.subheadline, color = AppTheme.colors.secondaryLabel,
+            stringResource(Res.string.first_aid_intro), style = MaterialTheme.typography.subheadline, color = AppTheme.colors.secondaryLabel,
             modifier = Modifier.padding(horizontal = TextInset),
         )
         if (sheets.any { it.draft }) DraftBanner()
@@ -113,7 +123,7 @@ fun FirstAidSheetScreen(vm: AppViewModel, id: String) {
                     }
                 }
                 is SheetBlock.Warning -> Banner(
-                    stringResource(R.string.first_aid_warning), first.text, Modifier.padding(start = Gutter, end = Gutter, top = 20.dp),
+                    stringResource(Res.string.first_aid_warning), first.text, Modifier.padding(start = Gutter, end = Gutter, top = 20.dp),
                     warning = true,
                 )
                 is SheetBlock.Text -> Text(
@@ -124,7 +134,7 @@ fun FirstAidSheetScreen(vm: AppViewModel, id: String) {
         }
         sheet.approval?.let {
             Text(
-                stringResource(R.string.first_aid_approved, it), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                stringResource(Res.string.first_aid_approved, it), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                 modifier = Modifier.padding(start = TextInset, end = TextInset, top = 12.dp),
             )
         }
@@ -137,8 +147,8 @@ private fun FirstAidScaffold(vm: AppViewModel, content: @Composable () -> Unit) 
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     NavScreen(
-        title = stringResource(R.string.first_aid_title), background = AppTheme.colors.grouped, scrolled = scrolled,
-        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(R.string.back), { vm.back() }, backdrop) },
+        title = stringResource(Res.string.first_aid_title), background = AppTheme.colors.grouped, scrolled = scrolled,
+        leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding).padding(top = 8.dp, bottom = 24.dp)) { content() }
     }
@@ -158,7 +168,7 @@ private fun rememberSheets(vm: AppViewModel): List<FirstAidSheet> {
 @Composable
 private fun DraftBanner() {
     Banner(
-        stringResource(R.string.first_aid_draft_title), stringResource(R.string.first_aid_draft_text),
+        stringResource(Res.string.first_aid_draft_title), stringResource(Res.string.first_aid_draft_text),
         Modifier.padding(start = Gutter, end = Gutter, top = 16.dp), warning = true,
     )
 }
@@ -189,14 +199,14 @@ private fun HelpGroup(vm: AppViewModel, dea: Boolean) {
     InsetGroup(Modifier.padding(top = 20.dp)) {
         if (nearest != null) {
             GroupRow(
-                stringResource(R.string.nearest_dea),
+                stringResource(Res.string.nearest_dea),
                 subtitle = listOf(nearest.name, routeText(origin, nearest.point)).filter { it.isNotEmpty() }.joinToString(" · "),
                 icon = MapGlyph.Dea, chevron = true, onClick = { vm.open(Dest.Map(spot = Venue.DEA)) },
             )
             GroupDivider()
         }
         GroupRow(
-            stringResource(R.string.emergency_call), subtitle = stringResource(R.string.report_help_call_text), icon = Sym.Phone,
+            stringResource(Res.string.emergency_call), subtitle = stringResource(Res.string.report_help_call_text), icon = Sym.Phone,
             onClick = { Emergency.dial(context) },
         )
     }

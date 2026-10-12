@@ -1,10 +1,14 @@
 package ro.safetyplease.app.ui.common
 
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.incident_danger_continues
+import ro.safetyplease.ui.resources.incident_from_staff
+import ro.safetyplease.ui.resources.incident_people
+import ro.safetyplease.ui.resources.incident_triage
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
-import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
+import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.core.protocol.Answer
 
 /**
@@ -15,11 +19,11 @@ import ro.safetyplease.core.protocol.Answer
 fun reportFacts(responds: Int, breathes: Int, fromStaff: Boolean, people: Int, dangerContinues: Boolean): String? {
     val parts = buildList {
         if (responds != Answer.UNASKED || breathes != Answer.UNASKED) {
-            add(stringResource(R.string.incident_triage, stringResource(Labels.answer(responds)), stringResource(Labels.answer(breathes))))
+            add(stringResource(Res.string.incident_triage, stringResource(Labels.answer(responds)), stringResource(Labels.answer(breathes))))
         }
-        if (fromStaff) add(stringResource(R.string.incident_from_staff))
-        if (people > 0) add(pluralStringResource(R.plurals.incident_people, people, people))
-        if (dangerContinues) add(stringResource(R.string.incident_danger_continues))
+        if (fromStaff) add(stringResource(Res.string.incident_from_staff))
+        if (people > 0) add(pluralStringResource(Res.plurals.incident_people, people, people))
+        if (dangerContinues) add(stringResource(Res.string.incident_danger_continues))
     }
     return parts.joinToString(" · ").ifEmpty { null }
 }
