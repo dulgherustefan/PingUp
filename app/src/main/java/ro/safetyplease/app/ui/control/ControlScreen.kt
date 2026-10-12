@@ -134,6 +134,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var pane by rememberSaveable { mutableStateOf(Pane.QUEUE) }
     var confirmExport by remember { mutableStateOf(false) }
     var showReport by remember { mutableStateOf(false) }
+    var composeNotice by remember { mutableStateOf(false) }
     val selected = selectedId?.let(cases::get)
     val onMap = remember(cases) { cases.values.filter { it.state != CaseState.CLOSED } }
 
@@ -159,6 +160,8 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             AppButton(stringResource(R.string.edition_open), { showReport = true }, kind = ButtonKind.Secondary, compact = true)
             Spacer(Modifier.width(8.dp))
             AppButton(stringResource(R.string.control_export), { confirmExport = true }, kind = ButtonKind.Secondary, compact = true)
+            Spacer(Modifier.width(8.dp))
+            AppButton(stringResource(R.string.notice_composer_title), { composeNotice = true }, compact = true, icon = Sym.Report)
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(start = PaneGap, end = PaneGap, bottom = PaneGap)) {
             val wide = maxWidth >= WideWidth
@@ -206,6 +209,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
     if (confirmExport) ExportDialog(c, log.entries.size, vm.viewModelScope) { confirmExport = false }
     if (showReport) ReportDialog(c, vm.viewModelScope) { showReport = false }
+    if (composeNotice) NoticeComposer(vm) { composeNotice = false }
 }
 
 /**

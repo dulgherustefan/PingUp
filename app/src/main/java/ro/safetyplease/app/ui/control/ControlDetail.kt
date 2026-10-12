@@ -387,7 +387,7 @@ private fun HistoryRow(e: LogEntry) {
         LogEvent.REOPEN -> stringResource(R.string.control_state_reopened)
         LogEvent.CANCEL_REQUEST -> stringResource(R.string.incident_cancel_requested)
         LogEvent.CANCEL -> stringResource(R.string.control_event_cancel)
-        LogEvent.EXPORT -> return
+        LogEvent.EXPORT, LogEvent.NOTICE, LogEvent.NOTICE_CANCEL -> return
     }
     val detail = when (e.event) {
         LogEvent.REPORT -> hopsText(e.hops)

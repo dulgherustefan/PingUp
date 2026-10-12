@@ -21,6 +21,8 @@ import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.Replies
 import ro.safetyplease.app.text.needsEscalation
+import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MsgKind
 import ro.safetyplease.core.data.MyReport
@@ -65,11 +67,29 @@ class Notifier(private val context: Context, private val venue: Venue, private v
                 NotificationChannel(CHANNEL_INCIDENT, context.getString(R.string.channel_incident), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_STATUS, context.getString(R.string.channel_status), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_CHAT, context.getString(R.string.channel_chat), NotificationManager.IMPORTANCE_DEFAULT),
+                // the organiser's notices, apart from the incident alarm: a pause and an evacuation sound and feel different
+                NotificationChannel(CHANNEL_NOTICE, context.getString(R.string.channel_notice), NotificationManager.IMPORTANCE_DEFAULT)
+                    .apply {
+                        enableVibration(true)
+                        vibrationPattern = NOTICE_VIBRATION
+                    },
+                noticeAlarm(CHANNEL_NOTICE_PAUSE, R.string.channel_notice_pause, PAUSE_VIBRATION),
+                noticeAlarm(CHANNEL_NOTICE_EVACUATION, R.string.channel_notice_evacuation, EVACUATION_VIBRATION),
             )
         )
         // it sounded on every staff phone; its alerts now go to the two channels above
         system.deleteNotificationChannel(OLD_CHANNEL_URGENT)
     }
+
+    private fun noticeAlarm(id: String, name: Int, vibration: LongArray) =
+        NotificationChannel(id, context.getString(name), NotificationManager.IMPORTANCE_HIGH).apply {
+            val alarm = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+            setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM), alarm)
+            enableVibration(true)
+            vibrationPattern = vibration
+            setBypassDnd(true)
+        }
 
     private fun canPost(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -249,6 +269,34 @@ class Notifier(private val context: Context, private val venue: Venue, private v
 
     fun cancelConversation(conversation: String) = manager.cancel(conversation.hashCode())
 
+    /**
+     * A notice from the organiser, one notification per topic: a newer one replaces it, a withdrawn one takes it away.
+     * A pause or an evacuation takes the screen once and sounds; in an exercise, it only vibrates on the quiet channel.
+     */
+    fun notice(notice: Notice, title: String, text: String) {
+        val id = NOTICE_ID + notice.topic
+        if (notice.cancelled) return manager.cancel(id)
+        if (!canPost()) return
+        val urgent = notice.urgent && !exercise
+        val channel = when {
+            !urgent -> CHANNEL_NOTICE
+            notice.level == NoticeLevel.EVACUATION -> CHANNEL_NOTICE_EVACUATION
+            else -> CHANNEL_NOTICE_PAUSE
+        }
+        val open = open(MainActivity.OPEN_HOME, id)
+        val builder = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(marked(title))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .setPriority(if (urgent) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_DEFAULT)
+            .setTimeoutAfter(maxOf(notice.validUntil * 1000 - System.currentTimeMillis(), 1))
+        if (urgent) builder.setCategory(NotificationCompat.CATEGORY_ALARM).setFullScreenIntent(open, true)
+        manager.notify(id, builder.build())
+    }
+
     companion object {
         const val FOREGROUND_ID = 1
         private const val SHIFT_ENDED_ID = 2
@@ -259,6 +307,13 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         private const val CHANNEL_INCIDENT = "incident"
         private const val CHANNEL_STATUS = "report_status"
         private const val CHANNEL_CHAT = "chat"
+        private const val NOTICE_ID = 100
+        private const val CHANNEL_NOTICE = "notice"
+        private const val CHANNEL_NOTICE_PAUSE = "notice_pause"
+        private const val CHANNEL_NOTICE_EVACUATION = "notice_evacuation"
         private val URGENT_VIBRATION = longArrayOf(0, 400, 200, 400, 200, 600)
+        private val NOTICE_VIBRATION = longArrayOf(0, 120, 120, 120)
+        private val PAUSE_VIBRATION = longArrayOf(0, 700, 300, 700)
+        private val EVACUATION_VIBRATION = longArrayOf(0, 1000, 200, 1000, 200, 1000, 200, 1000)
     }
 }

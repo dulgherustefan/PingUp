@@ -84,6 +84,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
+import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.chat.ConversationScreen
 import ro.safetyplease.app.ui.chat.MessagesScreen
 import ro.safetyplease.app.ui.common.ExerciseBanner
@@ -112,6 +113,9 @@ import ro.safetyplease.app.ui.map.PinScreen
 import ro.safetyplease.app.ui.me.AnchorScreen
 import ro.safetyplease.app.ui.me.EventScreen
 import ro.safetyplease.app.ui.me.MeScreen
+import ro.safetyplease.app.ui.notices.NoticeAlert
+import ro.safetyplease.app.ui.notices.NoticeBands
+import ro.safetyplease.app.ui.notices.shownNotices
 import ro.safetyplease.app.ui.onboarding.OnboardingScreen
 import ro.safetyplease.app.ui.people.AddFriendScreen
 import ro.safetyplease.app.ui.people.BlockedScreen
@@ -243,20 +247,24 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
     }
 
     if (settings.role == AppRole.CONTROL) ControlWindow()
+    val board by vm.c.notices.board.collectAsStateWithLifecycle()
+    val now = rememberNow()
+    val shown = shownNotices(vm, if (vm.c.showsNotices(settings)) board.active(now / 1000) else emptyList())
+    val bands = shown.filter { !it.held.dismissed }
+    val alert = shown.firstOrNull { it.notice.urgent && !it.held.alerted }
     FullScreen {
-        if (vm.c.exercise) {
-            // the banner sits above every screen and takes the status bar, so it covers no header
-            Column(Modifier.fillMaxSize()) {
-                ExerciseBanner()
-                Box(Modifier.weight(1f).consumeWindowInsets(WindowInsets.statusBars)) {
-                    CompositionLocalProvider(LocalStatusBarTop provides 0.dp) {
-                        Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce)
-                    }
+        // the bands sit above every screen and take the status bar, so they cover no header
+        val topTaken = vm.c.exercise || bands.isNotEmpty()
+        Column(Modifier.fillMaxSize()) {
+            if (vm.c.exercise) ExerciseBanner()
+            NoticeBands(vm, bands, statusBar = !vm.c.exercise)
+            Box(Modifier.weight(1f).then(if (topTaken) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
+                CompositionLocalProvider(LocalStatusBarTop provides if (topTaken) 0.dp else null) {
+                    Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce)
                 }
             }
-        } else {
-            Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce)
         }
+        alert?.let { NoticeAlert(it, vm.c.exercise) { vm.c.notices.alerted(it.notice.topic, it.notice.seq) } }
     }
 }
 

@@ -385,6 +385,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setShareZone(on: Boolean) = c.settings.update { it.copy(shareZone = on) }
 
+    fun setNotices(on: Boolean) = c.settings.update { it.copy(notices = on) }
+
     // --- incidents ---
 
     fun rateLimitWaitMs(): Long = c.incidents.rateLimitWaitMs()

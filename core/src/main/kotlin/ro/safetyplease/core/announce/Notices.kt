@@ -46,9 +46,9 @@ data class NoticeBoard(val notices: List<HeldNotice> = emptyList()) {
 
 /**
  * The console's notices on this phone (PROTOCOL.md, section 6.8): the latest of each topic, kept across restarts, from
- * the mesh or signed here. A console that holds a control shift signs them; where [resends], the ones in force go out
- * again every [RESEND_MS], and the phones that already hold one stop it at once. [onNotice] gets each new one, and
- * whether this phone signed it.
+ * the mesh or signed here. A console that holds a control shift signs them; where [resends], the alerts in force go out
+ * again every [RESEND_MS] and the others every [OTHERS_EVERY] times that, and the phones that already hold one stop it
+ * at once. [onNotice] gets each new one, and whether this phone signed it.
  */
 class Notices(
     private val scope: CoroutineScope,
@@ -73,9 +73,14 @@ class Notices(
             }
         }
         scope.launch {
+            var round = 0
             while (isActive) {
                 delay(RESEND_MS)
-                if (resends()) store.value.active(nowSec()).forEach { (held, _) -> engine.broadcast(PacketType.ANNOUNCEMENT, held.payload.hexToBytes()) }
+                round++
+                if (!resends()) continue
+                for ((held, notice) in store.value.active(nowSec())) {
+                    if (notice.topic == NoticeTopic.ALERT || round % OTHERS_EVERY == 0) engine.broadcast(PacketType.ANNOUNCEMENT, held.payload.hexToBytes())
+                }
             }
         }
     }
@@ -143,5 +148,8 @@ class Notices(
     companion object {
         /** As for revocations; a phone that holds the notice drops the copy, so only the phones without it pay. */
         const val RESEND_MS = 10 * 60_000L
+
+        /** Heat and changes go again every 30 minutes: store-and-forward already reaches the phones that come later. */
+        const val OTHERS_EVERY = 3
     }
 }

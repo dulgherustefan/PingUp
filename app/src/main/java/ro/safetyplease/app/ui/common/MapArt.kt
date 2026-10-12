@@ -54,7 +54,7 @@ fun typeGlyph(type: String): ImageVector? = when (type) {
     "entrance" -> MapGlyph.Entrance
     "exit" -> MapGlyph.Exit
     "camping" -> MapGlyph.Camping
-    "chill" -> MapGlyph.Chill
+    "chill", Venue.SHADE -> MapGlyph.Chill
     "water" -> MapGlyph.Water
     "wc" -> MapGlyph.Wc
     "info" -> MapGlyph.Info

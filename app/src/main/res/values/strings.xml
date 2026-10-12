@@ -730,6 +730,8 @@
         <item>export</item>
         <item>cerere de anulare</item>
         <item>anulare confirmată</item>
+        <item>anunț</item>
+        <item>anunț retras</item>
     </string-array>
     <!-- In the order of CaseState: open, assigned, closed -->
     <string-array name="control_case_states">
@@ -850,4 +852,48 @@
         <item quantity="few">%1$d rapoarte de aglomerație din %2$s în %3$d min</item>
         <item quantity="other">%1$d de rapoarte de aglomerație din %2$s în %3$d min</item>
     </plurals>
+    <!-- The organiser's notices (PROTOCOL.md, section 6.8) -->
+    <string name="channel_notice">Anunțuri ale organizatorilor</string>
+    <string name="channel_notice_pause">Anunț: pauză în program</string>
+    <string name="channel_notice_evacuation">Anunț: evacuare</string>
+    <string name="notice_evacuation">Evacuare</string>
+    <string name="notice_pause">Pauză în program</string>
+    <string name="notice_info">Informare</string>
+    <string name="notice_heat">Căldură, nivel %1$d/4</string>
+    <string name="notice_schedule">Schimbare de program</string>
+    <string name="notice_transport">Schimbare la transport</string>
+    <string name="notice_other">Anunț</string>
+    <string name="notice_no_text">Anunț de la organizatori.</string>
+    <string name="notice_in_zone">%1$s: %2$s</string>
+    <string name="notice_hide">Ascunde anunțul</string>
+    <string name="notice_read">Am înțeles</string>
+    <string name="map_quick_shade">Umbră</string>
+    <string name="me_notices">Anunțurile organizatorilor</string>
+    <string name="me_notices_text">Alerte de vreme, căldură și schimbări de program sau transport, chiar fără semnal.</string>
+    <string name="notice_composer_title">Anunț</string>
+    <string name="notice_reach">Ajunge doar la telefoanele cu Ping Up din rețea. Nu înlocuiește scena, ecranele sau RO-ALERT.</string>
+    <string name="notice_no_shift">Doar o consolă cu un cod de tură de control valid semnează anunțuri.</string>
+    <string name="notice_in_force">În vigoare</string>
+    <string name="notice_withdraw">Retrage</string>
+    <string name="notice_new">Anunț nou</string>
+    <string name="notice_topic_alert">Alertă</string>
+    <string name="notice_topic_heat">Căldură</string>
+    <string name="notice_topic_schedule">Program</string>
+    <string name="notice_topic_transport">Transport</string>
+    <string name="notice_zone">Zona</string>
+    <string name="notice_zone_all">Tot festivalul</string>
+    <string name="notice_duration">Cât rămâne în vigoare</string>
+    <string name="notice_preview">Cum se vede pe telefoane</string>
+    <string name="notice_send">Trimite</string>
+    <string name="notice_confirm_title">Trimiți „%1$s”?</string>
+    <string name="notice_second_title">Confirmarea celui de-al doilea operator</string>
+    <string name="notice_second_text">O evacuare pleacă doar când un al doilea operator a citit anunțul și scrie %1$s.</string>
+    <string name="notice_second_word">EVACUARE</string>
+    <string name="notice_withdraw_title">Retragi „%1$s”?</string>
+    <string name="notice_withdraw_text">Telefoanele cu Ping Up nu-l mai arată. Spune și pe stație, la scenă și pe ecrane.</string>
+    <string name="notice_withdrawn">Anunțul a fost retras.</string>
+    <string name="notice_sent">Anunțul a plecat spre telefoanele din rețea.</string>
+    <string name="notice_not_sent">Anunțul nu a plecat. Verifică codul de tură.</string>
+    <string name="notice_minutes">%1$d min</string>
+    <string name="notice_hours">%1$d h</string>
 </resources>

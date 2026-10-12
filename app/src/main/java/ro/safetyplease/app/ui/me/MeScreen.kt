@@ -144,6 +144,14 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         stringResource(R.string.me_share_zone), settings.shareZone, vm::setShareZone,
                         subtitle = stringResource(R.string.me_share_zone_text), icon = Sym.Place,
                     )
+                    // staff always gets the organiser's notices; a participant chooses
+                    if (settings.role == AppRole.PARTICIPANT) {
+                        GroupDivider()
+                        SwitchRow(
+                            stringResource(R.string.me_notices), settings.notices, vm::setNotices,
+                            subtitle = stringResource(R.string.me_notices_text), icon = Sym.Bell,
+                        )
+                    }
                     if (blocked.isNotEmpty()) {
                         GroupDivider()
                         GroupRow(

@@ -79,6 +79,9 @@ data class Venue(
         const val MEETING = "meeting"
         const val DEA = "dea"
 
+        /** A shaded place, where the heat notice sends people. */
+        const val SHADE = "shade"
+
         /** Farther than this, "near" would send a team to the wrong place. */
         const val LANDMARK_METERS = 100
 

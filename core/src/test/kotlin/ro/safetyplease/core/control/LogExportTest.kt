@@ -70,6 +70,19 @@ class LogExportTest {
     }
 
     @Test
+    fun aNoticeRowHasItsZoneTextAndSigningTime() {
+        val notice = LogEntry(
+            t0, LogEvent.NOTICE, zone = "main-stage", description = "Pauză: revenim la 15:30", team = "Control",
+            signedAt = t0 - 1_000, signature = "aa".repeat(64), own = true, topic = 1, level = 2, template = 3, seq = 4, validUntil = t0 + 3_600_000,
+        )
+        assertEquals(
+            "1,2026-10-12T22:15:00+03:00,notice,,,Scena principală,,,,Control,2026-10-12T22:14:59+03:00,${"aa".repeat(64)},1,,,,," +
+                "Pauză: revenim la 15:30,,,,,,,",
+            lines(LogExport.eventsCsv(listOf(notice), names, zone))[1],
+        )
+    }
+
+    @Test
     fun incidentsCsvTimesEachStepFromTheReport() {
         val cases = ConsoleView.cases(entries, emptyList(), grid).values
         val rows = lines(LogExport.incidentsCsv(cases, names, zone))

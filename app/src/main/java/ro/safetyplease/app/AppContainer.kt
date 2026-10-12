@@ -37,7 +37,12 @@ import ro.safetyplease.app.platform.location.LocationSource
 import ro.safetyplease.app.platform.network.MobileNetwork
 import ro.safetyplease.app.service.Notifier
 import ro.safetyplease.app.text.EscalationReminder
+import ro.safetyplease.app.text.NoticeText
 import ro.safetyplease.app.text.nextEscalation
+import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeBoard
+import ro.safetyplease.core.announce.NoticeTemplates
+import ro.safetyplease.core.announce.Notices
 import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.control.AnchorBeats
 import ro.safetyplease.core.control.ConsoleLog
@@ -251,6 +256,27 @@ class AppContainer(private val app: Application) {
         if (keyChain.credential?.let { keyChain.status(it.certificate) == CertStatus.REVOKED } == true) leaveStaff()
     }
 
+    /** The texts the console's notices name: the pack's, or the app's own. */
+    val noticeTemplates: NoticeTemplates = event?.notices ?: NoticeTemplates.parse(asset("notices.json")) ?: NoticeTemplates.NONE
+
+    /** The organiser's notices: signed here on a console, shown to staff and to participants who opted in. */
+    val notices = Notices(
+        meshScope, engine, keyChain, crypto, clock,
+        JsonStore(modeFile("notices.json"), NoticeBoard.serializer(), NoticeBoard(), ioScope),
+        resends = { settings.value.role == Role.CONTROL },
+        onNotice = ::onNotice,
+    )
+
+    fun showsNotices(s: Settings): Boolean = s.role == Role.STAFF || (s.role == Role.PARTICIPANT && s.notices)
+
+    /** The console logs every notice it sends or hears; a phone that shows them notifies, unless it signed the notice. */
+    private fun onNotice(notice: Notice, own: Boolean) {
+        val title = NoticeText.title(app.resources, notice)
+        val text = NoticeText.body(app.resources, noticeTemplates, venue, notice, AppLocale.language(app))
+        if (settings.value.role == Role.CONTROL) console.notice(notice, if (notice.cancelled) title else "$title: $text", own)
+        if (!own && showsNotices(settings.value)) notifier.notice(notice, title, text)
+    }
+
     /** This phone holds a shift certificate the chain accepts now. */
     val verified: Boolean get() = keyChain.credential?.let { keyChain.status(it.certificate) == CertStatus.VALID } == true
 
@@ -260,6 +286,7 @@ class AppContainer(private val app: Application) {
             chat.start()
             incidents.start()
             revocations.start()
+            notices.start()
             settings.state.collect { s ->
                 engine.setRole(staff = s.role.hasStaffKeys, anchor = s.role == Role.ANCHOR)
                 engine.setNickname(s.nickname)

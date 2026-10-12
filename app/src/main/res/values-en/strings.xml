@@ -708,6 +708,8 @@
         <item>export</item>
         <item>call-off request</item>
         <item>call-off confirmed</item>
+        <item>notice</item>
+        <item>notice withdrawn</item>
     </string-array>
     <!-- In the order of CaseState: open, assigned, closed -->
     <string-array name="control_case_states">
@@ -827,4 +829,48 @@
         <item quantity="one">%1$d crowd report from %2$s in %3$d min</item>
         <item quantity="other">%1$d crowd reports from %2$s in %3$d min</item>
     </plurals>
+    <!-- The organiser's notices (PROTOCOL.md, section 6.8) -->
+    <string name="channel_notice">Notices from the organisers</string>
+    <string name="channel_notice_pause">Notice: show paused</string>
+    <string name="channel_notice_evacuation">Notice: evacuation</string>
+    <string name="notice_evacuation">Evacuation</string>
+    <string name="notice_pause">Show paused</string>
+    <string name="notice_info">Information</string>
+    <string name="notice_heat">Heat, level %1$d/4</string>
+    <string name="notice_schedule">Schedule change</string>
+    <string name="notice_transport">Transport change</string>
+    <string name="notice_other">Notice</string>
+    <string name="notice_no_text">Notice from the organisers.</string>
+    <string name="notice_in_zone">%1$s: %2$s</string>
+    <string name="notice_hide">Hide the notice</string>
+    <string name="notice_read">Got it</string>
+    <string name="map_quick_shade">Shade</string>
+    <string name="me_notices">Notices from the organisers</string>
+    <string name="me_notices_text">Weather and heat alerts, schedule and transport changes, even without signal.</string>
+    <string name="notice_composer_title">Notice</string>
+    <string name="notice_reach">It only reaches phones with Ping Up on the network. It doesn’t replace the stage, the screens or RO-ALERT.</string>
+    <string name="notice_no_shift">Only a console with a valid control shift code signs notices.</string>
+    <string name="notice_in_force">In force</string>
+    <string name="notice_withdraw">Withdraw</string>
+    <string name="notice_new">New notice</string>
+    <string name="notice_topic_alert">Alert</string>
+    <string name="notice_topic_heat">Heat</string>
+    <string name="notice_topic_schedule">Schedule</string>
+    <string name="notice_topic_transport">Transport</string>
+    <string name="notice_zone">Area</string>
+    <string name="notice_zone_all">Whole festival</string>
+    <string name="notice_duration">How long it stays in force</string>
+    <string name="notice_preview">How phones show it</string>
+    <string name="notice_send">Send</string>
+    <string name="notice_confirm_title">Send “%1$s”?</string>
+    <string name="notice_second_title">Second operator’s confirmation</string>
+    <string name="notice_second_text">An evacuation goes out only once a second operator has read the notice and types %1$s.</string>
+    <string name="notice_second_word">EVACUATE</string>
+    <string name="notice_withdraw_title">Withdraw “%1$s”?</string>
+    <string name="notice_withdraw_text">Phones with Ping Up stop showing it. Say so on the radio, on stage and on the screens too.</string>
+    <string name="notice_withdrawn">The notice was withdrawn.</string>
+    <string name="notice_sent">The notice went out to the phones on the network.</string>
+    <string name="notice_not_sent">The notice didn’t go out. Check the shift code.</string>
+    <string name="notice_minutes">%1$d min</string>
+    <string name="notice_hours">%1$d h</string>
 </resources>

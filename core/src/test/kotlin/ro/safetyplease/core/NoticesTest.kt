@@ -179,12 +179,16 @@ class NoticesTest {
         started(w)
 
         console.notices.publish(pause, listOf("15:30"), "", 3600)
+        console.notices.publish(heat, emptyList(), "", 4 * 3600)
         advanceTimeBy(10_000)
         val before = w.net.traffic(PacketType.ANNOUNCEMENT).transmissions
-        assertEquals(2, before)
+        assertEquals(4, before)
         advanceTimeBy(10 * 60_000L)
-        assertEquals("one transmission to A, which holds it and stops it", before + 1, w.net.traffic(PacketType.ANNOUNCEMENT).transmissions)
-        assertEquals(1L, a.drops(DropReason.STALE_ACK))
+        assertEquals("the alert, once to A, which holds it and stops it", before + 1, w.net.traffic(PacketType.ANNOUNCEMENT).transmissions)
+        advanceTimeBy(20 * 60_000L)
+        assertEquals("the alert twice more, the heat once", before + 4, w.net.traffic(PacketType.ANNOUNCEMENT).transmissions)
+        assertEquals(4L, a.drops(DropReason.STALE_ACK))
+        assertEquals(0L, b.drops(DropReason.STALE_ACK))
     }
 
     @Test

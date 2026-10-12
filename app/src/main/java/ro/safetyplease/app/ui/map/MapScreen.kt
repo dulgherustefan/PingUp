@@ -356,6 +356,7 @@ private fun spotLabel(type: String): String = stringResource(
         "wc" -> R.string.map_quick_wc
         "info" -> R.string.map_quick_info
         Venue.DEA -> R.string.map_quick_dea
+        Venue.SHADE, "chill" -> R.string.map_quick_shade
         else -> R.string.map_quick_charge
     },
 )
