@@ -6,11 +6,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,6 +45,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
@@ -86,14 +89,17 @@ import ro.safetyplease.core.util.truncateUtf8
 /** A reason is a line in the log, not a report. */
 private const val MAX_REASON = 200
 
+/** In a pane shorter than this (a phone in landscape) the operator's actions stay pinned under the scrolling detail. */
+private val PinActionsBelow: Dp = 420.dp
+
 @Composable
 internal fun DetailPane(vm: AppViewModel, case: Case?, entries: List<LogEntry>, now: Long, modifier: Modifier) {
-    Box(modifier.clip(PaneShape).background(AppTheme.colors.cell)) {
+    BoxWithConstraints(modifier.clip(PaneShape).background(AppTheme.colors.cell)) {
         if (case == null) {
             EmptyState(stringResource(R.string.control_none_selected), stringResource(R.string.control_none_selected_text), icon = Sym.Notes)
         } else {
             // a new incident starts at the top, with no dialog left open
-            key(case.incidentId) { CaseDetail(vm, case, entries, now) }
+            key(case.incidentId) { CaseDetail(vm, case, entries, now, pinActions = maxHeight < PinActionsBelow) }
         }
     }
 }
@@ -103,7 +109,7 @@ internal fun DetailPane(vm: AppViewModel, case: Case?, entries: List<LogEntry>, 
  * the phrase to read on the radio, the operator's actions, the report and its history in the log.
  */
 @Composable
-private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, now: Long) {
+private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, now: Long, pinActions: Boolean) {
     val c = vm.c
     val context = LocalContext.current
     val colors = AppTheme.colors
@@ -123,103 +129,97 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
     val nickname = incident?.nickname
     val (_, statusIcon, statusColor) = caseLook(case)
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CategoryCircle(r.category, case.urgent && case.state == CaseState.OPEN, 52.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(Labels.category(r.category)), style = MaterialTheme.typography.title3)
-                Text(
-                    listOf(placeText(r.grid, r.landmark, r.accuracyM, vm.venue), zoneName, agoText(r.reportedAt, now), hopsText(r.hops))
-                        .filter { it.isNotEmpty() }.joinToString(" · "),
-                    style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
-                )
-            }
+    val onAction: (Action) -> Unit = { action ->
+        if (action == Action.TAKE) {
+            decisions.run(case, action)
+            haptics.confirm()
+        } else {
+            dialog = action
         }
-        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (case.urgent) StatusLabel(stringResource(R.string.sev_urgent), icon = Sym.Priority, color = colors.redInk)
-            StatusLabel(statusText(case), icon = statusIcon, color = statusColor)
-        }
-        if (case.localOnly) {
-            Note(stringResource(R.string.control_local_only, Labels.staffStatus(context, case.network, case.networkTeam)), colors.orangeInk)
-        }
-        if (case.cancelRequested) Note(stringResource(R.string.incident_cancel_requested), colors.orangeInk)
-        if (Priority.isInformational(r.category)) Note(stringResource(R.string.incident_informational), colors.secondaryLabel)
+    }
 
-        Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.fill).padding(12.dp)) {
-            Text(
-                stringResource(R.string.control_radio_title), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.SemiBold,
-                color = colors.secondaryLabel,
-            )
-            Text(phrase, style = MaterialTheme.typography.body, modifier = Modifier.padding(top = 4.dp))
-            AppButton(
-                stringResource(if (copied) R.string.code_sheet_copied else R.string.msg_copy),
-                {
-                    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(clipLabel, phrase))
-                    copied = true
-                    haptics.confirm()
-                },
-                Modifier.padding(top = 10.dp), kind = ButtonKind.Secondary, compact = true, icon = if (copied) Sym.Check else Sym.Copy,
-            )
-        }
-
-        Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            actions(case).chunked(2).forEachIndexed { row, pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    pair.forEachIndexed { i, action ->
-                        val primary = row == 0 && i == 0 && case.state != CaseState.CLOSED
-                        AppButton(
-                            stringResource(actionLabel(action, case)),
-                            {
-                                if (action == Action.TAKE) {
-                                    decisions.run(case, action)
-                                    haptics.confirm()
-                                } else {
-                                    dialog = action
-                                }
-                            },
-                            Modifier.weight(1f), kind = if (primary) ButtonKind.Primary else ButtonKind.Secondary, compact = true,
-                        )
-                    }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CategoryCircle(r.category, case.urgent && case.state == CaseState.OPEN, 52.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(Labels.category(r.category)), style = MaterialTheme.typography.title3)
+                    Text(
+                        listOf(placeText(r.grid, r.landmark, r.accuracyM, vm.venue), zoneName, agoText(r.reportedAt, now), hopsText(r.hops))
+                            .filter { it.isNotEmpty() }.joinToString(" · "),
+                        style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                    )
                 }
             }
-        }
+            Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (case.urgent) StatusLabel(stringResource(R.string.sev_urgent), icon = Sym.Priority, color = colors.redInk)
+                StatusLabel(statusText(case), icon = statusIcon, color = statusColor)
+            }
+            if (case.localOnly) {
+                Note(stringResource(R.string.control_local_only, Labels.staffStatus(context, case.network, case.networkTeam)), colors.orangeInk)
+            }
+            if (case.cancelRequested) Note(stringResource(R.string.incident_cancel_requested), colors.orangeInk)
+            if (Priority.isInformational(r.category)) Note(stringResource(R.string.incident_informational), colors.secondaryLabel)
 
-        ReplyPanel(vm, incident, r.landmark)
-        val updates = incident?.updates.orEmpty()
-        if (updates.isNotEmpty()) {
+            Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.fill).padding(12.dp)) {
+                Text(
+                    stringResource(R.string.control_radio_title), style = MaterialTheme.typography.footnote, fontWeight = FontWeight.SemiBold,
+                    color = colors.secondaryLabel,
+                )
+                Text(phrase, style = MaterialTheme.typography.body, modifier = Modifier.padding(top = 4.dp))
+                AppButton(
+                    stringResource(if (copied) R.string.code_sheet_copied else R.string.msg_copy),
+                    {
+                        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(clipLabel, phrase))
+                        copied = true
+                        haptics.confirm()
+                    },
+                    Modifier.padding(top = 10.dp), kind = ButtonKind.Secondary, compact = true, icon = if (copied) Sym.Check else Sym.Copy,
+                )
+            }
+
+            if (!pinActions) ActionButtons(case, Modifier.padding(top = 16.dp), onAction)
+
+            ReplyPanel(vm, incident, r.landmark)
+            val updates = incident?.updates.orEmpty()
+            if (updates.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.incident_updates_title), style = MaterialTheme.typography.headline,
+                    modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
+                )
+                UpdateTimeline(updates, vm.venue, c.grid)
+            }
+
+            if (hint.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.incident_recognition, hint), style = MaterialTheme.typography.body, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 20.dp),
+                )
+            }
             Text(
-                stringResource(R.string.incident_updates_title), style = MaterialTheme.typography.headline,
-                modifier = Modifier.padding(top = 20.dp, bottom = 4.dp),
+                said.ifEmpty { stringResource(R.string.incident_no_description) }, style = MaterialTheme.typography.body,
+                color = if (said.isEmpty()) colors.secondaryLabel else colors.label,
+                modifier = Modifier.padding(top = if (hint.isEmpty()) 20.dp else 4.dp),
             )
-            UpdateTimeline(updates, vm.venue, c.grid)
-        }
-
-        if (hint.isNotEmpty()) {
             Text(
-                stringResource(R.string.incident_recognition, hint), style = MaterialTheme.typography.body, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 20.dp),
+                listOf(
+                    stringResource(R.string.incident_reported_at, Labels.clock(r.reportedAt)),
+                    nickname?.let { stringResource(R.string.incident_reporter, it) } ?: stringResource(R.string.incident_anonymous),
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 2.dp),
             )
-        }
-        Text(
-            said.ifEmpty { stringResource(R.string.incident_no_description) }, style = MaterialTheme.typography.body,
-            color = if (said.isEmpty()) colors.secondaryLabel else colors.label,
-            modifier = Modifier.padding(top = if (hint.isEmpty()) 20.dp else 4.dp),
-        )
-        Text(
-            listOf(
-                stringResource(R.string.incident_reported_at, Labels.clock(r.reportedAt)),
-                nickname?.let { stringResource(R.string.incident_reporter, it) } ?: stringResource(R.string.incident_anonymous),
-            ).joinToString(" · "),
-            style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(top = 2.dp),
-        )
-        reportFacts(r.responds, r.breathes, r.fromStaff, r.people, r.dangerContinues)?.let {
-            Text(it, style = MaterialTheme.typography.subheadline, modifier = Modifier.padding(top = 6.dp))
-        }
+            reportFacts(r.responds, r.breathes, r.fromStaff, r.people, r.dangerContinues)?.let {
+                Text(it, style = MaterialTheme.typography.subheadline, modifier = Modifier.padding(top = 6.dp))
+            }
 
-        Text(stringResource(R.string.control_history), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
-        history.forEach { HistoryRow(it) }
+            Text(stringResource(R.string.control_history), style = MaterialTheme.typography.headline, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
+            history.forEach { HistoryRow(it) }
+        }
+        if (pinActions) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.separator))
+            ActionButtons(case, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), onAction)
+        }
     }
 
     when (val open = dialog) {
@@ -295,6 +295,25 @@ private fun LandmarkDialog(venue: Venue, near: Int, onDismiss: () -> Unit, onPic
                 Chip(Replies.landmarkName(venue, poi.number).let { if (it == poi.number.toString()) it else "${poi.number} · $it" }, selected = picked == poi.number) {
                     picked = poi.number
                 }
+            }
+        }
+    }
+}
+
+/** The operator's actions for the incident, two to a row; the first is the main one while the incident is not closed. */
+@Composable
+private fun ActionButtons(case: Case, modifier: Modifier, onAction: (Action) -> Unit) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        actions(case).chunked(2).forEachIndexed { row, pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEachIndexed { i, action ->
+                    val primary = row == 0 && i == 0 && case.state != CaseState.CLOSED
+                    AppButton(
+                        stringResource(actionLabel(action, case)), { onAction(action) },
+                        Modifier.weight(1f), kind = if (primary) ButtonKind.Primary else ButtonKind.Secondary, compact = true,
+                    )
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
