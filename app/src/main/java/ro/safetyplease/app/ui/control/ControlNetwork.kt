@@ -65,7 +65,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.ui.text.agoText
-import ro.safetyplease.app.ui.common.RadioGate
+import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Banner
 import ro.safetyplease.ui.designsystem.footnote

@@ -41,6 +41,9 @@ interface AppPlatform {
     /** A file the app ships with: venue.json, notices.json, staff_public.json. */
     fun asset(name: String): String
 
+    /** The files of a folder the app ships with, by name: firstaid, pages; empty if there's no such folder. */
+    fun assets(folder: String): Map<String, String>
+
     fun log(message: String)
 
     /** The Bluetooth radio, once the session knows its node id; [scope] is the mesh's single thread. */

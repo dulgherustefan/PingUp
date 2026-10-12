@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.firstaid
+package ro.safetyplease.ui.firstaid
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -23,15 +23,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.AppLocale
-import ro.safetyplease.app.Emergency
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.AppViewModel
@@ -156,11 +153,11 @@ private fun FirstAidScaffold(vm: AppViewModel, content: @Composable () -> Unit) 
 
 @Composable
 private fun rememberSheets(vm: AppViewModel): List<FirstAidSheet> {
-    val context = LocalContext.current
     // the event pack's sheets, approved by its medical lead, replace the ones the app ships
     val pack = vm.c.event?.firstAid.orEmpty()
-    return remember(context) {
-        if (pack.isEmpty()) loadSheets(context.assets, AppLocale.language(context)) else readSheets(pack.keys.toList(), pack::getValue)
+    val language = vm.c.language()
+    return remember(language) {
+        if (pack.isEmpty()) loadSheets(vm.c, language) else readSheets(pack.keys.toList(), pack::getValue)
     }
 }
 
@@ -193,7 +190,6 @@ private fun StepRow(step: SheetBlock.Step) {
 /** The nearest defibrillator, when [dea] and the venue has one, then the call to 112. */
 @Composable
 private fun HelpGroup(vm: AppViewModel, dea: Boolean) {
-    val context = LocalContext.current
     val origin = rememberOrigin(vm)
     val nearest = if (dea) vm.venue.nearest(Venue.DEA, origin) else null
     InsetGroup(Modifier.padding(top = 20.dp)) {
@@ -207,7 +203,7 @@ private fun HelpGroup(vm: AppViewModel, dea: Boolean) {
         }
         GroupRow(
             stringResource(Res.string.emergency_call), subtitle = stringResource(Res.string.report_help_call_text), icon = Sym.Phone,
-            onClick = { Emergency.dial(context) },
+            onClick = vm.phone::dial112,
         )
     }
 }
@@ -223,7 +219,7 @@ private fun rememberOrigin(vm: AppViewModel): GeoPoint? {
 }
 
 /** What goes under the title and the summary, with consecutive steps kept together in one card. */
-internal fun sheetParts(sheet: FirstAidSheet): List<List<SheetBlock>> {
+fun sheetParts(sheet: FirstAidSheet): List<List<SheetBlock>> {
     val summary = sheet.blocks.indexOfFirst { it is SheetBlock.Text }
     val parts = mutableListOf<MutableList<SheetBlock>>()
     sheet.blocks.forEachIndexed { i, block ->

@@ -125,6 +125,6 @@ fun compassSector(from: GeoPoint, to: GeoPoint): Int {
 }
 
 /** Math.toRadians and Math.toDegrees, with the JVM's constants, so every platform rounds the same way. */
-internal fun radians(degrees: Double): Double = degrees * 0.017453292519943295
+fun radians(degrees: Double): Double = degrees * 0.017453292519943295
 
 internal fun degrees(radians: Double): Double = radians * 57.29577951308232

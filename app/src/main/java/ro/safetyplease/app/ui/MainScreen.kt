@@ -1,5 +1,7 @@
 package ro.safetyplease.app.ui
 
+import ro.safetyplease.ui.rememberLocationRequest
+import ro.safetyplease.ui.rememberRadioGate
 import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
@@ -85,34 +87,34 @@ import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.text.text
-import ro.safetyplease.app.ui.chat.ConversationScreen
-import ro.safetyplease.app.ui.chat.MessagesScreen
-import ro.safetyplease.app.ui.common.RadioGate
+import ro.safetyplease.ui.chat.ConversationScreen
+import ro.safetyplease.ui.chat.MessagesScreen
+import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.app.ui.control.ControlScreen
 import ro.safetyplease.app.ui.control.ControlWindow
-import ro.safetyplease.app.ui.firstaid.FirstAidScreen
-import ro.safetyplease.app.ui.firstaid.FirstAidSheetScreen
-import ro.safetyplease.app.ui.incidents.IncidentDetailScreen
-import ro.safetyplease.app.ui.incidents.IncidentsScreen
-import ro.safetyplease.app.ui.info.PageScreen
-import ro.safetyplease.app.ui.info.PagesScreen
-import ro.safetyplease.app.ui.map.MapScreen
-import ro.safetyplease.app.ui.map.PinScreen
+import ro.safetyplease.ui.firstaid.FirstAidScreen
+import ro.safetyplease.ui.firstaid.FirstAidSheetScreen
+import ro.safetyplease.ui.incidents.IncidentDetailScreen
+import ro.safetyplease.ui.incidents.IncidentsScreen
+import ro.safetyplease.ui.info.PageScreen
+import ro.safetyplease.ui.info.PagesScreen
+import ro.safetyplease.ui.map.MapScreen
+import ro.safetyplease.ui.map.PinScreen
 import ro.safetyplease.app.ui.me.AnchorScreen
 import ro.safetyplease.app.ui.me.EventScreen
 import ro.safetyplease.app.ui.me.MeScreen
-import ro.safetyplease.app.ui.notices.NoticeAlert
-import ro.safetyplease.app.ui.notices.NoticeBands
-import ro.safetyplease.app.ui.notices.shownNotices
-import ro.safetyplease.app.ui.onboarding.OnboardingScreen
+import ro.safetyplease.ui.notices.NoticeAlert
+import ro.safetyplease.ui.notices.NoticeBands
+import ro.safetyplease.ui.notices.shownNotices
+import ro.safetyplease.ui.onboarding.OnboardingScreen
 import ro.safetyplease.app.ui.people.AddFriendScreen
-import ro.safetyplease.app.ui.people.BlockedScreen
+import ro.safetyplease.ui.people.BlockedScreen
 import ro.safetyplease.app.ui.people.NewGroupScreen
 import ro.safetyplease.app.ui.people.ProfileScreen
 import ro.safetyplease.app.ui.report.MyReportsScreen
 import ro.safetyplease.app.ui.report.ReportScreen
 import ro.safetyplease.app.ui.report.ReportSentScreen
-import ro.safetyplease.app.ui.safety.DiscreetScreen
+import ro.safetyplease.ui.safety.DiscreetScreen
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
@@ -148,108 +150,6 @@ import ro.safetyplease.ui.staffcodes.PointsScreen
 import ro.safetyplease.ui.staffcodes.StaffCodesScreen
 import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.core.data.Role as AppRole
-
-/** The mesh can't start without these. */
-fun radioPermissions(): List<String> =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT)
-    } else {
-        // below Android 12 BLE scanning needs the location permission
-        listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-    }
-
-/** Asked at startup: Bluetooth and notifications. Location is asked only when it's needed. */
-fun startPermissions(): Array<String> = buildList {
-    addAll(radioPermissions())
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
-}.toTypedArray()
-
-fun bluetoothEnabled(context: Context): Boolean =
-    context.getSystemService(BluetoothManager::class.java)?.adapter?.isEnabled == true
-
-/**
- * After two refusals Android stops showing the permission dialog. This is only knowable after a request:
- * before the first one, no rationale just means we haven't asked yet.
- */
-fun deniedForGood(activity: Activity?, denied: Collection<String>): Boolean =
-    activity != null && denied.any { !ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }
-
-fun openAppSettings(context: Context) {
-    runCatching { context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))) }
-}
-
-@Composable
-fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> Unit): RadioGate {
-    val context = LocalContext.current
-    val settings by vm.settings.collectAsStateWithLifecycle()
-    val activity = LocalActivity.current
-    var tick by remember { mutableIntStateOf(0) }
-    LifecycleResumeEffect(Unit) {
-        tick++
-        onPauseOrDispose { }
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        // the mesh works without notifications; only the radio's permissions matter
-        val denied = result.filter { !it.value && it.key in radioPermissions() }.keys
-        vm.radioAccessBlocked = deniedForGood(activity, denied)
-        tick++
-        onStartMesh()
-    }
-    val enableLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        tick++
-        onStartMesh()
-    }
-    // tick and radio state force a re-check when the user comes back from the dialogs
-    val hasAccess = remember(tick, radio) { vm.phone.bluetoothAllowed() }
-    val bluetoothOn = remember(tick, radio) { bluetoothEnabled(context) }
-    val locationOff = remember(tick, radio) {
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S &&
-            context.getSystemService(LocationManager::class.java)?.let { !LocationManagerCompat.isLocationEnabled(it) } == true
-    }
-    val blocked = vm.radioAccessBlocked && !hasAccess
-    return RadioGate(
-        hasAccess, bluetoothOn, locationOff, blocked,
-        requestAccess = { if (blocked) openAppSettings(context) else permissionLauncher.launch(startPermissions()) },
-        enableBluetooth = { enableLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)) },
-        meshOff = !settings.meshEnabled,
-        turnOn = {
-            vm.setMeshEnabled(true)
-            onStartMesh()
-        },
-    )
-}
-
-/**
- * Asks for location only when the user does something that needs it. Only precise location counts:
- * GPS_PROVIDER doesn't work with approximate, which can't pick a zone anyway.
- */
-@Composable
-fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}): () -> Unit {
-    val context = LocalContext.current
-    val activity = LocalActivity.current
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        if (granted) {
-            vm.phone.startLocation()
-        } else {
-            vm.locationBlocked = deniedForGood(activity, listOf(Manifest.permission.ACCESS_FINE_LOCATION))
-            if (result[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
-                Toast.makeText(context, context.text(Res.string.location_precise_needed), Toast.LENGTH_LONG).show()
-            }
-        }
-        onResult(granted)
-    }
-    return {
-        when {
-            vm.phone.locationAllowed() -> {
-                vm.phone.startLocation()
-                onResult(true)
-            }
-            vm.locationBlocked -> openAppSettings(context)
-            else -> launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-        }
-    }
-}
 
 /** Screens that slide up as sheets; the rest push in from the right. */
 private fun Dest?.isSheet() = this == Dest.Me || this == Dest.AddFriend || this == Dest.NewGroup

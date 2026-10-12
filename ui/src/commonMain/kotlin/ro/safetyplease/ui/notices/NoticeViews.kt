@@ -1,13 +1,5 @@
-package ro.safetyplease.app.ui.notices
+package ro.safetyplease.ui.notices
 
-import ro.safetyplease.ui.text.noticeBody
-import ro.safetyplease.ui.text.noticeTitle
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.exercise_banner
-import ro.safetyplease.ui.resources.map_quick_shade
-import ro.safetyplease.ui.resources.map_quick_water
-import ro.safetyplease.ui.resources.notice_hide
-import ro.safetyplease.ui.resources.notice_read
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -39,9 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -50,8 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.AppLocale
-import ro.safetyplease.ui.text.NoticeText
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.announce.HeldNotice
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeLevel
@@ -69,14 +57,22 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.largeTitle
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title3
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.exercise_banner
+import ro.safetyplease.ui.resources.map_quick_shade
+import ro.safetyplease.ui.resources.map_quick_water
+import ro.safetyplease.ui.resources.notice_hide
+import ro.safetyplease.ui.resources.notice_read
+import ro.safetyplease.ui.text.NoticeText
+import ro.safetyplease.ui.text.noticeBody
+import ro.safetyplease.ui.text.noticeTitle
 
 /** A notice in force, with its words in the phone's language. */
 class ShownNotice(val held: HeldNotice, val notice: Notice, val title: String, val text: String)
 
 @Composable
 fun shownNotices(vm: AppViewModel, active: List<Pair<HeldNotice, Notice>>): List<ShownNotice> {
-    val res = LocalResources.current
-    val language = AppLocale.language(LocalContext.current)
+    val language = vm.c.language()
     return active.map { (held, notice) ->
         ShownNotice(held, notice, noticeTitle(notice), noticeBody(vm.c.noticeTemplates, vm.venue, notice, language))
     }

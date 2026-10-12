@@ -36,10 +36,16 @@ kotlin {
             implementation(libs.compose.mp.runtime)
             implementation(libs.compose.mp.foundation)
             implementation(libs.compose.mp.ui)
+            implementation(libs.compose.mp.navigationevent)
             api(libs.compose.mp.resources)
             implementation(libs.compose.mp.material3)
             implementation(libs.compose.mp.lifecycle.viewmodel)
             implementation(libs.compose.mp.lifecycle.runtime)
+        }
+        androidMain.dependencies {
+            // permissions and the activity's own windows: launchers, rationale, orientation
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.core.ktx)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

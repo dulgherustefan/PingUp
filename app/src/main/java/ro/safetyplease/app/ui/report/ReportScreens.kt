@@ -82,10 +82,10 @@ import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.platform.torch.Torch
 import ro.safetyplease.app.text.quantityText
 import ro.safetyplease.app.text.text
-import ro.safetyplease.app.ui.common.RadioProblemBanner
-import ro.safetyplease.app.ui.common.placeLine
-import ro.safetyplease.app.ui.rememberLocationRequest
-import ro.safetyplease.app.ui.rememberRadioGate
+import ro.safetyplease.ui.common.RadioProblemBanner
+import ro.safetyplease.ui.common.placeLine
+import ro.safetyplease.ui.rememberLocationRequest
+import ro.safetyplease.ui.rememberRadioGate
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.incidents.ESCALATE_AFTER_MS
 import ro.safetyplease.core.incidents.IncidentManager

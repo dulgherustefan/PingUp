@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,16 +11,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.ui.text.Labels
-import ro.safetyplease.ui.text.Replies
-import ro.safetyplease.ui.designsystem.AppTheme
-import ro.safetyplease.ui.designsystem.footnote
-import ro.safetyplease.ui.designsystem.subheadline
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.data.IncidentUpdate
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.footnote
+import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.Replies
 
 /**
  * What the reporter said after the report, in the reporter's order, at the reporter's time: one row each, and for a

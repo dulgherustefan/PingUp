@@ -1,5 +1,7 @@
 package ro.safetyplease.app.ui.info
 
+import ro.safetyplease.ui.info.pageParts
+import ro.safetyplease.ui.info.pagesDirectory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

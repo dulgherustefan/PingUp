@@ -1,11 +1,5 @@
 package ro.safetyplease.ui.designsystem
 
-import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.ui.resources.back
-import ro.safetyplease.ui.resources.cancel
-import ro.safetyplease.ui.resources.confirm
-import ro.safetyplease.ui.resources.more_options
-import ro.safetyplease.ui.resources.Res
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
@@ -91,8 +85,8 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -111,7 +105,13 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.data.MsgStatus
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.cancel
+import ro.safetyplease.ui.resources.confirm
+import ro.safetyplease.ui.resources.more_options
 import kotlin.math.roundToInt
 
 /** Bottom space to leave: the floating tab bar on main screens, the gesture bar elsewhere. */

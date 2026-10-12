@@ -61,6 +61,9 @@ class AndroidPlatform(private val app: Application) : AppPlatform {
 
     override fun asset(name: String): String = app.assets.open(name).bufferedReader().use { it.readText() }
 
+    override fun assets(folder: String): Map<String, String> =
+        app.assets.list(folder).orEmpty().associateWith { name -> asset("$folder/$name") }
+
     override fun log(message: String) {
         Log.d(AppContainer.TAG, message)
     }

@@ -1,5 +1,8 @@
 package ro.safetyplease.app.ui.common
 
+import ro.safetyplease.ui.common.problem
+import ro.safetyplease.ui.common.RadioProblem
+import ro.safetyplease.ui.common.RadioGate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

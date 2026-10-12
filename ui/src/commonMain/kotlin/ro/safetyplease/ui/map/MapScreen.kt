@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.map
+package ro.safetyplease.ui.map
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -45,7 +45,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -55,14 +54,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.demo.Demo
-import ro.safetyplease.app.ui.common.MapCamera
-import ro.safetyplease.app.ui.common.MapPin
-import ro.safetyplease.app.ui.common.VenueMap
-import ro.safetyplease.app.ui.common.incidentPoint
-import ro.safetyplease.app.ui.common.venueAspect
-import ro.safetyplease.app.ui.notices.shadeType
-import ro.safetyplease.app.ui.rememberLocationRequest
 import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
@@ -73,14 +64,19 @@ import ro.safetyplease.core.venue.distanceMeters
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.LowBatteryBanner
+import ro.safetyplease.ui.common.MapCamera
 import ro.safetyplease.ui.common.MapCorner
 import ro.safetyplease.ui.common.MapGlyph
+import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MapReserve
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.VenueMap
+import ro.safetyplease.ui.common.incidentPoint
 import ro.safetyplease.ui.common.onSite
 import ro.safetyplease.ui.common.routeText
 import ro.safetyplease.ui.common.spotColor
 import ro.safetyplease.ui.common.typeGlyph
+import ro.safetyplease.ui.common.venueAspect
 import ro.safetyplease.ui.common.zoneTone
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -102,6 +98,8 @@ import ro.safetyplease.ui.designsystem.largeFont
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.notices.shadeType
+import ro.safetyplease.ui.rememberLocationRequest
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
 import ro.safetyplease.ui.resources.clear
@@ -373,7 +371,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                 }
             }
             // test tool; stays visible while a simulated location is set so it can be cleared
-            if (Demo.AVAILABLE && (vm.demoUnlocked || simulated)) {
+            if (vm.phone.demoAvailable && (vm.demoUnlocked || simulated)) {
                 item(key = "simulate") {
                     InsetGroup(Modifier.padding(top = 20.dp)) {
                         SwitchRow(stringResource(Res.string.demo_simulate_location), simulate, { simulate = it }, icon = Sym.Science)

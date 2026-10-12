@@ -1,8 +1,8 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
-import android.content.res.Resources
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -10,7 +10,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.onClick
@@ -20,9 +19,9 @@ import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.text.quantityText
-import ro.safetyplease.app.text.text
-import ro.safetyplease.app.text.textArray
+import org.jetbrains.compose.resources.stringArrayResource
+import org.jetbrains.compose.resources.stringResource
+import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
@@ -51,10 +50,11 @@ import ro.safetyplease.ui.resources.map_type_water
 import ro.safetyplease.ui.resources.map_type_wc
 import ro.safetyplease.ui.resources.map_type_zone
 import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.fill
 import kotlin.math.roundToInt
 
 /** The words TalkBack reads on the map, resolved once from resources so [mapNodes] stays testable. */
-internal class MapWords(
+class MapWords(
     /** Place type to its name, e.g. "wc" to "toalete". */
     val types: Map<String, String>,
     /** A zone without a known type. */
@@ -71,14 +71,14 @@ internal class MapWords(
 )
 
 /** One thing TalkBack can focus on the map. [zone] is set on zone nodes, [pin] on incident pins. */
-internal class MapNode(val description: String, val point: GeoPoint, val zone: Zone? = null, val pin: MapPin? = null)
+class MapNode(val description: String, val point: GeoPoint, val zone: Zone? = null, val pin: MapPin? = null)
 
 /**
  * What the map says to TalkBack: every zone first, then the useful points, the meeting point and the [pins].
  * Each says its name, its type unless the name already says it, then "aici ești" for your zone or the distance and
  * direction from [position] when it's known and inside the venue.
  */
-internal fun mapNodes(venue: Venue, words: MapWords, position: GeoPoint?, myZone: String, pins: List<MapPin>): List<MapNode> {
+fun mapNodes(venue: Venue, words: MapWords, position: GeoPoint?, myZone: String, pins: List<MapPin>): List<MapNode> {
     // rounded so TalkBack doesn't re-announce a place for every meter you walk
     fun route(to: GeoPoint) = onSite(position, venue)?.let { words.route(roundToFive(distanceMeters(it, to)), words.directions[compassSector(it, to)]) }
 
@@ -101,27 +101,31 @@ private fun describe(name: String, type: String?, where: String?): String =
     listOfNotNull(name.takeIf { it.isNotEmpty() }, type?.takeUnless { name.contains(it, ignoreCase = true) }, where).joinToString(", ")
 
 @Composable
-internal fun rememberMapWords(): MapWords {
-    val resources = LocalResources.current
-    return remember(resources) { mapWords(resources) }
-}
-
-private fun mapWords(resources: Resources) = MapWords(
-    types = mapOf(
+fun rememberMapWords(): MapWords {
+    val types = mapOf(
         "stage" to Res.string.map_type_stage, "food" to Res.string.map_type_food, "bar" to Res.string.map_type_bar,
         "medical" to Res.string.map_type_medical, "entrance" to Res.string.map_type_entrance, "exit" to Res.string.map_type_exit,
         "camping" to Res.string.map_type_camping, "chill" to Res.string.map_type_chill, "water" to Res.string.map_type_water,
         "wc" to Res.string.map_type_wc, "info" to Res.string.map_type_info, "charge" to Res.string.map_type_charge,
         Venue.DEA to Res.string.map_type_dea,
-    ).mapValues { resources.text(it.value) },
-    zone = resources.text(Res.string.map_type_zone),
-    here = resources.text(Res.string.map_a11y_here),
-    meeting = resources.text(Res.string.map_meeting_point),
-    incident = resources.text(Res.string.map_a11y_incident),
-    urgency = { resources.text(Labels.urgency(it)) },
-    directions = resources.textArray(Res.array.map_directions).toList(),
-    route = { meters, direction -> resources.text(Res.string.map_route, meters, direction) },
-)
+    ).mapValues { stringResource(it.value) }
+    val zone = stringResource(Res.string.map_type_zone)
+    val here = stringResource(Res.string.map_a11y_here)
+    val meeting = stringResource(Res.string.map_meeting_point)
+    val incident = stringResource(Res.string.map_a11y_incident)
+    val urgent = stringResource(Labels.urgency(Severity.URGENT))
+    val notUrgent = stringResource(Labels.urgency(Severity.MEDIUM))
+    val directions = stringArrayResource(Res.array.map_directions)
+    val route = stringResource(Res.string.map_route)
+    return remember(types, zone, here, meeting, incident, urgent, notUrgent, directions, route) {
+        MapWords(
+            types = types, zone = zone, here = here, meeting = meeting, incident = incident,
+            urgency = { if (it == Severity.URGENT) urgent else notUrgent },
+            directions = directions,
+            route = { meters, direction -> route.fill(meters, direction) },
+        )
+    }
+}
 
 /** Touch area of a point for exploring by touch. */
 private val PointTarget = 44.dp
@@ -132,7 +136,7 @@ private val PointTarget = 44.dp
  * still reach the map; a double tap from TalkBack does what a touch on that place does.
  */
 @Composable
-internal fun MapSemanticsLayer(
+fun MapSemanticsLayer(
     venue: Venue,
     nodes: List<MapNode>,
     inset: Dp,

@@ -1,5 +1,12 @@
 package ro.safetyplease.app.ui.incidents
 
+import ro.safetyplease.ui.incidents.listRows
+import ro.safetyplease.ui.incidents.IncidentList
+import ro.safetyplease.ui.incidents.incidentRows
+import ro.safetyplease.ui.incidents.isAssignedToMe
+import ro.safetyplease.ui.incidents.isMine
+import ro.safetyplease.ui.incidents.isOpen
+import ro.safetyplease.ui.incidents.nextFieldStep
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

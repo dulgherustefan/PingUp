@@ -1,8 +1,5 @@
-package ro.safetyplease.app.ui.chat
+package ro.safetyplease.ui.chat
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.VisibilityThreshold
@@ -79,10 +76,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -98,8 +93,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.ui.common.MapPin
-import ro.safetyplease.app.ui.common.VenueMap
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.Friend
@@ -111,6 +104,9 @@ import ro.safetyplease.core.protocol.QuickCode
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.common.BackHandler
+import ro.safetyplease.ui.common.MapPin
+import ro.safetyplease.ui.common.VenueMap
 import ro.safetyplease.ui.common.presenceText
 import ro.safetyplease.ui.designsystem.ActionTile
 import ro.safetyplease.ui.designsystem.AppMenu
@@ -201,7 +197,6 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     val chat by vm.chat.collectAsStateWithLifecycle()
     val nearby by vm.nearby.collectAsStateWithLifecycle()
     val now = rememberNow()
-    val context = LocalContext.current
     val haptics = rememberHaptics()
     val focus = LocalFocusManager.current
     val density = LocalDensity.current
@@ -292,7 +287,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                                 vm, item.message, item.first, item.last, inGroup = group != null,
                                 detail = item.message === lastMine,
                                 onCopy = { text ->
-                                    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("mesaj", text))
+                                    vm.phone.copyText(text)
                                 },
                                 modifier = Modifier.animateItem().padding(top = if (item.first) 12.dp else 2.dp),
                             )

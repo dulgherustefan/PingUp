@@ -1,11 +1,22 @@
 package ro.safetyplease.app
 
 import android.app.Application
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.widget.Toast
 import kotlinx.coroutines.launch
+import ro.safetyplease.app.demo.Demo
+import ro.safetyplease.app.platform.power.BatteryExemption
 import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.ui.PhoneUi
 
-/** What the screens need from an Android phone: the mesh service, Bluetooth and location permissions, GPS. */
+/**
+ * What the screens need from an Android phone: the mesh service, permissions, GPS, the system's own screens. It lives
+ * as long as the screens' state, longer than any activity, so it opens other screens as a new task.
+ */
 class AndroidPhoneUi(private val app: Application, private val container: AppContainer) : PhoneUi {
     /**
      * Start only with permissions granted; otherwise Android 14+ won't let the service go foreground.
@@ -26,4 +37,35 @@ class AndroidPhoneUi(private val app: Application, private val container: AppCon
     override fun locationOn(): Boolean = container.location.isGpsOn()
 
     override fun startLocation() = container.location.start()
+
+    override fun dial112() = open(Emergency.dialIntent())
+
+    override fun openLocationSettings() = open(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+
+    override fun openAppSettings() = open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", app.packageName, null)))
+
+    override fun toast(text: String, long: Boolean) {
+        Toast.makeText(app, text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
+    }
+
+    override fun copyText(text: String) {
+        app.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("mesaj", text))
+    }
+
+    override fun batteryHintNeeded(): Boolean = BatteryExemption.hintNeeded(app)
+
+    override val batterySteps get() = BatteryExemption.vendor()?.steps
+
+    override fun requestBatteryExemption() = BatteryExemption.request(app)
+
+    override val appVersion: String get() = BuildConfig.VERSION_NAME
+
+    override val appName: String get() = app.getString(R.string.app_name)
+
+    override val demoAvailable get() = Demo.AVAILABLE
+
+    // a tablet may have no dialer, a phone may lack a settings screen
+    private fun open(intent: Intent) {
+        runCatching { app.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
 }

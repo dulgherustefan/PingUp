@@ -45,14 +45,13 @@ import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.app.BuildConfig
 import ro.safetyplease.app.R
-import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.platform.power.BatteryExemption
 import ro.safetyplease.app.text.quantityText
 import ro.safetyplease.app.text.text
 import ro.safetyplease.app.ui.common.BigCodeDialog
 import ro.safetyplease.app.ui.common.QrBadge
-import ro.safetyplease.app.ui.common.networkText
-import ro.safetyplease.app.ui.rememberRadioGate
+import ro.safetyplease.ui.common.networkText
+import ro.safetyplease.ui.rememberRadioGate
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
@@ -271,7 +270,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         // the app name comes from the Android build (resValue), not from the shared texts
                         value = androidString(R.string.app_name) + " " + BuildConfig.VERSION_NAME,
                         // like Android's "Build number": 7 taps unlock the test tools
-                        onClick = if (Demo.AVAILABLE && !vm.demoUnlocked) {
+                        onClick = if (vm.phone.demoAvailable && !vm.demoUnlocked) {
                             {
                                 versionTaps++
                                 if (versionTaps >= DEMO_UNLOCK_TAPS) {

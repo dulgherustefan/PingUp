@@ -1,14 +1,5 @@
-package ro.safetyplease.app.ui.info
+package ro.safetyplease.ui.info
 
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.back
-import ro.safetyplease.ui.resources.first_aid_warning
-import ro.safetyplease.ui.resources.pages_approved
-import ro.safetyplease.ui.resources.pages_draft_text
-import ro.safetyplease.ui.resources.pages_draft_title
-import ro.safetyplease.ui.resources.pages_intro
-import ro.safetyplease.ui.resources.pages_title
-import android.content.res.AssetManager
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -22,15 +13,14 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import ro.safetyplease.app.AppLocale
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.event.InfoPage
 import ro.safetyplease.core.event.InfoPages
 import ro.safetyplease.core.event.PageBlock
+import ro.safetyplease.core.session.PingUpSession
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -47,6 +37,14 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.first_aid_warning
+import ro.safetyplease.ui.resources.pages_approved
+import ro.safetyplease.ui.resources.pages_draft_text
+import ro.safetyplease.ui.resources.pages_draft_title
+import ro.safetyplease.ui.resources.pages_intro
+import ro.safetyplease.ui.resources.pages_title
 
 /** Headings and loose text start where the text inside the cards starts. */
 private val TextInset = Gutter * 2
@@ -54,10 +52,8 @@ private val TextInset = Gutter * 2
 /** English has its own copy of the pages, with the same file names; every other language reads the Romanian originals. */
 fun pagesDirectory(language: String): String = if (language == "en") "pages-en" else "pages"
 
-fun loadPages(assets: AssetManager, language: String): List<InfoPage> {
-    val dir = pagesDirectory(language)
-    return InfoPages.read(assets.list(dir).orEmpty().associateWith { name -> assets.open("$dir/$name").bufferedReader().use { it.readText() } })
-}
+/** The pages of [language] the app ships with. */
+fun loadPages(session: PingUpSession, language: String): List<InfoPage> = InfoPages.read(session.assets(pagesDirectory(language)))
 
 /**
  * Information pages, offline: the beach, transport, the wristband and money, harm reduction and the Safe Zone, safe
@@ -148,13 +144,12 @@ private fun PagesScaffold(vm: AppViewModel, content: @Composable () -> Unit) {
 
 @Composable
 private fun rememberPages(vm: AppViewModel): List<InfoPage> {
-    val context = LocalContext.current
     // the event pack's pages, approved by the organiser, replace the ones the app ships
     val pack = vm.c.event?.pages.orEmpty()
-    return remember(context) {
-        val language = AppLocale.language(context)
+    val language = vm.c.language()
+    return remember(language) {
         val files = InfoPages.forLanguage(pack, language)
-        if (files.isEmpty()) loadPages(context.assets, language) else InfoPages.read(files)
+        if (files.isEmpty()) loadPages(vm.c, language) else InfoPages.read(files)
     }
 }
 
@@ -168,7 +163,7 @@ private fun DraftBanner() {
 }
 
 /** What goes under the title and the summary, with consecutive bullets kept together in one card. */
-internal fun pageParts(page: InfoPage): List<List<PageBlock>> {
+fun pageParts(page: InfoPage): List<List<PageBlock>> {
     val summary = page.blocks.indexOfFirst { it is PageBlock.Paragraph }
     val parts = mutableListOf<MutableList<PageBlock>>()
     page.blocks.forEachIndexed { i, block ->

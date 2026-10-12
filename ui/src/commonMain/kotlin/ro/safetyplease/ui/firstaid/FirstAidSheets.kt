@@ -1,6 +1,6 @@
-package ro.safetyplease.app.ui.firstaid
+package ro.safetyplease.ui.firstaid
 
-import android.content.res.AssetManager
+import ro.safetyplease.core.session.PingUpSession
 
 /** What a sheet says, in order: plain text, a numbered step, or a warning. */
 sealed interface SheetBlock {
@@ -31,10 +31,10 @@ private val StepLine = Regex("""(\d+)\.\s+(.+)""")
 /** English has its own copy of the sheets, with the same file names; every other language reads the Romanian originals. */
 fun sheetDirectory(language: String): String = if (language == "en") "firstaid-en" else "firstaid"
 
-/** The sheets of [language], in file-name order. */
-fun loadSheets(assets: AssetManager, language: String): List<FirstAidSheet> {
-    val dir = sheetDirectory(language)
-    return readSheets(assets.list(dir).orEmpty().toList()) { name -> assets.open("$dir/$name").bufferedReader().use { it.readText() } }
+/** The sheets of [language] the app ships with, in file-name order. */
+fun loadSheets(session: PingUpSession, language: String): List<FirstAidSheet> {
+    val files = session.assets(sheetDirectory(language))
+    return readSheets(files.keys.toList(), files::getValue)
 }
 
 fun readSheets(names: List<String>, read: (String) -> String): List<FirstAidSheet> =

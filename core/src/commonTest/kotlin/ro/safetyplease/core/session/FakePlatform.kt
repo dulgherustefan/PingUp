@@ -57,6 +57,12 @@ class FakePlatform(
         return (if (exists(own)) own else repoFile("app/src/main/assets/$name")).readText()
     }
 
+    override fun assets(folder: String): Map<String, String> {
+        val dir = repoFile("app/src/main/assets/$folder")
+        val fs = okio.FileSystem.SYSTEM
+        return if (fs.exists(dir)) fs.list(dir).associate { it.name to fs.read(it) { readUtf8() } } else emptyMap()
+    }
+
     private fun exists(path: Path) = okio.FileSystem.SYSTEM.exists(path)
 
     override fun log(message: String) = Unit

@@ -1,13 +1,5 @@
-package ro.safetyplease.app.ui.people
+package ro.safetyplease.ui.people
 
-import ro.safetyplease.ui.text.dateText
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.back
-import ro.safetyplease.ui.resources.blocked_empty
-import ro.safetyplease.ui.resources.blocked_empty_text
-import ro.safetyplease.ui.resources.blocked_since
-import ro.safetyplease.ui.resources.blocked_title
-import ro.safetyplease.ui.resources.blocked_unblock
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -18,11 +10,9 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalResources
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.ui.text.Labels
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Avatar
@@ -34,13 +24,21 @@ import ro.safetyplease.ui.designsystem.InsetGroup
 import ro.safetyplease.ui.designsystem.NavScreen
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.blocked_empty
+import ro.safetyplease.ui.resources.blocked_empty_text
+import ro.safetyplease.ui.resources.blocked_since
+import ro.safetyplease.ui.resources.blocked_title
+import ro.safetyplease.ui.resources.blocked_unblock
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.dateText
 
 /** The people this phone ignores, each with a way back. Opened from Me, which lists it only once someone is blocked. */
 @Composable
 fun BlockedScreen(vm: AppViewModel) {
     val blocked by vm.blocked.collectAsStateWithLifecycle()
     val colors = AppTheme.colors
-    val resources = LocalResources.current
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
 

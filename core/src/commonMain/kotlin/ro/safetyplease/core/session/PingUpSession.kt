@@ -617,6 +617,12 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     fun wipeAllData() = platform.wipe()
 
+    /** The language the app is shown in, "ro" or "en". */
+    fun language(): String = platform.language()
+
+    /** The files of a folder the app ships with, by name: the first-aid sheets, the information pages. */
+    fun assets(folder: String): Map<String, String> = platform.assets(folder)
+
     /** A conversation came on screen: its notification goes. */
     fun dismissConversation(conversation: String) = notifications.cancelConversation(conversation)
 

@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.chat
+package ro.safetyplease.ui.chat
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.snap
@@ -33,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -47,12 +46,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.platform.power.BatteryExemption
-import ro.safetyplease.app.ui.common.RadioGate
-import ro.safetyplease.app.ui.common.RadioProblemBanner
-import ro.safetyplease.app.ui.common.networkText
-import ro.safetyplease.app.ui.common.problem
-import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.Friend
@@ -63,6 +56,10 @@ import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.RadioGate
+import ro.safetyplease.ui.common.RadioProblemBanner
+import ro.safetyplease.ui.common.networkText
+import ro.safetyplease.ui.common.problem
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Avatar
@@ -80,6 +77,7 @@ import ro.safetyplease.ui.designsystem.UnreadBadge
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.rememberRadioGate
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.identity_new_text
 import ro.safetyplease.ui.resources.identity_new_title
@@ -252,16 +250,15 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 /** The first thing keeping the mesh from working, with the button that fixes it. */
 @Composable
 private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate, batteryDismissed: Boolean, modifier: Modifier) {
-    val context = LocalContext.current
     when {
         gate.problem() != null -> RadioProblemBanner(gate, modifier)
         radio.bluetoothOn && !radio.canAdvertise -> Banner(
             stringResource(Res.string.problem_leaf_title), stringResource(Res.string.problem_leaf_text), modifier,
         )
-        !batteryDismissed && BatteryExemption.hintNeeded(context) -> Banner(
+        !batteryDismissed && vm.phone.batteryHintNeeded() -> Banner(
             stringResource(Res.string.problem_battery_title), stringResource(Res.string.problem_battery_text), modifier,
             action = stringResource(Res.string.problem_battery_action),
-            onAction = { BatteryExemption.request(context) },
+            onAction = vm.phone::requestBatteryExemption,
             dismiss = stringResource(Res.string.problem_dismiss), onDismiss = { vm.dismissBatteryHint() },
         )
     }

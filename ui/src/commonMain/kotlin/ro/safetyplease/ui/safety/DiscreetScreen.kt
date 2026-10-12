@@ -1,22 +1,5 @@
-package ro.safetyplease.app.ui.safety
+package ro.safetyplease.ui.safety
 
-import ro.safetyplease.ui.resources.report_rate_limited
-import ro.safetyplease.ui.resources.status_acknowledged
-import org.jetbrains.compose.resources.StringResource
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.back
-import ro.safetyplease.ui.resources.discreet_message
-import ro.safetyplease.ui.resources.discreet_no_location
-import ro.safetyplease.ui.resources.discreet_off_text
-import ro.safetyplease.ui.resources.discreet_off_title
-import ro.safetyplease.ui.resources.discreet_send
-import ro.safetyplease.ui.resources.discreet_sent_text
-import ro.safetyplease.ui.resources.discreet_sent_title
-import ro.safetyplease.ui.resources.discreet_text
-import ro.safetyplease.ui.resources.discreet_title
-import ro.safetyplease.ui.resources.discreet_withdraw
-import ro.safetyplease.ui.resources.emergency_call
-import ro.safetyplease.ui.resources.report_use_location
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,16 +16,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import org.jetbrains.compose.resources.pluralStringResource
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ro.safetyplease.app.Emergency
-import ro.safetyplease.ui.text.Labels
-import ro.safetyplease.ui.text.rememberNow
-import ro.safetyplease.app.ui.rememberLocationRequest
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.incidents.Discreet
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppButton
@@ -57,6 +36,25 @@ import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.isOpen
+import ro.safetyplease.ui.rememberLocationRequest
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.discreet_message
+import ro.safetyplease.ui.resources.discreet_no_location
+import ro.safetyplease.ui.resources.discreet_off_text
+import ro.safetyplease.ui.resources.discreet_off_title
+import ro.safetyplease.ui.resources.discreet_send
+import ro.safetyplease.ui.resources.discreet_sent_text
+import ro.safetyplease.ui.resources.discreet_sent_title
+import ro.safetyplease.ui.resources.discreet_text
+import ro.safetyplease.ui.resources.discreet_title
+import ro.safetyplease.ui.resources.discreet_withdraw
+import ro.safetyplease.ui.resources.emergency_call
+import ro.safetyplease.ui.resources.report_rate_limited
+import ro.safetyplease.ui.resources.report_use_location
+import ro.safetyplease.ui.resources.status_acknowledged
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.rememberNow
 
 /** A discreet report still counts as the one in progress for this long. */
 private const val ACTIVE_MS = 60 * 60_000L
@@ -72,7 +70,6 @@ fun DiscreetScreen(vm: AppViewModel) {
     val spot by vm.spot.collectAsStateWithLifecycle()
     val now = rememberNow()
     val colors = AppTheme.colors
-    val context = LocalContext.current
     val message = stringResource(Res.string.discreet_message)
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
@@ -95,7 +92,7 @@ fun DiscreetScreen(vm: AppViewModel) {
         if (!vm.venue.safeguarding) {
             EmptyState(
                 stringResource(Res.string.discreet_off_title), stringResource(Res.string.discreet_off_text), Modifier.padding(padding), icon = Sym.Info,
-                action = { AppButton(stringResource(Res.string.emergency_call), { Emergency.dial(context) }, kind = ButtonKind.Secondary, icon = Sym.Phone) },
+                action = { AppButton(stringResource(Res.string.emergency_call), { vm.phone.dial112() }, kind = ButtonKind.Secondary, icon = Sym.Phone) },
             )
             return@NavScreen
         }
@@ -128,7 +125,7 @@ fun DiscreetScreen(vm: AppViewModel) {
                 if (!report.cancelled) TextLink(stringResource(Res.string.discreet_withdraw), { vm.cancelReport(report.incidentId) })
             }
             AppButton(
-                stringResource(Res.string.emergency_call), { Emergency.dial(context) }, Modifier.fillMaxWidth(), ButtonKind.Secondary, icon = Sym.Phone,
+                stringResource(Res.string.emergency_call), { vm.phone.dial112() }, Modifier.fillMaxWidth(), ButtonKind.Secondary, icon = Sym.Phone,
             )
         }
     }

@@ -1,5 +1,8 @@
 package ro.safetyplease.app.ui.common
 
+import ro.safetyplease.ui.common.mapNodes
+import ro.safetyplease.ui.common.MapWords
+import ro.safetyplease.ui.common.MapPin
 import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

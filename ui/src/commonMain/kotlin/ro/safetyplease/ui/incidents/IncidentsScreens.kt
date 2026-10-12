@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.incidents
+package ro.safetyplease.ui.incidents
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -37,7 +37,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -49,11 +48,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.ui.common.MapPin
-import ro.safetyplease.app.ui.common.UpdateTimeline
-import ro.safetyplease.app.ui.common.VenueMap
-import ro.safetyplease.app.ui.common.incidentPoint
-import ro.safetyplease.app.ui.common.placeText
 import ro.safetyplease.core.control.isAssignedTo
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Clustering
@@ -68,8 +62,13 @@ import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.IncidentHeader
+import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.UpdateTimeline
+import ro.safetyplease.ui.common.VenueMap
 import ro.safetyplease.ui.common.categoryIcon
+import ro.safetyplease.ui.common.incidentPoint
+import ro.safetyplease.ui.common.placeText
 import ro.safetyplease.ui.common.reportFacts
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppMenu
@@ -182,14 +181,14 @@ private fun statusWord(status: Int): StringResource = when (status) {
 }
 
 /** The field steps after a take, one at a time; null once nothing is left but resolving it. */
-internal fun nextFieldStep(status: Int): Int? = when (status) {
+fun nextFieldStep(status: Int): Int? = when (status) {
     AckStatus.ACKNOWLEDGED -> AckStatus.ON_SCENE
     AckStatus.ON_SCENE -> AckStatus.HANDED_OVER
     else -> null
 }
 
 /** Nobody has it and it isn't closed: a team can take it. */
-internal fun StaffIncident.isOpen(): Boolean = !AckStatus.isTaken(status) && !AckStatus.isClosed(status)
+fun StaffIncident.isOpen(): Boolean = !AckStatus.isTaken(status) && !AckStatus.isClosed(status)
 private fun fieldStepLabel(step: Int): StringResource = if (step == AckStatus.ON_SCENE) Res.string.incident_on_scene else Res.string.incident_handed_over
 
 private fun AppViewModel.fieldStep(incidentId: String, step: Int) = if (step == AckStatus.ON_SCENE) onScene(incidentId) else handOver(incidentId)
@@ -206,16 +205,16 @@ private fun StaffStatus(status: Int, team: String, modifier: Modifier = Modifier
 }
 
 /** Taken in the name of [team] or its role, by the console or by the team itself, and not closed: its work comes first. */
-internal fun StaffIncident.isMine(team: String): Boolean = AckStatus.isTaken(status) && isAssignedTo(teamName, team)
+fun StaffIncident.isMine(team: String): Boolean = AckStatus.isTaken(status) && isAssignedTo(teamName, team)
 
 /** The console gave it to [team]: "Alocat echipei tale". A team's own take is not an assignment. */
-internal fun StaffIncident.isAssignedToMe(team: String): Boolean = assigned && isMine(team)
+fun StaffIncident.isAssignedToMe(team: String): Boolean = assigned && isMine(team)
 
 /**
  * One row per report under [filter], without what is for the control room only: those [team] has, assigned or taken,
  * first, then those routed to this phone, then unassigned urgent ones, closed ones last, then severity and recency.
  */
-internal fun incidentRows(
+fun incidentRows(
     staff: List<StaffIncident>,
     filter: StatusFilter,
     team: String = "",
@@ -231,9 +230,9 @@ internal fun incidentRows(
     )
 
 /** A field phone's lists: what is routed to it, by default; every open incident, without alerts; the closed ones. */
-internal enum class IncidentList { FOR_ME, ALL, CLOSED }
+enum class IncidentList { FOR_ME, ALL, CLOSED }
 
-internal fun listRows(staff: List<StaffIncident>, list: IncidentList, me: StaffProfile, nowMs: Long): List<StaffIncident> {
+fun listRows(staff: List<StaffIncident>, list: IncidentList, me: StaffProfile, nowMs: Long): List<StaffIncident> {
     val forMe = { incident: StaffIncident -> Routing.isForMe(me, incident, nowMs) }
     return when (list) {
         IncidentList.FOR_ME -> incidentRows(staff, StatusFilter.ACTIVE, me.team, forMe).filter(forMe)

@@ -101,8 +101,8 @@ import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.app.ui.common.BigCodeDialog
 import ro.safetyplease.app.ui.common.QrBadge
 import ro.safetyplease.app.ui.common.QrCardWidth
-import ro.safetyplease.app.ui.deniedForGood
-import ro.safetyplease.app.ui.openAppSettings
+import ro.safetyplease.ui.deniedForGood
+import ro.safetyplease.ui.openAppSettings
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.ui.AppViewModel

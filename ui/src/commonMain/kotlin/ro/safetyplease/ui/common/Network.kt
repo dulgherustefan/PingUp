@@ -1,31 +1,8 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
-import ro.safetyplease.ui.resources.mesh_off_text
-import ro.safetyplease.ui.resources.open_settings
-import ro.safetyplease.ui.resources.problem_access_action
-import ro.safetyplease.ui.resources.problem_access_text
-import ro.safetyplease.ui.resources.problem_bt_text
-import ro.safetyplease.ui.resources.problem_location_text
-import ro.safetyplease.ui.resources.report_wait_access
-import ro.safetyplease.ui.resources.report_wait_bluetooth
-import ro.safetyplease.ui.resources.report_wait_location
-import ro.safetyplease.ui.resources.report_wait_mesh_off
-import org.jetbrains.compose.resources.StringResource
-import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.mesh_off_title
-import ro.safetyplease.ui.resources.net_none
-import ro.safetyplease.ui.resources.phones_around
-import ro.safetyplease.ui.resources.problem_access_title
-import ro.safetyplease.ui.resources.problem_location_action
-import ro.safetyplease.ui.resources.problem_location_title
-import ro.safetyplease.ui.resources.status_bt_enable
-import ro.safetyplease.ui.resources.status_bt_off
-import ro.safetyplease.ui.resources.status_no_access
-import android.content.Intent
-import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.mesh.MeshState
@@ -33,6 +10,26 @@ import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.util.nodePrefix
 import ro.safetyplease.ui.common.Nearby
 import ro.safetyplease.ui.designsystem.Banner
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.mesh_off_text
+import ro.safetyplease.ui.resources.mesh_off_title
+import ro.safetyplease.ui.resources.net_none
+import ro.safetyplease.ui.resources.open_settings
+import ro.safetyplease.ui.resources.phones_around
+import ro.safetyplease.ui.resources.problem_access_action
+import ro.safetyplease.ui.resources.problem_access_text
+import ro.safetyplease.ui.resources.problem_access_title
+import ro.safetyplease.ui.resources.problem_bt_text
+import ro.safetyplease.ui.resources.problem_location_action
+import ro.safetyplease.ui.resources.problem_location_text
+import ro.safetyplease.ui.resources.problem_location_title
+import ro.safetyplease.ui.resources.report_wait_access
+import ro.safetyplease.ui.resources.report_wait_bluetooth
+import ro.safetyplease.ui.resources.report_wait_location
+import ro.safetyplease.ui.resources.report_wait_mesh_off
+import ro.safetyplease.ui.resources.status_bt_enable
+import ro.safetyplease.ui.resources.status_bt_off
+import ro.safetyplease.ui.resources.status_no_access
 
 
 /** What's missing for the mesh to work, and the actions that fix it. */
@@ -47,6 +44,8 @@ class RadioGate(
     /** The user turned the network off; [turnOn] starts it again. */
     val meshOff: Boolean = false,
     val turnOn: () -> Unit = {},
+    /** Location services are off, which below Android 12 keeps Bluetooth from finding anyone. */
+    val openLocationSettings: () -> Unit = {},
 )
 
 /** What stops the phone from sending anything, the most basic missing piece first. */
@@ -66,7 +65,6 @@ fun RadioGate.problem(): RadioProblem? = when {
  */
 @Composable
 fun RadioProblemBanner(gate: RadioGate, modifier: Modifier = Modifier, forReport: Boolean = false) {
-    val context = LocalContext.current
     when (gate.problem()) {
         RadioProblem.OFF -> Banner(
             stringResource(Res.string.mesh_off_title),
@@ -88,7 +86,7 @@ fun RadioProblemBanner(gate: RadioGate, modifier: Modifier = Modifier, forReport
             stringResource(Res.string.problem_location_title),
             stringResource(if (forReport) Res.string.report_wait_location else Res.string.problem_location_text), modifier, warning = true,
             action = stringResource(Res.string.problem_location_action),
-            onAction = { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) },
+            onAction = gate.openLocationSettings,
         )
         null -> Unit
     }

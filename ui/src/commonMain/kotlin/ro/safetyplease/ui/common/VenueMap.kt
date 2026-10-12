@@ -1,4 +1,4 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
@@ -58,7 +58,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
@@ -76,13 +75,12 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.text.quantityText
-import ro.safetyplease.app.text.text
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
+import ro.safetyplease.core.venue.radians
 import ro.safetyplease.ui.common.MapCorner
 import ro.safetyplease.ui.common.MapReserve
 import ro.safetyplease.ui.common.MeasuredName
@@ -109,6 +107,7 @@ import ro.safetyplease.ui.resources.map_a11y_summary
 import ro.safetyplease.ui.resources.map_meters
 import ro.safetyplease.ui.resources.map_north
 import ro.safetyplease.ui.resources.map_you
+import ro.safetyplease.ui.text.fill
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
@@ -125,9 +124,9 @@ private const val MaxZoom = 4f
 private val MarkerShadow = Color(0x29000000)
 
 /** Equirectangular projection over the venue bounds; the error is negligible at festival scale. */
-internal class Projection(venue: Venue, size: Size, pad: Float) {
+class Projection(venue: Venue, size: Size, pad: Float) {
     private val b = venue.bounds
-    private val lonScale = cos(Math.toRadians((b.minLat + b.maxLat) / 2))
+    private val lonScale = cos(radians((b.minLat + b.maxLat) / 2))
     private val worldW = (b.maxLon - b.minLon) * lonScale
     private val worldH = b.maxLat - b.minLat
     // keep zones off the map edge
@@ -148,7 +147,7 @@ internal class Projection(venue: Venue, size: Size, pad: Float) {
 
 fun venueAspect(venue: Venue): Float {
     val b = venue.bounds
-    val w = (b.maxLon - b.minLon) * cos(Math.toRadians((b.minLat + b.maxLat) / 2))
+    val w = (b.maxLon - b.minLon) * cos(radians((b.minLat + b.maxLat) / 2))
     return (w / (b.maxLat - b.minLat)).toFloat()
 }
 
@@ -165,7 +164,7 @@ class MapCamera {
     /** The map has been laid out and knows where every point is. */
     val ready: Boolean get() = projection != null
 
-    internal fun attach(projection: Projection, viewport: Size) {
+    fun attach(projection: Projection, viewport: Size) {
         this.viewport = viewport
         this.projection = projection
         offset = clamp(offset, scale)
@@ -287,7 +286,7 @@ fun VenueMap(
     val smallStyle = MaterialTheme.typography.caption2.copy(fontWeight = FontWeight.Bold)
     val glyphs = rememberGlyphs()
     val flag = rememberVectorPainter(Sym.Flag)
-    val resources = LocalResources.current
+    val metersText = stringResource(Res.string.map_meters)
     val density = LocalDensity.current
     val youLabel = stringResource(Res.string.map_you)
     val north = stringResource(Res.string.map_north)
@@ -490,7 +489,7 @@ fun VenueMap(
             val steps = intArrayOf(5, 10, 20, 25, 50, 100, 200, 250, 500)
             val meters = steps.firstOrNull { it * meter >= 44.dp.toPx() } ?: steps.last()
             val barLength = meters * meter
-            val scaleText = measurer.measure(resources.text(Res.string.map_meters, meters), smallStyle.copy(color = colors.label))
+            val scaleText = measurer.measure(metersText.fill(meters), smallStyle.copy(color = colors.label))
             val tick = 5.dp.toPx()
             val textRise = 7.dp.toPx() + scaleText.size.height
             val barWidth = max(barLength, scaleText.size.width + 2.dp.toPx())

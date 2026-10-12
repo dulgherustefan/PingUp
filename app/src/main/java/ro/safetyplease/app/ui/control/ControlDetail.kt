@@ -51,8 +51,8 @@ import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.app.text.quantityText
 import ro.safetyplease.app.text.text
-import ro.safetyplease.app.ui.common.UpdateTimeline
-import ro.safetyplease.app.ui.common.placeText
+import ro.safetyplease.ui.common.UpdateTimeline
+import ro.safetyplease.ui.common.placeText
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry

@@ -1,5 +1,7 @@
 package ro.safetyplease.ui
 
+import org.jetbrains.compose.resources.StringResource
+
 /**
  * What the screens need from the phone itself, past what the session gives: the Android app and the iPhone app each
  * have their own.
@@ -24,4 +26,36 @@ interface PhoneUi {
 
     /** Follows the position while the app is in front; no-op without permission. */
     fun startLocation()
+
+    /** Opens the phone app with 112 filled in; the person places the call. */
+    fun dial112()
+
+    /** The phone's own location settings, to turn location on. */
+    fun openLocationSettings()
+
+    /** This app's page in the phone's settings, for a permission refused for good. */
+    fun openAppSettings()
+
+    /** A short note at the bottom of the screen, gone by itself; [long] keeps it a little longer. */
+    fun toast(text: String, long: Boolean = false)
+
+    fun copyText(text: String)
+
+    /** The phone's maker stops apps like this one in the background unless the person exempts it. */
+    fun batteryHintNeeded(): Boolean
+
+    /** What to do on this phone to keep the app running, when its maker needs steps of its own. */
+    val batterySteps: StringResource?
+
+    /** Asks to exempt the app from battery saving, or opens the settings where that's done. */
+    fun requestBatteryExemption()
+
+    /** "1.2.3", as the store shows it. */
+    val appVersion: String
+
+    /** The app's name, as the phone shows it. */
+    val appName: String
+
+    /** This build carries the test tools: demo mode, a simulated location. */
+    val demoAvailable: Boolean
 }

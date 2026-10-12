@@ -1,9 +1,5 @@
-package ro.safetyplease.app.ui.onboarding
+package ro.safetyplease.ui.onboarding
 
-import android.os.Build
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -43,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.semantics
@@ -51,8 +46,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.app.ui.startPermissions
 import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.RadioNeedsLocation
+import ro.safetyplease.ui.common.BackHandler
 import ro.safetyplease.ui.common.MAX_NAME
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppLogo
@@ -73,6 +69,7 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.largeTitle
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.push
+import ro.safetyplease.ui.rememberStartPermissions
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
 import ro.safetyplease.ui.resources.name_hint
@@ -119,7 +116,7 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         step = 1
     }
     // whatever the answer, the user enters the app; anything missing shows there as a banner with a button
-    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { finish() }
+    val askPermissions = rememberStartPermissions(finish)
     BackHandler(enabled = step == 1) { step = 0 }
 
     AnimatedContent(
@@ -173,7 +170,7 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             StepPage(
                 onBack = { step = 0 },
                 bottom = {
-                    AppButton(stringResource(Res.string.onboarding_start), { permissions.launch(startPermissions()) }, Modifier.fillMaxWidth())
+                    AppButton(stringResource(Res.string.onboarding_start), askPermissions, Modifier.fillMaxWidth())
                     Spacer(Modifier.height(4.dp))
                     TextLink(stringResource(Res.string.onboarding_not_now), finish)
                 },
@@ -186,7 +183,7 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     Reason(Sym.Bluetooth, stringResource(Res.string.perm_bluetooth_title), stringResource(Res.string.perm_bluetooth_text))
                     Reason(Sym.Bell, stringResource(Res.string.perm_notifications_title), stringResource(Res.string.perm_notifications_text))
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                    if (RadioNeedsLocation) {
                         Reason(Sym.Place, stringResource(Res.string.perm_location_title), stringResource(Res.string.perm_location_text))
                     }
                 }
