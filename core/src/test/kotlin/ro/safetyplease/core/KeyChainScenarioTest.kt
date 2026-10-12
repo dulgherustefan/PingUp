@@ -12,6 +12,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import ro.safetyplease.core.crypto.CertRole
+import ro.safetyplease.core.crypto.Revocations
 import ro.safetyplease.core.incidents.ReportDraft
 import ro.safetyplease.core.mesh.DropReason
 import ro.safetyplease.core.mesh.LinkInfo
@@ -24,6 +25,8 @@ import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.util.hexToBytes
+import ro.safetyplease.core.util.toHex
+import java.io.File
 
 /**
  * The key chain on the simulated radio (PROTOCOL.md, sections 6.1, 6.4, 6.8 and 9): roles proven in HELLO, ACKs
@@ -88,6 +91,29 @@ class KeyChainScenarioTest {
         assertFalse(seen.getValue(fake.nodeId).verified)
         assertNull("a staff name from a phone that proves nothing", seen.getValue(fake.nodeId).nickname)
         assertFalse("a participant has no role to prove", medic.link(participant).verified)
+    }
+
+    @Test
+    fun everyRevokedIdOutlastsTheRevocationsKeptToSendAgainAndARestart() = runTest {
+        val w = World(this)
+        val console = w.phone("K")
+        val certs = List(Revocations.MAX_RESENT + 1) { w.event.shift(CertRole.STAFF, "Echipa $it").certificate }
+        for (cert in certs) console.revocations.add(w.event.revocation(cert))
+        advanceTimeBy(1_000)
+
+        val chain = w.event.chain(w.clock)
+        val store = Revocations.store(File(tmp.root, "K-revocations.json"), backgroundScope)
+        Revocations(backgroundScope, console.engine, chain, store, resends = { true }).start()
+        assertTrue(certs.all { chain.isRevoked(it.id) })
+        assertEquals(Revocations.MAX_RESENT, store.value.payloads.size)
+
+        // a list saved as bare payloads, before the ids were kept
+        val old = File(tmp.root, "old-revocations.json").apply { writeText("[\"" + w.event.revocation(certs[0]).toHex() + "\"]") }
+        val oldChain = w.event.chain(w.clock)
+        val oldStore = Revocations.store(old, backgroundScope)
+        Revocations(backgroundScope, console.engine, oldChain, oldStore, resends = { true }).start()
+        assertTrue(oldChain.isRevoked(certs[0].id))
+        assertEquals(listOf(certs[0].id), oldStore.value.ids)
     }
 
     @Test

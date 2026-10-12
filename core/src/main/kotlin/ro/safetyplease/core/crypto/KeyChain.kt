@@ -114,6 +114,12 @@ class KeyChain(
         return trusted[id]?.takeIf { status(it) == CertStatus.VALID }?.key
     }
 
+    /** Ids a revocation this phone verified before named; they stay revoked whatever the chain says now. */
+    @Synchronized
+    fun revokeIds(ids: Collection<Long>) {
+        revoked = revoked + ids
+    }
+
     /** Applies a valid revocation; the ids it newly revokes, or null if it isn't one. */
     @Synchronized
     fun revoke(payload: ByteArray): List<Long>? {

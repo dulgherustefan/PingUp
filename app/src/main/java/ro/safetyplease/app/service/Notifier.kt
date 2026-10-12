@@ -117,6 +117,20 @@ class Notifier(private val context: Context, private val venue: Venue) {
         manager.notify(FOREGROUND_ID, notification)
     }
 
+    /** The phone's shift certificate ran out, so it went back to being a participant's. */
+    fun shiftEnded() {
+        if (!canPost()) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notif_shift_ended_title))
+            .setContentText(context.getString(R.string.notif_shift_ended_text))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.notif_shift_ended_text)))
+            .setAutoCancel(true)
+            .setContentIntent(open(MainActivity.OPEN_HOME, RequestCodes.SHIFT_ENDED))
+            .build()
+        manager.notify(SHIFT_ENDED_ID, notification)
+    }
+
     /** A staff alert as [ro.safetyplease.core.incidents.AlertPlanner] decided it: the channel follows the level. */
     fun staffAlert(post: AlertPost) {
         if (!canPost()) return
@@ -205,6 +219,7 @@ class Notifier(private val context: Context, private val venue: Venue) {
 
     companion object {
         const val FOREGROUND_ID = 1
+        private const val SHIFT_ENDED_ID = 2
         private const val CHANNEL_MESH = "mesh"
         private const val OLD_CHANNEL_URGENT = "incident_urgent"
         private const val CHANNEL_ALARM = "incident_alarm"

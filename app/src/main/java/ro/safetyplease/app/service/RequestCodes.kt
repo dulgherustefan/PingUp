@@ -10,4 +10,5 @@ object RequestCodes {
     const val REPORT_ACTION = 2
     const val MESH_STOPPED = 3
     const val REPORT_TILE = 4
+    const val SHIFT_ENDED = 5
 }

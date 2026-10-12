@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -199,7 +198,7 @@ class AppContainer(private val app: Application) {
 
     private val revocations = Revocations(
         meshScope, engine, keyChain,
-        JsonStore(File(dataDir, "revocations.json"), ListSerializer(String.serializer()), emptyList(), ioScope),
+        Revocations.store(File(dataDir, "revocations.json"), ioScope),
         resends = { settings.value.role == Role.CONTROL },
     ) {
         // a revoked shift signs nothing any more; the phone goes back to being a participant's
@@ -222,6 +221,7 @@ class AppContainer(private val app: Application) {
             }
         }
         meshScope.launch { remindUnconfirmed() }
+        meshScope.launch { endExpiredShift() }
         meshScope.launch { routeAlerts() }
         meshScope.launch {
             while (true) {
@@ -302,6 +302,20 @@ class AppContainer(private val app: Application) {
         }
     }
 
+    /** A shift certificate that ran out leaves the phone a participant's, as a revoked one does, and says so. */
+    private suspend fun endExpiredShift() {
+        settings.state.map { it.role != Role.PARTICIPANT }.distinctUntilChanged().collectLatest { onShift ->
+            while (onShift) {
+                val cert = keyChain.credential?.certificate
+                if (cert != null && clock.wallMs() / 1000 > cert.validFrom && keyChain.status(cert) == CertStatus.OUTSIDE_WINDOW) {
+                    notifier.shiftEnded()
+                    leaveStaff()
+                }
+                delay(SHIFT_CHECK_MS)
+            }
+        }
+    }
+
     /** When an urgent report of yours has waited too long for a person on staff, tells you so from the background. */
     private suspend fun remindUnconfirmed() {
         val reminder = EscalationReminder(clock.wallMs())
@@ -328,7 +342,7 @@ class AppContainer(private val app: Application) {
             vault.save(VAULT_STAFF, card.boxSeed + card.signSeed)
             staffSecret = secret
             val role = if (card.role == StaffRole.CONTROL) Role.CONTROL else Role.STAFF
-            settings.update { it.copy(role = role, teamName = card.teamName, anchorZone = "", staffZone = card.zone) }
+            settings.update { it.copy(role = role, teamName = card.teamName, anchorZone = "", staffZone = card.zone, roleLead = false) }
             incidents.reprocessCached()
         }
         return true
@@ -356,7 +370,7 @@ class AppContainer(private val app: Application) {
             val anchor = role == Role.ANCHOR
             it.copy(
                 role = role, teamName = card.teamName, anchorZone = if (anchor) card.zone else "", staffZone = if (anchor) "" else card.zone,
-                roleLead = it.roleLead && !anchor,
+                roleLead = false,
             )
         }
         if (secret != null) incidents.reprocessCached()
@@ -404,5 +418,6 @@ class AppContainer(private val app: Application) {
         private const val VAULT_IDENTITY = "identity"
         private const val VAULT_STAFF = "staff"
         private const val VAULT_SHIFT = "shift"
+        private const val SHIFT_CHECK_MS = 60_000L
     }
 }

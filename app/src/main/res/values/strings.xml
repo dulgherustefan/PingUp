@@ -447,6 +447,8 @@
     </plurals>
     <string name="notif_mesh_stopped_title">%1$s s-a oprit</string>
     <string name="notif_mesh_stopped_text">Atinge ca să repornești</string>
+    <string name="notif_shift_ended_title">Tura s-a încheiat</string>
+    <string name="notif_shift_ended_text">Certificatul turei a expirat, așa că telefonul e din nou participant. Pentru o tură nouă, scanează codul QR de staff.</string>
     <string name="notif_incident_title">%1$s · %2$s</string>
     <string name="notif_assigned_title">Alocat echipei tale · %1$s</string>
     <string name="notif_unaccepted_title">%1$s n-a acceptat alocarea · %2$s</string>

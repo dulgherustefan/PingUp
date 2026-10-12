@@ -433,6 +433,8 @@
     </plurals>
     <string name="notif_mesh_stopped_title">%1$s has stopped</string>
     <string name="notif_mesh_stopped_text">Tap to restart</string>
+    <string name="notif_shift_ended_title">Your shift has ended</string>
+    <string name="notif_shift_ended_text">The shift certificate expired, so this phone is a participant again. For a new shift, scan the staff QR code.</string>
     <string name="notif_incident_title">%1$s · %2$s</string>
     <string name="notif_assigned_title">Assigned to your team · %1$s</string>
     <string name="notif_unaccepted_title">%1$s hasn’t accepted · %2$s</string>

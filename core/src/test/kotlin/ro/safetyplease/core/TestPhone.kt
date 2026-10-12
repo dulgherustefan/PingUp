@@ -2,7 +2,6 @@ package ro.safetyplease.core
 
 import kotlinx.coroutines.test.TestScope
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
 import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.Certificate
@@ -138,7 +137,7 @@ class TestPhone(
     )
 
     val revocations = Revocations(
-        bg, engine, keyChain, JsonStore(File(dir, "$name-revocations.json"), ListSerializer(String.serializer()), emptyList(), bg),
+        bg, engine, keyChain, Revocations.store(File(dir, "$name-revocations.json"), bg),
         resends = { false },
     )
 
