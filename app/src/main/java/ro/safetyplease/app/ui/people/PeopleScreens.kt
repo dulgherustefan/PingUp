@@ -109,7 +109,7 @@ import ro.safetyplease.app.ui.Tab
 import ro.safetyplease.app.ui.common.BigCodeDialog
 import ro.safetyplease.app.ui.common.QrBadge
 import ro.safetyplease.app.ui.common.QrCardWidth
-import ro.safetyplease.app.ui.common.presenceText
+import ro.safetyplease.app.ui.common.friendStatus
 import ro.safetyplease.app.ui.deniedForGood
 import ro.safetyplease.app.ui.designsystem.ActionTile
 import ro.safetyplease.app.ui.designsystem.AppButton
@@ -540,7 +540,7 @@ fun NewGroupScreen(vm: AppViewModel) {
                                             else -> haptics.reject()
                                         }
                                     },
-                                    subtitle = presenceText(friend, nearby, now),
+                                    subtitle = friendStatus(friend, nearby, now, vm.venue),
                                     leading = { Avatar(friend.nickname, 36.dp, near = nearby.isInRange(friend.nodeId)) },
                                     trailing = { RoundCheck(checked) },
                                 )
@@ -637,6 +637,8 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
     val friend = friends.firstOrNull { Conversations.friend(it.nodeId) == conversation }
     val group = groups.firstOrNull { Conversations.group(it.id) == conversation }
     var confirm by remember { mutableStateOf(false) }
+    var asked by remember { mutableStateOf(false) }
+    var blocking by remember { mutableStateOf<Pair<Long, String>?>(null) }
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     // the name moves into the top bar only once the header name has scrolled under it
@@ -656,7 +658,7 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding)) {
             PersonHeader(
                 title,
-                if (friend != null) presenceText(friend, nearby, now)
+                if (friend != null) friendStatus(friend, nearby, now, vm.venue)
                 else pluralStringResource(R.plurals.group_members, group!!.members.size, group.members.size),
                 near = friend != null && nearby.isInRange(friend.nodeId), group = group != null, size = 88.dp,
             )
@@ -675,6 +677,23 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                         value = if (friend.lastSeenAt > 0) agoText(friend.lastSeenAt, now) else stringResource(R.string.presence_never),
                         icon = Sym.History,
                     )
+                    GroupDivider()
+                    GroupRow(
+                        stringResource(R.string.profile_last_zone),
+                        subtitle = if (friend.lastZone.isNotEmpty()) agoText(friend.lastZoneAt, now) else null,
+                        value = if (friend.lastZone.isNotEmpty()) vm.venue.zoneName(friend.lastZone) else stringResource(R.string.profile_last_zone_none),
+                        icon = Sym.Place,
+                    )
+                    GroupDivider()
+                    GroupRow(
+                        stringResource(R.string.profile_where_are_you),
+                        subtitle = if (asked) stringResource(R.string.profile_where_asked) else null,
+                        icon = Sym.MyLocation, tint = colors.accent,
+                        onClick = {
+                            vm.requestZone(friend)
+                            asked = true
+                        },
+                    )
                 } else if (group != null) {
                     GroupRow(stringResource(R.string.profile_created), value = Labels.date(LocalResources.current, group.createdAt), icon = Sym.Clock)
                 }
@@ -687,14 +706,25 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                         val me = member.nodeId == vm.c.identity.nodeId
                         GroupRow(
                             if (me) stringResource(R.string.msg_you) else known?.nickname ?: member.nickname,
-                            subtitle = known?.let { presenceText(it, nearby, now) },
+                            subtitle = known?.let { friendStatus(it, nearby, now, vm.venue) },
                             leading = { Avatar(member.nickname, 36.dp, near = known != null && nearby.isInRange(known.nodeId)) },
+                            onClick = if (me) null else ({ blocking = member.nodeId to (known?.nickname ?: member.nickname) }),
+                            trailing = if (me) null else ({
+                                Text(stringResource(R.string.profile_block), style = MaterialTheme.typography.footnote, color = colors.redInk)
+                            }),
                         )
                         if (index < group.members.lastIndex) GroupDivider(start = 64.dp)
                     }
                 }
             }
             InsetGroup(Modifier.padding(top = 24.dp)) {
+                if (friend != null) {
+                    GroupRow(
+                        stringResource(R.string.profile_block), icon = Sym.Hidden, tint = colors.redInk,
+                        onClick = { blocking = friend.nodeId to friend.nickname },
+                    )
+                    GroupDivider()
+                }
                 GroupRow(
                     stringResource(if (friend != null) R.string.profile_remove_friend else R.string.profile_leave_group),
                     icon = if (friend != null) Sym.Delete else Sym.Logout, tint = colors.redInk, onClick = { confirm = true },
@@ -713,6 +743,19 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
         ) {
             vm.home(Tab.MESSAGES)
             if (friend != null) vm.removeFriend(friend) else if (group != null) vm.leaveGroup(group.id)
+        }
+    }
+    blocking?.let { (nodeId, name) ->
+        ConfirmDialog(
+            title = stringResource(R.string.block_title, name),
+            text = stringResource(R.string.block_text),
+            onDismiss = { blocking = null },
+            confirmLabel = stringResource(R.string.profile_block),
+            destructive = true,
+        ) {
+            blocking = null
+            if (friend?.nodeId == nodeId) vm.home(Tab.MESSAGES)
+            vm.block(nodeId)
         }
     }
 }

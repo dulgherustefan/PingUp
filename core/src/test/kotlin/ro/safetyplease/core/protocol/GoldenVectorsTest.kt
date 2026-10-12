@@ -81,6 +81,9 @@ class GoldenVectorsTest {
         "inner.pong" to { InnerCodec.encode(Golden.pong).toHex() },
         "inner.delivered" to { InnerCodec.encode(Golden.delivered).toHex() },
         "inner.invite" to { InnerCodec.encode(Golden.invite).toHex() },
+        "inner.left_group" to { InnerCodec.encode(Golden.leftGroup).toHex() },
+        "inner.zone_request" to { InnerCodec.encode(Golden.zoneRequest).toHex() },
+        "inner.zone_update" to { InnerCodec.encode(Golden.zoneUpdate).toHex() },
         "private.box" to { Golden.boxed().toHex() },
         "qr.friend" to { QrCodes.encodeFriend(Golden.friendCard) },
         "qr.staff" to { QrCodes.encodeStaff(Golden.staffCard) },
@@ -232,6 +235,7 @@ class GoldenVectorsTest {
             "inner.text" to Golden.text, "inner.text.group" to Golden.groupText, "inner.quick" to Golden.quick,
             "inner.zone" to Golden.zone, "inner.zone.plain" to Golden.plainZone, "inner.ping" to Golden.ping,
             "inner.pong" to Golden.pong, "inner.delivered" to Golden.delivered, "inner.invite" to Golden.invite,
+            "inner.left_group" to Golden.leftGroup, "inner.zone_request" to Golden.zoneRequest, "inner.zone_update" to Golden.zoneUpdate,
         )
         for ((name, inner) in inners) assertEquals(name, inner.fields(), InnerCodec.decode(bytes(name))!!.fields())
 
@@ -634,6 +638,9 @@ private object Golden {
     val ping = Inner.Ping(msgId)
     val pong = Inner.Pong(msgId, otherId)
     val delivered = Inner.Delivered(msgId, otherId)
+    val leftGroup = Inner.LeftGroup(msgId, groupId)
+    val zoneRequest = Inner.ZoneRequest(msgId)
+    val zoneUpdate = Inner.ZoneUpdate(msgId, "bar")
     val invite = Inner.GroupInvite(
         msgId, groupId, "Prietenii",
         listOf(
@@ -776,6 +783,9 @@ private fun Inner.fields(): List<Any?> = when (this) {
     is Inner.Ping -> listOf("ping", msgId)
     is Inner.Pong -> listOf("pong", msgId, pingId)
     is Inner.Delivered -> listOf("delivered", msgId, deliveredId)
+    is Inner.LeftGroup -> listOf("left_group", msgId, groupId)
+    is Inner.ZoneRequest -> listOf("zone_request", msgId)
+    is Inner.ZoneUpdate -> listOf("zone_update", msgId, zone)
     is Inner.GroupInvite ->
         listOf("invite", msgId, groupId, name, members.map { listOf(it.nodeId, it.boxKey.toHex(), it.nickname) })
 }

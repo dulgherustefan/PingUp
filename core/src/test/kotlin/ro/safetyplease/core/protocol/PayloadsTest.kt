@@ -432,6 +432,32 @@ class PayloadsTest {
     }
 
     @Test
+    fun theInnerKindsOfLeavingAndOfTheLastZoneRoundTripAndHaveTheirOwnNumbers() {
+        val left = InnerCodec.encode(Inner.LeftGroup(1L, 77L))
+        assertEquals(8, left[0].toInt())
+        assertEquals(77L, (InnerCodec.decode(left) as Inner.LeftGroup).groupId)
+        val ask = InnerCodec.encode(Inner.ZoneRequest(2L))
+        assertEquals(9, ask[0].toInt())
+        assertEquals(2L, (InnerCodec.decode(ask) as Inner.ZoneRequest).msgId)
+        val update = InnerCodec.encode(Inner.ZoneUpdate(3L, "scena-principală"))
+        assertEquals(10, update[0].toInt())
+        assertEquals("scena-principală", (InnerCodec.decode(update) as Inner.ZoneUpdate).zone)
+        val longest = InnerCodec.encode(Inner.ZoneUpdate(3L, "z".repeat(Limits.ZONE_BYTES)))
+        assertTrue("small enough to need no budget of its own", longest.size + 40 <= PacketCodec.MAX_PAYLOAD)
+    }
+
+    @Test
+    fun leavingAndTheLastZoneAreStrictAndTheNextKindIsStillUnknown() {
+        assertNull(InnerCodec.decode(InnerCodec.encode(Inner.LeftGroup(1L, 2L)) + 1))
+        assertNull(InnerCodec.decode(InnerCodec.encode(Inner.LeftGroup(1L, 2L)).copyOf(12)))
+        assertNull(InnerCodec.decode(InnerCodec.encode(Inner.ZoneRequest(1L)) + 1))
+        assertNull(InnerCodec.decode(WireWriter().u8(10).i64(1).u8(0).toByteArray()))
+        assertNull(InnerCodec.decode(WireWriter().u8(10).i64(1).u8(Limits.ZONE_BYTES + 1).bytes(ByteArray(Limits.ZONE_BYTES + 1) { 'z'.code.toByte() }).toByteArray()))
+        assertNull(InnerCodec.decode(InnerCodec.encode(Inner.ZoneUpdate(1L, "bar")) + 1))
+        assertNull("11 is the next free kind", InnerCodec.decode(byteArrayOf(11, 0, 0, 0, 0, 0, 0, 0, 1)))
+    }
+
+    @Test
     fun innerRejectsGarbage() {
         assertNull(InnerCodec.decode(ByteArray(0)))
         assertNull(InnerCodec.decode(byteArrayOf(99, 0, 0, 0, 0, 0, 0, 0, 1)))

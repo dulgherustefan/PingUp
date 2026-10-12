@@ -21,6 +21,7 @@ import ro.safetyplease.app.ui.designsystem.GlassSize
 import ro.safetyplease.app.ui.designsystem.TouchTarget
 import ro.safetyplease.app.ui.designsystem.pressScale
 import ro.safetyplease.core.data.Friend
+import ro.safetyplease.core.venue.Venue
 
 @Composable
 fun presenceText(friend: Friend, nearby: Nearby, now: Long): String = when {
@@ -28,6 +29,14 @@ fun presenceText(friend: Friend, nearby: Nearby, now: Long): String = when {
     // the hop count is a technical detail; people only care when the friend was last seen
     friend.lastSeenAt > 0 -> stringResource(R.string.presence_seen, agoText(friend.lastSeenAt, now))
     else -> stringResource(R.string.presence_never)
+}
+
+/** [presenceText], then the zone the friend last told us and how long ago, once they have told us one. */
+@Composable
+fun friendStatus(friend: Friend, nearby: Nearby, now: Long, venue: Venue): String {
+    val presence = presenceText(friend, nearby, now)
+    if (friend.lastZone.isEmpty()) return presence
+    return stringResource(R.string.presence_zone, presence, venue.zoneName(friend.lastZone), agoText(friend.lastZoneAt, now))
 }
 
 /** Your avatar, top left on every tab: opens your profile directly. */

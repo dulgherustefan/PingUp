@@ -11,4 +11,5 @@ object RequestCodes {
     const val MESH_STOPPED = 3
     const val REPORT_TILE = 4
     const val SHIFT_ENDED = 5
+    const val DISCREET_TILE = 6
 }

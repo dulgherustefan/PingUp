@@ -170,7 +170,7 @@ private fun chatItems(messages: List<ChatMessage>): List<ChatItem> = buildList {
         val previous = messages.getOrNull(index - 1)
         val next = messages.getOrNull(index + 1)
         if (previous == null || Labels.daysBetween(previous.timeMs, message.timeMs) != 0) add(ChatItem.Day(message.timeMs))
-        fun joined(a: ChatMessage?, b: ChatMessage?) = a != null && b != null && a.kind != MsgKind.SYSTEM && b.kind != MsgKind.SYSTEM &&
+        fun joined(a: ChatMessage?, b: ChatMessage?) = a != null && b != null && !a.kind.isNotice && !b.kind.isNotice &&
             a.senderId == b.senderId && b.timeMs - a.timeMs <= RUN_WINDOW_MS && Labels.daysBetween(a.timeMs, b.timeMs) == 0
         add(ChatItem.Message(message, first = !joined(previous, message), last = !joined(message, next)))
     }
@@ -237,7 +237,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
         friend != null -> presenceText(friend, nearby, now)
         else -> pluralStringResource(R.plurals.group_members, group!!.members.size, group.members.size)
     }
-    val lastMine = messages.lastOrNull { it.fromMe && it.kind != MsgKind.SYSTEM }
+    val lastMine = messages.lastOrNull { it.fromMe && !it.kind.isNotice }
     val sendZone = {
         // with no known zone, open the map; the zone picked there is sent to the conversation
         if (vm.sendMyZone(conversation)) haptics.confirm()
@@ -486,7 +486,7 @@ private fun MessageItem(
     val haptics = rememberHaptics()
     val preview = messagePreview(vm, message)
     val colors = AppTheme.colors
-    if (message.kind == MsgKind.SYSTEM) {
+    if (message.kind.isNotice) {
         Text(
             preview, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, textAlign = TextAlign.Center,
             modifier = modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp),

@@ -36,6 +36,8 @@ data class Settings(
     val roleLead: Boolean = false,
     /** Staff opted in to logging the mobile network's state for the pilot; it stays on this phone. */
     val networkLog: Boolean = false,
+    /** Friends may learn this phone's zone, when it changes and when they ask. */
+    val shareZone: Boolean = true,
 )
 
 @Serializable
@@ -47,10 +49,24 @@ data class Friend(
     val addedAt: Long,
     val lastSeenAt: Long = 0,
     val lastHops: Int = 0,
+    /** The last zone the friend told us (or shared in a chat), and when it arrived here; empty until then. */
+    val lastZone: String = "",
+    val lastZoneAt: Long = 0,
 )
 
 @Serializable
-enum class MsgKind { TEXT, QUICK, ZONE, SYSTEM }
+enum class MsgKind {
+    TEXT, QUICK, ZONE,
+
+    /** A notice in a group: someone added us. */
+    SYSTEM,
+
+    /** A notice in a group: [ChatMessage.senderId] left it. */
+    LEFT,
+    ;
+
+    val isNotice: Boolean get() = this == SYSTEM || this == LEFT
+}
 
 @Serializable
 enum class MsgStatus { QUEUED, SENT, DELIVERED, FAILED, RECEIVED }
@@ -83,6 +99,8 @@ data class OutboxItem(
     val createdAt: Long,
     val attempts: Int = 0,
     val lastAttemptAt: Long = 0,
+    /** The recipient's box key, hex, when it is no longer in the friends or groups (we left the group). */
+    val boxKey: String = "",
 )
 
 @Serializable
@@ -96,6 +114,10 @@ data class GroupMember(val nodeId: Long, val nickname: String, val boxKey: Strin
 
 @Serializable
 data class Group(val id: Long, val name: String, val members: List<GroupMember>, val createdAt: Long)
+
+/** Someone this phone ignores: nothing from them is opened, shown or answered. [nickname] is what the list shows. */
+@Serializable
+data class BlockedPerson(val nodeId: Long, val nickname: String, val blockedAt: Long)
 
 @Serializable
 data class MyReport(

@@ -30,10 +30,15 @@ import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.data.StaffIncident
+import ro.safetyplease.core.incidents.Discreet
+import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.incidents.ReportDraft
+import ro.safetyplease.core.incidents.StaffCode
+import ro.safetyplease.core.incidents.StaffCodes
 import ro.safetyplease.core.incidents.StatusFilter
 import ro.safetyplease.core.incidents.UpdateDraft
 import ro.safetyplease.core.protocol.AckStatus
+import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.StaffFields
 import ro.safetyplease.core.protocol.Triage
@@ -53,6 +58,15 @@ sealed interface Dest {
 
     data class ReportSent(val incidentId: String) : Dest
     data object MyReports : Dest
+
+    /** The discreet "mă simt în nesiguranță" report. */
+    data object Discreet : Dest
+
+    /** The one-tap codes of a field phone. */
+    data object StaffCodes : Dest
+
+    /** The people this phone ignores. */
+    data object Blocked : Dest
     data class Incident(val id: String) : Dest
 
     /** Your profile and settings. */
@@ -73,6 +87,20 @@ sealed interface Dest {
     /** Offline first-aid sheets, then one of them by [id]. */
     data object FirstAid : Dest
     data class FirstAidSheet(val id: String) : Dest
+}
+
+/** What one tap on the staff codes screen did. */
+sealed interface StaffCodeResult {
+    /** A staff report left; [incidentId] can still be cancelled. */
+    data class Reported(val incidentId: String) : StaffCodeResult
+
+    /** The team's incident moved to its next field state. */
+    data object Moved : StaffCodeResult
+
+    /** The team holds no incident this code could move. */
+    data object NothingToMove : StaffCodeResult
+
+    data object RateLimited : StaffCodeResult
 }
 
 sealed interface ScanOutcome {
@@ -96,6 +124,7 @@ sealed interface ScanOutcome {
 fun landing(target: String): Pair<Tab, Dest?>? = when {
     target == MainActivity.OPEN_INCIDENTS -> Tab.INCIDENTS to null
     target == MainActivity.OPEN_REPORT -> Tab.REPORT to null
+    target == MainActivity.OPEN_DISCREET -> Tab.REPORT to Dest.Discreet
     target.startsWith(MainActivity.OPEN_REPORT_PREFIX) -> Tab.REPORT to Dest.ReportSent(target.removePrefix(MainActivity.OPEN_REPORT_PREFIX))
     target.startsWith(MainActivity.OPEN_CHAT_PREFIX) -> Tab.MESSAGES to Dest.Conversation(target.removePrefix(MainActivity.OPEN_CHAT_PREFIX))
     else -> null
@@ -156,6 +185,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val mesh = c.engine.state
     val friends = c.friends.state
     val groups = c.groups.state
+    val blocked = c.blocked.state
     val chat = c.chatStore.state
     val incidents = c.incidentStore.state
 
@@ -179,6 +209,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val spot: StateFlow<ReportSpot?> = combine(c.settings.state, c.location.fix, ticker) { s, fix, _ ->
         reportSpot(s, fix, c.clock.wallMs(), venue)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), spotNow())
+
+    init {
+        // friends learn the zone as the app learns it; no GPS runs for this alone
+        viewModelScope.launch {
+            combine(c.settings.state, c.location.fix, ticker) { _, _, _ -> currentZoneId() }
+                .distinctUntilChanged()
+                .collect(c.chat::zoneChanged)
+        }
+    }
 
     var tab by mutableStateOf(Tab.MESSAGES)
     val stack = mutableStateListOf<Dest>()
@@ -330,6 +369,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun leaveGroup(groupId: Long) = c.chat.leaveGroup(groupId)
 
+    fun block(nodeId: Long) = c.chat.block(nodeId)
+
+    fun unblock(nodeId: Long) = c.chat.unblock(nodeId)
+
+    fun requestZone(friend: Friend) = c.chat.requestZone(friend.nodeId)
+
+    fun setShareZone(on: Boolean) = c.settings.update { it.copy(shareZone = on) }
+
     // --- incidents ---
 
     fun rateLimitWaitMs(): Long = c.incidents.rateLimitWaitMs()
@@ -375,6 +422,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The console's predefined answer to the reporter; [landmark] only for "go to landmark". */
     fun respond(incidentId: String, code: Int, landmark: Int = 0) = c.incidents.respond(incidentId, code, landmark)
+
+    /**
+     * One tap of the staff codes: the first three leave as staff reports, with the position attached like any
+     * report; the last two move the incident this team already holds.
+     */
+    fun sendStaffCode(code: StaffCode, label: String): StaffCodeResult {
+        val spec = StaffCodes.report(code)
+        if (spec != null) {
+            val id = report(
+                spec.category, spec.severity, currentZoneId(), label, anonymous = false,
+                staff = StaffFields(0, spec.dangerContinues),
+            )
+            return if (id != null) StaffCodeResult.Reported(id) else StaffCodeResult.RateLimited
+        }
+        val target = StaffCodes.target(code, c.incidentStore.value.staff, c.settings.value.teamName) ?: return StaffCodeResult.NothingToMove
+        if (code == StaffCode.ON_SCENE) onScene(target.incidentId) else handOver(target.incidentId)
+        return StaffCodeResult.Moved
+    }
+
+    /** "Mă simt în nesiguranță": a harassment report, anonymous, marked for safeguarding; no sound or vibration here. */
+    fun reportDiscreet(text: String): String? =
+        report(IncidentCategory.HARASSMENT, Priority.severity(IncidentCategory.HARASSMENT, urgent = false), currentZoneId(), Discreet.describe(text), anonymous = true)
 
     fun acknowledge(incidentId: String) = c.incidents.acknowledge(incidentId)
 

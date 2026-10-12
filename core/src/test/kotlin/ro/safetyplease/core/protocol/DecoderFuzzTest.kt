@@ -404,7 +404,7 @@ private fun Random.heartbeat() = Heartbeat(
 private fun Random.inner(): Inner {
     val msgId = nextLong()
     val group = if (nextBoolean()) nextLong() else null
-    return when (nextInt(7)) {
+    return when (nextInt(10)) {
         0 -> Inner.Text(msgId, group, text(Limits.TEXT_BYTES))
         1 -> Inner.Quick(msgId, group, QuickCode.all.random(this))
         2 -> if (nextBoolean()) Inner.Zone(msgId, group, text(Limits.ZONE_BYTES), coordinate(90), coordinate(180))
@@ -412,6 +412,9 @@ private fun Random.inner(): Inner {
         3 -> Inner.Ping(msgId)
         4 -> Inner.Pong(msgId, nextLong())
         5 -> Inner.Delivered(msgId, nextLong())
+        6 -> Inner.LeftGroup(msgId, nextLong())
+        7 -> Inner.ZoneRequest(msgId)
+        8 -> Inner.ZoneUpdate(msgId, text(Limits.ZONE_BYTES).ifEmpty { "z" })
         else -> Inner.GroupInvite(
             msgId, nextLong(), text(Limits.GROUP_NAME_BYTES),
             List(nextInt(0, Limits.GROUP_MAX_MEMBERS - 1)) { GroupMemberWire(nextLong(), nextBytes(32), text(Limits.GROUP_NICK_BYTES)) },
@@ -435,6 +438,7 @@ private fun Random.forgedFragment(head: Packet): ByteArray {
 private fun stringsOf(inner: Inner): List<String> = when (inner) {
     is Inner.Text -> listOf(inner.text)
     is Inner.Zone -> listOf(inner.zone)
+    is Inner.ZoneUpdate -> listOf(inner.zone)
     is Inner.GroupInvite -> listOf(inner.name) + inner.members.map { it.nickname }
     else -> emptyList()
 }
@@ -442,7 +446,7 @@ private fun stringsOf(inner: Inner): List<String> = when (inner) {
 /** One of: random bytes, bit flips, truncation, trailing bytes, a boundary value (often a length), a cut or an insert. */
 private fun Random.mutate(valid: ByteArray): ByteArray {
     if (valid.isEmpty()) return nextBytes(nextInt(0, 64))
-    return when (nextInt(7)) {
+    return when (nextInt(10)) {
         0 -> nextBytes(nextInt(0, valid.size + 64))
         1 -> valid.clone().also { b ->
             repeat(nextInt(1, 9)) {

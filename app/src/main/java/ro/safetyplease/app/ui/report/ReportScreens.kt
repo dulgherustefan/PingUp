@@ -372,6 +372,14 @@ fun ReportScreen(vm: AppViewModel) {
                         }
                     }
                 }
+                if (vm.venue.safeguarding) {
+                    InsetGroup(Modifier.padding(top = 12.dp)) {
+                        GroupRow(
+                            stringResource(R.string.discreet_title), subtitle = stringResource(R.string.discreet_row_text),
+                            icon = Sym.Hidden, chevron = true, onClick = { vm.open(Dest.Discreet) },
+                        )
+                    }
+                }
                 if (category != 0) {
                     Text(
                         stringResource(Labels.categoryExample(category)).replaceFirstChar { it.uppercase() },

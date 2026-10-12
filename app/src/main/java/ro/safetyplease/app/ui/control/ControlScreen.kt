@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
@@ -83,6 +84,7 @@ import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.ConsoleView
 import ro.safetyplease.core.incidents.AlertPlanner
+import ro.safetyplease.core.incidents.CrowdSignal
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.incidents.Recognition
 import ro.safetyplease.core.protocol.AckStatus
@@ -262,6 +264,12 @@ private fun QueuePane(
     )
     Column(modifier.clip(PaneShape).background(colors.cell)) {
         SegmentedControl(options, filter, onFilter, Modifier.padding(12.dp))
+        // a quiet line per zone with several crowd reports; the operator decides, nothing sounds and nothing goes out
+        val crowd = remember(cases, now) { crowdSignals(cases.values, now) }
+        for (signal in crowd) {
+            CrowdSignalRow(signal, venue)
+            GroupDivider(start = 0.dp)
+        }
         if (rows.isEmpty()) {
             // an empty filter doesn't mean nothing arrived
             if (cases.isEmpty()) EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), icon = Sym.Bell)
@@ -364,3 +372,17 @@ private fun MapPane(
 
 /** The widest map of [aspect] that fits the pane. */
 private fun fit(width: Dp, height: Dp, aspect: Float): Dp = min(width, height * aspect)
+
+/** "5 rapoarte de aglomerație din Scena principală în 7 min": a line, not an alert. */
+@Composable
+private fun CrowdSignalRow(signal: CrowdSignal, venue: Venue) {
+    val colors = AppTheme.colors
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Sym.Groups, null, Modifier.size(18.dp), tint = colors.orangeInk)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            pluralStringResource(R.plurals.crowd_signal, signal.count, signal.count, venue.zoneName(signal.zone), signal.minutes),
+            style = MaterialTheme.typography.footnote, color = colors.label,
+        )
+    }
+}

@@ -863,6 +863,15 @@ sealed interface Inner {
         val name: String,
         val members: List<GroupMemberWire>,
     ) : Inner
+
+    /** The sender left the group [groupId]. */
+    class LeftGroup(override val msgId: Long, val groupId: Long) : Inner
+
+    /** "Where are you?": a friend asks for the sender's zone. */
+    class ZoneRequest(override val msgId: Long) : Inner
+
+    /** The sender's zone, for a friend's list: not a chat message, and never repeated on a timer. */
+    class ZoneUpdate(override val msgId: Long, val zone: String) : Inner
 }
 
 object InnerCodec {
@@ -873,6 +882,9 @@ object InnerCodec {
     private const val PONG = 5
     private const val DELIVERED = 6
     private const val GROUP_INVITE = 7
+    private const val LEFT_GROUP = 8
+    private const val ZONE_REQUEST = 9
+    private const val ZONE_UPDATE = 10
 
     private const val FLAG_GROUP = 0x01
     private const val FLAG_COORDS = 0x02
@@ -909,6 +921,13 @@ object InnerCodec {
                     require(m.boxKey.size == BOX_KEY_SIZE && nick.size <= Limits.GROUP_NICK_BYTES)
                     w.i64(m.nodeId).bytes(m.boxKey).u8(nick.size).bytes(nick)
                 }
+            }
+            is Inner.LeftGroup -> w.u8(LEFT_GROUP).i64(inner.msgId).i64(inner.groupId)
+            is Inner.ZoneRequest -> w.u8(ZONE_REQUEST).i64(inner.msgId)
+            is Inner.ZoneUpdate -> {
+                val zone = inner.zone.utf8()
+                require(zone.size in 1..Limits.ZONE_BYTES)
+                w.u8(ZONE_UPDATE).i64(inner.msgId).u8(zone.size).bytes(zone)
             }
         }
         return w.toByteArray()
@@ -972,6 +991,21 @@ object InnerCodec {
                 }
                 r.expectEnd()
                 Inner.GroupInvite(msgId, groupId, name, members)
+            }
+            LEFT_GROUP -> {
+                val groupId = r.i64()
+                r.expectEnd()
+                Inner.LeftGroup(msgId, groupId)
+            }
+            ZONE_REQUEST -> {
+                r.expectEnd()
+                Inner.ZoneRequest(msgId)
+            }
+            ZONE_UPDATE -> {
+                val zone = r.string(r.u8(), Limits.ZONE_BYTES)
+                r.expectEnd()
+                if (zone.isEmpty()) throw MalformedException("empty zone")
+                Inner.ZoneUpdate(msgId, zone)
             }
             else -> throw MalformedException("inner type")
         }

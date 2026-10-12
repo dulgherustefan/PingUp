@@ -67,6 +67,9 @@ class MainActivity : ComponentActivity() {
         /** The report categories, for a new report; the tile, the shortcut and the mesh notification open it. */
         const val OPEN_REPORT = "report"
 
+        /** The discreet report, straight to its confirmation; its own Quick Settings tile opens it. */
+        const val OPEN_DISCREET = "discreet"
+
         /** One of your reports, by id. */
         const val OPEN_REPORT_PREFIX = "report:"
         const val OPEN_CHAT_PREFIX = "chat:"

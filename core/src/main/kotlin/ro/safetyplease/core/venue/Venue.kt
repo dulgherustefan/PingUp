@@ -45,6 +45,8 @@ data class Venue(
     val pois: List<Poi> = emptyList(),
     /** Walkways as polylines; drawn under the zones. */
     val paths: List<List<GeoPoint>> = emptyList(),
+    /** The organiser has a safeguarding team that answers discreet reports; without it the app does not offer them. */
+    val safeguarding: Boolean = false,
 ) {
     fun zoneAt(lat: Double, lon: Double): Zone? = zones.firstOrNull { pointInPolygon(lat, lon, it.polygon) }
 

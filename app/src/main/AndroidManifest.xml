@@ -72,6 +72,18 @@
             </intent-filter>
         </service>
 
+        <!-- Discreet help in one gesture: its own tile; it opens the confirmation, where one tap sends the report -->
+        <service
+            android:name=".service.DiscreetTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_discreet"
+            android:label="@string/action_discreet"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <service
             android:name=".service.MeshService"
             android:exported="false"

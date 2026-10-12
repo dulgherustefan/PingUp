@@ -186,4 +186,28 @@ class ControlLogicTest {
         )
         assertEquals("Medical, urgent, lângă Toalete camping.", radioPhrase(report(grid = "", description = ""), "", "Toalete camping", words))
     }
+
+    // --- crowd signal ---
+
+    private fun crowdCase(id: String, atMin: Int, state: CaseState = CaseState.OPEN, zone: String = "main-stage") = Case(
+        report(Severity.MEDIUM, atMin, category = IncidentCategory.CROWD).copy(incidentId = id, zone = zone), state, "", false,
+        AckStatus.RECEIVED, 0, "", null, null, null,
+    )
+
+    @Test
+    fun crowdReportsOfOneZoneBecomeASignalAtTheQueue() {
+        val cases = (0 until 5).map { crowdCase("c$it", it) }
+        val signal = crowdSignals(cases, t0 + 5 * 60_000L).single()
+        assertEquals("main-stage", signal.zone)
+        assertEquals(5, signal.count)
+        assertEquals(4, signal.minutes)
+    }
+
+    @Test
+    fun closedCrowdCasesAndOtherCategoriesDoNotCount() {
+        val cases = (0 until 4).map { crowdCase("c$it", it) } + crowdCase("closed", 4, CaseState.CLOSED) +
+            case("medical", Severity.URGENT, 4)
+        assertTrue(crowdSignals(cases, t0 + 5 * 60_000L).isEmpty())
+        assertEquals("a taken one still counts", 5, crowdSignals(cases + crowdCase("taken", 4, CaseState.ASSIGNED), t0 + 5 * 60_000L).single().count)
+    }
 }

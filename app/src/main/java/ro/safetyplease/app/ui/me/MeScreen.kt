@@ -83,6 +83,7 @@ private const val DEMO_UNLOCK_TAPS = 7
 @Composable
 fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val blocked by vm.blocked.collectAsStateWithLifecycle()
     val mesh by vm.mesh.collectAsStateWithLifecycle()
     val gate = rememberRadioGate(vm, mesh.radio, onStartMesh)
     val context = LocalContext.current
@@ -134,6 +135,20 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         GroupRow(
                             stringResource(R.string.me_battery), subtitle = stringResource(R.string.battery_text), icon = Sym.Battery, chevron = true,
                             onClick = { BatteryExemption.request(context) },
+                        )
+                    }
+                }
+
+                InsetGroup {
+                    SwitchRow(
+                        stringResource(R.string.me_share_zone), settings.shareZone, vm::setShareZone,
+                        subtitle = stringResource(R.string.me_share_zone_text), icon = Sym.Place,
+                    )
+                    if (blocked.isNotEmpty()) {
+                        GroupDivider()
+                        GroupRow(
+                            stringResource(R.string.blocked_title), value = blocked.size.toString(), icon = Sym.Hidden, chevron = true,
+                            onClick = { vm.open(Dest.Blocked) },
                         )
                     }
                 }

@@ -91,6 +91,7 @@ import ro.safetyplease.app.ui.designsystem.largeFont
 import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.core.control.isAssignedTo
+import ro.safetyplease.core.data.Role as AppRole
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.DuplicateHint
@@ -238,6 +239,10 @@ fun IncidentsScreen(vm: AppViewModel) {
         title = stringResource(R.string.tab_incidents),
         scrolled = scrolled,
         leading = { MeButton(settings.nickname) { vm.open(Dest.Me) } },
+        trailing = { backdrop ->
+            // the console has its own screen; a team in the field gets its one-tap codes here
+            if (settings.role == AppRole.STAFF) GlassIconButton(Sym.Flag, stringResource(R.string.staff_codes_open), { vm.open(Dest.StaffCodes) }, backdrop)
+        },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
             if (staff.isNotEmpty()) {

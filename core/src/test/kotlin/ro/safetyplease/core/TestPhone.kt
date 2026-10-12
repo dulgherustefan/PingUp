@@ -15,6 +15,7 @@ import ro.safetyplease.core.crypto.StaffPublicKeys
 import ro.safetyplease.core.crypto.StaffRole
 import ro.safetyplease.core.crypto.StaffSecretKeys
 import ro.safetyplease.core.crypto.testCrypto
+import ro.safetyplease.core.data.BlockedPerson
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.ChatStore
 import ro.safetyplease.core.data.Friend
@@ -109,6 +110,7 @@ class TestPhone(
 
     val friends = JsonStore(File(dir, "$name-friends.json"), ListSerializer(Friend.serializer()), emptyList(), bg)
     val groups = JsonStore(File(dir, "$name-groups.json"), ListSerializer(Group.serializer()), emptyList(), bg)
+    val blocked = JsonStore(File(dir, "$name-blocked.json"), ListSerializer(BlockedPerson.serializer()), emptyList(), bg)
     val chatStore = ChatStore(File(dir, "$name-chat"), bg)
     val incidentStore = JsonStore(File(dir, "$name-incidents.json"), IncidentData.serializer(), IncidentData(), bg)
 
@@ -125,9 +127,11 @@ class TestPhone(
     /** ACKs IncidentManager reported: the ACK, whether this phone signed it, and its hops. */
     val acks = mutableListOf<Triple<IncidentAck, Boolean, Int>>()
     var staffCap = IncidentManager.MAX_STAFF
+    var sharesZone = true
 
     val chat = ChatManager(
-        bg, engine, testCrypto, identity, friends, groups, chatStore, clock, Random(seed + 1), { name },
+        bg, engine, testCrypto, identity, friends, groups, blocked, chatStore, clock, Random(seed + 1), { name },
+        shareZone = { sharesZone },
     ) { message, _ -> incoming += message }
 
     val incidents = IncidentManager(

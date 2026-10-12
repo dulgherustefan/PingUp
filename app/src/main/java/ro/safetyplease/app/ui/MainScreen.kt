@@ -114,11 +114,14 @@ import ro.safetyplease.app.ui.me.EventScreen
 import ro.safetyplease.app.ui.me.MeScreen
 import ro.safetyplease.app.ui.onboarding.OnboardingScreen
 import ro.safetyplease.app.ui.people.AddFriendScreen
+import ro.safetyplease.app.ui.people.BlockedScreen
 import ro.safetyplease.app.ui.people.NewGroupScreen
 import ro.safetyplease.app.ui.people.ProfileScreen
 import ro.safetyplease.app.ui.report.MyReportsScreen
 import ro.safetyplease.app.ui.report.ReportScreen
 import ro.safetyplease.app.ui.report.ReportSentScreen
+import ro.safetyplease.app.ui.safety.DiscreetScreen
+import ro.safetyplease.app.ui.staffcodes.StaffCodesScreen
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
@@ -291,6 +294,9 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         Dest.NewGroup -> NewGroupScreen(vm)
         is Dest.ReportSent -> ReportSentScreen(vm, dest.incidentId)
         Dest.MyReports -> MyReportsScreen(vm)
+        Dest.Discreet -> DiscreetScreen(vm)
+        Dest.StaffCodes -> StaffCodesScreen(vm)
+        Dest.Blocked -> BlockedScreen(vm)
         is Dest.Incident -> IncidentDetailScreen(vm, dest.id)
         Dest.Me -> MeScreen(vm, onStartMesh)
         Dest.Event -> EventScreen(vm)

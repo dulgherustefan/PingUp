@@ -57,3 +57,31 @@ object Clustering {
         return hints
     }
 }
+
+/** A crowd report as the signal sees it: the zone it names and when its reporter wrote it. */
+class CrowdReport(val zone: String, val reportedAt: Long)
+
+/** [count] crowd reports from [zone], written over [minutes] minutes. */
+class CrowdSignal(val zone: String, val count: Int, val minutes: Int)
+
+/**
+ * Several crowd reports from one zone in a short time say something to the crowd manager, but in front of a stage
+ * "it's packed" is normal at every headliner, so this is a line on the console and nothing more: no sound, no alert,
+ * nothing for the public. The numbers are a first guess, to be calibrated at the pilot against the false alarms of each show.
+ */
+object CrowdWatch {
+    const val WINDOW_MS = 10 * 60_000L
+    const val MIN_REPORTS = 5
+
+    /** The zones with at least [MIN_REPORTS] reports written in the last [WINDOW_MS], the busiest first. */
+    fun signals(reports: Collection<CrowdReport>, nowMs: Long): List<CrowdSignal> =
+        reports.filter { it.zone.isNotBlank() && nowMs - it.reportedAt <= WINDOW_MS }
+            .groupBy { it.zone.trim().lowercase() }
+            .values
+            .filter { it.size >= MIN_REPORTS }
+            .map { zone ->
+                val span = zone.maxOf { it.reportedAt } - zone.minOf { it.reportedAt }
+                CrowdSignal(zone.first().zone.trim(), zone.size, maxOf(1L, (span + 59_999) / 60_000).toInt())
+            }
+            .sortedWith(compareByDescending<CrowdSignal> { it.count }.thenBy { it.zone })
+}

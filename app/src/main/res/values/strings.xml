@@ -180,7 +180,7 @@
     <string name="friend_remove_title">Ștergi pe %1$s?</string>
     <string name="friend_remove_text">Se șterge și conversația de pe acest telefon.</string>
     <string name="group_leave_title">Ieși din %1$s?</string>
-    <string name="group_leave_text">Grupul și mesajele lui dispar doar de pe acest telefon.</string>
+    <string name="group_leave_text">Grupul și mesajele lui dispar de pe acest telefon, iar ceilalți membri află că ai ieșit.</string>
 
     <string name="report_title">Ce se întâmplă?</string>
     <string name="report_mine">Rapoartele mele</string>
@@ -730,4 +730,54 @@
     <string name="control_respond_send">Trimite</string>
     <string name="control_landmark_title">La ce reper?</string>
     <string name="control_landmark_none">Planul sitului nu are repere numerotate.</string>
+
+    <string name="presence_zone">%1$s · ultima zonă: %2$s, %3$s</string>
+    <string name="profile_last_zone">Ultima zonă</string>
+    <string name="profile_last_zone_none">Nu ți-a spus-o încă</string>
+    <string name="profile_where_are_you">Unde ești?</string>
+    <string name="profile_where_asked">Cerere trimisă. Răspunsul apare aici dacă prietenul e în rază.</string>
+    <string name="profile_block">Blochează</string>
+    <string name="block_title">Blochezi pe %1$s?</string>
+    <string name="block_text">Nu mai primești nimic de la această persoană: iese din prieteni și din grupurile tale, doar pe acest telefon, și nu e anunțată. O poți debloca din Eu.</string>
+    <string name="blocked_title">Persoane blocate</string>
+    <string name="blocked_empty">Nu ai blocat pe nimeni</string>
+    <string name="blocked_empty_text">Cine apare aici nu-ți poate scrie.</string>
+    <string name="blocked_unblock">Deblochează</string>
+    <string name="blocked_since">Blocat %1$s</string>
+    <string name="msg_group_left">%1$s a ieșit din grup</string>
+    <string name="me_share_zone">Spune prietenilor zona mea</string>
+    <string name="me_share_zone_text">Află când se schimbă și când întreabă „Unde ești?”. Nu se trimite nimic periodic.</string>
+
+    <string name="staff_codes_title">Coduri rapide</string>
+    <string name="staff_codes_open">Coduri rapide</string>
+    <string name="staff_codes_intro">O atingere trimite codul cu poziția ta. Consola și echipele îl văd ca pe orice raport de staff.</string>
+    <string name="staff_code_medic">Am nevoie de medic aici</string>
+    <string name="staff_code_reinforcements">Întăriri</string>
+    <string name="staff_code_danger">Staff în pericol</string>
+    <string name="staff_code_on_scene">La fața locului</string>
+    <string name="staff_code_handed_over">Predat la PMA</string>
+    <string name="staff_codes_state_title">Starea incidentului tău</string>
+    <string name="staff_codes_none">Echipa ta nu are niciun incident preluat</string>
+    <string name="staff_codes_sent">Trimis. Consola îl vede acum.</string>
+    <string name="staff_codes_moved">Starea a plecat.</string>
+    <string name="staff_codes_nothing">Echipa ta nu are un incident preluat pe care să-l mut.</string>
+
+    <string name="discreet_title">Mă simt în nesiguranță</string>
+    <string name="discreet_row_text">Se trimite discret, fără sunet</string>
+    <string name="discreet_text">Anunțăm discret echipa de siguranță a evenimentului și îi trimitem locația ta. Telefonul nu sună și nu vibrează, iar pe ecranul blocat nu apare nimic.</string>
+    <string name="discreet_send">Trimite discret</string>
+    <string name="discreet_message">Mă simt în nesiguranță</string>
+    <string name="discreet_sent_title">Trimis</string>
+    <string name="discreet_sent_text">Echipa de siguranță a primit locația ta. Dacă poți, stai într-un loc cu oameni și lumină.</string>
+    <string name="discreet_withdraw">Nu mai am nevoie</string>
+    <string name="discreet_no_location">Fără poziția ta, echipa află doar zona.</string>
+    <string name="discreet_off_title">Nu e disponibil la acest eveniment</string>
+    <string name="discreet_off_text">Organizatorul nu a pornit raportul discret. Mergi la un steward sau la punctul de informare, sau sună la 112.</string>
+    <string name="action_discreet">Ajutor discret</string>
+
+    <plurals name="crowd_signal">
+        <item quantity="one">Un raport de aglomerație din %2$s în %3$d min</item>
+        <item quantity="few">%1$d rapoarte de aglomerație din %2$s în %3$d min</item>
+        <item quantity="other">%1$d de rapoarte de aglomerație din %2$s în %3$d min</item>
+    </plurals>
 </resources>

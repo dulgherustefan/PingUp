@@ -172,7 +172,7 @@
     <string name="friend_remove_title">Remove %1$s?</string>
     <string name="friend_remove_text">The conversation is deleted from this phone too.</string>
     <string name="group_leave_title">Leave %1$s?</string>
-    <string name="group_leave_text">The group and its messages disappear only from this phone.</string>
+    <string name="group_leave_text">The group and its messages disappear from this phone, and the other members are told you left.</string>
 
     <string name="report_title">What’s happening?</string>
     <string name="report_mine">My reports</string>
@@ -709,4 +709,53 @@
     <string name="control_respond_send">Send</string>
     <string name="control_landmark_title">Which landmark?</string>
     <string name="control_landmark_none">The site plan has no numbered landmarks.</string>
+
+    <string name="presence_zone">%1$s · last zone: %2$s, %3$s</string>
+    <string name="profile_last_zone">Last zone</string>
+    <string name="profile_last_zone_none">Hasn\'t told you yet</string>
+    <string name="profile_where_are_you">Where are you?</string>
+    <string name="profile_where_asked">Request sent. The answer shows up here if your friend is in range.</string>
+    <string name="profile_block">Block</string>
+    <string name="block_title">Block %1$s?</string>
+    <string name="block_text">You stop receiving anything from this person: they leave your friends and your groups, on this phone only, and they aren\'t told. You can unblock them from Me.</string>
+    <string name="blocked_title">Blocked people</string>
+    <string name="blocked_empty">You haven\'t blocked anyone</string>
+    <string name="blocked_empty_text">Whoever shows up here can\'t write to you.</string>
+    <string name="blocked_unblock">Unblock</string>
+    <string name="blocked_since">Blocked %1$s</string>
+    <string name="msg_group_left">%1$s left the group</string>
+    <string name="me_share_zone">Tell friends my zone</string>
+    <string name="me_share_zone_text">They learn it when it changes and when they ask \"Where are you?\". Nothing is sent on a timer.</string>
+
+    <string name="staff_codes_title">Quick codes</string>
+    <string name="staff_codes_open">Quick codes</string>
+    <string name="staff_codes_intro">One tap sends the code with your position. The console and the teams see it like any staff report.</string>
+    <string name="staff_code_medic">I need a medic here</string>
+    <string name="staff_code_reinforcements">Reinforcements</string>
+    <string name="staff_code_danger">Staff in danger</string>
+    <string name="staff_code_on_scene">On scene</string>
+    <string name="staff_code_handed_over">Handed over to the medical post</string>
+    <string name="staff_codes_state_title">The state of your incident</string>
+    <string name="staff_codes_none">Your team has no incident taken</string>
+    <string name="staff_codes_sent">Sent. The console sees it now.</string>
+    <string name="staff_codes_moved">The state went out.</string>
+    <string name="staff_codes_nothing">Your team has no taken incident to move.</string>
+
+    <string name="discreet_title">I feel unsafe</string>
+    <string name="discreet_row_text">Sent discreetly, without a sound</string>
+    <string name="discreet_text">We quietly tell the event\'s safeguarding team and send them your location. Your phone makes no sound and doesn\'t vibrate, and nothing shows on the lock screen.</string>
+    <string name="discreet_send">Send discreetly</string>
+    <string name="discreet_message">I feel unsafe</string>
+    <string name="discreet_sent_title">Sent</string>
+    <string name="discreet_sent_text">The safeguarding team has your location. If you can, stay somewhere with people and light.</string>
+    <string name="discreet_withdraw">I don\'t need it anymore</string>
+    <string name="discreet_no_location">Without your position, the team only learns the zone.</string>
+    <string name="discreet_off_title">Not available at this event</string>
+    <string name="discreet_off_text">The organiser hasn\'t turned on the discreet report. Go to a steward or the info point, or call 112.</string>
+    <string name="action_discreet">Discreet help</string>
+
+    <plurals name="crowd_signal">
+        <item quantity="one">%1$d crowd report from %2$s in %3$d min</item>
+        <item quantity="other">%1$d crowd reports from %2$s in %3$d min</item>
+    </plurals>
 </resources>

@@ -100,6 +100,7 @@ fun messagePreview(vm: AppViewModel, message: ChatMessage): String = when (messa
     MsgKind.QUICK -> stringResource(Labels.quick(message.quickCode))
     MsgKind.ZONE -> stringResource(R.string.msg_zone, zoneLabel(vm, message))
     MsgKind.SYSTEM -> stringResource(R.string.msg_group_invite, vm.c.chat.nameOf(message.senderId))
+    MsgKind.LEFT -> stringResource(R.string.msg_group_left, message.text)
 }
 
 @Composable
@@ -259,7 +260,7 @@ private fun ConversationItem(vm: AppViewModel, row: ConversationRow, near: Boole
         last == null -> buildAnnotatedString { append(stringResource(R.string.messages_no_messages)) }
         else -> {
             val prefix = when {
-                last.kind == MsgKind.SYSTEM -> null
+                last.kind.isNotice -> null
                 row.group != null && last.fromMe -> you
                 row.group != null -> vm.c.chat.nameOf(last.senderId)
                 else -> null
@@ -300,7 +301,7 @@ private fun ConversationItem(vm: AppViewModel, row: ConversationRow, near: Boole
                 )
                 when {
                     row.unread > 0 -> UnreadBadge(row.unread, Modifier.padding(start = 6.dp))
-                    last != null && last.fromMe && last.kind != MsgKind.SYSTEM -> DeliveryIcon(
+                    last != null && last.fromMe && !last.kind.isNotice -> DeliveryIcon(
                         last.status, if (last.status == MsgStatus.FAILED) colors.red else colors.secondaryLabel, colors.background,
                         Modifier.padding(start = 6.dp, top = 3.dp),
                     )

@@ -73,6 +73,7 @@ object Routing {
         listOf("Securitate", "Security"),
         listOf("Stewarzi", "Stewards"),
         listOf("Pompieri", "Fire"),
+        listOf(Discreet.ROLE, "Protecție"),
     )
 
     /** The zone from the staff QR; without one, the zone the user picked. */
@@ -91,6 +92,10 @@ object Routing {
         IncidentCategory.FIRE -> "Pompieri"
         else -> null
     }
+
+    /** A discreet report goes to safeguarding, whatever its category says. */
+    fun roleOf(incident: StaffIncident): String? =
+        if (Discreet.isDiscreet(incident.description)) Discreet.ROLE else roleOf(incident.category)
 
     /** "Medical 2" is in the role "Medical"; "Security 1" in "Securitate". */
     fun inRole(role: String, team: String): Boolean {
@@ -133,7 +138,7 @@ object Routing {
         }
         if (awaitsAcceptance(incident, me.team)) return Route(AlertLevel.VIBRATE, AlertReason.ASSIGNED)
         if (handled(incident)) return Route.SILENT
-        val role = roleOf(incident.category)
+        val role = roleOf(incident)
         val ofMyRole = me.team.isNotBlank() && (role == null || inRole(role, me.team))
         val zone = incident.zone.trim()
         val inMyZone = me.zone.isNotBlank() && zone.equals(me.zone.trim(), ignoreCase = true)
@@ -141,6 +146,8 @@ object Routing {
         if (me.lead && ofMyRole && (me.zone.isBlank() || zone.isEmpty() || inMyZone)) {
             return Route(if (urgent) AlertLevel.INSISTENT else AlertLevel.NOTIFY, AlertReason.LEAD)
         }
+        // safeguarding hears a discreet request at once, wherever the team stands, and nobody else is told early
+        if (role == Discreet.ROLE && ofMyRole) return Route(AlertLevel.VIBRATE, AlertReason.ROLE)
         // a phone that knows neither its team nor its zone can't be routed to: it hears every urgency
         val unrouted = me.team.isBlank() && me.zone.isBlank()
         val stage = stage(incident, nowMs)

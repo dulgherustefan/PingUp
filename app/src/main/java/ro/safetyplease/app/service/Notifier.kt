@@ -27,6 +27,7 @@ import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.incidents.AlertLevel
 import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.incidents.AlertReason
+import ro.safetyplease.core.incidents.Discreet
 import ro.safetyplease.core.venue.Venue
 
 /**
@@ -202,6 +203,8 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         } else {
             builder.setContentTitle(marked(context.getString(R.string.notif_report_title))).setContentText(status)
         }
+        // a discreet report is answered as quietly as it was sent: no sound, no vibration, nothing on the lock screen
+        if (Discreet.isDiscreet(report.description)) builder.setSilent(true).setVisibility(NotificationCompat.VISIBILITY_SECRET)
         manager.notify(id, builder.build())
     }
 
@@ -232,6 +235,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             MsgKind.QUICK -> context.getString(Labels.quick(message.quickCode))
             MsgKind.ZONE -> context.getString(R.string.msg_zone, venue.zoneName(message.zone))
             MsgKind.SYSTEM -> context.getString(R.string.msg_group_invite, senderName)
+            MsgKind.LEFT -> context.getString(R.string.msg_group_left, message.text)
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_CHAT)
             .setSmallIcon(R.drawable.ic_notification)

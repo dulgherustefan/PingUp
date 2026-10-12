@@ -30,8 +30,8 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `mesh/` | Rutarea mesh: cui trimitem, ce am văzut deja, cozi, limite, consum. `Radio` e interfața pe care o implementează Bluetooth-ul. |
 | `crypto/` | Identitatea, criptarea cap-coadă (libsodium), lanțul de chei al evenimentului (certificate de tură, cheia rapoartelor pe zi, revocări), codurile QR de prieten și de staff. |
 | `event/` | Pachetul de eveniment semnat (venue, grila, fișele, cheile evenimentului), verificat pe lanțul de chei, pachetele ținute pe telefon și cel folosit, exercițiile cu fișierele lor separate (`PROTOCOL.md`, secțiunea 16). |
-| `chat/` | Prietenii, grupurile, mesajele și reîncercările. |
-| `incidents/` | Rapoartele, confirmările și stările din teren ale staff-ului, răspunsurile rapide ale consolei către raportor și actualizările raportorului, urgența dedusă din triaj, anulările de verificat și semnalarea rapoartelor venite din aceeași zonă în același timp. Rutarea pe roluri (`Routing`): cine primește alerta insistentă, cine doar vibrația și când se extinde; `AlertPlanner` o transformă în notificări, fără repetări inutile. |
+| `chat/` | Prietenii, grupurile, mesajele și reîncercările; blocarea, ieșirea din grup cu anunț și ultima zonă a prietenilor (fără difuzare periodică). |
+| `incidents/` | Rapoartele, confirmările și stările din teren ale staff-ului, răspunsurile rapide ale consolei către raportor și actualizările raportorului, urgența dedusă din triaj, anulările de verificat și semnalarea rapoartelor venite din aceeași zonă în același timp, semnalul de aglomerație pentru consolă (`CrowdWatch`), codurile rapide de staff (`StaffCodes`) și raportul discret (`Discreet`, rutat către rolul Safeguarding). Rutarea pe roluri (`Routing`): cine primește alerta insistentă, cine doar vibrația și când se extinde; `AlertPlanner` o transformă în notificări, fără repetări inutile. |
 | `control/` | Jurnalul consolei de control: rapoartele, ACK-urile cu semnături și deciziile operatorului, starea fiecărui incident pe consolă, exportul CSV și JSON. Tot aici, exportul metricilor de pilot și legătura lor cu jurnalul. |
 | `metrics/` | Metricile de pilot: timpii raportorului, instantaneele rețelei mesh și jurnalul rețelei mobile (secțiunea de mai jos). |
 | `data/` | Modelele salvate, `JsonStore` (fișiere JSON scrise atomic) și `ChatStore` (chat-ul, câte un fișier pe conversație). |
@@ -53,7 +53,7 @@ Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate di
 | `ui/` | `AppViewModel` și `MainScreen` (tab-urile și navigarea), apoi câte un pachet pe funcționalitate. |
 | `ui/designsystem/` | Tema, culorile, tipografia, componentele de bază. Nu știe nimic despre mesaje sau incidente. |
 | `ui/common/` | Componente folosite de mai multe ecrane: harta, cardul QR, antetul de incident, starea rețelei. |
-| `ui/chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `onboarding/` | Ecranele, câte un pachet pe funcționalitate. |
+| `ui/chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `onboarding/`, `staffcodes/`, `safety/` | Ecranele, câte un pachet pe funcționalitate. |
 | `ui/control/` | Consola camerei de control, în landscape pe o tabletă: coada, harta cu grila, alocarea, fraza pentru stație, rețeaua și exportul jurnalului. |
 
 `src/debug/` conține modul demo (simulare, comenzi adb); `src/release/` are aceeași clasă `Demo`, dar goală.

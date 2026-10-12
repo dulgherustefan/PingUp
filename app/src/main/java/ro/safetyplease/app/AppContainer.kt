@@ -59,6 +59,7 @@ import ro.safetyplease.core.crypto.StaffCrypto
 import ro.safetyplease.core.crypto.StaffPublicKeys
 import ro.safetyplease.core.crypto.StaffRole
 import ro.safetyplease.core.crypto.StaffSecretKeys
+import ro.safetyplease.core.data.BlockedPerson
 import ro.safetyplease.core.data.ChatStore
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.Group
@@ -115,6 +116,7 @@ class AppContainer(private val app: Application) {
     val settings = JsonStore(File(dataDir, "settings.json"), Settings.serializer(), Settings(), ioScope)
     val friends = JsonStore(File(dataDir, "friends.json"), ListSerializer(Friend.serializer()), emptyList(), ioScope)
     val groups = JsonStore(File(dataDir, "groups.json"), ListSerializer(Group.serializer()), emptyList(), ioScope)
+    val blocked = JsonStore(File(dataDir, "blocked.json"), ListSerializer(BlockedPerson.serializer()), emptyList(), ioScope)
     val chatStore = ChatStore(dataDir, ioScope)
 
     /** The event packs loaded on this phone and the one in use. */
@@ -212,8 +214,9 @@ class AppContainer(private val app: Application) {
     var openConversation: String? = null
 
     val chat = ChatManager(
-        meshScope, engine, crypto, identity, friends, groups, chatStore, clock, SecureRandom().asKotlinRandom(),
+        meshScope, engine, crypto, identity, friends, groups, blocked, chatStore, clock, SecureRandom().asKotlinRandom(),
         myNickname = { settings.value.nickname },
+        shareZone = { settings.value.shareZone },
     ) { message, sender ->
         if (!foreground.value || openConversation != message.conversation) notifier.chatMessage(message, sender)
     }

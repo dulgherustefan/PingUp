@@ -152,4 +152,38 @@ class RoutingTest {
         assertEquals("camping", Routing.profile(settings.copy(staffZone = "camping")).zone)
         assertTrue(Routing.profile(settings.copy(role = Role.CONTROL)).console)
     }
+
+    @Test
+    fun aDiscreetReportGoesToSafeguardingWhateverItsCategory() {
+        val discreet = incident(severity = Severity.MEDIUM, category = IncidentCategory.HARASSMENT).copy(description = Discreet.describe("Mă simt în nesiguranță"))
+        assertEquals(Discreet.ROLE, Routing.roleOf(discreet))
+        assertEquals("Securitate", Routing.roleOf(discreet.copy(description = "cineva mă urmărește")))
+        assertTrue(Routing.inRole(Discreet.ROLE, "Safeguarding 1"))
+        assertTrue(Routing.inRole(Discreet.ROLE, "Protecție"))
+    }
+
+    @Test
+    fun safeguardingFeelsADiscreetReportAtOnceAndNobodyElseHearsItEarly() {
+        val discreet = incident(severity = Severity.MEDIUM, category = IncidentCategory.HARASSMENT).copy(description = Discreet.describe("x"))
+        val safeguarding = StaffProfile(console = false, team = "Safeguarding 1", zone = "camping")
+        assertEquals(Route(AlertLevel.VIBRATE, AlertReason.ROLE), Routing.route(safeguarding, discreet, 0))
+        assertEquals("the console sees it like any report, without an alarm", Route(AlertLevel.NOTIFY, AlertReason.CONSOLE), Routing.route(console, discreet, 0))
+        assertEquals("not even security, whose zone it is", AlertLevel.SILENT, level(guard, discreet))
+        assertEquals("nor a medic", AlertLevel.SILENT, level(medic, discreet))
+        assertEquals("until nobody has taken it for a while", AlertLevel.VIBRATE, level(guard, discreet, 2 * WIDEN_AFTER_MS))
+    }
+
+    @Test
+    fun aSafeguardingLeadIsToldAsALead() {
+        val discreet = incident(severity = Severity.MEDIUM, category = IncidentCategory.HARASSMENT).copy(description = Discreet.describe("x"))
+        val lead = StaffProfile(console = false, team = "Safeguarding 1", lead = true)
+        assertEquals(Route(AlertLevel.NOTIFY, AlertReason.LEAD), Routing.route(lead, discreet, 0))
+    }
+
+    @Test
+    fun onceSafeguardingHasItNothingRingsAnymore() {
+        val taken = incident(severity = Severity.MEDIUM, category = IncidentCategory.HARASSMENT, status = AckStatus.ACKNOWLEDGED, team = "Safeguarding 1")
+            .copy(description = Discreet.describe("x"))
+        assertEquals(AlertLevel.SILENT, level(StaffProfile(console = false, team = "Safeguarding 2"), taken))
+    }
 }

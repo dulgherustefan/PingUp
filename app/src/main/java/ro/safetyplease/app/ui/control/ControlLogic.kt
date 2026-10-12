@@ -8,8 +8,12 @@ import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry
 import ro.safetyplease.core.control.LogEvent
 import ro.safetyplease.core.incidents.AlertPlanner
+import ro.safetyplease.core.incidents.CrowdReport
+import ro.safetyplease.core.incidents.CrowdSignal
+import ro.safetyplease.core.incidents.CrowdWatch
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentAck
+import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.util.truncateUtf8
@@ -34,6 +38,13 @@ internal fun queue(cases: Collection<Case>, state: CaseState): List<Case> {
     return if (state == CaseState.CLOSED) shown.sortedByDescending { it.closedAt ?: it.report.reportedAt }
     else shown.sortedWith(compareByDescending<Case> { it.report.severity }.thenBy { it.report.reportedAt })
 }
+
+/** The crowd signal for the queue: crowd reports of cases still open or taken, by zone. Closed ones no longer count. */
+internal fun crowdSignals(cases: Collection<Case>, nowMs: Long): List<CrowdSignal> = CrowdWatch.signals(
+    cases.filter { it.state != CaseState.CLOSED && it.report.category == IncidentCategory.CROWD }
+        .map { CrowdReport(it.report.zone, it.report.reportedAt) },
+    nowMs,
+)
 
 /**
  * The operator's next step comes first: confirming a cancel the reporter sent, when there is one. A closed incident can
