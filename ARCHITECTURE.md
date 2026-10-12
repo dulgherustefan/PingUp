@@ -29,12 +29,13 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `protocol/` | Formatul pachetelor pe fir: codare, decodare, fragmentare. Specificația, cu vectorii de test, e în `PROTOCOL.md`. |
 | `mesh/` | Rutarea mesh: cui trimitem, ce am văzut deja, cozi, limite, consum. `Radio` e interfața pe care o implementează Bluetooth-ul. |
 | `crypto/` | Identitatea, criptarea cap-coadă (libsodium), lanțul de chei al evenimentului (certificate de tură, cheia rapoartelor pe zi, revocări), codurile QR de prieten și de staff. |
+| `event/` | Pachetul de eveniment semnat (venue, grila, fișele, cheile evenimentului), verificat pe lanțul de chei, pachetele ținute pe telefon și cel folosit, exercițiile cu fișierele lor separate (`PROTOCOL.md`, secțiunea 16). |
 | `chat/` | Prietenii, grupurile, mesajele și reîncercările. |
 | `incidents/` | Rapoartele, confirmările și stările din teren ale staff-ului, urgența dedusă din triaj, anulările de verificat și semnalarea rapoartelor venite din aceeași zonă în același timp. Rutarea pe roluri (`Routing`): cine primește alerta insistentă, cine doar vibrația și când se extinde; `AlertPlanner` o transformă în notificări, fără repetări inutile. |
 | `control/` | Jurnalul consolei de control: rapoartele, ACK-urile cu semnături și deciziile operatorului, starea fiecărui incident pe consolă, exportul CSV și JSON. Tot aici, exportul metricilor de pilot și legătura lor cu jurnalul. |
 | `metrics/` | Metricile de pilot: timpii raportorului, instantaneele rețelei mesh și jurnalul rețelei mobile (secțiunea de mai jos). |
 | `data/` | Modelele salvate, `JsonStore` (fișiere JSON scrise atomic) și `ChatStore` (chat-ul, câte un fișier pe conversație). |
-| `venue/` | Harta evenimentului din `venue.json`: zone, punct de întâlnire, grila sitului (A1, B2...). |
+| `venue/` | Harta evenimentului din `venue.json` sau din pachetul de eveniment: zone, punct de întâlnire, grila sitului (A1, B2...). |
 | `util/` | Octeți, hex, `sha256`, ceasul. |
 
 Testele de aici rulează pe JVM simplu, fără emulator. Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.

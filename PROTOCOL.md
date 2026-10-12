@@ -8,6 +8,7 @@ The code is the source of truth. Paths below are relative to `core/src/main/kotl
 
 - `protocol/` (`Packet.kt`, `Wire.kt`, `Payloads.kt`, `Reassembler.kt`, `Compat.kt`): the byte formats, and what may go to a 1.0 peer;
 - `crypto/` (`Crypto.kt`, `Identity.kt`, `StaffCrypto.kt`, `QrCodes.kt`, `Certificate.kt`, `KeyChain.kt`, `Revocation.kt`, `Revocations.kt`): keys, sealing, signatures, certificates and revocations, QR codes;
+- `event/` (`EventPack.kt`, `EventShelf.kt`): the signed event pack and the exercises (section 16);
 - `mesh/MeshEngine.kt`, `mesh/IncidentCache.kt`, `mesh/SendQueue.kt`: what a node accepts, stores and relays;
 - `incidents/IncidentManager.kt`, `chat/ChatManager.kt`: what the endpoints do with the payloads;
 - `app/src/main/java/ro/safetyplease/app/platform/ble/`: the Bluetooth transport.
@@ -541,6 +542,8 @@ A phone accepts it only if the certificate holds now and every seed derives the 
 
 `SPR1.` revocation: an ANNOUNCEMENT payload of kind 1 (section 6.8), at most 451 characters, printed by `tools/gen_staff_keys.py revoke`.
 
+`SPE1.` gate code, 48 characters: the 32-byte hash of an event pack (section 16), printed by `tools/gen_staff_keys.py pack`. It carries no key and no venue: a phone that holds a valid pack with that hash switches to it, any other phone ignores the code. A sticker over the poster can only point to another pack the phone already checked.
+
 ## 12. Limits
 
 | Limit | Value | Where |
@@ -582,6 +585,8 @@ A phone accepts it only if the certificate holds now and every seed derives the 
 **Golden vectors.** `core/src/test/resources/golden/protocol-v1.txt` holds one line per vector, `name value`. Values are lowercase hex, except the `qr.*` vectors, which are the QR text. The comment above each vector lists its inputs, so the file can be used without reading Kotlin. It covers the derived keys and nodeIds, whole frames (with and without recipient, and three fragments), HELLO, SUMMARY, REQUEST, two report bodies, the cancel hash, a sealed report, the signed ACK bytes and the ACK, the cancel, all seven inner types, a boxed PRIVATE payload, and both QR formats.
 
 1.1 added vectors and changed none. Its encoders write `hello.v11`, `summary2`, `request2`, `frame.opaque`, `frame.opaque.relayed`, `incident.ack.assigned`, an ACKNOWLEDGED with the ASSIGNED flag (section 6.4), and `hello.prefix`, a HELLO with `PREFIX_IN_HELLO` and the advertised prefix after the nickname (section 6.1); then, for the field states and the epoch, `incident.ack.on_scene`, `.handed_over`, `.closed`, `.unfounded`, `.reopened` (epoch 1) and `.assigned.epoch` (ASSIGNED and epoch 1), `summary2.epochs`, and the bodies `incident.body.triage`, `incident.body.staff`, `incident.body.lost_friend` and `incident.body.location` (triage plus accuracy 12 m and landmark 4); and for the control channel (section 6.9), `frame.control` (a PRIVATE to the channel id, with a stand-in for the sealed payload), `control.heartbeat` and `control.heartbeat.unknown`. The others carry what a newer version may send and are built by hand: `hello.extended`, `summary2.unknown`, `incident.body.extended`, `incident.ack.unknown`, a signed ACK with status 0x7e and two bytes of extensions, and `incident.ack.future`, written the same way with status 7 before 1.1 gave 7 and the epoch a meaning: 1.1 now reads it as CLOSED_BY_CONTROL with the flags ASSIGNED and EPOCH and epoch 205, and still skips the flag bits it doesn't know; and `control.heartbeat.extended`, a heartbeat with an unknown flag bit and two bytes after the zone. 1.1 must read them all; 1.0 rejects every one of them.
+
+The event pack (section 16) added `event.pack.hash` and `event.pack.signature`, for the body built in `GoldenVectorsTest` (`Golden.PACK_BODY`), and `qr.event`, the gate code with that hash; `eventPackVectorsVerify` checks the whole pack against `key.root.sign`. The signing was also checked through `tools/gen_staff_keys.py pack` and PyNaCl 1.6.2.
 
 `HELLO_AUTH` added, and changed none: `key.root.sign` and the certificates `cert.organiser`, `cert.event`, `cert.staff` (with `cert.staff.id`) and `cert.report_key`; `hello.auth.nonce`, a HELLO with the nonce, and `hello.auth`, with the certificate and the proof over bob's nonce; `incident.ack.cert`, an ACK under `cert.staff`; `announcement.revocation`; and the codes `qr.shift` and `qr.revocation`. The certificates, the proof, the ACK, the revocation and `qr.shift` were also checked against PyNaCl 1.6.2 through `tools/gen_staff_keys.py`. 1.0 rejects the two HELLOs and the ACK.
 
@@ -666,3 +671,30 @@ What a newer version can do without 1.1 phones dropping or banning it:
 ### Pilot metrics
 
 The pilot metrics (ARCHITECTURE.md, "Metrici de pilot") add nothing to the wire: reporter timings, mesh snapshots and the mobile network log are measured and kept on the phone, and the console joins them with its log by incidentId only when a person exports. The golden vectors are unchanged.
+
+## 16. Event pack and exercises (`event/`)
+
+Nothing here travels on the mesh: the pack is a file a phone loads before the festival, and the wire, the golden vectors of sections 3 to 9 and every 1.0 and 1.1 rule stay as they are.
+
+**The file.** UTF-8 JSON, at most 4 MiB: `{"format": "pingup-event", "version": 1, "body": "<text>", "signature": "<hex>"}`. `body` is itself JSON, kept as text so the signed bytes are exactly the ones read; the signature is the organiser's Ed25519 key over `SP-PACK-v1` (10 bytes) ‖ the body's UTF-8 bytes. The pack's hash, which the gate code carries, is SHA-256 over the same bytes. Body fields:
+
+| Field | Rule |
+|---|---|
+| `id`, `version` | 1 to 64 characters, and an integer from 1. A phone keeps one pack per `id` and kind, and replaces it only with a higher version |
+| `kind` | `real` or `exercise` |
+| `name` | what phones show |
+| `validFrom`, `validUntil` | seconds: when phones may load and use it |
+| `organiser`, `event` | the organiser's certificate (signed by the root) and the event's (signed by the organiser), hex, section 9 |
+| `reportKeys` | the days' report key certificates, hex |
+| `box`, `sign` | optional 32-byte public keys that replace the build's shared pair (section 9); an exercise must carry its own |
+| `venue` | the venue as in `app/src/main/assets/venue.json`: zones, numbered POIs, DEA, the meeting point |
+| `grid` | optional `{"cellMeters": n}`, 10 to 500, the site grid (50 by default) |
+| `firstAid` | optional `{"file name.md": "sheet text"}`, the first-aid sheets in the format of `app/src/main/assets/firstaid` |
+
+Unknown fields are ignored.
+
+**Checking it** (`EventPacks.check`). With the root key the app ships: the organiser's certificate holds now under the root (`KeyChain.status`); the signature verifies with its key; the event's certificate was signed by the organiser and every report key whose day isn't over by the event, each checked at the moment of its window nearest to now, since a pack is loaded before its event; and now is inside the pack's window, and not past the event's, give or take the 10 minutes of section 9. Otherwise the pack is MALFORMED, TAMPERED (the signature fails), WRONG_CHAIN, NOT_YET or EXPIRED, and the phone keeps nothing. A pack is checked again at every start; once its event is over, the phone goes back to what the app ships.
+
+**Using it.** Phones load packs from a file or an https link (Eu › Eveniment); several can be kept, and one is in use. Switching restarts the app, which then builds everything from the pack in use: the venue and grid, the first-aid sheets, a `KeyChain` that trusts its organiser and event and its report keys, and its shared keys if it has them, in place of `venue.json` and the `chain` and `reportKeys` of `staff_public.json`. The root stays in the app. The phone leaves its role on a switch; a shift code it holds for the event switched to comes back on start. The gate code (`SPE1`, section 11) only switches to a pack the phone holds and that still checks.
+
+**Exercises** (`kind: exercise`). An exercise has an event key and a shared pair of its own: `EventShelf` refuses an exercise whose event key a real pack on the phone uses, and the other way round. Since the chain and the keys come from the pack in use, nothing crosses: a real phone refuses an exercise ACK (its certificate leads to another event, so it is REFUSED and dropped without a mark, section 6.4) and can't open an exercise report, and the other way round; relays carry both as before. While an exercise is in use, every screen shows the band "EXERCIȚIU", the titles of incident, report and mesh notifications start with it, and the insistent alert only vibrates; the incidents, the store-and-forward cache, the console log and the staff keys are kept under names of their own (`incidents_exercise.json`, `console_log_exercise.json`...), so a staff phone holds both the real and the exercise keys and the pilot's log never mixes the two. An exercise is announced to everyone taking part; a phone in an exercise doesn't open real reports until it goes back to the real event, so exercises don't run during a show.

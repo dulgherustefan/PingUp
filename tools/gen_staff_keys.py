@@ -18,6 +18,15 @@ Shift codes (SPS2) for one day of the event; leads and control also get that day
 Revocation (SPR1, scanned by the control console, which sends it to every phone):
   python tools/gen_staff_keys.py revoke --ids 0123456789abcdef
 
+The event pack (PROTOCOL.md, section 16): the venue, the first-aid sheets and the event's public keys in one file the
+organiser signs, loaded by phones before the festival instead of a new build; it prints the gate code (SPE1) too:
+  python tools/gen_staff_keys.py pack --id fest-2026 --version 1 --venue app/src/main/assets/venue.json \\
+      --firstaid app/src/main/assets/firstaid --from 2026-06-20
+An exercise has an event key and shared keys of its own, never the real event's; its pack says "exercise":
+  python tools/gen_staff_keys.py event --exercise --name "Fest 2026 exercitiu" --start 2026-07-01
+  python tools/gen_staff_keys.py issue --exercise --day 1 --from 10:00 --hours 4 --teams "Medical 1" --control Control
+  python tools/gen_staff_keys.py pack --exercise --id fest-2026-exercitiu --version 1 --venue app/src/main/assets/venue.json
+
 Legacy (SPS1): one shared key pair for the whole build, every team and anchor gets the same seeds:
   python tools/gen_staff_keys.py legacy --teams "Medical 1" --anchors main-stage --control Control [--new]
   python tools/gen_staff_keys.py demo     # a separate public pair for the debug build ("activate staff without QR")
@@ -58,6 +67,7 @@ TEAM_BYTES = 24
 ZONE_BYTES = 32
 MAX_REVOKED = 32
 HAS_REPORT_KEY, HAS_REPORT_SEED, HAS_LEGACY_SEED = 0x01, 0x02, 0x04
+PACK_FORMAT = "pingup-event"
 
 
 def secret_dir() -> None:
@@ -158,8 +168,14 @@ def day_bounds(start: str, day_start: str, days: int) -> list[tuple[int, int]]:
             for i in range(days)]
 
 
+def event_step(args) -> str:
+    """Where chain.json keeps the event: a real one under "event", an exercise under "exercise"."""
+    return "exercise" if args.exercise else "event"
+
+
 def cmd_event(args) -> None:
     state = chain_state("root", "organiser")
+    step = event_step(args)
     seed = os.urandom(32)
     days = day_bounds(args.start, args.day_start, args.days)
     cert = certificate(ROLE_EVENT, sign_pair(seed)[0], days[0][0] - 86400, days[-1][1] + 86400, args.name,
@@ -169,10 +185,14 @@ def cmd_event(args) -> None:
         day_seed = os.urandom(32)
         public, _ = bindings.crypto_box_seed_keypair(day_seed)
         report_days.append({"seed": day_seed.hex(), "cert": certificate(ROLE_REPORT_KEY, public, start, end, "", seed).hex()})
-    state["event"] = {"seed": seed.hex(), "cert": cert.hex(), "days": report_days}
+    state[step] = {"seed": seed.hex(), "cert": cert.hex(), "days": report_days, "name": args.name}
+    if args.exercise:
+        # its own shared pair, so nothing sealed or signed in the exercise opens or counts in the real event
+        state[step]["boxSeed"], state[step]["signSeed"] = os.urandom(32).hex(), os.urandom(32).hex()
+    else:
+        update_public(chain=[state["organiser"]["cert"], cert.hex()], reportKeys=[d["cert"] for d in report_days])
     save_json(CHAIN, state)
-    update_public(chain=[state["organiser"]["cert"], cert.hex()], reportKeys=[d["cert"] for d in report_days])
-    print(f"event {args.name}: certificate {cert_id(cert)}, {len(days)} days of report keys")
+    print(f"{step} {args.name}: certificate {cert_id(cert)}, {len(days)} days of report keys")
 
 
 def shift_payload(cert: bytes, seed: bytes, report: dict | None, with_seed: bool, legacy: bytes | None, zone: str) -> str:
@@ -189,16 +209,20 @@ def shift_payload(cert: bytes, seed: bytes, report: dict | None, with_seed: bool
 
 
 def cmd_issue(args) -> None:
-    state = chain_state("event")
-    days = state["event"]["days"]
+    step = event_step(args)
+    state = chain_state(step)
+    days = state[step]["days"]
     if not 1 <= args.day <= len(days):
         sys.exit(f"The event has days 1 to {len(days)}.")
     report = days[args.day - 1]
     day_date = datetime.fromtimestamp(cert_start(report["cert"])).date()
     start = int(datetime.fromisoformat(f"{day_date.isoformat()}T{args.from_time}").timestamp())
     end = start + int(args.hours * 3600)
-    event_seed = bytes.fromhex(state["event"]["seed"])
-    legacy = bytes.fromhex(load_json(SEEDS)["boxSeed"]) if args.legacy else None
+    event_seed = bytes.fromhex(state[step]["seed"])
+    legacy = None
+    if args.legacy:
+        legacy = bytes.fromhex(state[step]["boxSeed"] if args.exercise else load_json(SEEDS)["boxSeed"])
+    prefix = "exercise_" if args.exercise else ""
 
     cards = [(ROLE_STAFF, team, "", False) for team in args.teams]
     cards += [(ROLE_STAFF, team, "", True) for team in args.leads]
@@ -211,12 +235,12 @@ def cmd_issue(args) -> None:
         # an anchor sits unattended: it proves its role and opens nothing
         text = shift_payload(cert, seed, report if role != ROLE_ANCHOR else None, opens, legacy if opens else None, zone)
         name = re.sub(r"[^A-Za-z0-9]+", "_", team).strip("_").lower()
-        image = save_qr(text, OUT / f"day{args.day}_{ROLE_NAMES[role]}_{name}.png")
+        image = save_qr(text, OUT / f"{prefix}day{args.day}_{ROLE_NAMES[role]}_{name}.png")
         lines.append(f"{cert_id(cert)}\t{ROLE_NAMES[role]}\t{team}\t{text}")
         print(f"{ROLE_NAMES[role]}: {team} (certificate {cert_id(cert)}) -> {image}")
-    with (OUT / f"day{args.day}_qr.txt").open("a", encoding="utf-8") as f:
+    with (OUT / f"{prefix}day{args.day}_qr.txt").open("a", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
-    print(f"certificate ids and QR contents -> {(OUT / f'day{args.day}_qr.txt').relative_to(ROOT)}")
+    print(f"certificate ids and QR contents -> {(OUT / f'{prefix}day{args.day}_qr.txt').relative_to(ROOT)}")
 
 
 def cert_start(cert_hex: str) -> int:
@@ -224,7 +248,7 @@ def cert_start(cert_hex: str) -> int:
 
 
 def cmd_revoke(args) -> None:
-    state = chain_state("event")
+    state = chain_state(args.by)
     ids = [bytes.fromhex(i) for i in args.ids]
     if not 1 <= len(ids) <= MAX_REVOKED or any(len(i) != 8 for i in ids):
         sys.exit(f"Give 1 to {MAX_REVOKED} certificate ids of 16 hex digits.")
@@ -235,6 +259,51 @@ def cmd_revoke(args) -> None:
     secret_dir()
     print(text)
     print(f"QR -> {save_qr(text, OUT / 'revocation.png')}; scan it with the control console.")
+
+
+def cert_end(cert_hex: str) -> int:
+    return struct.unpack(">I", bytes.fromhex(cert_hex)[38:42])[0]
+
+
+def pack_body(args, state: dict) -> str:
+    step = event_step(args)
+    event = state[step]
+    start = int(datetime.fromisoformat(args.from_date).timestamp()) if args.from_date else int(datetime.now().timestamp())
+    body = {
+        "id": args.id,
+        "version": args.version,
+        "kind": "exercise" if args.exercise else "real",
+        "name": args.name or event.get("name", args.id),
+        "validFrom": start,
+        "validUntil": cert_end(event["cert"]),
+        "organiser": state["organiser"]["cert"],
+        "event": event["cert"],
+        "reportKeys": [d["cert"] for d in event["days"]],
+    }
+    if args.exercise:
+        body["box"] = bindings.crypto_box_seed_keypair(bytes.fromhex(event["boxSeed"]))[0].hex()
+        body["sign"] = sign_pair(bytes.fromhex(event["signSeed"]))[0].hex()
+    body["venue"] = json.loads(Path(args.venue).read_text(encoding="utf-8"))
+    body["grid"] = {"cellMeters": args.grid}
+    if args.firstaid:
+        body["firstAid"] = {f.name: f.read_text(encoding="utf-8") for f in sorted(Path(args.firstaid).glob("*.md"))}
+    return json.dumps(body, ensure_ascii=False, separators=(",", ":"))
+
+
+def cmd_pack(args) -> None:
+    """The organiser signs SP-PACK-v1 || the body; phones check that and the chain up to the root in the app."""
+    state = chain_state("organiser", event_step(args))
+    body = pack_body(args, state)
+    _, organiser_secret = sign_pair(bytes.fromhex(state["organiser"]["seed"]))
+    signature = bindings.crypto_sign(b"SP-PACK-v1" + body.encode("utf-8"), organiser_secret)[:64]
+    text = json.dumps({"format": PACK_FORMAT, "version": 1, "body": body, "signature": signature.hex()}, ensure_ascii=False)
+    secret_dir()
+    name = f"{args.id}-v{args.version}"
+    path = Path(args.out) if args.out else OUT / f"{name}.pingup.json"
+    path.write_text(text, encoding="utf-8")
+    gate = b64("SPE1.", hashlib.sha256(body.encode("utf-8")).digest())
+    print(f"pack -> {path} ({len(text.encode('utf-8'))} bytes); publish it before the event")
+    print(f"gate code {gate} -> {save_qr(gate, OUT / f'{name}_gate.png')}")
 
 
 def cmd_legacy(args) -> None:
@@ -282,6 +351,7 @@ def main() -> None:
     p.add_argument("--start", required=True, help="first day, YYYY-MM-DD")
     p.add_argument("--days", type=int, default=1)
     p.add_argument("--day-start", default="10:00", help="when each day's report key takes over, HH:MM local time")
+    p.add_argument("--exercise", action="store_true", help="an exercise, with keys of its own")
     p = sub.add_parser("issue", help="shift certificates and SPS2 codes for one day")
     p.add_argument("--day", type=int, required=True)
     p.add_argument("--from", dest="from_time", required=True, help="shift start, HH:MM local time")
@@ -291,9 +361,20 @@ def main() -> None:
     p.add_argument("--anchors", nargs="*", default=[], help="venue.json zone ids")
     p.add_argument("--control", nargs="*", default=[], help="control-room consoles; they open reports")
     p.add_argument("--legacy", action="store_true", help="leads and control also open reports sealed to the build's key")
+    p.add_argument("--exercise", action="store_true", help="shifts of the exercise")
     p = sub.add_parser("revoke", help="an SPR1 revocation of certificate ids")
     p.add_argument("--ids", nargs="+", required=True)
-    p.add_argument("--by", choices=["event", "organiser"], default="event")
+    p.add_argument("--by", choices=["event", "exercise", "organiser"], default="event")
+    p = sub.add_parser("pack", help="the signed event pack and its gate code")
+    p.add_argument("--id", required=True, help="the same id for every version of one event")
+    p.add_argument("--version", type=int, required=True, help="a phone replaces a pack only with a higher version")
+    p.add_argument("--venue", required=True, help="the venue JSON (as app/src/main/assets/venue.json)")
+    p.add_argument("--firstaid", help="a folder of first-aid sheets (*.md), approved by the medical lead")
+    p.add_argument("--name", help="the name phones show; the event's by default")
+    p.add_argument("--from", dest="from_date", help="first day phones may load it, YYYY-MM-DD; today by default")
+    p.add_argument("--grid", type=int, default=50, help="site grid cell, meters")
+    p.add_argument("--exercise", action="store_true", help="the exercise's pack")
+    p.add_argument("--out", help="where to write it; tools/out/<id>-v<version>.pingup.json by default")
     p = sub.add_parser("legacy", help="SPS1 codes with the build's shared keys")
     p.add_argument("--teams", nargs="*", default=["Medical 1", "Securitate 1"])
     p.add_argument("--anchors", nargs="*", default=[])
@@ -302,7 +383,7 @@ def main() -> None:
     sub.add_parser("demo", help="the debug build's shared pair")
     args = parser.parse_args()
     {"root": cmd_root, "organiser": cmd_organiser, "event": cmd_event, "issue": cmd_issue, "revoke": cmd_revoke,
-     "legacy": cmd_legacy, "demo": cmd_demo}[args.command](args)
+     "pack": cmd_pack, "legacy": cmd_legacy, "demo": cmd_demo}[args.command](args)
 
 
 if __name__ == "__main__":
