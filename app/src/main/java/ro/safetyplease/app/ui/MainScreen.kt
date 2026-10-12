@@ -58,8 +58,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -105,10 +105,10 @@ import ro.safetyplease.app.ui.designsystem.backdropSource
 import ro.safetyplease.app.ui.designsystem.glass
 import ro.safetyplease.app.ui.designsystem.pressScale
 import ro.safetyplease.app.ui.designsystem.rememberBackdrop
-import ro.safetyplease.app.ui.incidents.IncidentDetailScreen
-import ro.safetyplease.app.ui.incidents.IncidentsScreen
 import ro.safetyplease.app.ui.firstaid.FirstAidScreen
 import ro.safetyplease.app.ui.firstaid.FirstAidSheetScreen
+import ro.safetyplease.app.ui.incidents.IncidentDetailScreen
+import ro.safetyplease.app.ui.incidents.IncidentsScreen
 import ro.safetyplease.app.ui.info.PageScreen
 import ro.safetyplease.app.ui.info.PagesScreen
 import ro.safetyplease.app.ui.map.MapScreen
@@ -131,9 +131,9 @@ import ro.safetyplease.app.ui.report.ReportSentScreen
 import ro.safetyplease.app.ui.safety.DiscreetScreen
 import ro.safetyplease.app.ui.staffcodes.PointsScreen
 import ro.safetyplease.app.ui.staffcodes.StaffCodesScreen
+import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
-import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.data.Role as AppRole
 
@@ -188,7 +188,7 @@ fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> U
         onStartMesh()
     }
     // tick and radio state force a re-check when the user comes back from the dialogs
-    val hasAccess = remember(tick, radio) { vm.c.radio.hasPermissions() }
+    val hasAccess = remember(tick, radio) { vm.c.bleRadio.hasPermissions() }
     val bluetoothOn = remember(tick, radio) { bluetoothEnabled(context) }
     val locationOff = remember(tick, radio) {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S &&

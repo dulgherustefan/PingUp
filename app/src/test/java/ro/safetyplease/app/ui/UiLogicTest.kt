@@ -6,7 +6,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.app.MainActivity
-import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.app.ui.common.helpOrigin
 import ro.safetyplease.app.ui.common.onSite
@@ -22,6 +21,7 @@ import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.Bounds
+import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue

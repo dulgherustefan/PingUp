@@ -10,16 +10,7 @@ import android.os.Looper
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-
-/** [accuracyM] is the radius Android gives the fix, in metres; 0 when it gives none. */
-data class GeoFix(val lat: Double, val lon: Double, val accuracyM: Float, val timeMs: Long) {
-    fun isFresh(nowMs: Long) = nowMs - timeMs < FRESH_MS
-
-    companion object {
-        /** An older fix is no longer where the person is: a report would send a team to the wrong place. */
-        const val FRESH_MS = 2 * 60_000L
-    }
-}
+import ro.safetyplease.core.venue.GeoFix
 
 /**
  * Position from GPS_PROVIDER, without Play Services or network. Without A-GPS the first fix can take a while, so

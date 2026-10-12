@@ -16,10 +16,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ro.safetyplease.app.R
-import ro.safetyplease.app.platform.power.BatteryState
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.Banner
 import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.core.mesh.BatteryState
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue

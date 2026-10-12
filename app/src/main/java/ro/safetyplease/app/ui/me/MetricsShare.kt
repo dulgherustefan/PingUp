@@ -65,7 +65,7 @@ internal fun AppContainer.phoneMetrics(): PhoneMetrics {
 /** Writes the metrics to the export folder, replacing the last export's files, and opens the share sheet. */
 internal suspend fun shareMetrics(context: Context, c: AppContainer) {
     val files = withContext(Dispatchers.IO) {
-        c.phoneMetrics().writeTo(freshExportDir(c.exportDir), c.clock.wallMs(), TimeZone.currentSystemDefault())
+        c.phoneMetrics().writeTo(freshExportDir(c.exportDir.toFile()), c.clock.wallMs(), TimeZone.currentSystemDefault())
     }
     shareFiles(context, files)
 }

@@ -19,7 +19,6 @@ import kotlinx.coroutines.launch
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.MainActivity
-import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.core.crypto.CertStatus
@@ -44,6 +43,7 @@ import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.StaffFields
 import ro.safetyplease.core.protocol.Triage
 import ro.safetyplease.core.protocol.UpdateKind
+import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
@@ -503,6 +503,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissClosedIncidents() = closedIncidents(c.incidentStore.value.staff).forEach(c.incidents::dismiss)
 
     fun retryRadio() {
-        c.meshScope.launch { c.radio.retry() }
+        c.meshScope.launch { c.bleRadio.retry() }
     }
 }

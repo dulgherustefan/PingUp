@@ -79,13 +79,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.R
-import ro.safetyplease.app.text.ESCALATE_AFTER_MS
 import ro.safetyplease.app.platform.torch.Torch
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.Replies
 import ro.safetyplease.app.text.agoText
-import ro.safetyplease.app.text.escalationAt
-import ro.safetyplease.app.text.needsEscalation
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
@@ -137,9 +134,12 @@ import ro.safetyplease.app.ui.pickedZoneAge
 import ro.safetyplease.app.ui.rememberLocationRequest
 import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.incidents.ESCALATE_AFTER_MS
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.incidents.Recognition
+import ro.safetyplease.core.incidents.escalationAt
+import ro.safetyplease.core.incidents.needsEscalation
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentCategory

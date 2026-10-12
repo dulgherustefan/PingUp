@@ -104,7 +104,7 @@ private suspend fun shareLog(context: Context, c: AppContainer, names: ExportNam
         val zone = TimeZone.currentSystemDefault()
         val entries = c.consoleLog.value.entries
         val cases = ConsoleView.cases(entries, c.incidentStore.value.staff, c.grid).values
-        val dir = freshExportDir(c.exportDir)
+        val dir = freshExportDir(c.exportDir.toFile())
         val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.ROOT).format(Date(now))
         val json = LogExport.json(entries, cases, c.settings.value.teamName, c.venue.name, c.grid, now, zone)
         listOf(
@@ -129,7 +129,7 @@ internal suspend fun shareReport(context: Context, c: AppContainer, report: Edit
         val res = context.resources
         val zone = TimeZone.currentSystemDefault()
         val names = reportNames(res)
-        val dir = freshExportDir(c.exportDir)
+        val dir = freshExportDir(c.exportDir.toFile())
         val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.ROOT).format(Date(report.until))
         val appName = res.getString(R.string.app_name)
         val footer = { page: Int -> res.getString(R.string.edition_footer, appName, c.venue.name, page) }

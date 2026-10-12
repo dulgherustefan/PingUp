@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
      * A network the user turned off stays off.
      */
     private fun startMesh() {
-        if (!vm.c.radio.hasPermissions() || !vm.settings.value.meshEnabled) return
+        if (!vm.c.bleRadio.hasPermissions() || !vm.settings.value.meshEnabled) return
         if (MeshService.running) vm.retryRadio() else MeshService.start(this)
         vm.c.location.start()
     }

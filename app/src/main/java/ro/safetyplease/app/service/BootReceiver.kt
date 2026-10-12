@@ -13,7 +13,7 @@ import ro.safetyplease.app.App
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val container by lazy { (context.applicationContext as App).container }
-        when (afterBoot(intent.action, MeshService.wanted(context)) { container.radio.hasPermissions() }) {
+        when (afterBoot(intent.action, MeshService.wanted(context)) { container.bleRadio.hasPermissions() }) {
             BootAction.NOTHING -> Unit
             BootAction.START -> if (runCatching { MeshService.start(context) }.isFailure) container.notifier.meshStopped()
             BootAction.NOTIFY -> container.notifier.meshStopped()

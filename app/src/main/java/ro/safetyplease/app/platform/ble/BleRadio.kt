@@ -45,10 +45,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 import ro.safetyplease.core.mesh.NewSetPrefix
 import ro.safetyplease.core.mesh.PowerMode
 import ro.safetyplease.core.mesh.PowerPlan
-import ro.safetyplease.core.mesh.Radio
 import ro.safetyplease.core.mesh.RadioEvent
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.protocol.NodeFlags
+import ro.safetyplease.core.session.MeshRadio
 import ro.safetyplease.core.util.nodePrefix
 import java.nio.ByteBuffer
 
@@ -64,7 +64,7 @@ class BleRadio(
     private val scope: CoroutineScope,
     nodeId: Long,
     private val log: (String) -> Unit,
-) : Radio {
+) : MeshRadio {
     override val events = Channel<RadioEvent>(Channel.UNLIMITED)
 
     /** Field measurements (debug builds); null otherwise. */
@@ -261,7 +261,7 @@ class BleRadio(
 
     // --- lifecycle ---
 
-    fun start() {
+    override fun start() {
         if (running) return
         running = true
         ContextCompat.registerReceiver(
@@ -280,7 +280,7 @@ class BleRadio(
         post { bringUp() }
     }
 
-    fun stop() {
+    override fun stop() {
         if (!running) return
         running = false
         runCatching { context.unregisterReceiver(stateReceiver) }
@@ -431,7 +431,7 @@ class BleRadio(
     }
 
     /** Applies a profile from [ro.safetyplease.core.mesh.PowerPolicy]: the stack's modes and our scan duty cycle. */
-    fun setPower(plan: PowerPlan) {
+    override fun setPower(plan: PowerPlan) {
         if (plan == this.plan) return
         this.plan = plan
         log("power: ${plan.profile} scan=${plan.scan} advertise=${plan.advertise} duty=${plan.duty}")

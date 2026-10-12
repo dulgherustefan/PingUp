@@ -1,6 +1,6 @@
 # Arhitectura
 
-Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să meargă stă în `:core`, care nu are voie să importe nimic din Android; `:app` aduce doar ce ține de telefon (Bluetooth, locație, keystore, notificări) și interfața. `:core` e Kotlin Multiplatform: același cod se compilează pentru JVM (Android și teste) și pentru iPhone.
+Ping Up are trei module Gradle și aplicația de iPhone. Regula de bază: tot ce face aplicația să meargă stă în `:core`, care nu are voie să importe nimic din Android; `:app` aduce doar ce ține de telefon (Bluetooth, locație, keystore, notificări) și interfața. `:core` e Kotlin Multiplatform: același cod se compilează pentru JVM (Android și teste) și pentru iPhone. `:ui` primește ecranele, pe rând, în Compose Multiplatform, iar `iosApp/` e aplicația de iPhone care le găzduiește.
 
 ```
           :app  (Android)
@@ -8,8 +8,8 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
    │ ui/          ecranele         │
    │ service/     serviciul mesh   │
    │ platform/    Bluetooth, GPS,  │──── implementează interfețele din :core
-   │              keystore         │     (Radio, Crypto, Clock)
-   │ AppContainer leagă totul      │
+   │              keystore         │     (AppPlatform, Radio, Crypto, Clock)
+   │ AppContainer sesiunea comună  │
    └──────────────┬───────────────┘
                   │ depinde de
    ┌──────────────▼───────────────┐
@@ -17,6 +17,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
    │ protocol → mesh → chat,       │
    │                   incidents   │
    │ crypto, data, venue, util     │
+   │ session: PingUpSession        │
    └──────────────────────────────┘
 ```
 
@@ -38,6 +39,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `metrics/` | Metricile de pilot: timpii raportorului, instantaneele rețelei mesh și jurnalul rețelei mobile (secțiunea de mai jos). |
 | `data/` | Modelele salvate, `JsonStore` (fișiere JSON scrise atomic) și `ChatStore` (chat-ul, câte un fișier pe conversație). |
 | `venue/` | Harta evenimentului din `venue.json` sau din pachetul de eveniment: zone, punct de întâlnire, grila sitului (A1, B2...). |
+| `session/` | `PingUpSession`: ce trăiește cât procesul (identitatea, magazinele, motorul mesh, managerii, buclele de fundal, `runMesh` cu planul de putere și bătăile ancorei), la fel pe Android și pe iPhone. `AppPlatform` e ce cere de la telefon: cheile (`Vault`), Bluetooth-ul (`MeshRadio`), notificările, GPS-ul, bateria, fișierele și asset-urile aplicației. |
 | `util/` | Octeți, hex, `sha256`, ceasul. |
 
 Testele de aici stau în `commonTest` și rulează pe JVM, fără emulator (`./gradlew :core:test`); pe un Mac rulează și pe simulatorul de iPhone (`./gradlew :core:iosSimulatorArm64Test`). Telefoanele simulate din `SimNet` și `TestPhone` verifică scenarii întregi, de la raport până la confirmarea staff-ului.
@@ -48,7 +50,7 @@ Testele de aici stau în `commonTest` și rulează pe JVM, fără emulator (`./g
 
 | Pachet | Ce face |
 |---|---|
-| `App`, `MainActivity`, `AppContainer` | Pornirea și legarea dependențelor (DI manual, un singur container). |
+| `App`, `MainActivity`, `AppContainer`, `AndroidPlatform` | Pornirea. `AppContainer` e sesiunea comună (`PingUpSession`) cu piesele Android pe tipurile lor; `AndroidPlatform` îi dă telefonul: Keystore, BLE, notificări, GPS, bateria, asset-urile. |
 | `platform/` | Adaptoarele Android: `ble/` (radio BLE GATT), `location/`, `keystore/`, `network/` (rețeaua mobilă, pentru jurnalul de pilot). |
 | `service/` | Serviciul din prim-plan care ține rețeaua pornită și notificările. |
 | `text/` | Textele pentru codurile de protocol (categorii, stări), folosite de notificări și de ecrane. |
@@ -73,12 +75,12 @@ Fișierele exportului (`metrici-<dată>`): `-rapoarte.csv`, `-retea.csv`, `-mobi
 
 ## Autonomie pe tură
 
-Totul rămâne pe telefon, nimic nu circulă pe mesh. `BatteryMonitor` (`platform/power`) urmărește bateria cât trăiește procesul; `BatteryDrain` (`core/mesh`) măsoară ritmul de scădere din momentele în care nivelul a coborât cu un procent, pe profilul de putere în vigoare, și dă minutele rămase (rotunjite la 5) abia după 15 minute și cel puțin 2 procente. Un alt profil, un încărcător sau un nivel care urcă încep o măsurătoare nouă. Sub 20% fără încărcător intră profilul ECONOMY (scanare mai rară) și un banner pe Hartă și în Eu; sub 5% (`PowerPolicy.textOnly`) harta e înlocuită de o notă și animațiile sunt oprite (`LocalTextOnly`, `LocalReduceMotion`). Paginile de informații stau în `ui/info`, din pachet sau din `assets/pages`.
+Totul rămâne pe telefon, nimic nu circulă pe mesh. `BatteryMonitor` (`platform/power`) citește bateria cât trăiește procesul, iar `BatteryWatch` (`core/mesh`) îi dă profilul de putere; `BatteryDrain` măsoară ritmul de scădere din momentele în care nivelul a coborât cu un procent, pe profilul de putere în vigoare, și dă minutele rămase (rotunjite la 5) abia după 15 minute și cel puțin 2 procente. Un alt profil, un încărcător sau un nivel care urcă încep o măsurătoare nouă. Sub 20% fără încărcător intră profilul ECONOMY (scanare mai rară) și un banner pe Hartă și în Eu; sub 5% (`PowerPolicy.textOnly`) harta e înlocuită de o notă și animațiile sunt oprite (`LocalTextOnly`, `LocalReduceMotion`). Paginile de informații stau în `ui/info`, din pachet sau din `assets/pages`.
 
 ## Reguli
 
 1. **`:core` nu importă Android.** Compilatorul o verifică: modulul nu are Android pe classpath.
-2. **Android intră prin interfețe.** `Radio`, `Crypto` și `Clock` sunt definite în `:core`; implementarea reală stă în `platform/`, cea de test în testele din `:core`.
+2. **Telefonul intră prin interfețe.** `AppPlatform` (cu `Vault`, `Notifications`, `MeshRadio`), `Radio`, `Crypto` și `Clock` sunt definite în `:core`; pe Android le implementează `AndroidPlatform` și `platform/`, în teste `FakePlatform` și `SimNet` din `:core`.
 3. **Ecranele nu se importă între ele.** Ce folosesc două ecrane merge în `ui/common/`; ce e pur vizual, în `ui/designsystem/`.
 4. **Dependențele merg într-o singură direcție:** `ui` → `ui/common` → `ui/designsystem`, și totul → `:core`.
 
@@ -86,11 +88,11 @@ Totul rămâne pe telefon, nimic nu circulă pe mesh. `BatteryMonitor` (`platfor
 
 - Un tip de pachet nou sau o regulă de rutare: `core/protocol/` sau `core/mesh/`, cu test în `core/src/commonTest/`. Dacă se schimbă octeții de pe fir, se actualizează și `PROTOCOL.md` și vectorii golden.
 - Un ecran nou: un pachet nou în `ui/`; mută în `ui/common/` doar ce ajunge să fie folosit și de alt ecran.
-- Ceva ce cere un API Android: o interfață în `:core` și implementarea în `platform/`.
+- Ceva ce cere un API al telefonului: o interfață în `:core` (de obicei în `AppPlatform`), cu implementarea în `platform/` pe Android și în codul iOS pe iPhone.
 
 ## De ce așa
 
-- **Două module, nu zece.** Ghidul Android avertizează că modulele prea mărunte aduc doar „build complexity and boilerplate” [1]. La aproape 15.000 de linii, o împărțire pe funcționalități ca în Now in Android [3] ar fi exagerată; separarea logică / Android aduce aproape tot câștigul.
+- **Trei module, nu zece.** Ghidul Android avertizează că modulele prea mărunte aduc doar „build complexity and boilerplate” [1]. La aproape 15.000 de linii, o împărțire pe funcționalități ca în Now in Android [3] ar fi exagerată; separarea logică / Android aduce aproape tot câștigul. `:ui` există pentru că ecranele trebuie să ruleze și pe iPhone.
 - **Logica separată de platformă,** ca la Briar: protocolul `bramble-core` e Java pur, iar `bramble-android` aduce doar adaptoarele [4]. Așa se testează rapid și se poate refolosi pe altă platformă.
 - **Straturi UI și date** sunt „strongly recommended” în recomandările Android [2]; DI manual e acceptat pentru aplicații de mărimea asta [2].
 - **Pachete pe funcționalități în `ui/`** și separarea `designsystem` / `common` urmează Now in Android (`core:designsystem`, `core:ui`, `feature:*`) [3].

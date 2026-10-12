@@ -1,4 +1,4 @@
-package ro.safetyplease.app.text
+package ro.safetyplease.core.incidents
 
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.protocol.AckStatus
