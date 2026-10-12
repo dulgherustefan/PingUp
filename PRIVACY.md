@@ -4,7 +4,7 @@ Ping Up nu are server și nu are conturi. Ce faci în aplicație rămâne pe tel
 
 ## Ce rămâne pe telefon
 
-Numele tău, prietenii (numele, cheile lor publice și ultima zonă pe care ți-au spus-o), mesajele, rapoartele, setările și metricile pilotului. Cheia ta de criptare e protejată de Android Keystore. Aplicația nu face copii de rezervă în cloud.
+Numele tău, prietenii (numele, cheile lor publice și ultima zonă pe care ți-au spus-o), mesajele, rapoartele, setările și metricile pilotului. Cheia ta de criptare e protejată de sistemul telefonului: Android Keystore pe Android, Keychain pe iPhone. Aplicația nu face copii de rezervă în cloud.
 
 ## Ce pleacă din telefon
 
@@ -20,7 +20,7 @@ Doar pentru scanarea codurilor QR. Nicio imagine nu e salvată și nu pleacă di
 
 ## Internetul
 
-Rețeaua Ping Up merge fără internet. Telefonul îl folosește doar în două cazuri, ambele alese de tine: când încarci pachetul unui eveniment de pe un link, îl descarcă de la adresa aceea; iar pe telefoanele organizatorilor, jurnalul rețelei mobile, oprit dacă nu îl pornești, face la 2 minute o cerere mică la connectivitycheck.gstatic.com, adresa pe care o întreabă și Android, ca să vadă dacă merg datele mobile. Ca la orice cerere pe internet, serverul vede adresa IP a telefonului.
+Rețeaua Ping Up merge fără internet. Telefonul îl folosește doar în două cazuri, ambele alese de tine: când încarci pachetul unui eveniment de pe un link, îl descarcă de la adresa aceea; iar pe telefoanele organizatorilor, jurnalul rețelei mobile, oprit dacă nu îl pornești, face la 2 minute o cerere mică la adresa pe care o întreabă și sistemul telefonului, ca să vadă dacă merg datele mobile: connectivitycheck.gstatic.com pe Android, captive.apple.com pe iPhone. Ca la orice cerere pe internet, serverul vede adresa IP a telefonului.
 
 ## Metricile pilotului
 
@@ -42,7 +42,7 @@ Totul rămâne pe telefon până îl ștergi. Un mesaj care nu ajunge în 24 de 
 
 Scrie-ne pe [github.com/dulgherustefan/PingUp/issues](https://github.com/dulgherustefan/PingUp/issues).
 
-Actualizată pe 12 octombrie 2026. Același text e în aplicație, la Eu › Confidențialitate.
+Actualizată pe 13 octombrie 2026. Același text e în aplicație, la Eu › Confidențialitate.
 
 ---
 
@@ -52,7 +52,7 @@ Ping Up has no server and no accounts. What you do in the app stays on your phon
 
 ## What stays on your phone
 
-Your name, your friends (their names, public keys and the last zone they told you), your messages, reports, settings and the pilot metrics. Your encryption key is protected by the Android Keystore. The app makes no cloud backups.
+Your name, your friends (their names, public keys and the last zone they told you), your messages, reports, settings and the pilot metrics. Your encryption key is protected by the phone’s own key store: the Android Keystore on Android, the Keychain on an iPhone. The app makes no cloud backups.
 
 ## What leaves your phone
 
@@ -68,7 +68,7 @@ Only for scanning QR codes. No image is saved or leaves the phone.
 
 ## Internet
 
-The Ping Up network works without the internet. The phone uses it in two cases only, both your choice: when you load an event pack from a link, it downloads it from that address; and on organisers’ phones, the mobile network log, off unless turned on, makes a small request every 2 minutes to connectivitycheck.gstatic.com, the address Android itself asks, to see whether mobile data works. As with any request on the internet, the server sees the phone’s IP address.
+The Ping Up network works without the internet. The phone uses it in two cases only, both your choice: when you load an event pack from a link, it downloads it from that address; and on organisers’ phones, the mobile network log, off unless turned on, makes a small request every 2 minutes to the address the phone’s system itself asks, to see whether mobile data works: connectivitycheck.gstatic.com on Android, captive.apple.com on an iPhone. As with any request on the internet, the server sees the phone’s IP address.
 
 ## Pilot metrics
 
@@ -90,4 +90,4 @@ Everything stays on the phone until you delete it. A message that hasn’t arriv
 
 Write to us at [github.com/dulgherustefan/PingUp/issues](https://github.com/dulgherustefan/PingUp/issues).
 
-Updated on October 12, 2026. The same text is in the app, under Me › Privacy.
+Updated on October 13, 2026. The same text is in the app, under Me › Privacy.

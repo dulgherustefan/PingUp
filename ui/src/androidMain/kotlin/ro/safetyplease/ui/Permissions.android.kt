@@ -32,6 +32,8 @@ import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.location_precise_needed
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.perm_notifications_text
 
 /** The mesh can't start without these. */
 fun radioPermissions(): List<String> =
@@ -41,6 +43,8 @@ fun radioPermissions(): List<String> =
         // below Android 12 BLE scanning needs the location permission
         listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
     }
+
+actual val NotificationsReason: StringResource = Res.string.perm_notifications_text
 
 actual val RadioNeedsLocation = Build.VERSION.SDK_INT < Build.VERSION_CODES.S
 

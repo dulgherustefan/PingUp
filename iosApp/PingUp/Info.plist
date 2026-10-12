@@ -27,8 +27,12 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Ping Up trimite mesajele și rapoartele din telefon în telefon prin Bluetooth, fără semnal.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Poziția arată în ce zonă ești și ajunge la echipe doar când trimiți un raport, ca să te găsească.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

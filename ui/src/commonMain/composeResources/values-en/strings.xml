@@ -97,6 +97,7 @@
     <string name="perm_bluetooth_text">So your phone can find the phones around you and pass messages along. The network is made only of people’s phones.</string>
     <string name="perm_notifications_title">Notifications</string>
     <string name="perm_notifications_text">For new messages and the status of your report. One notification always stays, so the network keeps working with the screen off.</string>
+    <string name="perm_notifications_text_short">For new messages and the status of your report.</string>
     <string name="perm_location_title">Location</string>
     <string name="perm_location_text">On this Android version, Bluetooth can’t search for phones without the location permission.</string>
     <string name="onboarding_permissions_text">The network is made of the phones of the people around you. For it to work, the app asks for:</string>
@@ -414,7 +415,7 @@
     <string name="privacy_title">Privacy policy</string>
     <string name="privacy_intro">Ping Up has no server and no accounts. What you do in the app stays on your phone or goes, encrypted, to the phones around you. Nothing reaches us.</string>
     <string name="privacy_kept_title">What stays on your phone</string>
-    <string name="privacy_kept_text">Your name, your friends (their names, public keys and the last zone they told you), your messages, reports, settings and the pilot metrics. Your encryption key is protected by the Android Keystore. The app makes no cloud backups.</string>
+    <string name="privacy_kept_text">Your name, your friends (their names, public keys and the last zone they told you), your messages, reports, settings and the pilot metrics. Your encryption key is protected by the phone’s own key store: the Android Keystore on Android, the Keychain on an iPhone. The app makes no cloud backups.</string>
     <string name="privacy_sent_title">What leaves your phone</string>
     <string name="privacy_sent_text">Messages to friends are end-to-end encrypted: the phones they pass through can’t read them. When you scan someone’s code, their phone gets your name and public keys, so it lists you too. Reports are encrypted for the event staff and are anonymous unless you choose otherwise; what you write about how to recognise you is seen by staff only. To find each other, phones broadcast over Bluetooth a code that changes about every quarter of an hour, and tell the phones they connect to a technical ID made from your public key. Your name isn’t in either.</string>
     <string name="privacy_location_title">Location</string>
@@ -422,7 +423,7 @@
     <string name="privacy_camera_title">Camera</string>
     <string name="privacy_camera_text">Only for scanning QR codes. No image is saved or leaves the phone.</string>
     <string name="privacy_internet_title">Internet</string>
-    <string name="privacy_internet_text">The Ping Up network works without the internet. The phone uses it in two cases only, both your choice: when you load an event pack from a link, it downloads it from that address; and on organisers’ phones, the mobile network log, off unless turned on, makes a small request every 2 minutes to connectivitycheck.gstatic.com, the address Android itself asks, to see whether mobile data works. As with any request on the internet, the server sees the phone’s IP address.</string>
+    <string name="privacy_internet_text">The Ping Up network works without the internet. The phone uses it in two cases only, both your choice: when you load an event pack from a link, it downloads it from that address; and on organisers’ phones, the mobile network log, off unless turned on, makes a small request every 2 minutes to the address the phone’s system itself asks, to see whether mobile data works: connectivitycheck.gstatic.com on Android, captive.apple.com on an iPhone. As with any request on the internet, the server sees the phone’s IP address.</string>
     <string name="privacy_metrics_title">Pilot metrics</string>
     <string name="privacy_metrics_text">Report times and network counters are noted on the phone. They leave only when you export them, from Me › Export the metrics, and then without the phone’s ID, names, descriptions or coordinates: the place is only the square of the festival grid, about 50 metres across.</string>
     <string name="privacy_staff_title">What the organiser sees</string>
@@ -433,7 +434,7 @@
     <string name="privacy_delete_text">Everything stays on the phone until you delete it. A message that hasn’t arrived within 24 hours isn’t sent again. To delete everything, uninstall the app or go to Settings › Apps › Ping Up › Storage › Clear data. What you already sent stays on the phones that received it.</string>
     <string name="privacy_contact_title">Questions</string>
     <string name="privacy_contact_text">Write to us at github.com/dulgherustefan/PingUp/issues.</string>
-    <string name="privacy_updated">Updated on October 12, 2026.</string>
+    <string name="privacy_updated">Updated on October 13, 2026.</string>
     <string name="me_node_id">Technical ID</string>
     <string name="me_network_log">Mobile network log</string>
     <string name="me_network_log_text">Every 2 minutes it notes the signal and whether mobile data works, on the grid square. It stays on this phone until you export the metrics.</string>

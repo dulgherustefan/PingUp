@@ -19,6 +19,10 @@ targets:
     scheme: {}
     sources:
       - path: PingUp
+      # what the app ships with: the Android app's assets, the same files
+      - path: ../app/src/main/assets
+        type: folder
+        buildPhase: resources
     info:
       path: PingUp/Info.plist
       properties:
@@ -35,6 +39,8 @@ targets:
         CADisableMinimumFrameDurationOnPhone: true
         # why each permission is asked, in Romanian here and in each language in <language>.lproj/InfoPlist.strings
         NSCameraUsageDescription: Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.
+        NSBluetoothAlwaysUsageDescription: Ping Up trimite mesajele și rapoartele din telefon în telefon prin Bluetooth, fără semnal.
+        NSLocationWhenInUseUsageDescription: Poziția arată în ce zonă ești și ajunge la echipe doar când trimiți un raport, ca să te găsească.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.pingup.app
@@ -45,6 +51,15 @@ targets:
         OTHER_LDFLAGS: [$(inherited), -framework, PingUpUi]
         # Gradle writes the framework outside the sandbox Xcode gives build scripts
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+    postCompileScripts:
+      - name: Add the debug assets
+        basedOnDependencyAnalysis: false
+        script: |
+          # only a debug build carries the demo staff keys, and only it trusts them
+          if [ "$CONFIGURATION" = "Debug" ]; then
+            mkdir -p "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/assets-debug"
+            cp -R "$SRCROOT/../app/src/debug/assets/." "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/assets-debug/"
+          fi
     preBuildScripts:
       - name: Build the Kotlin framework
         basedOnDependencyAnalysis: false

@@ -1,6 +1,6 @@
 # Arhitectura
 
-Ping Up are trei module Gradle și aplicația de iPhone. Regula de bază: tot ce face aplicația să meargă stă în `:core`, care nu are voie să importe nimic din Android; `:app` aduce doar ce ține de telefon (Bluetooth, locație, keystore, notificări) și interfața. `:core` e Kotlin Multiplatform: același cod se compilează pentru JVM (Android și teste) și pentru iPhone. `:ui` primește ecranele, pe rând, în Compose Multiplatform, iar `iosApp/` e aplicația de iPhone care le găzduiește.
+Ping Up are trei module Gradle și aplicația de iPhone. Regula de bază: tot ce face aplicația să meargă stă în `:core`, care nu are voie să importe nimic din Android; ecranele stau în `:ui`, aceleași pe ambele telefoane, iar `:app` aduce doar ce ține de Android (Bluetooth, locație, keystore, notificări, serviciul din prim-plan). `:core` și `:ui` sunt Kotlin Multiplatform: același cod se compilează pentru Android și pentru iPhone. `iosApp/` e aplicația de iPhone, care găzduiește ecranele și dă sesiunii telefonul.
 
 ```
           :app  (Android)
@@ -46,24 +46,26 @@ Testele de aici stau în `commonTest` și rulează pe JVM, fără emulator (`./g
 
 ## `:ui`: ecranele comune
 
-`ui/src/commonMain/`, în Compose Multiplatform: ecranele ajung aici pe rând din `:app`, ca să ruleze și pe iPhone. Primul a venit `designsystem/`: tema, culorile, tipografia (Inter, din `composeResources/font`) și componentele de bază; ce diferă pe fiecare telefon (blur-ul, „reduce motion”) e în `androidMain/` și `iosMain/`. Textele, în română și engleză, stau o singură dată pentru ambele aplicații, în `composeResources/values*/strings.xml`. Pe Android, codul care nu e încă un ecran comun (notificările, ecranele nemutate) le citește tot de acolo, ca `R.string`, copiate la build. Compose Multiplatform completează doar `%1$s` și `%1$d` și afișează escape-urile Android (`\'`, `\"`) așa cum sunt, de aceea textele folosesc numai argumente numerotate și ghilimelele și apostroful tipografice; `TranslationTest` verifică.
+`ui/src/commonMain/`, în Compose Multiplatform: toate ecranele, `AppViewModel` și navigarea (`MainScreen`), câte un pachet pe funcționalitate (`chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `control/`...), cu tema și componentele în `designsystem/`. Ce cer de la telefon fără să fie sesiune trece prin `PhoneUi` (pornirea rețelei, permisiunile, 112, share sheet-ul, lanterna, toast-urile); ce trebuie să fie un ecran al telefonului e `expect`/`actual` în `androidMain/` și `iosMain/`: camera care citește coduri QR (CameraX cu zxing, AVFoundation), alegerea fișierelor, PDF-ul raportului (`PdfDocument`, contextul PDF din UIKit, cu așezarea în pagină comună în `ReportLayout`), permisiunile, consola în landscape, blur-ul. Codul QR se desenează din `qrcode-kotlin`, același pe ambele telefoane. Textele, în română și engleză, stau o singură dată pentru ambele aplicații, în `composeResources/values*/strings.xml`. Pe Android, codul din afara ecranelor (notificările) le citește tot de acolo, ca `R.string`, copiate la build. Limba aplicației se fixează la pornire, pe Android în `AppLocale`, pe iPhone în `pinLanguage`, ca textele să-și ia și regulile de plural din ea: un telefon în germană primește româna cu pluralul românesc. Compose Multiplatform completează doar `%1$s` și `%1$d` și afișează escape-urile Android (`\'`, `\"`) așa cum sunt, de aceea textele folosesc numai argumente numerotate și ghilimelele și apostroful tipografice; `TranslationTest` verifică.
 
-## `:app`: Android și interfața
+## `:app`: Android
 
 `app/src/main/java/ro/safetyplease/app/`
 
 | Pachet | Ce face |
 |---|---|
-| `App`, `MainActivity`, `AppContainer`, `AndroidPlatform` | Pornirea. `AppContainer` e sesiunea comună (`PingUpSession`) cu piesele Android pe tipurile lor; `AndroidPlatform` îi dă telefonul: Keystore, BLE, notificări, GPS, bateria, asset-urile. |
-| `platform/` | Adaptoarele Android: `ble/` (radio BLE GATT), `location/`, `keystore/`, `network/` (rețeaua mobilă, pentru jurnalul de pilot). |
+| `App`, `MainActivity`, `AppContainer`, `AndroidPlatform`, `AndroidPhoneUi` | Pornirea. `AppContainer` e sesiunea comună (`PingUpSession`) cu piesele Android pe tipurile lor; `AndroidPlatform` îi dă telefonul: Keystore, BLE, notificări, GPS, bateria, asset-urile; `AndroidPhoneUi` dă ecranelor comune ce cer de la telefon. |
+| `platform/` | Adaptoarele Android: `ble/` (radio BLE GATT), `location/`, `keystore/`, `network/` (rețeaua mobilă, pentru jurnalul de pilot), `power/`, `share/` (fișierele exportate, spre share sheet), `torch/`. |
 | `service/` | Serviciul din prim-plan care ține rețeaua pornită și notificările. |
-| `text/` | Textele pentru codurile de protocol (categorii, stări), folosite de notificări și de ecrane. |
-| `ui/` | `AppViewModel` și `MainScreen` (tab-urile și navigarea), apoi câte un pachet pe funcționalitate. |
-| `ui/common/` | Componente folosite de mai multe ecrane: harta, cardul QR, antetul de incident, starea rețelei. |
-| `ui/chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `onboarding/`, `staffcodes/`, `safety/`, `notices/`, `info/` | Ecranele, câte un pachet pe funcționalitate. |
-| `ui/control/` | Consola camerei de control, în landscape pe o tabletă: coada, harta cu grila și straturile de acoperire, starea punctelor, alocarea, fraza pentru stație, rețeaua, anunțurile, exportul jurnalului și raportul de ediție (previzualizare, PDF cu `PdfDocument`, CSV). |
+| `text/` | `SharedTexts`: textele comune citite din codul Android din afara ecranelor. |
 
 `src/debug/` conține modul demo (simulare, comenzi adb); `src/release/` are aceeași clasă `Demo`, dar goală.
+
+## `iosApp/` și `ui/src/iosMain/`: iPhone
+
+`iosApp/` e doar gazda Swift: `PingUpApp.swift` arată `MainViewController()` și spune iOS-ului ce orientări sunt permise (landscape doar pe consolă). Proiectul Xcode se generează din `project.yml` (`xcodegen`) și construiește framework-ul Kotlin prin Gradle; tot el pune în aplicație asset-urile din `app/src/main/assets`, iar cele de debug (cheile demo de staff) doar în build-ul Debug.
+
+`ui/src/iosMain/kotlin/ro/safetyplease/ui/ios/` e telefonul pentru sesiune: `IosApp` ține sesiunea și starea ecranelor cât procesul, `IosPlatform` e `AppPlatform` (Keychain în `KeychainVault`, folderele aplicației, asset-urile, `IosNotifications`, `IosLocation`, bateria, `IosNetwork` pentru jurnalul rețelei mobile, descărcarea pachetelor), `IosPhoneUi` e `PhoneUi`, iar `Toasts` dă notele scurte pe care iOS nu le are. Cheile din Keychain se deschid de la primul unlock după repornire și nu pleacă de pe telefon; folderul de date nu intră în backup, ca pe Android. iOS nu lasă o aplicație să se repornească singură, așa că alegerea altui eveniment și ștergerea datelor fac o sesiune nouă în același proces (`IosApp.restart`, `IosApp.wipe`). Radioul e deocamdată `NoRadio`, care spune că Bluetooth e oprit; cel cu CoreBluetooth urmează și se poate încerca doar pe telefoane reale, simulatorul nu are Bluetooth.
 
 ## Metrici de pilot
 
@@ -83,15 +85,15 @@ Totul rămâne pe telefon, nimic nu circulă pe mesh. `BatteryMonitor` (`platfor
 ## Reguli
 
 1. **`:core` nu importă Android.** Compilatorul o verifică: modulul nu are Android pe classpath.
-2. **Telefonul intră prin interfețe.** `AppPlatform` (cu `Vault`, `Notifications`, `MeshRadio`), `Radio`, `Crypto` și `Clock` sunt definite în `:core`; pe Android le implementează `AndroidPlatform` și `platform/`, în teste `FakePlatform` și `SimNet` din `:core`.
+2. **Telefonul intră prin interfețe.** `AppPlatform` (cu `Vault`, `Notifications`, `MeshRadio`), `Radio`, `Crypto` și `Clock` sunt definite în `:core`; pe Android le implementează `AndroidPlatform` și `platform/`, pe iPhone `IosPlatform` și vecinii lui din `ui/src/iosMain/.../ios/`, în teste `FakePlatform` și `SimNet` din `:core`. Ecranele cer telefonul prin `PhoneUi`, din `:ui`.
 3. **Ecranele nu se importă între ele.** Ce folosesc două ecrane merge în `ui/common/`; ce e pur vizual, în `designsystem/` din `:ui`, care nu știe nimic despre mesaje sau incidente.
 4. **Dependențele merg într-o singură direcție:** ecranele → `ui/common` → `designsystem`, și totul → `:core`.
 
 ## Unde pun cod nou
 
 - Un tip de pachet nou sau o regulă de rutare: `core/protocol/` sau `core/mesh/`, cu test în `core/src/commonTest/`. Dacă se schimbă octeții de pe fir, se actualizează și `PROTOCOL.md` și vectorii golden.
-- Un ecran nou: un pachet nou în `ui/`; mută în `ui/common/` doar ce ajunge să fie folosit și de alt ecran.
-- Ceva ce cere un API al telefonului: o interfață în `:core` (de obicei în `AppPlatform`), cu implementarea în `platform/` pe Android și în codul iOS pe iPhone.
+- Un ecran nou: un pachet nou în `ui/src/commonMain/.../ui/`; mută în `common/` doar ce ajunge să fie folosit și de alt ecran. Ce trebuie să arate altfel pe un telefon decât pe altul e `expect`/`actual`, lângă ecran.
+- Ceva ce cere un API al telefonului: o interfață în `:core` (de obicei în `AppPlatform`) dacă o folosește sesiunea, în `PhoneUi` dacă o folosesc doar ecranele, cu implementarea în `platform/` pe Android și în `ui/src/iosMain/.../ios/` pe iPhone.
 
 ## De ce așa
 

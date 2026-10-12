@@ -3,6 +3,7 @@ package ro.safetyplease.ui
 import androidx.compose.runtime.Composable
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.ui.common.RadioGate
+import org.jetbrains.compose.resources.StringResource
 
 /** What keeps the radio from running, with the buttons that fix it, as each phone asks for it. */
 @Composable
@@ -21,6 +22,9 @@ expect fun rememberStartPermissions(onDone: () -> Unit): () -> Unit
 
 /** Bluetooth needs the location permission too: Android below 12. */
 expect val RadioNeedsLocation: Boolean
+
+/** Why the app asks for notifications; on Android one of them also stays while the mesh runs. */
+expect val NotificationsReason: StringResource
 
 /**
  * A console is used in landscape and stays on, as long as the phone is the console, Me sheet included. A rotation keeps

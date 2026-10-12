@@ -8,12 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		0106B4EACA1ACFE79E68FB0E /* PingUpApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */; };
+		3017ECA219C868B35D27E8E6 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 71B5785356A0F8914AB7DD5F /* assets */; };
 		B40911DAB3835CF043AA3473 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6398700908A499B5420D225D /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		2BF05116436C360A237D2D81 /* ro */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ro; path = ro.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		6D82221C73CA4EAE2D81B56D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		71B5785356A0F8914AB7DD5F /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = ../app/src/main/assets; sourceTree = SOURCE_ROOT; };
 		AD80B33C55B538CF3FD3A1DA /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		F254425B1A6F3FAD5CBF58D2 /* PingUp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PingUp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingUpApp.swift; sourceTree = "<group>"; };
@@ -24,8 +26,25 @@
 			isa = PBXGroup;
 			children = (
 				83BA925686D6F095C4193006 /* PingUp */,
+				366818782A2A570C2DFF40B8 /* pingup */,
 				140804B90A20B822A23FC2E1 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		04FBEB71F565905F9E1D40D8 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				0E7823D58C01F61916A9CAEC /* main */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		0E7823D58C01F61916A9CAEC /* main */ = {
+			isa = PBXGroup;
+			children = (
+				71B5785356A0F8914AB7DD5F /* assets */,
+			);
+			path = main;
 			sourceTree = "<group>";
 		};
 		140804B90A20B822A23FC2E1 /* Products */ = {
@@ -34,6 +53,15 @@
 				F254425B1A6F3FAD5CBF58D2 /* PingUp.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		366818782A2A570C2DFF40B8 /* pingup */ = {
+			isa = PBXGroup;
+			children = (
+				DE540C602A18448E24D11D0A /* app */,
+			);
+			name = pingup;
+			path = ..;
 			sourceTree = "<group>";
 		};
 		83BA925686D6F095C4193006 /* PingUp */ = {
@@ -46,6 +74,14 @@
 			path = PingUp;
 			sourceTree = "<group>";
 		};
+		DE540C602A18448E24D11D0A /* app */ = {
+			isa = PBXGroup;
+			children = (
+				04FBEB71F565905F9E1D40D8 /* src */,
+			);
+			path = app;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -55,6 +91,7 @@
 			buildPhases = (
 				9508C55CDEDE51A63627C976 /* Build the Kotlin framework */,
 				8F00EDE8837FA041A9CC7B50 /* Sources */,
+				7EE9BF4C10CDA030A919052D /* Add the debug assets */,
 				904624ACF758FDD304E7E37C /* Resources */,
 			);
 			buildRules = (
@@ -105,12 +142,32 @@
 			buildActionMask = 2147483647;
 			files = (
 				B40911DAB3835CF043AA3473 /* InfoPlist.strings in Resources */,
+				3017ECA219C868B35D27E8E6 /* assets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		7EE9BF4C10CDA030A919052D /* Add the debug assets */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Add the debug assets";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# only a debug build carries the demo staff keys, and only it trusts them\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then\n  mkdir -p \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/assets-debug\"\n  cp -R \"$SRCROOT/../app/src/debug/assets/.\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/assets-debug/\"\nfi\n";
+		};
 		9508C55CDEDE51A63627C976 /* Build the Kotlin framework */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

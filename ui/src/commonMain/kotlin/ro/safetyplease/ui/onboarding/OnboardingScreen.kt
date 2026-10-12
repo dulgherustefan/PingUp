@@ -89,8 +89,8 @@ import ro.safetyplease.ui.resources.perm_bluetooth_text
 import ro.safetyplease.ui.resources.perm_bluetooth_title
 import ro.safetyplease.ui.resources.perm_location_text
 import ro.safetyplease.ui.resources.perm_location_title
-import ro.safetyplease.ui.resources.perm_notifications_text
 import ro.safetyplease.ui.resources.perm_notifications_title
+import ro.safetyplease.ui.NotificationsReason
 
 /** Onboarding page margin, wider than list margins. */
 private val PageGutter = 24.dp
@@ -182,7 +182,7 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     Reason(Sym.Bluetooth, stringResource(Res.string.perm_bluetooth_title), stringResource(Res.string.perm_bluetooth_text))
-                    Reason(Sym.Bell, stringResource(Res.string.perm_notifications_title), stringResource(Res.string.perm_notifications_text))
+                    Reason(Sym.Bell, stringResource(Res.string.perm_notifications_title), stringResource(NotificationsReason))
                     if (RadioNeedsLocation) {
                         Reason(Sym.Place, stringResource(Res.string.perm_location_title), stringResource(Res.string.perm_location_text))
                     }

@@ -3,7 +3,11 @@ package ro.safetyplease.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import platform.CoreBluetooth.CBManager
+import platform.CoreBluetooth.CBManagerAuthorizationDenied
+import platform.CoreBluetooth.CBManagerAuthorizationRestricted
 import platform.UIKit.UIApplication
 import platform.UIKit.UIInterfaceOrientationMask
 import platform.UIKit.UIInterfaceOrientationMaskLandscape
@@ -11,9 +15,18 @@ import platform.UIKit.UIInterfaceOrientationMaskPortrait
 import platform.UIKit.UIWindowScene
 import platform.UIKit.UIWindowSceneGeometryPreferencesIOS
 import platform.UIKit.setNeedsUpdateOfSupportedInterfaceOrientations
+import platform.UserNotifications.UNAuthorizationOptionAlert
+import platform.UserNotifications.UNAuthorizationOptionBadge
+import platform.UserNotifications.UNAuthorizationOptionSound
+import platform.UserNotifications.UNUserNotificationCenter
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.common.topViewController
+import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.perm_notifications_text_short
 
 /**
  * iOS asks for Bluetooth itself the first time the radio starts, and never again: after a refusal, only the app's page
@@ -22,10 +35,12 @@ import ro.safetyplease.ui.common.topViewController
 @Composable
 actual fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: () -> Unit): RadioGate {
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val hasAccess = vm.phone.bluetoothAllowed()
+    val access = CBManager.authorization
+    val refused = access == CBManagerAuthorizationDenied || access == CBManagerAuthorizationRestricted
     return RadioGate(
-        hasAccess, radio.bluetoothOn, locationOff = false, accessBlocked = !hasAccess,
-        requestAccess = vm.phone::openAppSettings,
+        vm.phone.bluetoothAllowed(), radio.bluetoothOn, locationOff = false, accessBlocked = refused,
+        // not asked yet: starting the radio is what asks
+        requestAccess = if (refused) vm.phone::openAppSettings else onStartMesh,
         enableBluetooth = vm.phone::openAppSettings,
         meshOff = !settings.meshEnabled,
         turnOn = {
@@ -43,10 +58,22 @@ actual fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit
     onResult(vm.phone.locationAllowed())
 }
 
+/** Notifications at the end of onboarding; the position and Bluetooth are asked as the mesh first starts, one after the other. */
 @Composable
-actual fun rememberStartPermissions(onDone: () -> Unit): () -> Unit = onDone
+actual fun rememberStartPermissions(onDone: () -> Unit): () -> Unit {
+    val done by rememberUpdatedState(onDone)
+    return {
+        val options = UNAuthorizationOptionAlert or UNAuthorizationOptionSound or UNAuthorizationOptionBadge
+        UNUserNotificationCenter.currentNotificationCenter().requestAuthorizationWithOptions(options) { _, _ ->
+            dispatch_async(dispatch_get_main_queue()) { done() }
+        }
+    }
+}
 
 actual val RadioNeedsLocation = false
+
+// no notification has to stay: Bluetooth runs in the background by itself
+actual val NotificationsReason: StringResource = Res.string.perm_notifications_text_short
 
 @Composable
 actual fun ConsoleWindow() {

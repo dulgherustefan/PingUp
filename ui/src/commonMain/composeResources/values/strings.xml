@@ -103,6 +103,7 @@
     <string name="perm_bluetooth_text">Ca telefonul să găsească telefoanele din jur și să paseze mesaje. Rețeaua există doar din telefoanele oamenilor.</string>
     <string name="perm_notifications_title">Notificări</string>
     <string name="perm_notifications_text">Pentru mesaje noi și pentru starea raportului tău. O notificare rămâne mereu, ca rețeaua să meargă și cu ecranul stins.</string>
+    <string name="perm_notifications_text_short">Pentru mesaje noi și pentru starea raportului tău.</string>
     <string name="perm_location_title">Locație</string>
     <string name="perm_location_text">Pe acest Android, Bluetooth nu poate căuta telefoane fără permisiunea de locație.</string>
     <string name="onboarding_permissions_text">Rețeaua se face din telefoanele oamenilor din jur. Ca să meargă, aplicația îți cere:</string>
@@ -425,7 +426,7 @@
     <string name="privacy_title">Politica de confidențialitate</string>
     <string name="privacy_intro">Ping Up nu are server și nu are conturi. Ce faci în aplicație rămâne pe telefonul tău sau pleacă, criptat, spre telefoanele din jur. Nouă nu ne ajunge nimic.</string>
     <string name="privacy_kept_title">Ce rămâne pe telefon</string>
-    <string name="privacy_kept_text">Numele tău, prietenii (numele, cheile lor publice și ultima zonă pe care ți-au spus-o), mesajele, rapoartele, setările și metricile pilotului. Cheia ta de criptare e protejată de Android Keystore. Aplicația nu face copii de rezervă în cloud.</string>
+    <string name="privacy_kept_text">Numele tău, prietenii (numele, cheile lor publice și ultima zonă pe care ți-au spus-o), mesajele, rapoartele, setările și metricile pilotului. Cheia ta de criptare e protejată de sistemul telefonului: Android Keystore pe Android, Keychain pe iPhone. Aplicația nu face copii de rezervă în cloud.</string>
     <string name="privacy_sent_title">Ce pleacă din telefon</string>
     <string name="privacy_sent_text">Mesajele către prieteni sunt criptate cap-coadă: telefoanele prin care trec nu le pot citi. Când scanezi codul cuiva, telefonul lui primește numele tău și cheile tale publice, ca să te aibă și el în listă. Rapoartele sunt criptate pentru staff-ul evenimentului și sunt anonime dacă nu alegi altfel; ce scrii despre cum te recunoaștem vede doar staff-ul. Ca să se găsească între ele, telefoanele transmit prin Bluetooth un cod care se schimbă cam la un sfert de oră, iar celor cu care se conectează le spun un identificator tehnic făcut din cheia ta publică. Numele tău nu apare în ele.</string>
     <string name="privacy_location_title">Locația</string>
@@ -433,7 +434,7 @@
     <string name="privacy_camera_title">Camera</string>
     <string name="privacy_camera_text">Doar pentru scanarea codurilor QR. Nicio imagine nu e salvată și nu pleacă din telefon.</string>
     <string name="privacy_internet_title">Internetul</string>
-    <string name="privacy_internet_text">Rețeaua Ping Up merge fără internet. Telefonul îl folosește doar în două cazuri, ambele alese de tine: când încarci pachetul unui eveniment de pe un link, îl descarcă de la adresa aceea; iar pe telefoanele organizatorilor, jurnalul rețelei mobile, oprit dacă nu îl pornești, face la 2 minute o cerere mică la connectivitycheck.gstatic.com, adresa pe care o întreabă și Android, ca să vadă dacă merg datele mobile. Ca la orice cerere pe internet, serverul vede adresa IP a telefonului.</string>
+    <string name="privacy_internet_text">Rețeaua Ping Up merge fără internet. Telefonul îl folosește doar în două cazuri, ambele alese de tine: când încarci pachetul unui eveniment de pe un link, îl descarcă de la adresa aceea; iar pe telefoanele organizatorilor, jurnalul rețelei mobile, oprit dacă nu îl pornești, face la 2 minute o cerere mică la adresa pe care o întreabă și sistemul telefonului, ca să vadă dacă merg datele mobile: connectivitycheck.gstatic.com pe Android, captive.apple.com pe iPhone. Ca la orice cerere pe internet, serverul vede adresa IP a telefonului.</string>
     <string name="privacy_metrics_title">Metricile pilotului</string>
     <string name="privacy_metrics_text">Timpii rapoartelor și contoarele rețelei se notează pe telefon. Pleacă doar când le exporți tu, din Eu › Exportă metricile, și atunci fără ID-ul telefonului, nume, descrieri sau coordonate: locul e doar pătratul din grila festivalului, de vreo 50 de metri.</string>
     <string name="privacy_staff_title">Ce vede organizatorul</string>
@@ -444,7 +445,7 @@
     <string name="privacy_delete_text">Totul rămâne pe telefon până îl ștergi. Un mesaj care nu ajunge în 24 de ore nu mai e retrimis. Ca să ștergi tot, dezinstalează aplicația sau mergi la Setări › Aplicații › Ping Up › Stocare › Șterge datele. Ce ai trimis deja rămâne pe telefoanele celor care l-au primit.</string>
     <string name="privacy_contact_title">Întrebări</string>
     <string name="privacy_contact_text">Scrie-ne pe github.com/dulgherustefan/PingUp/issues.</string>
-    <string name="privacy_updated">Actualizată pe 12 octombrie 2026.</string>
+    <string name="privacy_updated">Actualizată pe 13 octombrie 2026.</string>
     <string name="me_node_id">ID tehnic</string>
     <string name="me_network_log">Jurnalul rețelei mobile</string>
     <string name="me_network_log_text">La 2 minute notează semnalul și dacă merg datele mobile, pe pătratul din grilă. Rămâne pe telefon până exporți metricile.</string>
