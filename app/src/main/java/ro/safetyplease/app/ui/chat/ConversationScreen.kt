@@ -116,6 +116,7 @@ import ro.safetyplease.app.ui.designsystem.DeliveryIcon
 import ro.safetyplease.app.ui.designsystem.GlassIconButton
 import ro.safetyplease.app.ui.designsystem.Gutter
 import ro.safetyplease.app.ui.designsystem.IconBtn
+import ro.safetyplease.app.ui.designsystem.LocalStatusBarTop
 import ro.safetyplease.app.ui.designsystem.MenuRow
 import ro.safetyplease.app.ui.designsystem.Motion
 import ro.safetyplease.app.ui.designsystem.NavHeight
@@ -243,7 +244,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
         if (vm.sendMyZone(conversation)) haptics.confirm()
         else vm.open(Dest.Map(sendTo = conversation))
     }
-    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val top = LocalStatusBarTop.current ?: WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val composerHeight = with(density) { composerPx.toDp() }
 
     Box(Modifier.fillMaxSize()) {

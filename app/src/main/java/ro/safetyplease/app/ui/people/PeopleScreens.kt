@@ -357,10 +357,13 @@ fun AddFriendScreen(vm: AppViewModel) {
                                 ScanOutcome.WrongEvent -> R.string.scan_wrong_event
                                 ScanOutcome.Revoked -> R.string.scan_revoked
                                 ScanOutcome.NotNow -> R.string.scan_not_now
+                                ScanOutcome.EventInUse -> R.string.scan_event_in_use
+                                ScanOutcome.EventOver -> R.string.event_expired
                                 else -> R.string.scan_unknown
                             }
                         ),
-                        Modifier.padding(top = 12.dp), icon = Sym.Info, color = colors.redInk,
+                        Modifier.padding(top = 12.dp), icon = Sym.Info,
+                        color = if (outcome == ScanOutcome.EventInUse) colors.secondaryLabel else colors.redInk,
                     )
                 }
                 TextLink(stringResource(R.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))

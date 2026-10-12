@@ -117,6 +117,10 @@ sealed interface ScanOutcome {
 
     /** An SPR1 code this event's keys signed. */
     data object RevocationsApplied : ScanOutcome
+
+    /** An SPE1 code for the pack already in use, or for one on the phone that no longer holds. */
+    data object EventInUse : ScanOutcome
+    data object EventOver : ScanOutcome
     data object Unknown : ScanOutcome
 }
 
@@ -317,7 +321,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         QrCodes.decodeEventGate(text)?.let { hash ->
             // the gate code only picks a pack loaded before; using it restarts the app
-            c.events.value.gateTarget(hash)?.takeIf(c::usable)?.let { c.switchEvent(it.hash) }
+            val shelf = c.events.value
+            val pack = shelf.byHash(hash) ?: return ScanOutcome.Unknown
+            if (!c.usable(pack)) return ScanOutcome.EventOver
+            val target = shelf.gateTarget(hash) ?: return ScanOutcome.EventInUse
+            c.switchEvent(target.hash)
             return ScanOutcome.Unknown
         }
         QrCodes.decodeRevocation(text)?.let { payload ->

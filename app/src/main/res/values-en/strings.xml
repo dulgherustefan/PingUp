@@ -157,6 +157,7 @@
     <string name="scan_not_now">This code isn’t valid now: its shift is at another time. Check the phone’s clock.</string>
     <string name="scan_revocations">The list of revoked codes is up to date and goes on through the network.</string>
     <string name="scan_unknown">Unknown code.</string>
+    <string name="scan_event_in_use">You’re already using this event.</string>
 
     <string name="group_new">New group</string>
     <string name="group_name">Group name</string>

@@ -165,6 +165,7 @@
     <string name="scan_not_now">Codul nu e valabil acum: tura lui e la altă oră. Verifică ceasul telefonului.</string>
     <string name="scan_revocations">Lista de coduri revocate e la zi și pleacă mai departe prin rețea.</string>
     <string name="scan_unknown">Cod necunoscut.</string>
+    <string name="scan_event_in_use">Folosești deja evenimentul acesta.</string>
 
     <string name="group_new">Grup nou</string>
     <string name="group_name">Numele grupului</string>
