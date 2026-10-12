@@ -310,9 +310,14 @@
 
     <string name="filter_active">Open</string>
     <string name="filter_resolved">Closed</string>
+    <string name="filter_for_me">For me</string>
+    <string name="filter_all">All</string>
+    <string name="incidents_for_me_empty">Nothing for you right now</string>
+    <string name="incidents_for_me_empty_text">Incidents assigned to your team and urgencies in your zone show up here. The rest are under “All”, without an alert.</string>
     <string name="incidents_empty_title">Nothing here</string>
     <string name="incidents_empty_text">Reports show up as they arrive through the network.</string>
     <string name="incident_take">I’m on it</string>
+    <string name="incident_accept">Accept the assignment</string>
     <string name="incident_mark_resolved">Mark resolved</string>
     <string name="incident_on_scene">On scene</string>
     <string name="incident_handed_over">Handed over to first aid</string>
@@ -351,6 +356,8 @@
     <string name="me_staff_code">I have a staff code</string>
     <string name="me_leave_staff">Switch back to participant</string>
     <string name="me_leave_staff_text">This phone will stop receiving reports and forget the staff keys. To come back, you’ll need the QR code again.</string>
+    <string name="me_role_lead">Role lead</string>
+    <string name="me_role_lead_text">The insistent alert rings here for your role’s urgencies, as on the console. The other teams only feel them as a vibration.</string>
     <string name="me_network">Network</string>
     <string name="relayed_none">No one else’s packets have passed through your phone yet.</string>
     <plurals name="relayed_packets">
@@ -370,7 +377,8 @@
     <string name="anchor_text">This phone only relays. Keep it plugged in; the screen can turn off.</string>
 
     <string name="channel_mesh">Network active</string>
-    <string name="channel_urgent">Urgent incidents</string>
+    <string name="channel_alarm">Alarm for urgencies nobody has</string>
+    <string name="channel_vibrate">Assignments and urgencies in your zone</string>
     <string name="channel_incident">Incidents</string>
     <string name="channel_status">My report’s status</string>
     <string name="channel_chat">Messages</string>
@@ -384,6 +392,9 @@
     <string name="notif_mesh_stopped_title">%1$s has stopped</string>
     <string name="notif_mesh_stopped_text">Tap to restart</string>
     <string name="notif_incident_title">%1$s · %2$s</string>
+    <string name="notif_assigned_title">Assigned to your team · %1$s</string>
+    <string name="notif_unaccepted_title">%1$s hasn’t accepted · %2$s</string>
+    <string name="notif_widened_title">Nobody has it yet · %1$s</string>
     <string name="notif_report_title">Your report</string>
     <string name="action_report">Report</string>
     <string name="action_report_long">Report an incident</string>
@@ -531,6 +542,8 @@
     <string name="control_signed_here">signed on the console</string>
     <string name="control_signature">signature %1$s…</string>
     <string name="control_export">Export the log</string>
+    <string name="control_mute">Silent 10 min</string>
+    <string name="control_muted">Silent · %1$d min</string>
     <string name="control_export_confirm">Export</string>
     <string name="control_export_title">Export the shift log?</string>
     <string name="control_export_text">The whole log goes out, %1$s, as two CSV files and one JSON file. It contains health data: send it only to the organiser’s system.</string>

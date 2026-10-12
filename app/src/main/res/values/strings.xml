@@ -319,9 +319,14 @@
 
     <string name="filter_active">Deschise</string>
     <string name="filter_resolved">Închise</string>
+    <string name="filter_for_me">Pentru mine</string>
+    <string name="filter_all">Toate</string>
+    <string name="incidents_for_me_empty">Nimic pentru tine acum</string>
+    <string name="incidents_for_me_empty_text">Aici apar incidentele alocate echipei tale și urgențele din zona ta. Restul sunt sub „Toate”, fără alertă.</string>
     <string name="incidents_empty_title">Nimic aici</string>
     <string name="incidents_empty_text">Rapoartele apar pe măsură ce ajung prin rețea.</string>
     <string name="incident_take">Preiau</string>
+    <string name="incident_accept">Accept alocarea</string>
     <string name="incident_mark_resolved">Marchează rezolvat</string>
     <string name="incident_on_scene">La fața locului</string>
     <string name="incident_handed_over">Predat la PMA</string>
@@ -361,6 +366,8 @@
     <string name="me_staff_code">Am un cod de staff</string>
     <string name="me_leave_staff">Revino la participant</string>
     <string name="me_leave_staff_text">Telefonul nu va mai primi rapoarte și uită cheile de staff. Ca să revii ai nevoie din nou de codul QR.</string>
+    <string name="me_role_lead">Șef de rol</string>
+    <string name="me_role_lead_text">Alerta insistentă sună la tine pentru urgențele rolului tău, ca pe consolă. Restul echipelor le simt doar pe vibrație.</string>
     <string name="me_network">Rețea</string>
     <string name="relayed_none">Niciun pachet al altora nu a trecut încă prin telefonul tău.</string>
     <plurals name="relayed_packets">
@@ -381,7 +388,8 @@
     <string name="anchor_text">Acest telefon doar retransmite. Ține-l în priză; ecranul se poate stinge.</string>
 
     <string name="channel_mesh">Rețea activă</string>
-    <string name="channel_urgent">Incidente urgente</string>
+    <string name="channel_alarm">Alarmă pentru urgențe nepreluate</string>
+    <string name="channel_vibrate">Alocări și urgențe din zona ta</string>
     <string name="channel_incident">Incidente</string>
     <string name="channel_status">Starea raportului meu</string>
     <string name="channel_chat">Mesaje</string>
@@ -396,6 +404,9 @@
     <string name="notif_mesh_stopped_title">%1$s s-a oprit</string>
     <string name="notif_mesh_stopped_text">Atinge ca să repornești</string>
     <string name="notif_incident_title">%1$s · %2$s</string>
+    <string name="notif_assigned_title">Alocat echipei tale · %1$s</string>
+    <string name="notif_unaccepted_title">%1$s n-a acceptat alocarea · %2$s</string>
+    <string name="notif_widened_title">Nepreluat de nimeni · %1$s</string>
     <string name="notif_report_title">Raportul tău</string>
     <string name="action_report">Raportează</string>
     <string name="action_report_long">Raportează un incident</string>
@@ -547,6 +558,8 @@
     <string name="control_signed_here">semnat pe consolă</string>
     <string name="control_signature">semnătura %1$s…</string>
     <string name="control_export">Exportă jurnalul</string>
+    <string name="control_mute">Silențios 10 min</string>
+    <string name="control_muted">Silențios · %1$d min</string>
     <string name="control_export_confirm">Exportă</string>
     <string name="control_export_title">Exporți jurnalul turei?</string>
     <string name="control_export_text">Pleacă tot jurnalul, %1$s, ca două fișiere CSV și unul JSON. Conține date despre sănătate: trimite-l doar în sistemul organizatorului.</string>

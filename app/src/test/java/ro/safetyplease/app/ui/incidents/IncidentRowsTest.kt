@@ -5,6 +5,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.core.data.StaffIncident
+import ro.safetyplease.core.incidents.Routing
+import ro.safetyplease.core.incidents.StaffProfile
 import ro.safetyplease.core.incidents.StatusFilter
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
@@ -19,8 +21,9 @@ class IncidentRowsTest {
         category: Int = IncidentCategory.MEDICAL,
         team: String = "",
         assigned: Boolean = false,
+        zone: String = "main-stage",
     ) = StaffIncident(
-        incidentId = id, category = category, severity = severity, zone = "main-stage",
+        incidentId = id, category = category, severity = severity, zone = zone,
         reportedAt = atMin * 60_000L, receivedAt = atMin * 60_000L, hops = 1, status = status, teamName = team, assigned = assigned,
     )
 
@@ -93,6 +96,40 @@ class IncidentRowsTest {
             StatusFilter.ACTIVE,
         )
         assertEquals(listOf("copil"), rows.map { it.incidentId })
+    }
+
+    @Test
+    fun theFieldPhoneSeesWhatIsRoutedToItFirstAndTheRestUnderAll() {
+        val me = StaffProfile(console = false, team = "Medical 2", zone = "main-stage")
+        val staff = listOf(
+            incident("urgent-in-zona", 3),
+            incident("mediu-in-zona", 4, severity = Severity.MEDIUM),
+            incident("alocat", 3, severity = Severity.MEDIUM, status = AckStatus.ACKNOWLEDGED, team = "Medical", assigned = true),
+            incident("urgent-altundeva", 4, zone = "camping"),
+            incident("rezolvat", 2, status = AckStatus.RESOLVED, team = "Medical 2"),
+        )
+        val now = 4 * 60_000L + 10_000
+        assertEquals(listOf("alocat", "urgent-in-zona"), listRows(staff, IncidentList.FOR_ME, me, now).map { it.incidentId })
+        assertEquals(
+            "everything open, what is routed here first",
+            listOf("alocat", "urgent-in-zona", "urgent-altundeva", "mediu-in-zona"),
+            listRows(staff, IncidentList.ALL, me, now).map { it.incidentId },
+        )
+        assertEquals(listOf("rezolvat"), listRows(staff, IncidentList.CLOSED, me, now).map { it.incidentId })
+        val later = now + Routing.WIDEN_AFTER_MS
+        assertTrue(
+            "nobody took them: the role's phones see them too",
+            listRows(staff, IncidentList.FOR_ME, me, later).map { it.incidentId }.containsAll(listOf("urgent-altundeva", "mediu-in-zona")),
+        )
+    }
+
+    @Test
+    fun anAssignmentIsAcceptedByTheTeamsOwnTake() {
+        val assigned = incident("alocat", 0, status = AckStatus.ACKNOWLEDGED, team = "Medical", assigned = true)
+        assertTrue(Routing.awaitsAcceptance(assigned, "Medical 2"))
+        assertFalse("accepted: the take replaces the assignment", Routing.awaitsAcceptance(assigned.copy(assigned = false, teamName = "Medical 2"), "Medical 2"))
+        assertFalse("on scene says it too", Routing.awaitsAcceptance(assigned.copy(status = AckStatus.ON_SCENE), "Medical 2"))
+        assertFalse(Routing.awaitsAcceptance(assigned, "Securitate 1"))
     }
 
     @Test

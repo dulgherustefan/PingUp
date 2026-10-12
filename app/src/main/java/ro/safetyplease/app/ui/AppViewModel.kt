@@ -191,6 +191,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setNickname(nickname: String) = c.settings.update { it.copy(nickname = nickname.trim()) }
 
+    fun setRoleLead(lead: Boolean) = c.settings.update { it.copy(roleLead = lead) }
+
     fun leaveStaff() {
         c.leaveStaff()
         if (tab == Tab.INCIDENTS) tab = Tab.MESSAGES

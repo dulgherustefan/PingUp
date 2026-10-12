@@ -93,6 +93,8 @@ import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.DuplicateHint
 import ro.safetyplease.core.incidents.Priority
+import ro.safetyplease.core.incidents.Routing
+import ro.safetyplease.core.incidents.StaffProfile
 import ro.safetyplease.core.incidents.StatusFilter
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Severity
@@ -160,16 +162,34 @@ internal fun StaffIncident.isAssignedToMe(team: String): Boolean = assigned && i
 
 /**
  * One row per report under [filter], without what is for the control room only: those [team] has, assigned or taken,
- * first, then unassigned urgent ones, closed ones last, then severity and recency.
+ * first, then those routed to this phone, then unassigned urgent ones, closed ones last, then severity and recency.
  */
-internal fun incidentRows(staff: List<StaffIncident>, filter: StatusFilter, team: String = ""): List<StaffIncident> =
+internal fun incidentRows(
+    staff: List<StaffIncident>,
+    filter: StatusFilter,
+    team: String = "",
+    forMe: (StaffIncident) -> Boolean = { false },
+): List<StaffIncident> =
     staff.filter { filter.matches(it) && !Priority.isInformational(it.category) }.sortedWith(
         compareByDescending<StaffIncident> { it.isMine(team) }
+            .thenByDescending(forMe)
             .thenByDescending { it.severity == Severity.URGENT && it.isOpen() }
             .thenBy { AckStatus.isClosed(it.status) }
             .thenByDescending { it.severity }
             .thenByDescending { it.reportedAt },
     )
+
+/** A field phone's lists: what is routed to it, by default; every open incident, without alerts; the closed ones. */
+internal enum class IncidentList { FOR_ME, ALL, CLOSED }
+
+internal fun listRows(staff: List<StaffIncident>, list: IncidentList, me: StaffProfile, nowMs: Long): List<StaffIncident> {
+    val forMe = { incident: StaffIncident -> Routing.isForMe(me, incident, nowMs) }
+    return when (list) {
+        IncidentList.FOR_ME -> incidentRows(staff, StatusFilter.ACTIVE, me.team, forMe).filter(forMe)
+        IncidentList.ALL -> incidentRows(staff, StatusFilter.ACTIVE, me.team, forMe)
+        IncidentList.CLOSED -> incidentRows(staff, StatusFilter.RESOLVED, me.team)
+    }
+}
 
 /**
  * A crowd or a fire has many witnesses: "Posibil același incident · 3 rapoarte".
@@ -181,7 +201,8 @@ private fun hintText(hint: DuplicateHint): String =
     else pluralStringResource(R.plurals.incident_same_zone, hint.count - 1, hint.count - 1)
 
 /**
- * Incidents tab: your avatar top left, a segmented filter under the bar, then one row per incident.
+ * Incidents tab: your avatar top left, a segmented filter under the bar, then one row per incident. "Pentru mine"
+ * comes first: what the console assigned to the team and what alerts this phone; "Toate" has the rest, silent.
  * At the end of the "Inchise" filter, a link removes them all from the list.
  */
 @Composable
@@ -191,20 +212,21 @@ fun IncidentsScreen(vm: AppViewModel) {
     val now = rememberNow()
     val colors = AppTheme.colors
     val haptics = rememberHaptics()
-    var filter by rememberSaveable { mutableStateOf(StatusFilter.ACTIVE) }
+    var list by rememberSaveable { mutableStateOf(IncidentList.FOR_ME) }
     var confirmDismiss by remember { mutableStateOf<StaffIncident?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
     // a lost friend is for the control room only
     val staff = remember(incidents.staff) { incidents.staff.filterNot { Priority.isInformational(it.category) } }
     val hints = remember(staff) { Clustering.suggestions(staff) }
-    val shown = remember(staff, filter, settings.teamName) { incidentRows(staff, filter, settings.teamName) }
-    // two filters: what's still open and what's closed; the team's own work, then unassigned urgent ones, come first
-    val activeCount = staff.count(StatusFilter.ACTIVE::matches)
-    val activeLabel = stringResource(R.string.filter_active)
+    val me = remember(settings) { Routing.profile(settings) }
+    val shown = remember(staff, list, me, now) { listRows(staff, list, me, now) }
+    val forMeCount = remember(staff, me, now) { listRows(staff, IncidentList.FOR_ME, me, now).size }
+    val forMeLabel = stringResource(R.string.filter_for_me)
     val closedCount = staff.count(StatusFilter.RESOLVED::matches)
     val options = listOf(
-        StatusFilter.ACTIVE to if (activeCount > 0) "$activeLabel · $activeCount" else activeLabel,
-        StatusFilter.RESOLVED to stringResource(R.string.filter_resolved),
+        IncidentList.FOR_ME to if (forMeCount > 0) "$forMeLabel · $forMeCount" else forMeLabel,
+        IncidentList.ALL to stringResource(R.string.filter_all),
+        IncidentList.CLOSED to stringResource(R.string.filter_resolved),
     )
     val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
@@ -217,25 +239,31 @@ fun IncidentsScreen(vm: AppViewModel) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
             if (staff.isNotEmpty()) {
                 item(key = "filters") {
-                    SegmentedControl(options, filter, { filter = it }, Modifier.padding(start = Gutter, end = Gutter, top = 6.dp, bottom = 10.dp))
+                    SegmentedControl(options, list, { list = it }, Modifier.padding(start = Gutter, end = Gutter, top = 6.dp, bottom = 10.dp))
                 }
             }
             if (shown.isEmpty()) {
                 item(key = "empty") {
                     // an empty filter doesn't mean nothing arrived
-                    if (staff.isEmpty()) EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), icon = Sym.Bell)
-                    else EmptyState(stringResource(R.string.incidents_filter_empty), null, icon = Sym.Check)
+                    when {
+                        staff.isEmpty() -> EmptyState(stringResource(R.string.incidents_empty_title), stringResource(R.string.incidents_empty_text), icon = Sym.Bell)
+                        list == IncidentList.FOR_ME -> EmptyState(
+                            stringResource(R.string.incidents_for_me_empty), stringResource(R.string.incidents_for_me_empty_text), icon = Sym.Check,
+                        )
+                        else -> EmptyState(stringResource(R.string.incidents_filter_empty), null, icon = Sym.Check)
+                    }
                 }
             } else {
                 items(shown, key = { it.incidentId }) { incident ->
                     IncidentRow(
                         vm, incident, hints[incident.incidentId], now, incident.isAssignedToMe(settings.teamName),
+                        awaitsMe = Routing.awaitsAcceptance(incident, settings.teamName),
                         onDismiss = { vm.dismissIncident(incident.incidentId) },
                         onAskDismiss = { confirmDismiss = incident },
                         modifier = Modifier.animateItem(),
                     )
                 }
-                if (filter == StatusFilter.RESOLVED) {
+                if (list == IncidentList.CLOSED) {
                     item(key = "clear") {
                         TextLink(
                             stringResource(R.string.incidents_dismiss_closed), { confirmClear = true },
@@ -282,6 +310,7 @@ private fun IncidentRow(
     hint: DuplicateHint?,
     now: Long,
     mine: Boolean,
+    awaitsMe: Boolean,
     onDismiss: () -> Unit,
     onAskDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -357,14 +386,14 @@ private fun IncidentRow(
             }
             // like the incident page: what's already done isn't offered
             AppMenu(menu, { menu = false }) {
-                if (incident.isOpen()) {
-                    MenuRow(stringResource(R.string.incident_take), {
+                if (incident.isOpen() || awaitsMe) {
+                    MenuRow(stringResource(if (awaitsMe) R.string.incident_accept else R.string.incident_take), {
                         menu = false
                         vm.acknowledge(incident.incidentId)
                         haptics.confirm()
                     }, icon = Sym.Check)
                 }
-                if (next != null) {
+                if (next != null && !awaitsMe) {
                     MenuRow(stringResource(fieldStepLabel(next)), {
                         menu = false
                         vm.fieldStep(incident.incidentId, next)
@@ -415,6 +444,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
         .sortedByDescending { it.reportedAt }
     val closed = AckStatus.isClosed(incident.status)
     val next = nextFieldStep(incident.status)
+    val awaitsMe = Routing.awaitsAcceptance(incident, settings.teamName)
     // the others faded in their own severity color, this report on top at full strength
     val pins = others.mapNotNull { other ->
         incidentPoint(vm.venue, other)?.let { MapPin(it, colors.severity(other.severity).copy(alpha = 0.45f), other.incidentId, other.severity) }
@@ -462,12 +492,13 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                     Modifier.padding(start = Gutter, end = Gutter, bottom = 16.dp), warning = true,
                 )
             }
-            // one step at a time so staff can't close a case nobody took: first Take, then On scene and Handed over,
-            // with Mark resolved under them; once closed the buttons go away and the header shows the state
+            // one step at a time so staff can't close a case nobody took: first Take, or Accept what the console
+            // assigned to the team, then On scene and Handed over, with Mark resolved under them; once closed the
+            // buttons go away and the header shows the state
             when {
                 closed -> Unit
-                incident.isOpen() -> AppButton(
-                    stringResource(R.string.incident_take),
+                incident.isOpen() || awaitsMe -> AppButton(
+                    stringResource(if (awaitsMe) R.string.incident_accept else R.string.incident_take),
                     {
                         vm.acknowledge(incident.incidentId)
                         haptics.confirm()

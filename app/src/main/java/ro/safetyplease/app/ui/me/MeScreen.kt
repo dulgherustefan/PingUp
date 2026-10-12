@@ -57,6 +57,7 @@ import ro.safetyplease.app.ui.designsystem.Gutter
 import ro.safetyplease.app.ui.designsystem.InputField
 import ro.safetyplease.app.ui.designsystem.InsetGroup
 import ro.safetyplease.app.ui.designsystem.NavScreen
+import ro.safetyplease.app.ui.designsystem.SwitchRow
 import ro.safetyplease.app.ui.designsystem.Sym
 import ro.safetyplease.app.ui.designsystem.TextLink
 import ro.safetyplease.app.ui.designsystem.footnote
@@ -124,6 +125,16 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         GroupRow(
                             stringResource(R.string.me_battery), subtitle = stringResource(R.string.battery_text), icon = Sym.Battery, chevron = true,
                             onClick = { BatteryExemption.request(context) },
+                        )
+                    }
+                }
+
+                // until certificates carry it (2.18), the lead is set here by hand
+                if (settings.role == AppRole.STAFF) {
+                    InsetGroup {
+                        SwitchRow(
+                            stringResource(R.string.me_role_lead), settings.roleLead, vm::setRoleLead,
+                            subtitle = stringResource(R.string.me_role_lead_text), icon = Sym.Bell,
                         )
                     }
                 }

@@ -47,7 +47,9 @@ import ro.safetyplease.core.data.IncidentData
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
+import ro.safetyplease.core.incidents.AlertPlanner
 import ro.safetyplease.core.incidents.IncidentManager
+import ro.safetyplease.core.incidents.Routing
 import ro.safetyplease.core.mesh.CachedIncidents
 import ro.safetyplease.core.mesh.MeshConfig
 import ro.safetyplease.core.mesh.MeshEngine
@@ -125,6 +127,9 @@ class AppContainer(private val app: Application) {
     /** Until when (monotonic) scanning and advertising stay at LOW_LATENCY after an incident is sent. */
     val boostUntil = MutableStateFlow(0L)
 
+    /** Until when (wall time) the console's alerts stay silent: "Silențios 10 min". */
+    val mutedUntil = MutableStateFlow(0L)
+
     /** An activity of the app is started. */
     val foreground = MutableStateFlow(false)
 
@@ -142,7 +147,6 @@ class AppContainer(private val app: Application) {
         meshScope, engine, crypto, staffCrypto, incidentStore, clock,
         staffSecret = { staffSecret },
         teamName = { settings.value.teamName },
-        onStaffAlert = { notifier.staffAlert(it) },
         onStaffAlertCleared = { notifier.cancelStaffAlert(it) },
         onReportUpdate = { if (!foreground.value) notifier.reportUpdate(it, clock.wallMs()) },
         onReportSent = { boostUntil.value = clock.monoMs() + PowerPolicy.BOOST_MS },
@@ -162,6 +166,7 @@ class AppContainer(private val app: Application) {
             }
         }
         meshScope.launch { remindUnconfirmed() }
+        meshScope.launch { routeAlerts() }
         meshScope.launch {
             settings.state.map { it.role == Role.CONTROL }.distinctUntilChanged().collectLatest { control ->
                 if (control) {
@@ -183,6 +188,27 @@ class AppContainer(private val app: Application) {
         launch { engine.state.collect { heard.value = PeerBook.update(heard.value, it, clock.wallMs(), clock.monoMs()) } }
     }
 
+    /**
+     * The staff alerts, from what each incident's route is now: they change with the store, the settings and the
+     * mute, and in time, as an alert repeats or widens.
+     */
+    private suspend fun routeAlerts() {
+        val planner = AlertPlanner(clock.wallMs())
+        combine(incidentStore.state, settings.state, mutedUntil) { data, s, muted -> Triple(data, s, muted) }.collectLatest { (data, s, muted) ->
+            if (!s.role.hasStaffKeys) return@collectLatest
+            val me = Routing.profile(s)
+            val own = data.mine.mapTo(HashSet()) { it.incidentId }
+            while (true) {
+                val now = clock.wallMs()
+                val plan = planner.plan(me, data.staff, own, now, muted)
+                plan.stop.forEach(notifier::cancelStaffAlert)
+                plan.post.forEach(notifier::staffAlert)
+                val next = plan.nextAt ?: break
+                delay(next - now)
+            }
+        }
+    }
+
     /** When an urgent report of yours has waited too long for a person on staff, tells you so from the background. */
     private suspend fun remindUnconfirmed() {
         val reminder = EscalationReminder(clock.wallMs())
@@ -202,12 +228,12 @@ class AppContainer(private val app: Application) {
         if (card.role == StaffRole.ANCHOR) {
             vault.delete(VAULT_STAFF)
             staffSecret = null
-            settings.update { it.copy(role = Role.ANCHOR, teamName = card.teamName, anchorZone = card.zone) }
+            settings.update { it.copy(role = Role.ANCHOR, teamName = card.teamName, anchorZone = card.zone, staffZone = "", roleLead = false) }
         } else {
             vault.save(VAULT_STAFF, card.boxSeed + card.signSeed)
             staffSecret = secret
             val role = if (card.role == StaffRole.CONTROL) Role.CONTROL else Role.STAFF
-            settings.update { it.copy(role = role, teamName = card.teamName, anchorZone = "") }
+            settings.update { it.copy(role = role, teamName = card.teamName, anchorZone = "", staffZone = card.zone) }
             incidents.reprocessCached()
         }
         return true
@@ -216,7 +242,8 @@ class AppContainer(private val app: Application) {
     fun leaveStaff() {
         vault.delete(VAULT_STAFF)
         staffSecret = null
-        settings.update { it.copy(role = Role.PARTICIPANT, teamName = "", anchorZone = "") }
+        mutedUntil.value = 0
+        settings.update { it.copy(role = Role.PARTICIPANT, teamName = "", anchorZone = "", staffZone = "", roleLead = false) }
     }
 
     fun wipeAllData() {

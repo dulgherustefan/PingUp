@@ -30,7 +30,7 @@ Ping Up are două module Gradle. Regula de bază: tot ce face aplicația să mea
 | `mesh/` | Rutarea mesh: cui trimitem, ce am văzut deja, cozi, limite, consum. `Radio` e interfața pe care o implementează Bluetooth-ul. |
 | `crypto/` | Identitatea, criptarea cap-coadă (libsodium), codurile QR de prieten și de staff. |
 | `chat/` | Prietenii, grupurile, mesajele și reîncercările. |
-| `incidents/` | Rapoartele, confirmările și stările din teren ale staff-ului, urgența dedusă din triaj, anulările de verificat și semnalarea rapoartelor venite din aceeași zonă în același timp. |
+| `incidents/` | Rapoartele, confirmările și stările din teren ale staff-ului, urgența dedusă din triaj, anulările de verificat și semnalarea rapoartelor venite din aceeași zonă în același timp. Rutarea pe roluri (`Routing`): cine primește alerta insistentă, cine doar vibrația și când se extinde; `AlertPlanner` o transformă în notificări, fără repetări inutile. |
 | `control/` | Jurnalul consolei de control: rapoartele, ACK-urile cu semnături și deciziile operatorului, starea fiecărui incident pe consolă, exportul CSV și JSON. |
 | `data/` | Modelele salvate, `JsonStore` (fișiere JSON scrise atomic) și `ChatStore` (chat-ul, câte un fișier pe conversație). |
 | `venue/` | Harta evenimentului din `venue.json`: zone, punct de întâlnire, grila sitului (A1, B2...). |

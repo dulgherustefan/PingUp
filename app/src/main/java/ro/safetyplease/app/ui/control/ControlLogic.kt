@@ -7,6 +7,7 @@ import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry
 import ro.safetyplease.core.control.LogEvent
+import ro.safetyplease.core.incidents.AlertPlanner
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.Limits
@@ -99,6 +100,13 @@ internal val Case.urgent: Boolean get() = report.severity == Severity.URGENT
 
 /** Open again: reopened on the network, or here before the network has it. */
 internal val Case.reopened: Boolean get() = state == CaseState.OPEN && (localOnly || network == AckStatus.REOPENED)
+
+/** Whole minutes left of "Silențios 10 min", rounded up; 0 when the console isn't muted. */
+internal fun mutedMinutes(mutedUntil: Long, nowMs: Long): Int {
+    if (mutedUntil <= nowMs) return 0
+    val minutes = (mutedUntil - nowMs + 59_999) / 60_000
+    return minutes.coerceAtMost(AlertPlanner.MUTE_MS / 60_000).toInt()
+}
 
 /** Runs the operator's decisions: each one goes into the log first, then out as an ACK when the network can carry it. */
 internal class ConsoleActions(private val c: AppContainer) {

@@ -9,6 +9,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -21,8 +23,9 @@ import ro.safetyplease.app.text.needsEscalation
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MsgKind
 import ro.safetyplease.core.data.MyReport
-import ro.safetyplease.core.data.StaffIncident
-import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.core.incidents.AlertLevel
+import ro.safetyplease.core.incidents.AlertPost
+import ro.safetyplease.core.incidents.AlertReason
 import ro.safetyplease.core.venue.Venue
 
 // Every notify() is preceded by canPost(); lint can't see a permission check made in a helper.
@@ -36,16 +39,30 @@ class Notifier(private val context: Context, private val venue: Venue) {
             listOf(
                 NotificationChannel(CHANNEL_MESH, context.getString(R.string.channel_mesh), NotificationManager.IMPORTANCE_LOW)
                     .apply { setShowBadge(false) },
-                NotificationChannel(CHANNEL_URGENT, context.getString(R.string.channel_urgent), NotificationManager.IMPORTANCE_HIGH)
+                // the console and role leads: the alarm sound, through Do Not Disturb where the user allows it
+                NotificationChannel(CHANNEL_ALARM, context.getString(R.string.channel_alarm), NotificationManager.IMPORTANCE_HIGH)
                     .apply {
+                        val alarm = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+                        setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM), alarm)
                         enableVibration(true)
-                        vibrationPattern = longArrayOf(0, 400, 200, 400, 200, 600)
+                        vibrationPattern = URGENT_VIBRATION
+                        setBypassDnd(true)
+                    },
+                // the field: assignments and urgencies in the zone are felt, not heard
+                NotificationChannel(CHANNEL_VIBRATE, context.getString(R.string.channel_vibrate), NotificationManager.IMPORTANCE_HIGH)
+                    .apply {
+                        setSound(null, null)
+                        enableVibration(true)
+                        vibrationPattern = URGENT_VIBRATION
                     },
                 NotificationChannel(CHANNEL_INCIDENT, context.getString(R.string.channel_incident), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_STATUS, context.getString(R.string.channel_status), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_CHAT, context.getString(R.string.channel_chat), NotificationManager.IMPORTANCE_DEFAULT),
             )
         )
+        // it sounded on every staff phone; its alerts now go to the two channels above
+        system.deleteNotificationChannel(OLD_CHANNEL_URGENT)
     }
 
     private fun canPost(): Boolean =
@@ -100,24 +117,37 @@ class Notifier(private val context: Context, private val venue: Venue) {
         manager.notify(FOREGROUND_ID, notification)
     }
 
-    fun staffAlert(incident: StaffIncident) {
+    /** A staff alert as [ro.safetyplease.core.incidents.AlertPlanner] decided it: the channel follows the level. */
+    fun staffAlert(post: AlertPost) {
         if (!canPost()) return
-        val urgent = incident.severity == Severity.URGENT
+        val incident = post.incident
         val zone = if (incident.zone.isEmpty()) context.getString(R.string.zone_unknown) else venue.zoneName(incident.zone)
-        val title = context.getString(
-            R.string.notif_incident_title,
-            context.getString(Labels.category(incident.category)),
-            context.getString(Labels.urgency(incident.severity)),
-        )
-        val builder = NotificationCompat.Builder(context, if (urgent) CHANNEL_URGENT else CHANNEL_INCIDENT)
+        val category = context.getString(Labels.category(incident.category))
+        val title = when (post.route.reason) {
+            AlertReason.ASSIGNED -> context.getString(R.string.notif_assigned_title, category)
+            AlertReason.UNACCEPTED -> context.getString(R.string.notif_unaccepted_title, incident.teamName, category)
+            AlertReason.ROLE, AlertReason.EVERYONE -> context.getString(R.string.notif_widened_title, category)
+            else -> context.getString(R.string.notif_incident_title, category, context.getString(Labels.urgency(incident.severity)))
+        }
+        val level = post.route.level
+        val channel = when (level) {
+            AlertLevel.INSISTENT -> CHANNEL_ALARM
+            AlertLevel.VIBRATE -> CHANNEL_VIBRATE
+            else -> CHANNEL_INCIDENT
+        }
+        val id = incident.incidentId.hashCode()
+        val open = open(MainActivity.OPEN_INCIDENTS, id)
+        val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(if (incident.description.isEmpty()) zone else "$zone · ${incident.description}")
             .setAutoCancel(true)
-            .setContentIntent(open(MainActivity.OPEN_INCIDENTS, incident.incidentId.hashCode()))
-            .setPriority(if (urgent) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
-        if (urgent) builder.setCategory(NotificationCompat.CATEGORY_ALARM).setDefaults(NotificationCompat.DEFAULT_SOUND)
-        manager.notify(incident.incidentId.hashCode(), builder.build())
+            .setContentIntent(open)
+            .setPriority(if (level == AlertLevel.NOTIFY) NotificationCompat.PRIORITY_DEFAULT else NotificationCompat.PRIORITY_HIGH)
+            .setSilent(post.silent)
+        if (level == AlertLevel.INSISTENT) builder.setCategory(NotificationCompat.CATEGORY_ALARM)
+        if (post.fullScreen) builder.setFullScreenIntent(open, true)
+        manager.notify(id, builder.build())
     }
 
     fun cancelStaffAlert(incidentId: String) = manager.cancel(incidentId.hashCode())
@@ -176,9 +206,12 @@ class Notifier(private val context: Context, private val venue: Venue) {
     companion object {
         const val FOREGROUND_ID = 1
         private const val CHANNEL_MESH = "mesh"
-        private const val CHANNEL_URGENT = "incident_urgent"
+        private const val OLD_CHANNEL_URGENT = "incident_urgent"
+        private const val CHANNEL_ALARM = "incident_alarm"
+        private const val CHANNEL_VIBRATE = "incident_vibrate"
         private const val CHANNEL_INCIDENT = "incident"
         private const val CHANNEL_STATUS = "report_status"
         private const val CHANNEL_CHAT = "chat"
+        private val URGENT_VIBRATION = longArrayOf(0, 400, 200, 400, 200, 600)
     }
 }

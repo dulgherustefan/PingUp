@@ -161,6 +161,15 @@ class ControlLogicTest {
     }
 
     @Test
+    fun theMuteCountsDownInWholeMinutesAndNeverPastTen() {
+        assertEquals(0, mutedMinutes(0, t0))
+        assertEquals(10, mutedMinutes(t0 + 10 * 60_000L, t0))
+        assertEquals("a stale clock doesn't show eleven", 10, mutedMinutes(t0 + 10 * 60_000L + 20_000, t0))
+        assertEquals(1, mutedMinutes(t0 + 1_000, t0))
+        assertEquals(0, mutedMinutes(t0, t0))
+    }
+
+    @Test
     fun radioPhraseReadsTheDescriptionAsOneLine() {
         val messy = report(description = "  cade mereu\n\nlângă   bar!!  ")
         assertEquals("Medical, urgent, E2, Baruri, cade mereu lângă bar.", radioPhrase(messy, "Baruri", words))

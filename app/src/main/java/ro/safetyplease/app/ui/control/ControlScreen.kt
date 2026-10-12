@@ -82,6 +82,7 @@ import ro.safetyplease.app.ui.rememberRadioGate
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.ConsoleView
+import ro.safetyplease.core.incidents.AlertPlanner
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.SiteGrid
@@ -117,6 +118,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val log by c.consoleLog.state.collectAsStateWithLifecycle()
     val mesh by vm.mesh.collectAsStateWithLifecycle()
     val heard by c.heard.collectAsStateWithLifecycle()
+    val mutedUntil by c.mutedUntil.collectAsStateWithLifecycle()
     val gate = rememberRadioGate(vm, mesh.radio, onStartMesh)
     val now = rememberNow()
     val colors = AppTheme.colors
@@ -142,6 +144,14 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
+            // the alarms sound until someone has the incident; the operator can buy ten quiet minutes, never more
+            val muted = mutedMinutes(mutedUntil, now)
+            AppButton(
+                if (muted > 0) stringResource(R.string.control_muted, muted) else stringResource(R.string.control_mute),
+                { c.mutedUntil.value = if (muted > 0) 0 else c.clock.wallMs() + AlertPlanner.MUTE_MS },
+                kind = if (muted > 0) ButtonKind.Primary else ButtonKind.Secondary, compact = true, icon = Sym.Bell,
+            )
+            Spacer(Modifier.width(8.dp))
             AppButton(stringResource(R.string.control_export), { confirmExport = true }, kind = ButtonKind.Secondary, compact = true)
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(start = PaneGap, end = PaneGap, bottom = PaneGap)) {

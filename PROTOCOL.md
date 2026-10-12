@@ -270,6 +270,8 @@ The first extension byte holds the ACK flags (`AckFlags`, 1.1); the fields the f
 
 A signer writes the flags byte only when a flag is set or the epoch is above 0, so an ordinary ACK keeps the 1.0 layout and still reaches 1.0 phones; an ACK without extensions has no flags and epoch 0. Bytes after the fields of the flags this version knows belong to newer versions and are kept unread. The flags and the epoch are under the signature, so a relay can't add, strip or change them. Since an ACK with extensions never goes to a 1.0 peer, 1.0 phones see neither an assignment nor anything after a reopen: they keep the status they had until a take or a later status reaches them (section 8 says what they show). SUMMARY carries only the status, so a take that replaces an assignment (section 8) spreads with the flood, not through store-and-forward; SUMMARY2 carries the epoch (section 6.2).
 
+A phone of the assigned team accepts the assignment with that take: its own ACKNOWLEDGED, without the flag, in its team's name ("Accept alocarea" on its screen). The supersede order puts it over the assignment, so every phone, the console included, sees that the team has accepted; a later ON_SCENE says so too. Nothing new goes on the wire for it, and a 1.0 phone sees an ordinary take. Who is alerted, and how, is not on the wire either: each staff phone decides it from the state it holds (`incidents/Routing.kt`, roadmap 2.7): the insistent alert on the console and on role leads, vibration on the assigned team and on urgencies in a phone's zone, widening to the incident's role and then to all staff while nobody has it.
+
 ### 6.5 INCIDENT_CANCEL (`IncidentCancel`)
 
 | Size | Field |
