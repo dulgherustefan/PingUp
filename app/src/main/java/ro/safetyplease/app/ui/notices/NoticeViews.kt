@@ -89,7 +89,7 @@ fun NoticeBands(vm: AppViewModel, notices: List<ShownNotice>, statusBar: Boolean
 }
 
 /** Shade first, then a chill-out zone, which is usually in the shade; null if the venue has neither. */
-private fun shadeType(venue: Venue): String? = listOf(Venue.SHADE, "chill").firstOrNull { venue.spots(it).isNotEmpty() }
+fun shadeType(venue: Venue): String? = listOf(Venue.SHADE, "chill").firstOrNull { venue.spots(it).isNotEmpty() }
 
 @Composable
 private fun NoticeBand(vm: AppViewModel, shown: ShownNotice, modifier: Modifier) {

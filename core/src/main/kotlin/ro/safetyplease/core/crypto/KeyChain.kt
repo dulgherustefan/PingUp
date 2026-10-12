@@ -141,22 +141,23 @@ class KeyChain(
     }
 
     /**
-     * Only a control shift signs a notice, within its shift; it holds at most [Notice.MAX_VALID_S] from its issue.
-     * Whether it is still in force, and newer than the one kept, is the cache's to decide.
+     * Only a control shift signs a notice, and only within its shift: the certificate is checked at the notice's issue,
+     * so one issued just before the shift ends still holds for the phones that get it later, at most
+     * [Notice.MAX_VALID_S] from its issue. A revoked certificate refuses it whenever it comes. Whether it is still in
+     * force, and newer than the one kept, is the cache's to decide.
      */
     private fun checkNotice(payload: ByteArray): Verdict {
         val notice = Notice.decode(payload) ?: return Verdict.INVALID
         val cert = notice.certificate
-        val now = nowSec()
-        when (status(cert, now)) {
+        if (notice.issued > nowSec() + SKEW_S) return Verdict.REFUSED
+        when (status(cert, notice.issued)) {
             CertStatus.VALID -> Unit
             CertStatus.FORGED -> return Verdict.INVALID
             else -> return Verdict.REFUSED
         }
         if (!crypto.verify(notice.signature, Notice.signedMessage(payload), cert.key)) return Verdict.INVALID
-        val late = notice.issued > now + SKEW_S || notice.issued < cert.validFrom - SKEW_S
         val span = notice.validUntil - notice.issued
-        return if (cert.role != CertRole.CONTROL || late || span !in 1..Notice.MAX_VALID_S) Verdict.REFUSED else Verdict.VALID
+        return if (cert.role != CertRole.CONTROL || span !in 1..Notice.MAX_VALID_S) Verdict.REFUSED else Verdict.VALID
     }
 
     private fun signerKey(id: Long): ByteArray? {

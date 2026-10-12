@@ -23,6 +23,7 @@ import ro.safetyplease.core.mesh.IncidentCache
 import ro.safetyplease.core.mesh.SimNet
 import ro.safetyplease.core.mesh.TestClock
 import ro.safetyplease.core.mesh.V10Node
+import ro.safetyplease.core.mesh.Verdict
 import ro.safetyplease.core.protocol.HeldEntry
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
@@ -167,6 +168,33 @@ class NoticesTest {
         advanceTimeBy(70_000)
         assertEquals(setOf(NoticeTopic.ALERT, NoticeTopic.HEAT), late.active(w).map { it.topic }.toSet())
         assertTrue(relay.engine.state.value.counters.storeAndForward >= 2)
+    }
+
+    @Test
+    fun aNoticeIssuedJustBeforeTheShiftEndsStillReachesAPhoneThatComesAfterIt() = runTest {
+        val w = World(this)
+        val console = w.phone("K").also { it.activate(w.event.shift(CertRole.CONTROL, "Control", until = 30 * 60L)) }
+        val relay = w.phone("R")
+        val late = w.phone("L")
+        w.net.outOfRange += setOf(setOf("K", "L"), setOf("R", "L"))
+        started(w)
+
+        advanceTimeBy(25 * 60_000L)
+        console.notices.publish(heat, emptyList(), "", 4 * 3600)!!
+        advanceTimeBy(10_000)
+        assertEquals(listOf(NoticeTopic.HEAT), relay.active(w).map { it.topic })
+
+        // the shift and the clock skew are over when the late phone meets the relay
+        w.net.cut("K", "R")
+        advanceTimeBy(20 * 60_000L)
+        assertFalse(console.notices.canSign)
+        w.net.heal("R", "L")
+        advanceTimeBy(70_000)
+        assertEquals(listOf(NoticeTopic.HEAT), late.active(w).map { it.topic })
+
+        // the same key can't sign one now that its shift is over
+        val after = Notice.sign(testCrypto, console.keyChain.credential!!, NoticeTopic.HEAT, 4, 9, w.nowSec(), w.nowSec() + 600, 12)
+        assertEquals(Verdict.REFUSED, late.keyChain.checkAnnouncement(after.encode()))
     }
 
     @Test

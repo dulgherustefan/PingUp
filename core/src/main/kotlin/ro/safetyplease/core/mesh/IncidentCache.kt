@@ -169,6 +169,9 @@ class IncidentCache(
         return true
     }
 
+    /** The highest sequence number taken in [topic], 0 for none. */
+    fun noticeSeq(topic: Int): Long = notices[topic.toLong()]?.version ?: 0
+
     /**
      * Keeps the notice if its sequence number is the highest seen for its topic and it hasn't expired by [wallMs].
      * Notices are signed by a control shift, so they aren't many; past [maxNotices] the one kept longest goes.

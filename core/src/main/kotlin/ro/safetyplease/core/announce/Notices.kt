@@ -91,7 +91,13 @@ class Notices(
 
     val canSign: Boolean get() = signer() != null
 
-    private fun nextSeq(topic: Int): Long = (store.value.notices.firstOrNull { it.topic == topic }?.seq ?: 0) + 1
+    /**
+     * One above the highest this phone knows in the topic, from its board or the mesh cache, whichever survived. A
+     * console that knows neither, wiped or never in range of the others, starts again at 1, and the phones that hold
+     * a higher number drop its notices until it hears one of them (PROTOCOL.md, section 6.8).
+     */
+    private fun nextSeq(topic: Int): Long =
+        maxOf(store.value.notices.firstOrNull { it.topic == topic }?.seq ?: 0, engine.noticeSeq(topic)) + 1
 
     /**
      * Signs and sends a notice of [template] for [validForS] seconds; it replaces the topic's last one. Null without a

@@ -45,8 +45,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,6 +57,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
+import ro.safetyplease.app.text.NoticeText
+import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.common.MapCamera
@@ -90,7 +94,9 @@ import ro.safetyplease.app.ui.designsystem.largeFont
 import ro.safetyplease.app.ui.designsystem.pressScale
 import ro.safetyplease.app.ui.designsystem.rememberHaptics
 import ro.safetyplease.app.ui.designsystem.subheadline
+import ro.safetyplease.app.ui.notices.shadeType
 import ro.safetyplease.app.ui.rememberLocationRequest
+import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.GeoPoint
@@ -113,7 +119,12 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
     val incidents by vm.incidents.collectAsStateWithLifecycle()
+    val board by vm.c.notices.board.collectAsStateWithLifecycle()
+    val now = rememberNow()
     val colors = AppTheme.colors
+    val heat = if (vm.c.showsNotices(settings)) board.active(now / 1000).firstOrNull { it.second.topic == NoticeTopic.HEAT }?.second else null
+    // in the heat, water and shade come first
+    val quickTypes = if (heat == null) SpotTypes else listOfNotNull("water", shadeType(vm.venue)) + (SpotTypes - "water")
     var simulate by rememberSaveable { mutableStateOf(false) }
     var focus by rememberSaveable { mutableStateOf(if (dest.spot.isNotEmpty()) MapFocus.SPOT else MapFocus.MINE) }
     var spotType by rememberSaveable { mutableStateOf(dest.spot) }
@@ -207,7 +218,10 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     targetColor = spotColor(colors, spotType),
                     // taller than the site: room for the top label and the buttons without covering the zones
                     aspect = venueAspect(vm.venue) * 0.8f,
-                    reserved = listOf(MapReserve(MapCorner.BottomEnd, ControlsReserveWidth, ControlsReserveHeight)),
+                    reserved = listOfNotNull(
+                        MapReserve(MapCorner.BottomEnd, ControlsReserveWidth, ControlsReserveHeight),
+                        heat?.let { MapReserve(MapCorner.BottomStart, HeatReserveWidth, HeatReserveHeight) },
+                    ),
                 ) {
                     val whereText = when {
                         autoZone != null -> stringResource(R.string.map_here_at, autoZone.name)
@@ -217,6 +231,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     }
                     // clear of the compass in the top right corner
                     WherePill(whereText, known = origin != null, Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 10.dp, end = 48.dp)) { showMine() }
+                    heat?.let { HeatPill(it.level, Modifier.align(Alignment.BottomStart).padding(10.dp)) }
                     MapControls(
                         Modifier.align(Alignment.BottomEnd).padding(10.dp),
                         onZoomIn = { scope.launch { camera.zoomBy(2f, animateMoves) } },
@@ -232,7 +247,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     QuickChip(Sym.MyLocation, stringResource(R.string.map_quick_me), null, colors.accent, focus == MapFocus.MINE) { showMine() }
-                    SpotTypes.forEach { type ->
+                    quickTypes.forEach { type ->
                         val near = vm.venue.nearest(type, origin) ?: return@forEach
                         QuickChip(
                             typeGlyph(type) ?: Sym.Flag, spotLabel(type), origin?.let { distanceMeters(it, near.point) },
@@ -380,6 +395,28 @@ private fun WherePill(text: String, known: Boolean, modifier: Modifier, onClick:
         )
     }
 }
+
+/** The heat level in force, over the bottom left of the map, so the shortcuts below read as the way out of it. */
+@Composable
+private fun HeatPill(level: Int, modifier: Modifier) {
+    val colors = AppTheme.colors
+    Row(
+        modifier.shadow(6.dp, CircleShape).clip(CircleShape).background(colors.cell)
+            .padding(horizontal = 12.dp, vertical = 7.dp).semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Sym.Fire, null, Modifier.size(16.dp), tint = colors.orange)
+        Spacer(Modifier.width(6.dp))
+        Text(
+            NoticeText.title(LocalResources.current, NoticeTopic.HEAT, level),
+            style = MaterialTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold), color = colors.label, maxLines = 1,
+        )
+    }
+}
+
+/** The heat label with its 10 dp margin; the map draws no name under it. */
+private val HeatReserveWidth = 170.dp
+private val HeatReserveHeight = 32.dp + 20.dp
 
 /** The zoom and locate buttons with their 10 dp margin and a little air: the map draws no name under them. */
 private val ControlsReserveWidth = 38.dp + 20.dp

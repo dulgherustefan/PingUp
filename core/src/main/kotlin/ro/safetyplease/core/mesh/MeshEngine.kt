@@ -474,6 +474,9 @@ class MeshEngine(
         return packet
     }
 
+    /** The highest sequence number this phone has seen in the notice [topic], from any console. */
+    fun noticeSeq(topic: Int): Long = cache.noticeSeq(topic)
+
     /**
      * A notice of the console's, kept for store-and-forward until it expires; null if one of its topic with a later
      * sequence number is known, or it has expired.
@@ -1000,7 +1003,8 @@ class MeshEngine(
      * One [trust] verifies is delivered and relayed like an incident, within the link's announcement budget, since a
      * signed payload can still be sent again under new packet ids. A forgery of a kind this version reads goes no
      * further, without a malformed mark: an older relay may have passed it on in good faith. Any other goes on as a
-     * type this version only relays.
+     * type this version only relays. A copy of a notice already held is dropped before it spends the budget, which
+     * also caps the notices asked for at catch-up.
      */
     private fun onAnnouncement(link: Link, packet: Packet, now: Long) {
         when (trust.checkAnnouncement(packet.payload)) {
@@ -1010,6 +1014,11 @@ class MeshEngine(
                 dedup.add(packet.dedupKey, now)
                 return drop(packet, link, DropReason.UNTRUSTED)
             }
+        }
+        val notice = Notice.decode(packet.payload)
+        if (notice != null && notice.seq <= cache.noticeSeq(notice.topic)) {
+            dedup.add(packet.dedupKey, now)
+            return drop(packet, link, DropReason.STALE_ACK)
         }
         if (!link.announcements.tryAdd(now)) return drop(packet, link, DropReason.OPAQUE_LIMIT)
         onMeshPacket(link, packet, now)
