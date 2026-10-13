@@ -103,8 +103,11 @@ abstract class SharedStrings : DefaultTask() {
     fun copy() {
         val out = outputDir.get().asFile
         out.deleteRecursively()
+        // strings.xml and each feature's strings_<name>.xml
         composeResources.get().asFile.listFiles()?.filter { it.isDirectory && it.name.startsWith("values") }?.forEach { dir ->
-            File(dir, "strings.xml").takeIf { it.exists() }?.copyTo(File(out, "${dir.name}/strings.xml"))
+            dir.listFiles()?.filter { it.name.startsWith("strings") && it.name.endsWith(".xml") }?.forEach { file ->
+                file.copyTo(File(out, "${dir.name}/${file.name}"))
+            }
         }
         // code reads some of them by name (SharedTexts), which the resource shrinker can't see
         File(out, "raw/keep.xml").apply { parentFile.mkdirs() }.writeText(

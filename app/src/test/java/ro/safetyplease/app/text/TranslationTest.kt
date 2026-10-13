@@ -10,7 +10,7 @@ import java.util.Calendar
 import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
 
-/** values/ (Romanian) and values-en/ must offer the same texts, with the same placeholders. */
+/** values/ (Romanian) and values-en/ must offer the same texts, with the same placeholders, file by file. */
 class TranslationTest {
     private class Resources(val strings: Map<String, String>, val plurals: Map<String, Map<String, String>>, val arrays: Map<String, List<String>>) {
         val keys: Set<String> get() = strings.keys.map { "string/$it" }.toSet() + plurals.keys.map { "plurals/$it" } + arrays.keys.map { "array/$it" }
@@ -28,8 +28,27 @@ class TranslationTest {
         )
     }
 
+    private fun stringFiles(dir: String): Set<String> =
+        File(dir).listFiles()?.map { it.name }?.filter { it.startsWith("strings") && it.endsWith(".xml") }?.toSet().orEmpty()
+
     // the shared texts (in :ui, for both apps) and the debug build's own
-    private val sets = listOf("../ui/src/commonMain/composeResources", "src/debug/res").map { load("$it/values/strings.xml") to load("$it/values-en/strings.xml") }
+    private val sharedRoot = "../ui/src/commonMain/composeResources"
+    private val roots = listOf(sharedRoot, "src/debug/res")
+
+    /** A Romanian and English pair for each strings file, by name: strings.xml and each feature's strings_<name>.xml. */
+    private fun pairs(root: String) =
+        (stringFiles("$root/values") + stringFiles("$root/values-en")).sorted().map { load("$root/values/$it") to load("$root/values-en/$it") }
+
+    private val sets = roots.flatMap(::pairs)
+
+    @Test
+    fun everyStringsFileHasItsTranslation() {
+        for (root in roots) {
+            assertTrue(root, "strings.xml" in stringFiles("$root/values"))
+            assertEquals(root, stringFiles("$root/values"), stringFiles("$root/values-en"))
+        }
+        assertTrue("the features' files", stringFiles("$sharedRoot/values").size > 1)
+    }
 
     private fun placeholders(text: String): List<String> =
         Regex("""%(\d+\$)?[-#+ 0,(]*\d*(\.\d+)?[a-zA-Z%]""").findAll(text).map { it.value }.sorted().toList()
@@ -60,8 +79,7 @@ class TranslationTest {
     @Test
     fun sharedTextsReadTheSameInBothApps() {
         // Compose Multiplatform fills only %1$s and %1$d, and shows an escape Android needs, like \', as it is
-        val (ro, en) = sets.first()
-        for (texts in listOf(ro, en)) {
+        for (texts in pairs(sharedRoot).flatMap { listOf(it.first, it.second) }) {
             val all = texts.strings.entries.map { it.key to it.value } +
                 texts.plurals.flatMap { (key, items) -> items.values.map { key to it } } +
                 texts.arrays.flatMap { (key, items) -> items.map { key to it } }
@@ -98,7 +116,7 @@ class TranslationTest {
 
     @Test
     fun datePatternsFollowTheLanguage() {
-        val (ro, en) = sets.first()
+        val (ro, en) = load("$sharedRoot/values/strings.xml") to load("$sharedRoot/values-en/strings.xml")
         val time = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 12, 14, 30) }.time
         fun format(res: Resources, key: String, locale: Locale) = SimpleDateFormat(res.strings.getValue(key), locale).format(time)
         val romanian = Locale.forLanguageTag("ro-RO")
