@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 import okio.Path
 import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeAlarm
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.data.ChatMessage
@@ -111,7 +112,8 @@ interface Notifications {
 
     fun reportResponse(report: MyReport)
 
-    fun notice(notice: Notice, title: String, text: String)
+    /** [alarm] says whether it takes the screen and sounds, for this phone. */
+    fun notice(notice: Notice, title: String, text: String, alarm: NoticeAlarm)
 
     fun shiftEnded()
 

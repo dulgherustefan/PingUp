@@ -20,6 +20,7 @@ import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.text
 import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeAlarm
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MsgKind
@@ -305,13 +306,14 @@ class Notifier(private val context: Context, private val venue: Venue, private v
 
     /**
      * A notice from the organiser, one notification per topic: a newer one replaces it, a withdrawn one takes it away.
-     * A pause or an evacuation takes the screen once and sounds; in an exercise, it only vibrates on the quiet channel.
+     * A pause or an evacuation for this phone takes the screen once and sounds; elsewhere, or in an exercise, it only
+     * vibrates on the quiet channel.
      */
-    override fun notice(notice: Notice, title: String, text: String) {
+    override fun notice(notice: Notice, title: String, text: String, alarm: NoticeAlarm) {
         val id = NOTICE_ID + notice.topic
         if (notice.cancelled) return manager.cancel(id)
         if (!canPost()) return
-        val urgent = notice.urgent && !exercise
+        val urgent = alarm == NoticeAlarm.LOUD
         val channel = when {
             !urgent -> CHANNEL_NOTICE
             notice.level == NoticeLevel.EVACUATION -> CHANNEL_NOTICE_EVACUATION

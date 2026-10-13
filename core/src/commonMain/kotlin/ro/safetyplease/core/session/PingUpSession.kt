@@ -37,6 +37,7 @@ import okio.SYSTEM
 import ro.safetyplease.core.announce.MapState
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeBoard
+import ro.safetyplease.core.announce.NoticeReach
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.announce.Notices
 import ro.safetyplease.core.chat.ChatManager
@@ -46,6 +47,7 @@ import ro.safetyplease.core.control.ConsoleLog
 import ro.safetyplease.core.control.ConsoleRecorder
 import ro.safetyplease.core.control.ControlMessages
 import ro.safetyplease.core.control.HeardPeer
+import ro.safetyplease.core.control.MapEditor
 import ro.safetyplease.core.control.PeerBook
 import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.control.PointReport
@@ -387,18 +389,24 @@ open class PingUpSession(private val platform: AppPlatform) {
     val mapState: StateFlow<MapState> = combine(notices.board, minuteTicks()) { board, _ -> MapState.of(board, venue, clock.wallMs() / 1000) }
         .stateIn(ioScope, SharingStarted.Eagerly, MapState.of(notices.board.value, venue, clock.wallMs() / 1000))
 
+    /** The console's zone states, sent as map states. */
+    val mapEditor = MapEditor(meshScope, venue, clock, notices)
+
     /** Metres of walking between two points of the site; in a straight line until the walking routes take over. */
     val walkDistance: WalkDistance = StraightLine
 
     /**
      * The console logs every notice it sends or hears; a phone that shows them notifies, unless it signed the notice or
-     * the notice has no words (the map state).
+     * the notice has no words (the map state). An alarm sounds only where the notice is for this phone's zone.
      */
     private fun onNotice(notice: Notice, own: Boolean) {
         val title = platform.noticeTitle(notice)
         val text = platform.noticeBody(noticeTemplates, venue, notice)
         if (settings.value.role == Role.CONTROL) console.notice(notice, if (notice.cancelled) title else "$title: $text", own)
-        if (!own && !notice.silent && showsNotices(settings.value)) notifications.notice(notice, title, text)
+        if (!own && !notice.silent && showsNotices(settings.value)) {
+            val zone = NoticeReach.zone(venue, settings.value, locationFix.value, clock.wallMs())
+            notifications.notice(notice, title, text, NoticeReach.alarm(notice, venue, zone, exercise))
+        }
     }
 
     /** This phone holds a shift certificate the chain accepts now. */
