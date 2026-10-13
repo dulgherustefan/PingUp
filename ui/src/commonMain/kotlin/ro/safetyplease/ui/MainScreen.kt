@@ -110,8 +110,15 @@ import ro.safetyplease.ui.me.AnchorScreen
 import ro.safetyplease.ui.me.EventScreen
 import ro.safetyplease.ui.me.MeScreen
 import ro.safetyplease.ui.me.PrivacyScreen
+import ro.safetyplease.ui.notices.ControlMapLayer
+import ro.safetyplease.ui.notices.EvacuationBanner
+import ro.safetyplease.ui.notices.EvacuationMode
+import ro.safetyplease.ui.notices.EvacuationUi
 import ro.safetyplease.ui.notices.NoticeAlert
 import ro.safetyplease.ui.notices.NoticeBands
+import ro.safetyplease.ui.notices.myEvacuation
+import ro.safetyplease.ui.notices.rememberHereZone
+import ro.safetyplease.ui.notices.screenAlert
 import ro.safetyplease.ui.notices.shownNotices
 import ro.safetyplease.ui.onboarding.OnboardingScreen
 import ro.safetyplease.ui.people.AddFriendScreen
@@ -163,22 +170,28 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
     val board by vm.c.notices.board.collectAsStateWithLifecycle()
     val now = rememberNow()
     val shown = shownNotices(vm, if (vm.c.showsNotices(settings)) board.active(now / 1000) else emptyList())
-    val bands = shown.filter { !it.held.dismissed }
+    val hereZone = rememberHereZone(vm, now)
+    val evacuation = myEvacuation(shown, vm.venue, hereZone)
+    val evacuationUi = remember { EvacuationUi() }
+    val bands = shown.filter { !it.held.dismissed && it !== evacuation }
     val sharing by vm.sharing.collectAsStateWithLifecycle()
     // the foreground service may hold the location type only while asked from a visible screen
     LifecycleResumeEffect(sharing != null) {
         vm.phone.sharingLocation(sharing != null)
         onPauseOrDispose { }
     }
-    val alert = shown.firstOrNull { it.notice.urgent && !it.held.alerted }
+    val alert = screenAlert(shown, vm.venue, hereZone)
+    ControlMapLayer(vm, hereZone)
     CompositionLocalProvider(LocalTextOnly provides textOnly, LocalReduceMotion provides reduce) {
         FullScreen {
             // the bands sit above every screen and take the status bar, so they cover no header
-            val topTaken = vm.c.exercise || bands.isNotEmpty() || sharing != null
+            val topTaken = vm.c.exercise || bands.isNotEmpty() || sharing != null || evacuation != null
+            val barFree = !vm.c.exercise && evacuation == null
             Column(Modifier.fillMaxSize()) {
                 if (vm.c.exercise) ExerciseBanner()
-                sharing?.let { SharingBar(it, statusBar = !vm.c.exercise) { vm.open(Dest.Sharing) } }
-                NoticeBands(vm, bands, statusBar = !vm.c.exercise && sharing == null)
+                evacuation?.let { EvacuationBanner(vm, it, hereZone, statusBar = !vm.c.exercise) { evacuationUi.reopened = true } }
+                sharing?.let { SharingBar(it, statusBar = barFree) { vm.open(Dest.Sharing) } }
+                NoticeBands(vm, bands, statusBar = barFree && sharing == null)
                 Box(Modifier.weight(1f).then(if (topTaken) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
                     CompositionLocalProvider(LocalStatusBarTop provides if (topTaken) 0.dp else null) {
                         Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce, demo)
@@ -186,6 +199,7 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
                 }
             }
             alert?.let { NoticeAlert(it, vm.c.exercise) { vm.c.notices.alerted(it.notice.topic, it.notice.seq) } }
+            evacuation?.let { EvacuationMode(vm, it, hereZone, evacuationUi) }
             MeetupRequests(vm)
         }
     }
