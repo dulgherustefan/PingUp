@@ -2,6 +2,7 @@ package ro.safetyplease.app.ui.chat
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -74,6 +75,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -184,6 +186,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     val groups by vm.groups.collectAsStateWithLifecycle()
     val chat by vm.chat.collectAsStateWithLifecycle()
     val nearby by vm.nearby.collectAsStateWithLifecycle()
+    val meetings by vm.c.chat.meetings.collectAsStateWithLifecycle()
     val now = rememberNow()
     val context = LocalContext.current
     val haptics = rememberHaptics()
@@ -198,6 +201,8 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     var draft by rememberSaveable { mutableStateOf("") }
     var quick by rememberSaveable { mutableStateOf(false) }
     var composerPx by remember { mutableIntStateOf(0) }
+    var pinPx by remember { mutableIntStateOf(0) }
+    var meetingPicker by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = items.lastIndex.coerceAtLeast(0))
     val backdrop = rememberBackdrop()
     val scrolled by remember { derivedStateOf { listState.canScrollBackward } }
@@ -234,7 +239,10 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
         return
     }
     val title = friend?.nickname ?: group!!.name
+    val lit = rememberLighting(vm, friend?.nodeId)
+    val meeting = meetings.firstOrNull { it.conversation == conversation }
     val subtitle = when {
+        lit -> stringResource(R.string.seen_lighting)
         friend != null -> presenceText(friend, nearby, now)
         else -> pluralStringResource(R.plurals.group_members, group!!.members.size, group.members.size)
     }
@@ -246,6 +254,22 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     }
     val top = LocalStatusBarTop.current ?: WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val composerHeight = with(density) { composerPx.toDp() }
+    val pinHeight = if (meeting != null) with(density) { pinPx.toDp() } + 8.dp else 0.dp
+    val extras = buildList {
+        add(QuickAction(Sym.Flag, stringResource(R.string.meet_propose)) {
+            meetingPicker = true
+            quick = false
+        })
+        if (friend != null) {
+            val sent = stringResource(R.string.come_sent)
+            add(QuickAction(Sym.Walk, stringResource(R.string.come_button)) {
+                vm.c.chat.requestComing(friend.nodeId)
+                haptics.confirm()
+                Toast.makeText(context, sent, Toast.LENGTH_SHORT).show()
+                quick = false
+            })
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().backdropSource(backdrop).screenBackground(colors.background)) {
@@ -262,7 +286,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                 LazyColumn(
                     Modifier.fillMaxSize().nestedScroll(userScroll),
                     state = listState,
-                    contentPadding = PaddingValues(top = top + NavHeight + 16.dp, bottom = composerHeight + 8.dp),
+                    contentPadding = PaddingValues(top = top + NavHeight + 16.dp + pinHeight, bottom = composerHeight + 8.dp),
                     // a short conversation sits next to the composer, not at the top
                     verticalArrangement = Arrangement.Bottom,
                 ) {
@@ -302,12 +326,27 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                     Column {
                         Text(title, style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            subtitle, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium, color = colors.secondaryLabel,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            subtitle, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
+                            color = if (lit) colors.accent else colors.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
             }
+            if (friend != null) {
+                val sent = stringResource(R.string.seen_sent)
+                Spacer(Modifier.width(8.dp))
+                GlassIconButton(Sym.Torch, stringResource(R.string.seen_ask), {
+                    vm.c.chat.pingFriend(friend.nodeId)
+                    haptics.confirm()
+                    Toast.makeText(context, sent, Toast.LENGTH_SHORT).show()
+                }, backdrop)
+            }
+        }
+        if (meeting != null) {
+            MeetingPin(
+                vm, meeting, now, backdrop,
+                Modifier.statusBarsPadding().padding(top = NavHeight + 4.dp).onSizeChanged { pinPx = it.height },
+            )
         }
 
         Column(
@@ -322,6 +361,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
             ) {
                 QuickPanel(
                     backdrop,
+                    extras,
                     onQuick = { code ->
                         vm.sendQuick(conversation, code)
                         haptics.confirm()
@@ -347,6 +387,8 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                 },
             )
         }
+        if (meetingPicker) MeetingDialog(vm, conversation) { meetingPicker = false }
+        MeetupRequests(vm)
     }
 }
 
@@ -428,16 +470,24 @@ private fun Composer(
  */
 private val QuickPhrases = listOf(QuickCode.WHERE_ARE_YOU, QuickCode.COMING, QuickCode.MEET_AT_POINT)
 
-/** Quick messages, in a card above the composer. */
+/** A tile under the quick phrases that does something instead of sending a phrase. */
+private class QuickAction(val icon: ImageVector, val label: String, val onClick: () -> Unit)
+
+/** Quick messages, in a card above the composer, and under them the meeting point and "Vin la tine". */
 @Composable
-private fun QuickPanel(backdrop: Backdrop, onQuick: (Int) -> Unit) {
+private fun QuickPanel(backdrop: Backdrop, extras: List<QuickAction>, onQuick: (Int) -> Unit) {
     val icons = mapOf(QuickCode.WHERE_ARE_YOU to Sym.Help, QuickCode.COMING to Sym.Walk, QuickCode.MEET_AT_POINT to Sym.Flag)
-    Row(
-        Modifier.padding(horizontal = Gutter).fillMaxWidth().glass(backdrop, RoundedCornerShape(26.dp)).padding(10.dp).height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Column(
+        Modifier.padding(horizontal = Gutter).fillMaxWidth().glass(backdrop, RoundedCornerShape(26.dp)).padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        for (code in QuickPhrases) {
-            ActionTile(icons[code] ?: Sym.Chat, stringResource(Labels.quick(code)), { onQuick(code) }, Modifier.weight(1f).fillMaxHeight())
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (code in QuickPhrases) {
+                ActionTile(icons[code] ?: Sym.Chat, stringResource(Labels.quick(code)), { onQuick(code) }, Modifier.weight(1f).fillMaxHeight())
+            }
+        }
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (action in extras) ActionTile(action.icon, action.label, action.onClick, Modifier.weight(1f).fillMaxHeight())
         }
     }
 }
