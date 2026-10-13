@@ -11,6 +11,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.EventIssuer
@@ -29,7 +30,9 @@ import java.time.ZoneId
 /**
  * The debug build's demo chain: public test keys (assets/demo_chain.json) under a demo root only debug builds trust
  * (assets/staff_public.json, which also names the organiser and event certificates). Release builds ship neither and
- * refuse what it signs. Each day has its own report key, derived from the demo report seed.
+ * refuse what it signs. Each day has its own report key, derived from the demo report seed. The demo exercise
+ * ([load] with exercise) has an event key, report seed and shared pair of its own, derived from the demo seeds and
+ * signed by the same organiser, since an exercise never shares its event key with a real event.
  */
 class DemoChain(
     private val crypto: Crypto,
@@ -40,6 +43,9 @@ class DemoChain(
     private val organiserCert: Certificate,
     private val eventCert: Certificate,
     private val zone: ZoneId,
+    private val exercise: Boolean = false,
+    /** The exercise's shared pair, as public keys: box and sign. */
+    private val shared: Pair<ByteArray, ByteArray>? = null,
 ) {
     private val issuer = EventIssuer(crypto, event)
 
@@ -65,8 +71,16 @@ class DemoChain(
         val today = today(nowSec)
         val body = buildJsonObject {
             template.forEach { (key, value) -> put(key, value) }
+            if (exercise) {
+                put("id", EXERCISE_ID)
+                put("name", EXERCISE_NAME)
+            }
             put("version", today.toEpochDay().toInt())
-            put("kind", "real")
+            put("kind", if (exercise) "exercise" else "real")
+            shared?.let { (box, sign) ->
+                put("box", box.toHex())
+                put("sign", sign.toHex())
+            }
             put("validFrom", dayWindow(today, zone).first)
             put("validUntil", dayWindow(today.plusDays(PACK_DAYS - 1), zone).second)
             put("organiser", organiserCert.encode().toHex())
@@ -88,6 +102,8 @@ class DemoChain(
     companion object {
         const val SHIFT_HOURS = 16L
         const val PACK_DAYS = 4L
+        const val EXERCISE_ID = "demo-exercitiu"
+        const val EXERCISE_NAME = "Exercițiu demo"
 
         fun daySeed(master: ByteArray, day: LocalDate): ByteArray = sha256(master + "day $day".utf8())
 
@@ -95,20 +111,31 @@ class DemoChain(
         fun dayWindow(day: LocalDate, zone: ZoneId): Pair<Long, Long> =
             day.atStartOfDay(zone).toEpochSecond() to day.plusDays(1).atStartOfDay(zone).toEpochSecond()
 
-        fun load(context: Context, crypto: Crypto): DemoChain {
+        /** The demo chain, or with [exercise] the demo exercise's, which the phone in an exercise trusts instead. */
+        fun load(context: Context, crypto: Crypto, exercise: Boolean = false): DemoChain {
             fun asset(name: String) = Json.parseToJsonElement(context.assets.open(name).bufferedReader().use { it.readText() }).jsonObject
             fun JsonObject.hex(key: String) = getValue(key).jsonPrimitive.content.hexToBytes()
             val seeds = asset("demo_chain.json")
             val chain = asset("staff_public.json").getValue("chain").jsonArray.map {
                 Certificate.decode(it.jsonPrimitive.content.hexToBytes()) ?: error("bad demo certificate")
             }
+            val organiser = crypto.signKeyPairFromSeed(seeds.hex("organiserSeed"))
+            val boxSeed = asset("demo_staff.json").hex("boxSeed")
+            if (!exercise) {
+                return DemoChain(
+                    crypto, organiser, crypto.signKeyPairFromSeed(seeds.hex("eventSeed")), seeds.hex("reportSeed"), boxSeed,
+                    chain[0], chain[1], ZoneId.systemDefault(),
+                )
+            }
+            fun derived(seed: ByteArray, what: String) = sha256(seed + " exercise $what".utf8())
+            val event = crypto.signKeyPairFromSeed(derived(seeds.hex("eventSeed"), "event"))
+            val real = chain[1]
+            val eventCert = Certificate.issue(crypto, CertRole.EVENT, event.publicKey, real.validFrom, real.validUntil, EXERCISE_NAME, organiser)
+            val sharedBox = derived(boxSeed, "box")
+            val sharedSign = crypto.signKeyPairFromSeed(derived(boxSeed, "sign")).publicKey
             return DemoChain(
-                crypto,
-                crypto.signKeyPairFromSeed(seeds.hex("organiserSeed")),
-                crypto.signKeyPairFromSeed(seeds.hex("eventSeed")),
-                seeds.hex("reportSeed"),
-                asset("demo_staff.json").hex("boxSeed"),
-                chain[0], chain[1], ZoneId.systemDefault(),
+                crypto, organiser, event, derived(seeds.hex("reportSeed"), "report"), sharedBox, chain[0], eventCert, ZoneId.systemDefault(),
+                exercise = true, shared = crypto.boxKeyPairFromSeed(sharedBox).publicKey to sharedSign,
             )
         }
     }

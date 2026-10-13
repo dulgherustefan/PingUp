@@ -18,6 +18,14 @@ adb -s SERIAL logcat -s MeshDebug:V
 | `scenario` | Pe consolă: incidente de test în toate categoriile și stările, starea punctelor, două ancore cu acoperire și un anunț de căldură activ (care pleacă și la telefoanele din jur) |
 | `reset` | Scoate datele scenariului, prietenii demo și retrage anunțul de căldură |
 | `prieteni` | Trei prieteni demo care își partajează poziția lângă tine (unul acum și aproape, unul de acum 8 min la 150 m, unul de acum 40 min), o partajare a ta cu primul și un punct de întâlnire propus de el, ca harta, listele și conversația să se vadă fără radio |
+| `vitrina` | Capturile funcțiilor noi pe un singur emulator, sub exercițiul demo (vezi mai jos) |
+| `vitrina-stop` | Scoate ce a pus `vitrina` și întoarce telefonul la evenimentul de dinainte |
+
+**Vitrina.** `vitrina` trece întâi telefonul pe exercițiul demo (pachetul `demo-exercitiu`, cu cheile lui, semnat de organizatorul demo) și aplicația repornește; rulată a doua oară, acolo, semnează ca o consolă de exercițiu starea hărții (Poarta est închisă, Barurile aglomerate) și o evacuare a Scenei 2 marcată EXERCIȚIU, care doar vibrează, apoi face telefonul echipa „Medical 1” în Scena 2, cu prietenii demo proaspeți, grupul lor cu un „M-am pierdut” și un check-in ratat, nivelurile de aglomerație și un raport „nu răspunde, nu respiră” pentru alerta de răspuns; cu `--ez evacuare false` lasă evacuarea deoparte (sau o retrage), ca dialogurile prietenilor, care așteaptă cât ține ea, să se vadă. `vitrina-stop` retrage anunțurile, scoate prietenii, grupul, alertele și poziția simulată și repornește pe evenimentul de dinainte. Pentru consolă, după `vitrina`: `control`.
+```
+adb -s SERIAL shell am broadcast -n org.pingup.app/ro.safetyplease.app.demo.DebugCommandReceiver --es cmd vitrina
+adb -s SERIAL shell am broadcast -n org.pingup.app/ro.safetyplease.app.demo.DebugCommandReceiver --es cmd vitrina-stop
+```
 
 Datele de test se recunosc: descrierile încep cu „Demo”, iar id-urile incidentelor cu `dec0de`. În demo, fiecare echipă deschide rapoartele, ca să le vadă orice telefon din prezentare.
 

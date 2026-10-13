@@ -32,7 +32,9 @@ import ro.safetyplease.core.venue.GeoPoint
  *
  * Demo kit (DEMO.md): control, staff (--es team "Medical 1" --es zone main-stage --ez lead true) and
  * anchor (--es zone bar) take shifts of the demo key chain; pack loads the demo event pack and restarts the app;
- * scenario seeds the console's test data and reset takes it back; prieteni seeds friends sharing their position.
+ * scenario seeds the console's test data and reset takes it back; prieteni seeds friends sharing their position;
+ * vitrina switches to the demo exercise and, run again there, seeds what the new screens show (--ez evacuare false
+ * leaves the evacuation out), and vitrina-stop takes it back and returns to the event in use before.
  */
 class DebugCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -95,6 +97,8 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 "scenario removed"
             }
             "prieteni" -> DemoFriends.seed(c)
+            "vitrina" -> Demo.showcase(context, c, intent.getBooleanExtra("evacuare", true))
+            "vitrina-stop" -> Demo.showcaseStop(context, c)
             "participant" -> {
                 c.leaveStaff()
                 "participant"

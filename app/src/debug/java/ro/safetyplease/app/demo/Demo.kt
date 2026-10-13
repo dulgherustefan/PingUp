@@ -3,6 +3,7 @@ package ro.safetyplease.app.demo
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -96,9 +97,10 @@ object Demo {
         return recorder!!
     }
 
-    /** A shift of the demo chain (assets/demo_chain.json), activated as its SPS2 code would be. */
+    /** A shift of the demo chain (assets/demo_chain.json), or of the demo exercise's in one, activated as its SPS2 code would be. */
     private fun takeShift(context: Context, c: AppContainer, role: StaffRole, team: String, zone: String): Boolean {
-        val card = DemoChain.load(context, c.crypto).shift(role, team.truncateUtf8(Limits.TEAM_BYTES), zone, c.clock.wallMs() / 1000)
+        val chain = DemoChain.load(context, c.crypto, exercise = c.exercise)
+        val card = chain.shift(role, team.truncateUtf8(Limits.TEAM_BYTES), zone, c.clock.wallMs() / 1000)
         return c.activateShift(card, QrCodes.encodeShift(card)) == CertStatus.VALID
     }
 
@@ -113,25 +115,57 @@ object Demo {
 
     fun becomeAnchor(context: Context, c: AppContainer, zone: String): Boolean = takeShift(context, c, StaffRole.ANCHOR, "Ancora $zone", zone)
 
-    private fun packText(context: Context, c: AppContainer): String {
+    private fun packText(context: Context, c: AppContainer, exercise: Boolean): String {
         fun text(path: String) = context.assets.open(path).bufferedReader().use { it.readText() }
         fun folder(dir: String) = context.assets.list(dir).orEmpty().filter { it.endsWith(".md") }.sorted().associateWith { text("$dir/$it") }
-        return DemoChain.load(context, c.crypto).pack(
+        return DemoChain.load(context, c.crypto, exercise).pack(
             Json.parseToJsonElement(text("demo_event.json")).jsonObject, text("venue.json"), text("notices.json"),
             folder("firstaid"), mapOf("ro" to folder("pages"), "en" to folder("pages-en")), c.clock.wallMs() / 1000,
         )
     }
 
     /**
-     * Checks and keeps today's demo pack: its hash, to switch to with [AppContainer.switchEvent], which restarts the
-     * app; null when it is already in use, a failure naming the status when the phone refused it.
+     * Checks and keeps today's demo pack, or with [exercise] the demo exercise: its hash, to switch to with
+     * [AppContainer.switchEvent], which restarts the app; null when it is already in use, a failure naming the status
+     * when the phone refused it.
      */
-    fun loadPack(context: Context, c: AppContainer): Result<String?> {
-        val text = packText(context, c)
+    fun loadPack(context: Context, c: AppContainer, exercise: Boolean = false): Result<String?> {
+        val text = packText(context, c, exercise)
         val loaded = c.loadEventPack(text)
-        if (loaded.status != PackStatus.VALID) return Result.failure(IllegalStateException(loaded.status.name))
-        val hash = c.events.value.packs.first { it.text == text }.hash
+        val added = loaded.added
+        if (loaded.status != PackStatus.VALID || added == null) return Result.failure(IllegalStateException(loaded.status.name))
+        // an older version or an event key the other kind uses is refused without a word: say which
+        val hash = c.events.value.packs.firstOrNull { it.text == text }?.hash ?: return Result.failure(IllegalStateException(added.name))
         return Result.success(hash.takeIf { it != c.events.value.active })
+    }
+
+    private const val SHOWCASE = "showcase"
+    private const val RETURN_TO = "returnTo"
+
+    /**
+     * "vitrina": first switches to the demo exercise, remembering the event in use, and the app restarts; run again
+     * there, it seeds [DemoShowcase]. The reply says which of the two it did.
+     */
+    fun showcase(context: Context, c: AppContainer, evacuate: Boolean): String {
+        if (c.exercise) return DemoShowcase.seed(context, c, evacuate)
+        val hash = loadPack(context, c, exercise = true).getOrElse { return "the demo exercise was refused: ${it.message}" }
+            ?: return "the demo exercise is already in use"
+        context.getSharedPreferences(SHOWCASE, Context.MODE_PRIVATE).edit().putString(RETURN_TO, c.events.value.active).commit()
+        Log.i(TestPinger.TAG, "[vitrina] switching to the demo exercise, the app restarts; run vitrina again once it is back")
+        c.switchEvent(hash)
+        return "switched"
+    }
+
+    /** "vitrina-stop": takes back what the showcase seeded and goes back to the event in use before it, restarting the app. */
+    fun showcaseStop(context: Context, c: AppContainer): String {
+        DemoShowcase.clear(context, c)
+        if (!c.exercise) return "showcase cleared"
+        val prefs = context.getSharedPreferences(SHOWCASE, Context.MODE_PRIVATE)
+        val back = prefs.getString(RETURN_TO, "").orEmpty()
+        prefs.edit().remove(RETURN_TO).commit()
+        Log.i(TestPinger.TAG, "[vitrina-stop] showcase cleared, back to the event in use before it; the app restarts")
+        c.switchEvent(back)
+        return "switched back"
     }
 
     /** What the scenario last put on the point board, so a reset takes back only that. */

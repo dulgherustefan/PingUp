@@ -309,6 +309,12 @@ class Regasire(
 
     // --- receiving ---
 
+    /**
+     * A lost session as if [sender] had sent it in [conversation], for the demo's showcase command; the mesh hands
+     * sessions to [onLost] through the chat.
+     */
+    fun heard(sender: Long, conversation: String, inner: Inner.LostSession) = onLost(sender, conversation, inner)
+
     private fun onLost(sender: Long, conversation: String, inner: Inner.LostSession) {
         if (!seen.add(sender to inner.msgId)) return
         while (seen.size > MAX_SEEN) seen.remove(seen.first())

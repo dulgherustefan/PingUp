@@ -29,6 +29,7 @@ object DemoFriends {
     const val ID_BASE = 0x0dec0de0f0000000L
     private const val MIN = 60_000L
     private const val SESSION_MS = 60 * MIN
+    private const val FRESH_MS = 15_000L
 
     class Spec(val nickname: String, val northM: Double, val eastM: Double, val ageMs: Long, val accuracyM: Double, val nextUpdate: Int)
 
@@ -47,13 +48,17 @@ object DemoFriends {
     fun offset(from: GeoPoint, northM: Double, eastM: Double): GeoPoint =
         GeoPoint(from.lat + northM / 111_320.0, from.lon + eastM / (111_320.0 * cos(Math.toRadians(from.lat))))
 
-    /** The friends' positions and sessions, and this phone's share with the first friend, merged over [data]. */
-    fun positions(data: PositionData, center: GeoPoint, nowMs: Long): PositionData {
+    /**
+     * The friends' positions and sessions, and this phone's share with the first friend, merged over [data]; [fresh]
+     * makes every position less than a minute old, as for the showcase.
+     */
+    fun positions(data: PositionData, center: GeoPoint, nowMs: Long, fresh: Boolean = false): PositionData {
         val records = specs.mapIndexed { i, spec ->
             val at = offset(center, spec.northM, spec.eastM)
+            val ageMs = if (fresh) FRESH_MS + i * FRESH_MS else spec.ageMs
             PositionRecord(
                 sender = ID_BASE + i, lat = at.lat, lon = at.lon, accuracy = AccuracyClass.of(spec.accuracyM), method = PositionMethod.GNSS,
-                fixAtMs = nowMs - spec.ageMs, receivedAtMs = nowMs - spec.ageMs, expiresAtMs = nowMs + SESSION_MS, seq = 1,
+                fixAtMs = nowMs - ageMs, receivedAtMs = nowMs - ageMs, expiresAtMs = nowMs + SESSION_MS, seq = 1,
                 nextUpdate = spec.nextUpdate, hops = i + 1,
             )
         }
@@ -77,7 +82,7 @@ object DemoFriends {
         return MeetingProposal(Conversations.friend(ID_BASE), ID_BASE, ID_BASE, 1, place, meetAtSec, nowMs + SESSION_MS)
     }
 
-    fun seed(c: AppContainer): String {
+    fun seed(c: AppContainer, fresh: Boolean = false): String {
         val now = c.clock.wallMs()
         val settings = c.settings.value
         val simulated = settings.simLat?.let { lat -> settings.simLon?.let { GeoPoint(lat, it) } }
@@ -86,7 +91,7 @@ object DemoFriends {
             Friend(ID_BASE + i, spec.nickname, c.crypto.boxKeyPair().publicKey.toHex(), c.crypto.signKeyPair().publicKey.toHex(), now)
         }
         c.friends.update { list -> list.filterNot { isDemo(it.nodeId) } + friends }
-        c.positions.update { positions(it, center, now) }
+        c.positions.update { positions(it, center, now, fresh) }
         // without a GPS fix on the emulator, "me" stands at the center so the arrow and distances have a start
         c.settings.update { s ->
             val plans = s.sharePlans.filterNot { it.conversation == Conversations.friend(ID_BASE) } + plan(now)
