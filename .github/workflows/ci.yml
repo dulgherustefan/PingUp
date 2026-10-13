@@ -61,6 +61,14 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      # libsodium takes two minutes to build and changes only with the version pinned in the script, which then skips it
+      - uses: actions/cache@v6
+        with:
+          path: |
+            core/build/libsodium/libsodium-*.tar.gz
+            core/build/libsodium/ios-*
+          key: libsodium-${{ runner.os }}-${{ hashFiles('tools/build_libsodium_ios.sh') }}
+
       # the simulator is the one Xcode offers by default; libsodium is built from its pinned release first
       - name: iOS tests
         run: ./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test
