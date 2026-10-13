@@ -1,13 +1,8 @@
 package ro.safetyplease.ui.common
 
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -102,6 +97,7 @@ import ro.safetyplease.ui.designsystem.LocalTextOnly
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.caption1
 import ro.safetyplease.ui.designsystem.caption2
+import ro.safetyplease.ui.designsystem.rememberLoop
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.map_a11y_summary
 import ro.safetyplease.ui.resources.map_meters
@@ -281,7 +277,8 @@ fun VenueMap(
     }
     val colors = AppTheme.colors
     val paint = remember(colors) { MapPaint(colors) }
-    val measurer = rememberTextMeasurer()
+    // every name, grid label and the scale on screen at once: with fewer, the map lays its texts out again each frame
+    val measurer = rememberTextMeasurer(cacheSize = 2 * venue.zones.size + (grid?.let { it.columns + it.rows } ?: 0) + 8)
     val labelStyle = MaterialTheme.typography.caption1.copy(fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
     val smallStyle = MaterialTheme.typography.caption2.copy(fontWeight = FontWeight.Bold)
     val glyphs = rememberGlyphs()
@@ -301,9 +298,7 @@ fun VenueMap(
         mapNodes(venue, words, position, myZone, if (onPinTap != null) pins else emptyList())
     }
     val summary = pluralStringResource(Res.plurals.map_a11y_summary, venue.zones.size, venue.zones.size)
-    val pulse: State<Float>? = if (!compact && animateMoves && (position != null || target != null)) {
-        rememberInfiniteTransition(label = "map").animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "pulse")
-    } else null
+    val pulse: State<Float>? = if (!compact && animateMoves && (position != null || target != null)) rememberLoop(1800) else null
 
     Box(
         modifier.fillMaxWidth().aspectRatio(aspect)

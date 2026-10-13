@@ -1,11 +1,6 @@
 package ro.safetyplease.ui.designsystem
 
 import androidx.compose.animation.core.EaseInOutSine
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -32,6 +27,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.Dp
+import kotlin.math.abs
 
 // Drawn from the logo (512 SVG): the pin in its own coordinates, placed in the 512 tile like the app icon.
 private const val PIN = "M124 196A132 132 0 1 1 388 196C388 286 318 352 274 410Q256 434 238 410C194 352 124 286 124 196Z"
@@ -101,14 +97,20 @@ private fun DrawScope.inTile(lift: Float, block: DrawScope.() -> Unit) = withTra
     translate(-256f, -265f)
 }) { block() }
 
-/** How far the pin floats above rest, in 512 units; zero when the phone asks for reduced motion. */
+/**
+ * How far the pin floats above rest, in 512 units, read while drawing so a step redraws the pin and nothing else;
+ * zero when the phone asks for reduced motion.
+ */
 @Composable
-private fun rememberFloat(): Float {
-    if (LocalReduceMotion.current) return 0f
-    val transition = rememberInfiniteTransition(label = "pin")
-    val lift by transition.animateFloat(0f, -14f, infiniteRepeatable(tween(1800, easing = EaseInOutSine), RepeatMode.Reverse), label = "lift")
-    return lift
+private fun rememberFloat(): () -> Float {
+    if (LocalReduceMotion.current) return { 0f }
+    // the pin moves a few points in 1.8 s: 15 steps a second are a fraction of a point each
+    val phase by rememberLoop(3600, stepsPerSecond = 15)
+    return { mascotLift(phase) }
 }
+
+/** The pin's height at [phase] of its loop: up for half of it and back down the same way, eased at both ends. */
+internal fun mascotLift(phase: Float): Float = -14f * EaseInOutSine.transform(1f - abs(1f - 2f * phase))
 
 /**
  * The logo pin with a smiling lens, floating above its shadow. Used where the app talks about itself
@@ -116,10 +118,11 @@ private fun rememberFloat(): Float {
  */
 @Composable
 fun PinMascot(size: Dp, modifier: Modifier = Modifier) {
-    val lift = rememberFloat()
+    val float = rememberFloat()
     // tile crop: pin and shadow, no background (264 x 360 of 512)
     Canvas(modifier.size(size * (264f / 360f), size)) {
         val k = this.size.height / 360f
+        val lift = float()
         withTransform({ scale(k, k, Offset.Zero); translate(-124f, -62f) }) {
             val spread = 1f + lift / 120f
             drawOval(Color.Black.copy(alpha = 0.22f), Offset(256f - 92f * spread, 391f), Size(184f * spread, 26f))
@@ -131,7 +134,7 @@ fun PinMascot(size: Dp, modifier: Modifier = Modifier) {
 /** The full app icon: night tile, rays under the pin, and the pin. */
 @Composable
 fun AppLogo(size: Dp, modifier: Modifier = Modifier) {
-    val lift = rememberFloat()
+    val float = rememberFloat()
     Box(modifier.size(size).aspectRatio(1f), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size)) {
             val k = this.size.width / 512f
@@ -148,7 +151,7 @@ fun AppLogo(size: Dp, modifier: Modifier = Modifier) {
                     Paths.rays.forEach { drawPath(it, glow) }
                 }
                 drawOval(Color.Black.copy(alpha = 0.25f), Offset(164f, 391f), Size(184f, 26f))
-                inTile(lift) { drawPin() }
+                inTile(float()) { drawPin() }
             }
         }
     }

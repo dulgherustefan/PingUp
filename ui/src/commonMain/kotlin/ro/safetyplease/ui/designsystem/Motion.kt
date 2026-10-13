@@ -8,15 +8,20 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.delay
 
 /**
  * App motion. Screen transitions use springs, so a transition interrupted halfway
@@ -36,6 +41,27 @@ object Motion {
     /** Roughly how long [Push] takes to settle; used by the fades that accompany it. */
     const val PUSH_SETTLE = 520
 }
+
+/**
+ * A looping phase, from 0 up to 1 over [periodMillis], stepped at most [stepsPerSecond] times a second instead of
+ * every frame. For slow, small motion (the map's pulse, the floating mascot), which looks the same either way: at the
+ * screen's own rate (up to 120 Hz) each frame redrew the whole screen, and a screen that only waits kept a quarter
+ * of a core busy (measured on the simulator: about a third less with this).
+ */
+@Composable
+fun rememberLoop(periodMillis: Int, stepsPerSecond: Int = 30): State<Float> {
+    val phase = remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(periodMillis, stepsPerSecond) {
+        val start = withFrameMillis { it }
+        while (true) {
+            delay(1000L / stepsPerSecond)
+            withFrameMillis { now -> phase.floatValue = loopPhase(now - start, periodMillis) }
+        }
+    }
+    return phase
+}
+
+internal fun loopPhase(elapsedMillis: Long, periodMillis: Int): Float = (elapsedMillis % periodMillis).toFloat() / periodMillis
 
 /** On press the element shrinks slightly and springs back. */
 @Composable
