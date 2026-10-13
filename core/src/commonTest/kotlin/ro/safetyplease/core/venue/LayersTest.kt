@@ -113,6 +113,27 @@ class LayersTest {
     }
 
     @Test
+    fun quietZonesAndEarplugsAreLayersToo() {
+        val quiet = venue.copy(
+            zones = venue.zones + square("chill", "Pădurea", 44.007, 28.004, ServiceLayer.QUIET),
+            pois = venue.pois + Poi(ServiceLayer.EARPLUGS, 44.0011, 28.0061, "Dopuri la intrare"),
+        )
+        assertEquals(
+            listOf("water", "wc", "medical", Venue.DEA, ServiceLayer.PHONE, ServiceLayer.QUIET, ServiceLayer.EARPLUGS),
+            ServiceLayer.present(quiet),
+        )
+        val points = ServiceLayer.points(quiet, setOf(ServiceLayer.QUIET, ServiceLayer.EARPLUGS), emptyMap(), now)
+        assertEquals(listOf("Pădurea", "Dopuri la intrare"), points.map { it.name })
+        assertEquals(quiet.zone("chill")!!.center, points.first().point)
+        for (word in listOf("liniste", "Liniștit", "quiet")) {
+            assertEquals("Pădurea", PlaceSearch.search(word, quiet).firstOrNull()?.name, word)
+        }
+        for (word in listOf("dopuri", "earplugs", "antifoane")) {
+            assertEquals("Dopuri la intrare", PlaceSearch.search(word, quiet).firstOrNull()?.name, word)
+        }
+    }
+
+    @Test
     fun theNearestOpenSkipsClosedAndUnreachable() {
         val from = GeoPoint(44.0005, 28.0015)
         val board = mapOf(8 to report(8, PointLevel.CLOSED))

@@ -32,15 +32,16 @@ data class MyProgram(
 /**
  * "Planul meu" and its reminders, rung by the running session through the app's notifications, with the walk from
  * where the phone is now. Nothing is scheduled with the system: on Android the session lives in the mesh's foreground
- * service, so a reminder rings while the mesh runs, screen off and in Doze too (a coroutine, no exact alarm); once the
- * app is closed from the notification or killed, nothing rings until it runs again, and a set that started meanwhile
- * is skipped. On an iPhone the session runs while the app is in front or woken by Bluetooth in the background, so a
+ * service, so the intent is that a reminder rings while the mesh runs, screen off included (a coroutine, no exact
+ * alarm; how Doze treats it is not verified on devices); once the app is closed from the notification or killed,
+ * nothing rings until it runs again, and a set that started meanwhile is skipped. On an iPhone the session runs while the app is in front or woken by Bluetooth in the background, so a
  * reminder rings then, or at the next such moment if the set hasn't started yet.
  */
 class ProgramReminders(
     scope: CoroutineScope,
     private val store: JsonStore<MyProgram>,
-    event: EventPack?,
+    private val eventId: String,
+    val schedule: List<ScheduleItem>,
     private val venue: Venue,
     private val clock: Clock,
     private val settings: () -> Settings,
@@ -48,9 +49,6 @@ class ProgramReminders(
     private val walk: () -> WalkDistance,
     private val ring: (ScheduleItem, walkMin: Int) -> Unit,
 ) {
-    private val eventId = event?.id.orEmpty()
-    val schedule: List<ScheduleItem> = event?.schedule.orEmpty()
-
     val state: StateFlow<MyProgram> = store.state.map(::current).stateIn(scope, SharingStarted.Eagerly, current(store.value))
 
     init {
@@ -80,7 +78,8 @@ class ProgramReminders(
         else p.copy(reminders = p.reminders + key, picked = if (key in p.picked) p.picked else p.picked + key, fired = p.fired - key)
     }
 
-    fun setLead(minutes: Int) = change { it.copy(leadMin = minutes, fired = emptyList()) }
+    /** A new lead keeps what already rang: a set that rang doesn't ring again; toggling the bell re-arms one. */
+    fun setLead(minutes: Int) = change { it.copy(leadMin = minutes) }
 
     fun picked(p: MyProgram): List<ScheduleItem> = schedule.filter { Program.key(it) in p.picked }
 

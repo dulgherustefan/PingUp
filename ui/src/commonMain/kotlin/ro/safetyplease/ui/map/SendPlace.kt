@@ -44,6 +44,7 @@ import ro.safetyplease.ui.resources.layers_no_conversations
 import ro.safetyplease.ui.resources.layers_place_save
 import ro.safetyplease.ui.resources.layers_place_saved
 import ro.safetyplease.ui.resources.layers_place_send
+import ro.safetyplease.ui.resources.layers_place_sent
 import ro.safetyplease.ui.resources.layers_place_title
 import ro.safetyplease.ui.resources.layers_send_to
 import ro.safetyplease.ui.resources.send
@@ -61,7 +62,7 @@ fun PlaceDialog(vm: AppViewModel, point: GeoPoint, onDismiss: () -> Unit) {
     val savedText = stringResource(Res.string.layers_place_saved)
     if (picking) {
         ConversationPicker(vm, onDismiss) { conversation ->
-            vm.askFriend(null) { vm.c.chat.proposeMeeting(conversation, MeetingPlace.point(point), null, PLACE_EXPIRY_MIN) }
+            vm.askFriend(Res.string.layers_place_sent) { vm.c.chat.proposeMeeting(conversation, MeetingPlace.point(point), null, PLACE_EXPIRY_MIN) }
         }
         return
     }

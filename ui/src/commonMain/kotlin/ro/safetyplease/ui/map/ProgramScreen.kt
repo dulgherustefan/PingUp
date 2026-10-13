@@ -13,6 +13,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.datetime.LocalDate
@@ -46,11 +48,11 @@ import ro.safetyplease.ui.resources.back
 import ro.safetyplease.ui.resources.layers_mine
 import ro.safetyplease.ui.resources.layers_now_tag
 import ro.safetyplease.ui.resources.layers_plan_message
-import ro.safetyplease.ui.resources.layers_program_empty
 import ro.safetyplease.ui.resources.layers_program_title
 import ro.safetyplease.ui.resources.layers_remind
 import ro.safetyplease.ui.resources.layers_remind_at
 import ro.safetyplease.ui.resources.layers_remind_lead
+import ro.safetyplease.ui.resources.layers_remind_stop
 import ro.safetyplease.ui.resources.layers_reminder_note
 import ro.safetyplease.ui.resources.layers_share_plan
 import ro.safetyplease.ui.resources.time_minutes_short
@@ -99,10 +101,8 @@ fun ProgramScreen(vm: AppViewModel) {
         leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
-            if (schedule.isEmpty() || day == null) {
-                item(key = "empty") { Hint(stringResource(Res.string.layers_program_empty), Modifier.padding(Gutter)) }
-                return@LazyColumn
-            }
+            // the screen opens from a schedule that has sets; without one there is nothing to list
+            if (day == null) return@LazyColumn
             if (days.size > 1) {
                 item(key = "days") {
                     Box(Modifier.padding(start = Gutter, end = Gutter, top = 8.dp)) {
@@ -163,11 +163,13 @@ private fun SetRow(vm: AppViewModel, item: ScheduleItem, mine: MyProgram, now: L
     val chosen = key in mine.picked
     val reminded = key in mine.reminders
     val on = item.start * 1000 <= now && now < item.end * 1000
+    // the walk is worked out when the position or the set changes, not on every tick of the clock
+    val walk = remember(origin, item, reminded) { if (reminded) program.walkMeters(origin, item) else null }
     val parts = listOfNotNull(
         "${Labels.clock(item.start * 1000)}–${Labels.clock(item.end * 1000)}",
         if (on) stringResource(Res.string.layers_now_tag) else null,
         if (reminded && now < item.start * 1000) {
-            val at = Program.remindAt(item, mine.leadMin, program.walkMeters(origin, item))
+            val at = Program.remindAt(item, mine.leadMin, walk)
             stringResource(Res.string.layers_remind_at, Labels.clock(at * 1000))
         } else null,
     )
@@ -175,10 +177,17 @@ private fun SetRow(vm: AppViewModel, item: ScheduleItem, mine: MyProgram, now: L
         item.title,
         subtitle = parts.joinToString(" · "),
         onClick = { program.togglePicked(item) },
-        leading = { IconCircle(Sym.Check, if (chosen) colors.accent else colors.fill, if (chosen) colors.onAccent else colors.fill, 36.dp) },
+        leading = {
+            // the check shows only when picked; the screen reader says it as the row's selected state
+            Box(Modifier.semantics { selected = chosen }) {
+                IconCircle(Sym.Check, if (chosen) colors.accent else colors.fill, if (chosen) colors.onAccent else colors.fill, 36.dp)
+            }
+        },
         trailing = {
             IconBtn(
-                if (reminded) Sym.BellFill else Sym.Bell, stringResource(Res.string.layers_remind), { program.toggleReminder(item) },
+                if (reminded) Sym.BellFill else Sym.Bell,
+                stringResource(if (reminded) Res.string.layers_remind_stop else Res.string.layers_remind),
+                { program.toggleReminder(item) },
                 tint = if (reminded) colors.accent else colors.secondaryLabel,
             )
         },

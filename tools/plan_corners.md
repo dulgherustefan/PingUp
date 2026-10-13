@@ -10,9 +10,9 @@ map's "Planul organizatorului" chip switches it between solid, see-through and h
 1. **Export the plan as a PNG**, north roughly up, at most 2 MiB. A 2 × 1 km site at 2,000 px across is
    about 1 m a pixel, enough to read a toilet block. Fewer colours (an indexed PNG) keep it small. Crop to the
    site: whatever is in the image covers the map under it.
-2. **Pick 4 to 6 control points** you can find both on the plan and on the ground: gate posts, corners of a
+2. **Pick 5 to 8 control points** you can find both on the plan and on the ground: gate posts, corners of a
    stage or a tent, a toilet block, a fence corner. Spread them out, one near each corner of the plan and one
-   in the middle; never all on one line.
+   in the middle; points on or near one line are refused.
 3. **Read each point's pixel** on the plan (any image editor shows the cursor's x and y, from the top-left
    corner).
 4. **Measure each point on the ground**: stand on it with a phone and wait for the GPS to settle (accuracy
@@ -38,7 +38,9 @@ map's "Planul organizatorului" chip switches it between solid, see-through and h
    It prints each point's residual, how far the fit puts it from where it was measured. With any residual over
    5 m it refuses and writes nothing: the point it names is wrong (swapped x and y, the wrong corner, a GPS
    reading taken too early) or the plan isn't drawn to scale. Check that point, measure it again, or add more
-   points. A drawing that isn't to scale needs redrawing; no fit puts it right.
+   points. It also leaves each point out in turn and predicts it from the others; a point that lands over 10 m
+   from where it was measured is refused the same way, since a fit bends toward one wrong point. A drawing that
+   isn't to scale needs redrawing; no fit puts it right.
 7. **Put it in the pack**:
 
    ```
@@ -46,7 +48,10 @@ map's "Planul organizatorului" chip switches it between solid, see-through and h
    ```
 
    The pack takes the stages' schedule the same way, `--schedule schedule.json`, a list of
-   `{"stage": "<zone id>", "title": "...", "start": <unix seconds>, "end": <unix seconds>}`.
+   `{"stage": "<zone id>", "title": "...", "start": <unix seconds>, "end": <unix seconds>}`. Before signing,
+   `pack` checks both files (tools/check_pack.py): every stage is a zone of the venue, a title has at most 80
+   characters, a set ends after it starts and lasts at most 12 hours, there are at most 1000 sets, the plan has four
+   different corners and a PNG of at most 2 MiB.
 8. **Check it on the ground** before the gates open: walk to two or three points the fit did not use and see
    that the plan lies within 5 m of where you stand on the map.
 
@@ -54,5 +59,5 @@ map's "Planul organizatorului" chip switches it between solid, see-through and h
 
 The layers under the map come from the venue's points, by `type`: `water`, `wc`, `medical` (a zone of type
 `medical` counts too), `dea`, `info`, `charge`, `shade`, `safe` (Safe Zone, welfare), `phone` (a landline),
-`exit`, `lockers`. A numbered point of type `exit`, `wc`, `water` or `charge` shows the status staff report for
-it, on the phones that hear those reports.
+`exit`, `lockers`, `chill` (quiet zones; a zone of that type counts too), `earplugs`. A numbered point of type
+`exit`, `wc`, `water` or `charge` shows the status staff report for it, on the phones that hear those reports.

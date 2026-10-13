@@ -394,7 +394,8 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     /** "Planul meu" from the event's schedule; its reminders ring from here while the session runs. */
     val program = ProgramReminders(
-        meshScope, JsonStore(dataDir / "program.json", MyProgram.serializer(), MyProgram(), ioScope), event, venue, clock,
+        meshScope, JsonStore(dataDir / "program.json", MyProgram.serializer(), MyProgram(), ioScope), event?.id.orEmpty(),
+        event?.schedule.orEmpty(), venue, clock,
         settings = { settings.value }, fix = { platform.location.value }, walk = { walkDistance },
     ) { set, walkMin -> notifications.setReminder(set, venue.zoneName(set.stage), walkMin) }
 

@@ -64,9 +64,6 @@ interface PingMapEngine {
 
     fun setMe(me: MapMe?)
 
-    /** A long press on the map hands its point to [onLongPress]. */
-    fun setLongPress(onLongPress: (GeoPoint) -> Unit)
-
     /** Following keeps "me" in the middle, north or heading up; a drag on the map turns it off. */
     fun setFollow(mode: FollowMode)
 
@@ -78,6 +75,9 @@ interface PingMapEngine {
     fun show(points: List<GeoPoint>, maxZoom: Double, animated: Boolean)
 
     fun zoomBy(delta: Double, animated: Boolean)
+
+    /** A finger held on the map, where it was held; null stops listening. */
+    fun setOnLongPress(onLongPress: ((GeoPoint) -> Unit)?)
 }
 
 /**

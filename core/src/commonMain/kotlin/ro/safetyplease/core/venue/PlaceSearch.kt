@@ -15,7 +15,6 @@ data class Found(
     val point: GeoPoint?,
     val type: String = "",
     val number: Int = 0,
-    val zone: String = "",
     val set: ScheduleItem? = null,
     val friend: Long = 0,
 )
@@ -46,20 +45,22 @@ object PlaceSearch {
         ServiceLayer.PHONE to listOf("telefon", "phone"),
         Venue.EXIT to listOf("iesire", "exit", "poarta", "gate"),
         ServiceLayer.LOCKERS to listOf("vestiar", "dulap", "locker", "lockers"),
+        ServiceLayer.QUIET to listOf("liniste", "linistit", "quiet", "calm", "relaxare", "chill"),
+        ServiceLayer.EARPLUGS to listOf("dopuri", "dopuri urechi", "antifoane", "earplugs", "ear plugs"),
         "stage" to listOf("scena", "stage"),
     )
 
     /** Lower case, without diacritics: "Scenă" and "SCENA" read the same. */
     fun normalize(text: String): String =
-        text.decomposed().filterNot { it in '̀'..'ͯ' }.lowercase().trim()
+        text.decomposed().filterNot { it in COMBINING_MARKS }.lowercase().trim()
 
     /** How well [name] answers [query], both normalized: 0 best, null not at all. */
     internal fun score(name: String, query: String): Int? {
         if (query.isEmpty() || name.isEmpty()) return null
         if (name == query) return 0
         if (name.startsWith(query)) return 1
-        val words = name.split(WORD_BREAK).filter { it.isNotEmpty() }
-        val tokens = query.split(WORD_BREAK).filter { it.isNotEmpty() }
+        val words = splitWords(name)
+        val tokens = splitWords(query)
         if (tokens.isNotEmpty() && tokens.all { t -> words.any { it.startsWith(t) } }) return 2
         if (query.length >= 3 && query in name) return 3
         return null
@@ -82,7 +83,7 @@ object PlaceSearch {
         val types = if (q.length < 2) emptySet() else TYPE_WORDS.filterValues { words -> words.any { w -> score(w, q) != null } }.keys
         for (zone in venue.zones) {
             val s = score(normalize(zone.name), q) ?: if (zone.type in types) TYPE_SCORE else null
-            if (s != null) scored += s to Found(FoundKind.ZONE, zone.name, zone.center, zone.type, zone = zone.id)
+            if (s != null) scored += s to Found(FoundKind.ZONE, zone.name, zone.center, zone.type)
         }
         for (poi in venue.pois) {
             val s = score(normalize(poi.name), q) ?: if (poi.type in types) TYPE_SCORE else null
@@ -95,7 +96,7 @@ object PlaceSearch {
             val s = score(normalize(item.title), q) ?: continue
             val zone = venue.zone(item.stage)
             scored += (s + if (item.end <= nowSec) ENDED_PENALTY else 0) to
-                Found(FoundKind.SET, item.title, zone?.center, "stage", zone = item.stage, set = item)
+                Found(FoundKind.SET, item.title, zone?.center, "stage", set = item)
         }
         for (friend in friends) {
             val s = score(normalize(friend.name), q) ?: continue
@@ -107,7 +108,24 @@ object PlaceSearch {
             .take(MAX_RESULTS)
     }
 
-    private val WORD_BREAK = Regex("""[^\p{L}\p{N}]+""")
+    /** The combining diacritical marks block, what decomposing "ă" leaves after the "a". */
+    private val COMBINING_MARKS = '\u0300'..'\u036F'
+
+    private fun splitWords(text: String): List<String> {
+        val words = ArrayList<String>()
+        val word = StringBuilder()
+        for (c in text) {
+            if (c.isLetterOrDigit()) {
+                word.append(c)
+            } else if (word.isNotEmpty()) {
+                words += word.toString()
+                word.clear()
+            }
+        }
+        if (word.isNotEmpty()) words += word.toString()
+        return words
+    }
+
     private const val TYPE_SCORE = 4
     private const val ENDED_PENALTY = 10
 }

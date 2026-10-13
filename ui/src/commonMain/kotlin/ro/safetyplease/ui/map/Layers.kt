@@ -92,11 +92,13 @@ import ro.safetyplease.ui.resources.layers_search
 import ro.safetyplease.ui.resources.layers_state_unknown
 import ro.safetyplease.ui.resources.layers_type_charge
 import ro.safetyplease.ui.resources.layers_type_dea
+import ro.safetyplease.ui.resources.layers_type_earplugs
 import ro.safetyplease.ui.resources.layers_type_exit
 import ro.safetyplease.ui.resources.layers_type_info
 import ro.safetyplease.ui.resources.layers_type_lockers
 import ro.safetyplease.ui.resources.layers_type_medical
 import ro.safetyplease.ui.resources.layers_type_phone
+import ro.safetyplease.ui.resources.layers_type_quiet
 import ro.safetyplease.ui.resources.layers_type_safe
 import ro.safetyplease.ui.resources.layers_type_shade
 import ro.safetyplease.ui.resources.layers_type_water
@@ -113,13 +115,17 @@ private const val FOUND_KEY = "layers:found"
 private const val SAVED_KEY = "layers:saved"
 private const val STAGE_PREFIX = "layers:stage:"
 
+/** The search shows this many results under the field; a longer list would push the map's controls off screen. */
+private const val MAX_ROWS = 8
+
 /**
  * The layers' pins on the map, in the "layers" overlay: the services switched on with their status, "acum / urmează"
  * under each stage that has a schedule, the search result, the saved place, and the organiser's site plan. A tap on a
- * stage's label opens the schedule; on any other pin, its card under the map.
+ * stage's label opens the schedule; on any other pin, its card under the map. With [pins] off, as while a zone is being
+ * chosen to send and the chips are hidden, only the site plan is drawn: layers nobody can switch off stay off the map.
  */
 @Composable
-fun LayersOverlay(vm: AppViewModel) {
+fun LayersOverlay(vm: AppViewModel, pins: Boolean = true) {
     val layers = vm.layers
     val now = rememberNow()
     val board by vm.c.points.collectAsStateWithLifecycle()
@@ -129,10 +135,10 @@ fun LayersOverlay(vm: AppViewModel) {
     val nowText = stringResource(Res.string.layers_now)
     val nextText = stringResource(Res.string.layers_next)
     val savedText = stringResource(Res.string.layers_saved_place)
-    val services = ServiceLayer.points(vm.venue, layers.types, board, now).map { p ->
+    val services = if (!pins) emptyList() else ServiceLayer.points(vm.venue, layers.types, board, now).map { p ->
         OverlayPin(p.key, p.point, PinKind.SERVICE, if (p.state == ServiceState.UNKNOWN) "" else stateWords.getValue(p.state))
     }
-    val stages = Program.stages(schedule).mapNotNull { id ->
+    val stages = if (!pins) emptyList() else Program.stages(schedule).mapNotNull { id ->
         val zone = vm.venue.zone(id) ?: return@mapNotNull null
         val (on, next) = Program.nowNext(schedule, id, now / 1000)
         val label = when {
@@ -144,8 +150,9 @@ fun LayersOverlay(vm: AppViewModel) {
         val span = zone.polygon.maxOf { it.lat } - zone.polygon.minOf { it.lat }
         OverlayPin(STAGE_PREFIX + id, GeoPoint(zone.center.lat - span * 0.3, zone.center.lon), PinKind.SERVICE, label)
     }
-    val found = (layers.picked as? LayerPick.Result)?.found?.let { f -> f.point?.let { OverlayPin(FOUND_KEY, it, PinKind.SEARCH_RESULT, f.name) } }
-    val saved = settings.savedPlace?.let { OverlayPin(SAVED_KEY, it, PinKind.SHARED_PLACE, savedText) }
+    val found = (layers.picked as? LayerPick.Result)?.found?.takeIf { pins }
+        ?.let { f -> f.point?.let { OverlayPin(FOUND_KEY, it, PinKind.SEARCH_RESULT, f.name) } }
+    val saved = settings.savedPlace?.takeIf { pins }?.let { OverlayPin(SAVED_KEY, it, PinKind.SHARED_PLACE, savedText) }
     val plan = vm.c.event?.plan?.let { p -> layers.plan.opacity?.let { PlanImage(p, it) } }
     val overlay = MapOverlay(pins = services + stages + listOfNotNull(found, saved), plan = plan)
     LaunchedEffect(overlay) {
@@ -186,7 +193,9 @@ fun LayersPanel(vm: AppViewModel, origin: GeoPoint?, onShow: (GeoPoint) -> Unit)
         if (query.isNotBlank()) {
             val spots = FriendSpot.of(records, friends, now, vm.venue)
             val named = friends.map { f -> NamedPoint(f.nodeId, f.nickname, spots.firstOrNull { it.friend.nodeId == f.nodeId }?.point) }
-            val results = remember(query, named, now / 60_000) { PlaceSearch.search(query, vm.venue, schedule, named, now / 1000) }
+            val results = remember(query, named, now / 60_000) {
+                PlaceSearch.search(query, vm.venue, schedule, named, now / 1000).take(MAX_ROWS)
+            }
             InsetGroup(Modifier.padding(top = 8.dp)) {
                 if (results.isEmpty()) {
                     Text(
@@ -197,7 +206,8 @@ fun LayersPanel(vm: AppViewModel, origin: GeoPoint?, onShow: (GeoPoint) -> Unit)
                 results.forEachIndexed { index, found ->
                     GroupRow(
                         foundTitle(found),
-                        subtitle = listOfNotNull(foundDetail(vm, found), walkLine(vm, origin, found.point)).joinToString(" · ").ifEmpty { null },
+                        subtitle = listOfNotNull(foundDetail(vm, found), walkLine(vm, origin, found.point))
+                            .joinToString(" · ").ifEmpty { null },
                         leading = { IconCircle(foundGlyph(found), foundColor(found), Color.White, 36.dp) },
                         onClick = {
                             focus.clearFocus()
@@ -227,7 +237,9 @@ fun LayersPanel(vm: AppViewModel, origin: GeoPoint?, onShow: (GeoPoint) -> Unit)
                         PlanShade.FAINT -> Res.string.layers_plan_faint
                         PlanShade.HIDDEN -> Res.string.layers_plan_hidden
                     }
-                    LayerChip(Sym.MapFill, stringResource(label), colors.accent, layers.plan != PlanShade.HIDDEN) { layers.plan = layers.plan.next() }
+                    LayerChip(Sym.MapFill, stringResource(label), colors.accent, layers.plan != PlanShade.HIDDEN) {
+                        layers.plan = layers.plan.next()
+                    }
                 }
                 present.forEach { type ->
                     LayerChip(serviceGlyph(type), stringResource(typeLabel(type)), spotColor(colors, type), type in layers.types) {
@@ -276,7 +288,8 @@ private fun PickedCard(vm: AppViewModel, origin: GeoPoint?, services: List<Servi
         }
         is LayerPick.Result -> {
             val point = picked.found.point ?: return
-            Triple(foundTitle(picked.found), foundDetail(vm, picked.found), Spot(picked.found.type, picked.found.name, point) to foundGlyph(picked.found))
+            val spot = Spot(picked.found.type, picked.found.name, point)
+            Triple(foundTitle(picked.found), foundDetail(vm, picked.found), spot to foundGlyph(picked.found))
         }
         LayerPick.Saved -> {
             val point = saved ?: return
@@ -289,7 +302,9 @@ private fun PickedCard(vm: AppViewModel, origin: GeoPoint?, services: List<Servi
         GroupRow(
             title,
             subtitle = listOfNotNull(detail, walkLine(vm, origin, spot.point)).joinToString(" · "),
-            leading = { IconCircle(glyph, if (picked == LayerPick.Saved) colors.green else spotColor(colors, spot.type), Color.White, 36.dp) },
+            leading = {
+                IconCircle(glyph, if (picked == LayerPick.Saved) colors.green else spotColor(colors, spot.type), Color.White, 36.dp)
+            },
             onClick = { onShow(spot.point) },
             trailing = { IconBtn(Sym.Close, stringResource(Res.string.close), { layers.picked = null }) },
         )
@@ -305,11 +320,13 @@ private fun PickedCard(vm: AppViewModel, origin: GeoPoint?, services: List<Servi
     }
 }
 
+/** The walk from [origin], worked out once per pair of points and not on every tick of the clock. */
 @Composable
 private fun walkLine(vm: AppViewModel, origin: GeoPoint?, point: GeoPoint?): String? {
+    val meters = remember(origin, point) { if (origin == null || point == null) null else vm.c.walkDistance.meters(origin, point) }
+    val unreachable = stringResource(Res.string.layers_no_walk)
     if (origin == null || point == null) return null
-    val meters = vm.c.walkDistance.meters(origin, point) ?: return stringResource(Res.string.layers_no_walk)
-    return stringResource(Res.string.layers_walk, meters)
+    return if (meters == null) unreachable else stringResource(Res.string.layers_walk, meters)
 }
 
 @Composable
@@ -321,7 +338,9 @@ private fun foundTitle(found: Found): String = when {
 @Composable
 private fun foundDetail(vm: AppViewModel, found: Found): String? = when (found.kind) {
     FoundKind.LANDMARK -> if (found.name.isEmpty()) null else stringResource(Res.string.layers_landmark, found.number)
-    FoundKind.SET -> found.set?.let { "${vm.venue.zoneName(it.stage)} · ${Labels.clock(it.start * 1000)}–${Labels.clock(it.end * 1000)}" }
+    FoundKind.SET -> found.set?.let {
+        "${vm.venue.zoneName(it.stage)} · ${Labels.clock(it.start * 1000)}–${Labels.clock(it.end * 1000)}"
+    }
     FoundKind.FRIEND -> if (found.point == null) stringResource(Res.string.layers_friend_no_position) else null
     FoundKind.ZONE, FoundKind.PLACE -> null
 }
@@ -353,6 +372,8 @@ fun typeLabel(type: String): StringResource = when (type) {
     ServiceLayer.SAFE -> Res.string.layers_type_safe
     ServiceLayer.PHONE -> Res.string.layers_type_phone
     Venue.EXIT -> Res.string.layers_type_exit
+    ServiceLayer.QUIET -> Res.string.layers_type_quiet
+    ServiceLayer.EARPLUGS -> Res.string.layers_type_earplugs
     else -> Res.string.layers_type_lockers
 }
 

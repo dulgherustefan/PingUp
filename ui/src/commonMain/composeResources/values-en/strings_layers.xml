@@ -16,6 +16,8 @@
   <string name="layers_type_phone">Landline</string>
   <string name="layers_type_exit">Exits</string>
   <string name="layers_type_lockers">Lockers</string>
+  <string name="layers_type_quiet">Quiet zones</string>
+  <string name="layers_type_earplugs">Earplugs</string>
   <string name="layers_state_unknown">No status from staff</string>
   <string name="layers_walk">%1$d m walk</string>
   <string name="layers_no_walk">No walking way from here</string>
@@ -32,13 +34,14 @@
   <string name="layers_place_title">This place</string>
   <string name="layers_place_send">Send to a friend or group</string>
   <string name="layers_place_save">Save as my place</string>
+  <string name="layers_place_sent">Place sent</string>
   <string name="layers_place_saved">Place saved on the map</string>
   <string name="layers_send_to">Send to</string>
   <string name="layers_no_conversations">Add a friend or a group first.</string>
   <string name="layers_program_title">Schedule</string>
-  <string name="layers_program_empty">The event pack has no stage schedule.</string>
   <string name="layers_mine">My plan</string>
   <string name="layers_remind">Remind me</string>
+  <string name="layers_remind_stop">Turn off reminder</string>
   <string name="layers_remind_lead">%1$d min before, plus the walk</string>
   <string name="layers_remind_at">Reminder around %1$s</string>
   <string name="layers_reminder_note">Reminders ring while the app runs: on Android with the network on, on iPhone while it is open or woken by Bluetooth.</string>

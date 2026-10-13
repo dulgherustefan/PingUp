@@ -22,6 +22,9 @@ object Program {
     /** A crowd walks at about a metre a second, slower than a street. */
     const val WALK_M_PER_MIN = 60
 
+    /** A walk longer than this isn't on the site: the walk isn't looked up for a set further away than lead plus this. */
+    const val MAX_WALK_MIN = 60
+
     /** How many minutes before a set "Amintește-mi" rings, on top of the walk. */
     val LEAD_OPTIONS = listOf(5, 10, 15, 30)
     const val DEFAULT_LEAD_MIN = 10
@@ -47,7 +50,10 @@ object Program {
         return days.firstOrNull { it >= today } ?: days.lastOrNull()
     }
 
-    /** Seconds since the epoch make midnight nothing special: a set from 23:30 to 01:00 is on at 00:15. */
+    /**
+     * Seconds since the epoch make midnight nothing special: a set from 23:30 to 01:00 is on at 00:15. Relies on
+     * [schedule] being sorted by start, as [EventPack] gives it: "next" is the first later set of the stage.
+     */
     fun nowNext(schedule: List<ScheduleItem>, stage: String, nowSec: Long): NowNext {
         val sets = schedule.filter { it.stage == stage }
         val now = sets.lastOrNull { it.start <= nowSec && nowSec < it.end }
@@ -63,12 +69,14 @@ object Program {
 
     /**
      * The reminders of [program] due at [nowSec], with the walk from where the phone is ([walkMeters]); a set that has
-     * already started is never due, so a phone that was off doesn't ring for what it missed.
+     * already started is never due, so a phone that was off doesn't ring for what it missed. [walkMeters] is asked only
+     * for a set within the lead plus [MAX_WALK_MIN], so a long schedule costs no walk until a set is close.
      */
     fun due(program: MyProgram, schedule: List<ScheduleItem>, nowSec: Long, walkMeters: (ScheduleItem) -> Int?): List<ScheduleItem> =
         schedule.filter { item ->
             val key = key(item)
             key in program.reminders && key !in program.fired && nowSec < item.start &&
+                item.start - nowSec <= (program.leadMin + MAX_WALK_MIN) * 60L &&
                 nowSec >= remindAt(item, program.leadMin, walkMeters(item))
         }
 

@@ -80,6 +80,20 @@ class ProgramTest {
     }
 
     @Test
+    fun theWalkIsOnlyAskedForASetThatIsClose() {
+        val program = MyProgram("e", reminders = listOf(Program.key(late)), leadMin = 10)
+        var asked = 0
+        val walk = { _: ScheduleItem ->
+            asked++
+            300
+        }
+        assertEquals(emptyList(), Program.due(program, schedule, late.start - 3 * 3600, walk))
+        assertEquals(0, asked)
+        assertEquals(listOf(late), Program.due(program, schedule, late.start - 14 * 60, walk))
+        assertEquals(1, asked)
+    }
+
+    @Test
     fun thePlanFitsOneChatMessage() {
         val many = (0 until 30).map { ScheduleItem("main", "Set cu un titlu destul de lung $it", at(18) + it * 600L, at(18) + it * 600L + 500) }
         val text = Program.planText(many.reversed(), "Planul meu") { "21:00 ${it.title}" }

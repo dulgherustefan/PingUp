@@ -262,7 +262,8 @@ private fun rememberGlyphs(): Map<String, Painter> = GlyphTypes.associateWith { 
  * [grid] draws the site plan's squares, lettered along the top and numbered down the left side; [squareShades] fill
  * some of them, by 0-based column and row. [poiRings] ring numbered points in a color, by their number.
  * [mapOverlay] is what the features draw (the site plan, zone styles, routes and their pins); a tap on one of its pins
- * goes to [onPinTap] with the pin's key. A long press inside the site goes to [onLongPress] with its point.
+ * goes to [onPinTap] with the pin's key.
+ * [onLongPress] gets the point a finger was held on.
  */
 @Composable
 fun VenueMap(
@@ -366,12 +367,10 @@ fun VenueMap(
                     },
                 )
                 .then(
-                    if (onTap == null && onPinTap == null && onLongPress == null && camera == null) {
-                        Modifier
-                    } else Modifier.pointerInput(venue, inset, camera, onLongPress != null) {
+                    if (onTap == null && onPinTap == null && camera == null) Modifier else Modifier.pointerInput(venue, inset, camera) {
                         detectTapGestures(
                             onDoubleTap = if (camera == null) null else { o -> scope.launch { camera.zoomAround(o, animateMoves) } },
-                            onLongPress = if (onLongPress == null) null else { offset ->
+                            onLongPress = { offset ->
                                 val projection = Projection(venue, Size(size.width.toFloat(), size.height.toFloat()), inset.toPx())
                                 val point = projection.unproject(camera?.toBase(offset) ?: offset)
                                 if (venue.bounds.contains(point.lat, point.lon)) currentLongPress?.invoke(point)

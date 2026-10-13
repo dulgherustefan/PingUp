@@ -88,6 +88,43 @@ class PlanCornersTest(unittest.TestCase):
         with self.assertRaises(FitError):
             Fit(line)
 
+    def test_five_points_are_the_least(self):
+        with self.assertRaises(FitError):
+            Fit(points()[:4])
+
+    def test_points_near_one_line_are_refused(self):
+        near_line = [(x, 0.03 * x + (7 if i % 2 else -7), 0, 0) for i, x in enumerate((0, 150, 300, 450, 600, 750))]
+        near_line = [(x, y, *ground(x, y)) for x, y, _, _ in near_line]
+        with self.assertRaises(FitError) as caught:
+            Fit(near_line)
+        self.assertIn("one line", str(caught.exception))
+        # spread over the plan is fine
+        Fit(points())
+
+    def test_points_on_one_line_of_the_ground_are_refused(self):
+        east = [(x, y, *offset(LAT0, LON0, 0.5 * (x + y), 0.0)) for x, y in PIXELS]
+        with self.assertRaises(FitError):
+            Fit(east)
+
+    def test_one_wrong_point_is_caught_even_where_the_fit_bends_to_it(self):
+        for wrong in range(len(PIXELS)):
+            bad = points()
+            x, y, lat, lon = bad[wrong]
+            bad[wrong] = (x, y, *offset(lat, lon, 0.0, 15.0))
+            fit = Fit(bad)
+            self.assertAlmostEqual(15.0, fit.leave_one_out[wrong], delta=0.01)
+            with self.assertRaises(FitError, msg=f"point {wrong + 1}"):
+                plan_corners.plan_entry(png(8, 6), fit)
+
+    def test_not_a_number_is_refused(self):
+        for broken in ("nan, 2, 43.9, 28.6", "1, inf, 43.9, 28.6", "1, 2, nan, 28.6", "1, 2, 43.9, -inf"):
+            with self.assertRaises(FitError, msg=broken):
+                plan_corners.read_points(broken)
+        bad = points()
+        bad[1] = (math.nan, *bad[1][1:])
+        with self.assertRaises(FitError):
+            Fit(bad)
+
     def test_only_a_small_enough_png_goes_in(self):
         fit = Fit(points())
         self.assertEqual((800, 600), plan_corners.png_size(png(800, 600)))
