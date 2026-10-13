@@ -403,6 +403,14 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var anonymous by rememberSaveable { mutableStateOf(true) }
     // details stay folded into one summary row; whoever has more to add expands it, and staff always see them
     var showDetails by rememberSaveable { mutableStateOf(false) }
+    // sent here from a profile: the form opens on what is reported, with the details shown so the text can be read
+    LaunchedEffect(vm.reportPreset) {
+        val preset = vm.reportPreset ?: return@LaunchedEffect
+        category = preset.category
+        description = preset.description
+        showDetails = true
+        vm.reportPreset = null
+    }
     val staff = settings.role.hasStaffKeys
     val triage = Triage(responds, breathes).takeIf { category == IncidentCategory.MEDICAL && (responds != Answer.UNASKED || breathes != Answer.UNASKED) }
     val severity = Priority.severity(category, urgent && !hasFixedUrgency(category), triage)

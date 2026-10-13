@@ -929,6 +929,9 @@
     <string name="profile_where_are_you">Where are you?</string>
     <string name="profile_where_asked">Request sent. The answer shows up here if your friend is in range.</string>
     <string name="profile_block">Block</string>
+    <string name="profile_report">Report to staff</string>
+    <string name="report_contact_friend">Harassment through the app from %1$s.</string>
+    <string name="report_contact_group">Harassment through the app in the group %1$s.</string>
     <string name="block_title">Block %1$s?</string>
     <string name="block_text">You stop receiving anything from this person: they leave your friends and your groups, on this phone only, and they aren’t told. You can unblock them from Me.</string>
     <string name="blocked_title">Blocked people</string>

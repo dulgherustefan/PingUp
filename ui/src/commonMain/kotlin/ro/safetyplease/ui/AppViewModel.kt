@@ -47,6 +47,9 @@ import ro.safetyplease.ui.common.Nearby
 
 enum class Tab { MESSAGES, REPORT, MAP, INCIDENTS }
 
+/** A report form filled in ahead: someone reported from their profile. */
+data class ReportPreset(val category: Int, val description: String)
+
 sealed interface Dest {
     data class Conversation(val id: String) : Dest
     data class Profile(val conversation: String) : Dest
@@ -280,6 +283,15 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
     fun home(tab: Tab) {
         stack.clear()
         this.tab = tab
+    }
+
+    /** What the report form starts from, once, when another screen sends the user to it. */
+    var reportPreset by mutableStateOf<ReportPreset?>(null)
+
+    /** The report form, open on harassment and [description], for someone who reached the user through the app. */
+    fun reportHarassment(description: String) {
+        reportPreset = ReportPreset(IncidentCategory.HARASSMENT, description)
+        home(Tab.REPORT)
     }
 
     fun openTarget(target: String) {

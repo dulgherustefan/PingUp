@@ -951,6 +951,9 @@
     <string name="profile_where_are_you">Unde ești?</string>
     <string name="profile_where_asked">Cerere trimisă. Răspunsul apare aici dacă prietenul e în rază.</string>
     <string name="profile_block">Blochează</string>
+    <string name="profile_report">Raportează la staff</string>
+    <string name="report_contact_friend">Hărțuire prin aplicație de la %1$s.</string>
+    <string name="report_contact_group">Hărțuire prin aplicație în grupul %1$s.</string>
     <string name="block_title">Blochezi pe %1$s?</string>
     <string name="block_text">Nu mai primești nimic de la această persoană: iese din prieteni și din grupurile tale, doar pe acest telefon, și nu e anunțată. O poți debloca din Eu.</string>
     <string name="blocked_title">Persoane blocate</string>

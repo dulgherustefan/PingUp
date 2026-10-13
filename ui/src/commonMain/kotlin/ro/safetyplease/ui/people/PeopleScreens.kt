@@ -76,15 +76,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.ui.common.BigCodeDialog
-import ro.safetyplease.ui.common.QrBadge
-import ro.safetyplease.ui.common.QrCardWidth
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.ScanOutcome
 import ro.safetyplease.ui.Tab
+import ro.safetyplease.ui.common.BigCodeDialog
+import ro.safetyplease.ui.common.QrBadge
+import ro.safetyplease.ui.common.QrCardWidth
 import ro.safetyplease.ui.common.friendStatus
 import ro.safetyplease.ui.designsystem.ActionTile
 import ro.safetyplease.ui.designsystem.AppButton
@@ -159,9 +159,12 @@ import ro.safetyplease.ui.resources.profile_last_zone_none
 import ro.safetyplease.ui.resources.profile_leave_group
 import ro.safetyplease.ui.resources.profile_message
 import ro.safetyplease.ui.resources.profile_remove_friend
+import ro.safetyplease.ui.resources.profile_report
 import ro.safetyplease.ui.resources.profile_where_are_you
 import ro.safetyplease.ui.resources.profile_where_asked
 import ro.safetyplease.ui.resources.remove
+import ro.safetyplease.ui.resources.report_contact_friend
+import ro.safetyplease.ui.resources.report_contact_group
 import ro.safetyplease.ui.resources.scan_anchor_on
 import ro.safetyplease.ui.resources.scan_control_on
 import ro.safetyplease.ui.resources.scan_event_in_use
@@ -682,6 +685,14 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                 }
             }
             InsetGroup(Modifier.padding(top = 24.dp)) {
+                // to the staff on site, who answer on the spot: harassment that comes through the app
+                val reported = if (friend != null) stringResource(Res.string.report_contact_friend, friend.nickname)
+                else stringResource(Res.string.report_contact_group, group!!.name)
+                GroupRow(
+                    stringResource(Res.string.profile_report), icon = Sym.Report, tint = colors.redInk,
+                    onClick = { vm.reportHarassment(reported) },
+                )
+                GroupDivider()
                 if (friend != null) {
                     GroupRow(
                         stringResource(Res.string.profile_block), icon = Sym.Hidden, tint = colors.redInk,
