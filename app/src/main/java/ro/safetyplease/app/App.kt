@@ -5,9 +5,20 @@ import android.app.Application
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlin.concurrent.thread
 
 class App : Application() {
-    val container: AppContainer by lazy { AppContainer(this) }
+    /** Built on a thread of its own as the process starts; a caller that needs it sooner waits for it. */
+    val container: AppContainer by lazy { AppContainer(this).also { ready.value = true } }
+
+    private val ready = MutableStateFlow(false)
+
+    /** True once [container] is built: until then the screen shows the app is starting. */
+    val containerReady: StateFlow<Boolean> = ready
+    private var started = 0
 
     override fun attachBaseContext(base: Context) = super.attachBaseContext(AppLocale.wrap(base))
 
@@ -18,17 +29,20 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // the session reads its keys, stores and event pack from disk: never on the main thread, which draws meanwhile
+        thread(name = "session") {
+            container
+            ContextCompat.getMainExecutor(this).execute(::showForeground)
+        }
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
-            private var started = 0
-
             override fun onActivityStarted(activity: Activity) {
                 started++
-                container.foreground.value = true
+                showForeground()
             }
 
             override fun onActivityStopped(activity: Activity) {
                 started--
-                container.foreground.value = started > 0
+                showForeground()
             }
 
             override fun onActivityCreated(activity: Activity, state: Bundle?) = Unit
@@ -37,5 +51,10 @@ class App : Application() {
             override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) = Unit
             override fun onActivityDestroyed(activity: Activity) = Unit
         })
+    }
+
+    /** Main thread only; before the container is built it is told once, as soon as it is. */
+    private fun showForeground() {
+        if (ready.value) container.foreground.value = started > 0
     }
 }

@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import ro.safetyplease.app.App
+import kotlin.concurrent.thread
 
 /**
  * Brings the mesh back after a reboot or an app update, if it was running before. Both broadcasts are exemptions
@@ -12,11 +13,20 @@ import ro.safetyplease.app.App
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val container by lazy { (context.applicationContext as App).container }
-        when (afterBoot(intent.action, MeshService.wanted(context)) { container.bleRadio.hasPermissions() }) {
-            BootAction.NOTHING -> Unit
-            BootAction.START -> if (runCatching { MeshService.start(context) }.isFailure) container.notifier.meshStopped()
-            BootAction.NOTIFY -> container.notifier.meshStopped()
+        if (!revives(intent.action) || !MeshService.wanted(context)) return
+        // the container may still be loading from disk: wait for it off the main thread
+        val pending = goAsync()
+        thread(name = "boot") {
+            try {
+                val container = (context.applicationContext as App).container
+                when (afterBoot(intent.action, wanted = true) { container.bleRadio.hasPermissions() }) {
+                    BootAction.NOTHING -> Unit
+                    BootAction.START -> if (runCatching { MeshService.start(context) }.isFailure) container.notifier.meshStopped()
+                    BootAction.NOTIFY -> container.notifier.meshStopped()
+                }
+            } finally {
+                pending.finish()
+            }
         }
     }
 }
