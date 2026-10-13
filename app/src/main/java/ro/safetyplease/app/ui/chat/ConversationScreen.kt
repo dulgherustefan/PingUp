@@ -2,7 +2,6 @@ package ro.safetyplease.app.ui.chat
 
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -261,11 +260,9 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
             quick = false
         })
         if (friend != null) {
-            val sent = stringResource(R.string.come_sent)
             add(QuickAction(Sym.Walk, stringResource(R.string.come_button)) {
-                vm.c.chat.requestComing(friend.nodeId)
+                vm.askFriend(R.string.come_sent) { vm.c.chat.requestComing(friend.nodeId) }
                 haptics.confirm()
-                Toast.makeText(context, sent, Toast.LENGTH_SHORT).show()
                 quick = false
             })
         }
@@ -333,12 +330,10 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                 }
             }
             if (friend != null) {
-                val sent = stringResource(R.string.seen_sent)
                 Spacer(Modifier.width(8.dp))
                 GlassIconButton(Sym.Torch, stringResource(R.string.seen_ask), {
-                    vm.c.chat.pingFriend(friend.nodeId)
+                    vm.askFriend(R.string.seen_sent) { vm.c.chat.pingFriend(friend.nodeId) }
                     haptics.confirm()
-                    Toast.makeText(context, sent, Toast.LENGTH_SHORT).show()
                 }, backdrop)
             }
         }
@@ -388,7 +383,6 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
             )
         }
         if (meetingPicker) MeetingDialog(vm, conversation) { meetingPicker = false }
-        MeetupRequests(vm)
     }
 }
 

@@ -1,6 +1,8 @@
 package ro.safetyplease.app.ui
 
 import android.app.Application
+import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -20,6 +22,7 @@ import kotlinx.coroutines.launch
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.MainActivity
+import ro.safetyplease.app.R
 import ro.safetyplease.app.platform.location.GeoFix
 import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.app.ui.common.Nearby
@@ -383,6 +386,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteMessage(message: ChatMessage) = c.chat.deleteMessage(message)
 
+    /**
+     * "Fă-te văzut", "Vin la tine" and a meeting point: runs [send] and says how it went, with [sent] when the request went
+     * out (null for a meeting point, which shows itself) and "Așteaptă puțin" when the chat refused it. It outlives the
+     * screen that asked, so a dialog can close at once.
+     */
+    fun askFriend(@StringRes sent: Int?, send: suspend () -> Boolean) {
+        viewModelScope.launch {
+            val message = if (send()) sent else R.string.ask_wait
+            if (message != null) Toast.makeText(getApplication(), message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun enterConversation(conversation: String, friendId: Long?) {
         c.openConversation = conversation
         c.chat.markRead(conversation)
@@ -433,6 +448,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun stopAllShares() = c.stopAllShares()
 
     fun setAutoAnswer(on: Boolean) = c.chat.setAutoAnswer(on)
+
+    fun setPingAutoAccept(on: Boolean) = c.settings.update { it.copy(pingAutoAccept = on) }
+
+    fun setPingWhiteScreen(on: Boolean) = c.settings.update { it.copy(pingWhiteScreen = on) }
+
+    fun setPingSound(on: Boolean) = c.settings.update { it.copy(pingSound = on) }
 
     /** "Unde ești?": a position if the friend shares or answers, else the zone; at most once a minute per friend. */
     fun requestPosition(friend: Friend) {

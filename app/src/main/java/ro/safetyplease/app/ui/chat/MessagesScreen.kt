@@ -212,7 +212,6 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 Modifier.align(Alignment.BottomEnd).padding(end = Gutter, bottom = LocalBottomClearance.current + 8.dp),
             )
         }
-        MeetupRequests(vm)
     }
 }
 

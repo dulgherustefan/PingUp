@@ -1,6 +1,8 @@
 package ro.safetyplease.app.demo
 
 import ro.safetyplease.app.AppContainer
+import ro.safetyplease.core.chat.MeetingPlace
+import ro.safetyplease.core.chat.MeetingProposal
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.IncomingShare
@@ -15,11 +17,14 @@ import ro.safetyplease.core.protocol.SharePrecision
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
+import java.time.Instant
+import java.time.ZoneId
 import kotlin.math.cos
 
 /**
  * The "prieteni" command: three friends sharing their position around [center] (one fresh and close, one 8 minutes
- * old 150 m away, one 40 minutes old) and this phone sharing with the first, so the map and the lists show without radio.
+ * old 150 m away, one 40 minutes old) and this phone sharing with the first, who has also pinned a meeting point in their
+ * chat, so the map, the lists and the pin show without radio.
  */
 object DemoFriends {
     /** Demo friends' ids start with this, so the command can be run again and reset can find them. */
@@ -66,6 +71,14 @@ object DemoFriends {
 
     fun plan(nowMs: Long) = SharePlan(Conversations.friend(ID_BASE), nowMs + SESSION_MS, nowMs)
 
+    /** The first friend's meeting point: the venue's highest numbered landmark, else its meeting point; 30 minutes ahead. */
+    fun meeting(venue: Venue, nowMs: Long): MeetingProposal? {
+        val place = venue.pois.map { it.number }.filter { it in Venue.LANDMARK_NUMBERS }.maxOrNull()?.let(MeetingPlace::landmark)
+            ?: venue.meetingPoint?.let(MeetingPlace::venue) ?: return null
+        val at = Instant.ofEpochMilli(nowMs + 30 * MIN).atZone(ZoneId.systemDefault())
+        return MeetingProposal(Conversations.friend(ID_BASE), ID_BASE, ID_BASE, 1, place, at.hour * 60 + at.minute, nowMs + SESSION_MS)
+    }
+
     fun seed(c: AppContainer): String {
         val now = c.clock.wallMs()
         val settings = c.settings.value
@@ -82,7 +95,9 @@ object DemoFriends {
             if (simulated == null && c.location.fix.value?.isFresh(now) != true) s.copy(simLat = center.lat, simLon = center.lon, sharePlans = plans)
             else s.copy(sharePlans = plans)
         }
-        return "3 friends around ${center.lat},${center.lon}; sharing with ${specs.first().nickname}"
+        val meeting = meeting(c.venue, now)?.also(c.chat::pinMeeting)
+        val pinned = if (meeting != null) "; meeting point pinned in their chat" else ""
+        return "3 friends around ${center.lat},${center.lon}; sharing with ${specs.first().nickname}$pinned"
     }
 
     fun remove(c: AppContainer) {

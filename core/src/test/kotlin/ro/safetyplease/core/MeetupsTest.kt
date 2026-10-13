@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -12,6 +13,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.chat.MeetingPlace
+import ro.safetyplease.core.chat.MeetingTime
 import ro.safetyplease.core.chat.TorchPulse
 import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.Identity
@@ -29,6 +31,8 @@ import ro.safetyplease.core.protocol.SharePrecision
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.PositionBox
 import java.io.File
+import java.time.Instant
+import java.time.ZoneId
 
 /** "Fă-te văzut", meeting points and "Vin la tine" over the mesh (PROTOCOL.md, section 6.6.1). */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -77,7 +81,7 @@ class MeetupsTest {
     fun aFriendWhoAcceptsLightsTheTorchAndTheAskerKnows() = runTest {
         val w = World(this, tmp.root)
         val (a, b) = pair(w)
-        a.chat.pingFriend(b.nodeId)
+        assertTrue(a.chat.pingFriend(b.nodeId))
         advanceTimeBy(5_000)
         val ask = b.chat.pingAsks.value.single()
         assertEquals(a.nodeId, ask.sender)
@@ -96,10 +100,10 @@ class MeetupsTest {
     fun oneAskEveryTwoMinutesPerFriendAndADeclineIsSilent() = runTest {
         val w = World(this, tmp.root)
         val (a, b) = pair(w)
-        a.chat.pingFriend(b.nodeId)
+        assertTrue(a.chat.pingFriend(b.nodeId))
         advanceTimeBy(5_000)
         val sent = a.privateSent()
-        a.chat.pingFriend(b.nodeId)
+        assertFalse(a.chat.pingFriend(b.nodeId))
         advanceTimeBy(5_000)
         assertEquals("the second ask didn't go", sent, a.privateSent())
 
@@ -110,7 +114,7 @@ class MeetupsTest {
         assertTrue(a.chat.lighting.value.isEmpty())
 
         advanceTimeBy(ChatManager.PING_INTERVAL_MS)
-        a.chat.pingFriend(b.nodeId)
+        assertTrue(a.chat.pingFriend(b.nodeId))
         advanceTimeBy(5_000)
         assertEquals(1, b.chat.pingAsks.value.size)
         advanceTimeBy(ChatManager.PING_ASK_MS + ChatManager.RETRY_TICK_MS)
@@ -125,6 +129,45 @@ class MeetupsTest {
         b.engine.unicast(PacketType.PRIVATE, a.nodeId, testCrypto.box(lit, a.identity.box.publicKey, b.identity.box.secretKey))
         advanceTimeBy(5_000)
         assertTrue(a.chat.lighting.value.isEmpty())
+    }
+
+    // --- every request says whether it went out ---
+
+    @Test
+    fun aRequestSaysWhetherItWentOut() = runTest {
+        val w = World(this, tmp.root)
+        val (a, b) = pair(w)
+        val conversation = Conversations.friend(b.nodeId)
+        assertTrue(a.chat.pingFriend(b.nodeId))
+        assertTrue(a.chat.requestComing(b.nodeId))
+        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(3), null, 60))
+        assertFalse("inside the two minutes", a.chat.pingFriend(b.nodeId))
+        assertFalse("inside the two minutes", a.chat.requestComing(b.nodeId))
+        assertFalse("one a minute", a.chat.proposeMeeting(conversation, MeetingPlace.landmark(4), null, 60))
+
+        advanceTimeBy(ChatManager.PING_INTERVAL_MS)
+        assertTrue(a.chat.pingFriend(b.nodeId))
+        assertTrue(a.chat.requestComing(b.nodeId))
+        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(4), null, 60))
+    }
+
+    @Test
+    fun nothingGoesToAStrangerOrOverNoLinkAndWaitsForNothing() = runTest {
+        val w = World(this, tmp.root)
+        val a = w.phone("A")
+        val b = w.phone("B")
+        a.befriend(b)
+        val stranger = Identity.generate(testCrypto).nodeId
+        assertFalse(a.chat.pingFriend(stranger))
+        assertFalse(a.chat.requestComing(stranger))
+        assertFalse(a.chat.proposeMeeting(Conversations.friend(stranger), MeetingPlace.landmark(1), null, 30))
+
+        assertFalse("no link yet", a.chat.pingFriend(b.nodeId))
+        assertFalse("no link yet", a.chat.requestComing(b.nodeId))
+        w.net.start()
+        advanceTimeBy(30_000)
+        assertTrue("a refused try took no turn", a.chat.pingFriend(b.nodeId))
+        assertTrue("a refused try took no turn", a.chat.requestComing(b.nodeId))
     }
 
     // --- meeting points ---
@@ -190,6 +233,40 @@ class MeetupsTest {
         advanceTimeBy(3 * 60_000L)
         assertTrue(a.chat.meetings.value.isEmpty())
         assertTrue(b.chat.meetings.value.isEmpty())
+    }
+
+    @Test
+    fun aMeetingPointMoreThanAnHourPastIsDroppedWhenItArrives() = runTest {
+        val w = World(this, tmp.root)
+        val (a, b) = pair(w)
+        val conversation = Conversations.friend(b.nodeId)
+        val now = Instant.ofEpochMilli(w.clock.wallMs()).atZone(ZoneId.systemDefault()).let { it.hour * 60 + it.minute }
+        fun at(minutesFromNow: Int) = (now + minutesFromNow).mod(24 * 60)
+        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(3), at(-90), 60))
+        advanceTimeBy(5_000)
+        assertTrue("B drops it", b.chat.meetings.value.isEmpty())
+        assertTrue("and still confirms it", a.chatStore.value.outbox.isEmpty())
+
+        advanceTimeBy(ChatManager.MEETING_INTERVAL_MS)
+        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(4), at(-30), 60))
+        advanceTimeBy(5_000)
+        assertEquals(4, b.chat.meetings.value.single().place.landmark)
+
+        advanceTimeBy(ChatManager.MEETING_INTERVAL_MS)
+        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(5), at(30), 60))
+        advanceTimeBy(5_000)
+        assertEquals(5, b.chat.meetings.value.single().place.landmark)
+    }
+
+    @Test
+    fun aMeetingTimeIsLateOnlyPastAnHourAndTheDayWraps() {
+        assertFalse("no time", MeetingTime.isLate(null, 600))
+        assertFalse("an hour exactly", MeetingTime.isLate(22 * 60 + 30, 23 * 60 + 30))
+        assertTrue(MeetingTime.isLate(22 * 60 + 30, 23 * 60 + 31))
+        assertFalse("later today", MeetingTime.isLate(12 * 60, 3 * 60))
+        assertFalse("40 minutes ago, across midnight", MeetingTime.isLate(23 * 60 + 30, 10))
+        assertTrue("150 minutes ago, across midnight", MeetingTime.isLate(23 * 60, 90))
+        assertFalse("tomorrow's first minutes, near midnight", MeetingTime.isLate(15, 23 * 60 + 50))
     }
 
     @Test

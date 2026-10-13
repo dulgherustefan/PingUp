@@ -1,6 +1,8 @@
 package ro.safetyplease.app.demo
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ro.safetyplease.core.data.Conversations
@@ -10,6 +12,8 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.distanceMeters
 import java.io.File
+import java.time.Instant
+import java.time.ZoneId
 
 class DemoFriendsTest {
     private val venue = Venue.parse(File("src/main/assets/venue.json").readText())
@@ -36,5 +40,23 @@ class DemoFriendsTest {
         assertEquals(3, twice.records.size)
         assertEquals(3, twice.incoming.size)
         assertEquals(1, twice.shares.size)
+    }
+
+    @Test
+    fun theFirstFriendPinsALandmarkOfTheVenueHalfAnHourAhead() {
+        val proposal = DemoFriends.meeting(venue, now)!!
+        assertEquals(Conversations.friend(DemoFriends.ID_BASE), proposal.conversation)
+        assertEquals(DemoFriends.ID_BASE, proposal.proposer)
+        assertNotNull(venue.landmark(proposal.place.landmark))
+        val at = Instant.ofEpochMilli(now + 30 * 60_000L).atZone(ZoneId.systemDefault())
+        assertEquals(at.hour * 60 + at.minute, proposal.minuteOfDay)
+        assertTrue(proposal.expiresAtMs > now)
+    }
+
+    @Test
+    fun withoutLandmarksItIsTheVenuesMeetingPointAndWithoutThatNothing() {
+        val bare = venue.copy(pois = emptyList())
+        assertTrue(DemoFriends.meeting(bare, now)!!.place.venuePoint)
+        assertNull(DemoFriends.meeting(bare.copy(meetingPoint = null), now))
     }
 }

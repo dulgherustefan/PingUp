@@ -1,5 +1,6 @@
 package ro.safetyplease.core.chat
 
+import ro.safetyplease.core.protocol.MeetingLimits
 import ro.safetyplease.core.venue.GeoPoint
 
 /** Where a meeting point is: a numbered landmark of the site plan, or a point (the venue's meeting point, or any other). */
@@ -36,6 +37,21 @@ data class FriendAsk(val sender: Long, val atMs: Long, val seq: Int = 0, val pre
 
 /** A friend whose torch is lit for us, until [untilMs]. */
 data class Lighting(val friend: Long, val untilMs: Long)
+
+/** The time of day of a meeting point, on the clock the phones at one festival share. */
+object MeetingTime {
+    /** A meeting point whose time passed by more than this when it arrives is dropped. */
+    const val LATE_MIN = 60
+    private const val DAY = MeetingLimits.MINUTES_PER_DAY
+
+    /** Whether [minuteOfDay] (null: no time) is more than [LATE_MIN] before [nowMinute], both minutes after midnight, the day wrapping. */
+    fun isLate(minuteOfDay: Int?, nowMinute: Int): Boolean {
+        if (minuteOfDay == null) return false
+        // the signed distance from now to the meeting, the nearer way round the clock
+        val ahead = (minuteOfDay - nowMinute + DAY / 2).mod(DAY) - DAY / 2
+        return ahead < -LATE_MIN
+    }
+}
 
 /** The middle of the points known for a group: null under two, since one point is no middle. */
 fun centroid(points: List<GeoPoint>): GeoPoint? {

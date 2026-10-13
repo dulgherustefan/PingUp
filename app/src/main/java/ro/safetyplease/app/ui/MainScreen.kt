@@ -87,6 +87,7 @@ import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.chat.ConversationScreen
+import ro.safetyplease.app.ui.chat.MeetupRequests
 import ro.safetyplease.app.ui.chat.MessagesScreen
 import ro.safetyplease.app.ui.common.ExerciseBanner
 import ro.safetyplease.app.ui.common.RadioGate
@@ -286,6 +287,7 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
                 }
             }
             alert?.let { NoticeAlert(it, vm.c.exercise) { vm.c.notices.alerted(it.notice.topic, it.notice.seq) } }
+            MeetupRequests(vm)
         }
     }
 }

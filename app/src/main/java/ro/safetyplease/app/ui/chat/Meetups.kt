@@ -80,7 +80,7 @@ import java.util.Locale
 
 /**
  * Friends' requests to this phone, "Fă-te văzut" and "Vin la tine", each asked in a dialog; a yes to the first flashes
- * the torch. Shown on the chat screens; whatever screen hosts it must be one the user sees.
+ * the torch. [AppRoot] hosts it once, over every screen.
  */
 @Composable
 fun MeetupRequests(vm: AppViewModel) {
@@ -125,9 +125,9 @@ private fun SeenDialog(vm: AppViewModel, ask: FriendAsk, settings: Settings, onA
             stringResource(R.string.seen_text), style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
             textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
         )
-        DialogSwitch(stringResource(R.string.seen_auto), settings.pingAutoAccept) { on -> vm.c.settings.update { it.copy(pingAutoAccept = on) } }
-        DialogSwitch(stringResource(R.string.seen_white), settings.pingWhiteScreen) { on -> vm.c.settings.update { it.copy(pingWhiteScreen = on) } }
-        DialogSwitch(stringResource(R.string.seen_sound), settings.pingSound) { on -> vm.c.settings.update { it.copy(pingSound = on) } }
+        DialogSwitch(stringResource(R.string.seen_auto), settings.pingAutoAccept, onChange = vm::setPingAutoAccept)
+        DialogSwitch(stringResource(R.string.seen_white), settings.pingWhiteScreen, onChange = vm::setPingWhiteScreen)
+        DialogSwitch(stringResource(R.string.seen_sound), settings.pingSound, onChange = vm::setPingSound)
     }
 }
 
@@ -172,14 +172,13 @@ private fun SeenPulse(vm: AppViewModel, name: String, settings: Settings, onDone
             done()
         }
     }
-    val setAuto = { on: Boolean -> vm.c.settings.update { it.copy(pingAutoAccept = on) } }
     if (!settings.pingWhiteScreen) {
         AppDialog(onDone, stringResource(R.string.seen_screen_title, name), stringResource(R.string.seen_stop), onDone, dismissLabel = null) {
             Text(
                 stringResource(R.string.seen_screen_text), style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             )
-            DialogSwitch(stringResource(R.string.seen_auto), settings.pingAutoAccept, onChange = setAuto)
+            DialogSwitch(stringResource(R.string.seen_auto), settings.pingAutoAccept, onChange = vm::setPingAutoAccept)
         }
         return
     }
@@ -195,7 +194,7 @@ private fun SeenPulse(vm: AppViewModel, name: String, settings: Settings, onDone
             )
             AppButton(stringResource(R.string.seen_stop), onDone, kind = ButtonKind.Secondary)
             Spacer(Modifier.size(24.dp))
-            DialogSwitch(stringResource(R.string.seen_auto), settings.pingAutoAccept, Color.Black, setAuto)
+            DialogSwitch(stringResource(R.string.seen_auto), settings.pingAutoAccept, Color.Black, vm::setPingAutoAccept)
         }
     }
 }
@@ -288,7 +287,7 @@ fun MeetingDialog(vm: AppViewModel, conversation: String, onDismiss: () -> Unit)
         onConfirm = {
             chosen?.let { place ->
                 val minute = if (ahead == 0) null else Calendar.getInstance().let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) + ahead } % (24 * 60)
-                vm.c.chat.proposeMeeting(conversation, place, minute, ahead + MEETING_GRACE_MIN)
+                vm.askFriend(null) { vm.c.chat.proposeMeeting(conversation, place, minute, ahead + MEETING_GRACE_MIN) }
             }
             onDismiss()
         },

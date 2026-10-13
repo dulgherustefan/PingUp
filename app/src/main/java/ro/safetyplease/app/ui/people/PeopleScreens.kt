@@ -769,7 +769,7 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
 
 /**
  * Where a friend is, when they share it: which way and how far, how old and how sure. "Unde ești?" waits out the
- * chat's once-a-minute limit. There is no "Fă-te văzut" yet: the chat has no ping-to-be-seen request to send.
+ * chat's once-a-minute limit; "Fă-te văzut" asks them to flash their torch.
  */
 @Composable
 private fun FriendLocation(vm: AppViewModel, friend: Friend) {
@@ -810,6 +810,11 @@ private fun FriendLocation(vm: AppViewModel, friend: Friend) {
             },
             icon = Sym.PersonSearch, tint = if (wait > 0) colors.tertiaryLabel else colors.accent,
             onClick = if (wait > 0) null else ({ vm.requestPosition(friend) }),
+        )
+        GroupDivider(start = Gutter)
+        GroupRow(
+            stringResource(R.string.seen_ask), icon = Sym.Torch, tint = colors.accent,
+            onClick = { vm.askFriend(R.string.seen_sent) { vm.c.chat.pingFriend(friend.nodeId) } },
         )
     }
 }

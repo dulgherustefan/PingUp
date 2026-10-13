@@ -170,6 +170,15 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     )
                     GroupDivider()
                     SwitchRow(
+                        stringResource(R.string.me_ping_auto), settings.pingAutoAccept, vm::setPingAutoAccept,
+                        subtitle = stringResource(R.string.me_ping_auto_text), icon = Sym.Torch,
+                    )
+                    GroupDivider()
+                    SwitchRow(stringResource(R.string.me_ping_white), settings.pingWhiteScreen, vm::setPingWhiteScreen, icon = Sym.Phone)
+                    GroupDivider()
+                    SwitchRow(stringResource(R.string.me_ping_sound), settings.pingSound, vm::setPingSound, icon = Sym.Bell)
+                    GroupDivider()
+                    SwitchRow(
                         stringResource(R.string.me_share_zone), settings.shareZone, vm::setShareZone,
                         subtitle = stringResource(R.string.me_share_zone_text), icon = Sym.Place,
                     )

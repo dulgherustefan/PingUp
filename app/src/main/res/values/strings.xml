@@ -1042,6 +1042,10 @@
     <string name="me_sharing_off">Oprită</string>
     <string name="me_auto_answer">Răspunde singur la „Unde ești?”</string>
     <string name="me_auto_answer_text">Prietenii cu care nu partajezi primesc zona aproximativă când întreabă.</string>
+    <string name="me_ping_auto">Acceptă „Fă-te văzut” de la prieteni</string>
+    <string name="me_ping_auto_text">Lanterna se aprinde 10 s fără să te întrebe.</string>
+    <string name="me_ping_white">Ecran alb la „Fă-te văzut”</string>
+    <string name="me_ping_sound">Sunet la „Fă-te văzut”</string>
     <string-array name="pos_directions">
         <item>nord</item>
         <item>nord-est</item>
@@ -1059,6 +1063,7 @@
     </plurals>
     <string name="seen_ask">Fă-te văzut: cere-i să aprindă lanterna</string>
     <string name="seen_sent">Cerere trimisă. Uită-te după o lanternă care clipește.</string>
+    <string name="ask_wait">Așteaptă puțin</string>
     <string name="seen_lighting">Își aprinde lanterna acum</string>
     <string name="seen_title">%1$s vrea să te vadă</string>
     <string name="seen_text">Aprinzi lanterna 10 s? Clipește și telefonul vibrează. Ține-l deasupra capului.</string>

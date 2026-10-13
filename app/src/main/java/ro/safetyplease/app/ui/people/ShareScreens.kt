@@ -33,8 +33,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
@@ -114,7 +115,12 @@ fun ShareChooseScreen(vm: AppViewModel) {
     val sharing by vm.sharing.collectAsStateWithLifecycle()
     val colors = AppTheme.colors
     var choosing by remember { mutableStateOf<Pair<String, String>?>(null) }
-    val requestLocation = rememberLocationRequest(vm)
+    // the switch that asked for the permission, so its sheet opens once Android's prompt is answered
+    var asking by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val requestLocation = rememberLocationRequest(vm) { granted ->
+        if (granted) choosing = asking
+        asking = null
+    }
     val active = sharing?.shares.orEmpty().associateBy { it.conversation }
 
     NavScreen(
@@ -134,6 +140,7 @@ fun ShareChooseScreen(vm: AppViewModel) {
                 if (!on) {
                     vm.stopShare(conversation)
                 } else if (!vm.c.location.hasPermission()) {
+                    asking = conversation to name
                     requestLocation()
                 } else {
                     choosing = conversation to name
@@ -245,7 +252,8 @@ private fun OptionRow(label: String, selected: Boolean, suggested: Boolean, note
     Row(
         Modifier.fillMaxWidth().heightIn(min = 52.dp)
             .selectable(selected, role = Role.RadioButton, onClick = onSelect)
-            .then(if (suggested) Modifier.semantics { stateDescription = suggestedText } else Modifier)
+            // the tag is read with the label, so TalkBack still says whether the row is selected
+            .clearAndSetSemantics { contentDescription = listOfNotNull(label, note, suggestedText.takeIf { suggested }).joinToString(", ") }
             .padding(horizontal = Gutter, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

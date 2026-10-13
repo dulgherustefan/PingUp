@@ -1017,6 +1017,10 @@
     <string name="me_sharing_off">Off</string>
     <string name="me_auto_answer">Answer “Where are you?” on my own</string>
     <string name="me_auto_answer_text">Friends you are not sharing with get your approximate area when they ask.</string>
+    <string name="me_ping_auto">Accept “Be seen” from friends</string>
+    <string name="me_ping_auto_text">Your torch flashes for 10 s without asking you.</string>
+    <string name="me_ping_white">White screen on “Be seen”</string>
+    <string name="me_ping_sound">Sound on “Be seen”</string>
     <string-array name="pos_directions">
         <item>north</item>
         <item>north-east</item>
@@ -1033,6 +1037,7 @@
     </plurals>
     <string name="seen_ask">Be seen: ask them to flash their torch</string>
     <string name="seen_sent">Request sent. Look out for a flashing torch.</string>
+    <string name="ask_wait">Wait a moment</string>
     <string name="seen_lighting">Flashing their torch now</string>
     <string name="seen_title">%1$s wants to see you</string>
     <string name="seen_text">Flash your torch for 10 s? It blinks and your phone vibrates. Hold it above your head.</string>
