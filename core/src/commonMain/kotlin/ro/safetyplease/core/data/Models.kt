@@ -1,6 +1,7 @@
 package ro.safetyplease.core.data
 
 import kotlinx.serialization.Serializable
+import ro.safetyplease.core.position.SeenAt
 import ro.safetyplease.core.position.SharePlan
 import ro.safetyplease.core.util.toHex
 
@@ -57,6 +58,8 @@ data class Settings(
     val meshEnabled: Boolean = true,
     /** The stored identity couldn't be read, so a new one was made; shown once, until dismissed. */
     val identityReplaced: Boolean = false,
+    /** Steps bridge a short GNSS gap; off until measured on phones, and only where the phone has the sensors (Android). */
+    val deadReckoning: Boolean = false,
 )
 
 @Serializable
@@ -245,6 +248,8 @@ data class StaffIncident(
     val replyKey: String = "",
     /** The reporter's updates that reached this phone, by [IncidentUpdate.seq]. */
     val updates: List<IncidentUpdate> = emptyList(),
+    /** Where the person a lost report looks for was last seen, from a position they had shared with the reporter. */
+    val lastSeen: SeenAt? = null,
     /** Responses this phone sent the reporter, oldest first. */
     val responses: List<ReportResponse> = emptyList(),
 )

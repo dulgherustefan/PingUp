@@ -899,6 +899,37 @@ class ChatManager(
     private fun gaveUp(item: OutboxItem, now: Long): Boolean =
         item.attempts >= MAX_ATTEMPTS && now - item.lastAttemptAt >= backoffMs(item.attempts)
 
+    // --- lost from the group and the last gasp (PROTOCOL.md, section 6.6.2), read by position/Regasire ---
+
+    internal var onLost: (sender: Long, conversation: String, inner: Inner.LostSession) -> Unit = { _, _, _ -> }
+    internal var onLastGasp: (sender: Long, inner: Inner.LastGasp) -> Unit = { _, _ -> }
+
+    /** A lost session to every member of [conversation], with the retries of a message; null when nobody is there. */
+    internal suspend fun sendLost(conversation: String, build: (msgId: Long, groupId: Long?) -> Inner.LostSession): Inner.LostSession? =
+        scope.async {
+            val (groupId, recipients) = recipientsOf(conversation) ?: return@async null
+            if (recipients.isEmpty()) return@async null
+            val inner = build(newId(), groupId)
+            val bytes = InnerCodec.encode(inner)
+            for (recipient in recipients) enqueue(inner.msgId, recipient, bytes)
+            inner
+        }.await()
+
+    /** Once, never retried; false if it didn't go. Call on the mesh context. */
+    internal fun sendLastGasp(recipient: Long, gasp: Inner.LastGasp): Boolean = sendDirect(recipient, gasp)
+
+    /** Who our shares reach now, each with the most precise of them. Call on the mesh context. */
+    internal fun shareTargetsNow(): Map<Long, Int> = shareTargets(clock.wallMs())
+
+    internal fun recipientsNow(conversation: String): List<Long> = recipientsOf(conversation)?.second.orEmpty()
+
+    /** An exact share of [minutes] with [conversation], unless a longer exact one runs already. Call on the mesh context. */
+    internal fun shareExactFor(conversation: String, minutes: Int) {
+        val running = positions.value.shares.firstOrNull { it.conversation == conversation }
+        if (running != null && running.precision == SharePrecision.EXACT && running.expiresAtMs >= clock.wallMs() + minutes * 60_000L) return
+        beginShare(conversation, minutes, SharePrecision.EXACT)
+    }
+
     // --- receiving ---
 
     private fun onEvent(event: MeshEvent) {
@@ -958,8 +989,13 @@ class ChatManager(
             is Inner.PingRequest -> onPingRequest(sender, inner)
             is Inner.MeetingPoint -> onMeetingPoint(packet, inner)
             is Inner.MeetingReply -> onMeetingReply(packet, inner)
-            // decoded for the features that will read them; until then dropped, unanswered, as an older phone does
-            is Inner.LostSession, is Inner.LastGasp, is Inner.CheckinMissed -> Unit
+            is Inner.LostSession -> conversationOf(sender, inner.groupId)?.let { conversation ->
+                confirm(sender, inner.msgId)
+                onLost(sender, conversation, inner)
+            }
+            is Inner.LastGasp -> if (knows(sender)) onLastGasp(sender, inner)
+            // decoded for the feature that will read it; until then dropped, unanswered, as an older phone does
+            is Inner.CheckinMissed -> Unit
             // an intro only ever comes sealed
             is Inner.Intro -> Unit
         }

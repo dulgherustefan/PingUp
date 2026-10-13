@@ -1,0 +1,146 @@
+package ro.safetyplease.core.location
+
+import ro.safetyplease.core.protocol.PositionMethod
+import ro.safetyplease.core.util.Clock
+import ro.safetyplease.core.venue.GeoFix
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.distanceMeters
+import ro.safetyplease.core.venue.radians
+import kotlin.math.cos
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/** The landmark correction, its end, and the steps that bridge a short GNSS gap. */
+class PositioningTest {
+    private class FakeClock(var now: Long = 1_760_000_000_000L) : Clock {
+        override fun wallMs() = now
+        override fun monoMs() = now
+    }
+
+    private val origin = GeoPoint(44.2, 28.6)
+    private val landmark = at(0.0, 20.0)
+
+    private fun at(east: Double, north: Double) = GeoPoint(
+        origin.lat + north / 111_320.0,
+        origin.lon + east / (111_320.0 * cos(radians(origin.lat))),
+    )
+
+    private fun fix(clock: FakeClock, point: GeoPoint, accuracy: Float, course: Float? = null) =
+        GeoFix(point.lat, point.lon, accuracy, clock.now, course)
+
+    private fun Positioning.shownAt(): GeoPoint = position.value!!.let { GeoPoint(it.lat, it.lon) }
+
+    @Test
+    fun theLandmarkStandsForTenMinutesThenTheFixesComeBack() {
+        val clock = FakeClock()
+        val p = Positioning(clock)
+        p.onRaw(fix(clock, origin, 40f))
+        p.nearLandmark(7, landmark)
+        assertEquals(landmark, p.shownAt())
+        assertEquals(LandmarkFix.RADIUS_M, p.position.value!!.accuracyM)
+        assertEquals(PositionMethod.MANUAL_PIN, p.fused.value!!.method)
+
+        // a poor fix, or a good one close by, doesn't move it; the landmark stays fresh while it holds
+        clock.now += 60_000
+        p.onRaw(fix(clock, at(0.0, -40.0), 40f))
+        clock.now += 60_000
+        p.onRaw(fix(clock, at(0.0, 5.0), 8f))
+        clock.now += 5 * 60_000L
+        p.tick()
+        assertEquals(landmark, p.shownAt())
+        assertTrue(p.position.value!!.isFresh(clock.now))
+
+        clock.now += 3 * 60_000L
+        p.tick()
+        assertEquals(PositionMethod.GNSS, p.fused.value!!.method, "ten minutes on, the fixes lead again")
+        assertNull(p.landmark.value)
+        assertTrue(distanceMeters(p.shownAt(), at(0.0, 5.0)) <= 9)
+    }
+
+    @Test
+    fun aGoodFixFarFromTheLandmarkEndsItAtOnce() {
+        val clock = FakeClock()
+        val p = Positioning(clock)
+        p.nearLandmark(7, landmark)
+        clock.now += 30_000
+        val elsewhere = at(0.0, 60.0)
+        p.onRaw(fix(clock, elsewhere, LandmarkFix.GOOD_FIX_M))
+        assertNull(p.landmark.value)
+        assertEquals(PositionMethod.GNSS, p.fused.value!!.method)
+        assertEquals(elsewhere, p.shownAt())
+    }
+
+    @Test
+    fun withoutAnyFixTheLandmarkIsThePositionAndEndsWithNothing() {
+        val clock = FakeClock()
+        val p = Positioning(clock)
+        p.nearLandmark(3, landmark)
+        assertEquals(landmark, p.shownAt())
+        p.clearLandmark()
+        assertNull(p.position.value)
+    }
+
+    @Test
+    fun stepsBridgeAGapOfUpToThirtySecondsOnceTheCourseGivesThemANorth() {
+        val clock = FakeClock()
+        val p = Positioning(clock)
+        // walking north: the GNSS course says 0°, the phone's yaw reads 90° at the same time
+        p.onStep(Step(clock.now - 500, 0.7, 90.0))
+        p.onRaw(fix(clock, origin, 5f, course = 0f))
+        val start = p.shownAt()
+
+        // fixes still coming: the steps wait
+        p.onStep(Step(clock.now + 1_000, 0.7, 90.0))
+        assertEquals(start, p.shownAt())
+
+        // under a tent roof: 20 steps between 3 s and 13 s after the last fix
+        repeat(20) { p.onStep(Step(clock.now + 3_000 + it * 500L, 0.7, 90.0)) }
+        val bridged = p.shownAt()
+        assertEquals(14.0, distanceMeters(start, bridged).toDouble(), 1.5)
+        assertTrue(bridged.lat > start.lat, "north, as the course taught")
+        assertTrue(p.position.value!!.accuracyM > 5f, "and less sure than the fix")
+
+        // past 30 s the steps stop moving it
+        p.onStep(Step(clock.now + Positioning.PDR_GAP_MS + 1_000, 0.7, 90.0))
+        assertEquals(bridged, p.shownAt())
+    }
+
+    @Test
+    fun stepsWithoutACourseToAnchorThemMoveNothing() {
+        val clock = FakeClock()
+        val p = Positioning(clock)
+        p.onRaw(fix(clock, origin, 5f))
+        repeat(10) { p.onStep(Step(clock.now + 5_000 + it * 500L, 0.7, 90.0)) }
+        assertEquals(origin, p.shownAt())
+    }
+
+    @Test
+    fun walkingOffTheLandmarkOnStepsEndsIt() {
+        val clock = FakeClock()
+        val p = Positioning(clock)
+        p.nearLandmark(7, landmark)
+        repeat(50) { p.onStep(Step(clock.now + it * 500L, 0.7, 0.0)) }
+        assertNull(p.landmark.value)
+    }
+
+    @Test
+    fun stepsAreCountedOnlyWithTheSettingAndSomethingThatNeedsThem() {
+        val p = Positioning(FakeClock())
+        p.reportOpen(true)
+        assertFalse(p.stepsWanted.value, "the setting is off by default")
+        p.follow(setting = true, exactShare = false)
+        assertTrue(p.stepsWanted.value, "a report is being written")
+        p.reportOpen(false)
+        assertFalse(p.stepsWanted.value, "nothing needs them now")
+        p.follow(setting = true, exactShare = true)
+        assertTrue(p.stepsWanted.value)
+        p.follow(setting = true, exactShare = false)
+        p.navigating(true)
+        assertTrue(p.stepsWanted.value)
+        p.follow(setting = false, exactShare = true)
+        assertFalse(p.stepsWanted.value)
+    }
+}

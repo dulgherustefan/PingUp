@@ -17,6 +17,7 @@ import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.MeshEvent
 import ro.safetyplease.core.metrics.timedAck
+import ro.safetyplease.core.position.SeenAt
 import ro.safetyplease.core.protocol.AckFlags
 import ro.safetyplease.core.protocol.AckOrder
 import ro.safetyplease.core.protocol.AckStatus
@@ -32,6 +33,7 @@ import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
+import ro.safetyplease.core.protocol.ReportExtras
 import ro.safetyplease.core.protocol.ResponseBody
 import ro.safetyplease.core.protocol.StaffFields
 import ro.safetyplease.core.protocol.Triage
@@ -55,6 +57,8 @@ class ReportDraft(
     /** "Cum te recunoaștem?", sent on the first line of the description ([Recognition]). */
     val recognition: String = "",
     val location: LocationFields? = null,
+    /** The body's extension block (PROTOCOL.md, section 6.3). */
+    val extras: ReportExtras = ReportExtras.NONE,
 )
 
 /** What the reporter says after its report ([ro.safetyplease.core.protocol.UpdateKind]); a move says where to. */
@@ -145,7 +149,7 @@ class IncidentManager(
         val nickname = (if (staff != null) teamName() else draft.nickname)?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
         fun body(description: String) = IncidentBody(
             draft.category, draft.severity, now / 1000, zone, draft.lat, draft.lon, description, nickname,
-            IncidentCancel.hash(cancelToken), draft.triage, staff, draft.location, reply.publicKey,
+            IncidentCancel.hash(cancelToken), draft.triage, staff, draft.location, reply.publicKey, draft.extras,
         )
         // with every other field full, the reply key leaves the longest descriptions a few bytes short
         val room = minOf(Limits.DESCRIPTION_BYTES, IncidentBody.MAX_SIZE - body("").encode().size)
@@ -395,6 +399,7 @@ class IncidentManager(
             fromStaff = body.staff != null, people = body.staff?.people ?: 0, dangerContinues = body.staff?.dangerContinues == true,
             accuracyM = body.location?.accuracyM ?: 0, landmark = body.location?.landmark ?: 0,
             replyKey = body.replyKey?.toHex().orEmpty(),
+            lastSeen = body.extras.lastSeen?.let { SeenAt.of(it, body.timestamp * 1000) },
         )
         store.update { it.copy(staff = (it.staff + incident).takeLast(staffCap())) }
         // an update that came before the report: relays keep the latest one, and so did this phone's cache
