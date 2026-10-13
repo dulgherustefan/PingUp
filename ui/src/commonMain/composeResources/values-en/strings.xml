@@ -436,9 +436,9 @@
     <string name="privacy_never_title">What we don’t do</string>
     <string name="privacy_never_text">No ads, no usage statistics sent anywhere, and we give your data to no one.</string>
     <string name="privacy_delete_title">How long data is kept and how to delete it</string>
-    <string name="privacy_delete_text">Everything stays on the phone until you delete it. A message that hasn’t arrived within 24 hours isn’t sent again. To delete everything, uninstall the app or go to Settings › Apps › Ping Up › Storage › Clear data. What you already sent stays on the phones that received it.</string>
-    <string name="privacy_contact_title">Questions</string>
-    <string name="privacy_contact_text">Write to us at github.com/dulgherustefan/PingUp/issues.</string>
+    <string name="privacy_delete_text">Everything stays on the phone until you delete it. A message that hasn’t arrived within 24 hours isn’t sent again. To delete everything, uninstall the app; on Android you can also go to Settings › Apps › Ping Up › Storage › Clear data. What you already sent stays on the phones that received it.</string>
+    <string name="privacy_contact_title">Contact</string>
+    <string name="privacy_contact_text">Ping Up is made by Dulgheru Ștefan Alexandru, Ilie-Goga Radu, Cîrciumaru Radu and Farkas Oliver. Write to us at stdulgh@gmail.com or on github.com/dulgherustefan/PingUp/issues.</string>
     <string name="privacy_updated">Updated on October 13, 2026.</string>
     <string name="me_node_id">Technical ID</string>
     <string name="me_network_log">Mobile network log</string>
