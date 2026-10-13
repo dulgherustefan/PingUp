@@ -25,6 +25,7 @@ License 1.1. The styles use two stacks, `Noto Sans Regular` and `Noto Sans Mediu
 - `0-255.pbf` (Latin)
 - `256-511.pbf` (ă, â, î, ş, ţ)
 - `512-767.pbf` (ș and ț with comma below)
+- `1024-1279.pbf` (Cyrillic: a few OSM names near the site carry it; without it MapLibre logs a failed range)
 - `8192-8447.pbf` (dashes, quotes, the ellipsis)
 
 Copy them to `fonts/Noto Sans Regular/` and `fonts/Noto Sans Medium/`, and put the font's `OFL.txt` in `licenses/`
