@@ -82,6 +82,8 @@ val testEnvironment = tasks.register("testEnvironment") {
     }
 }
 kotlin.sourceSets.commonTest { kotlin.srcDir(testEnvironment) }
+// lint reads the test sources too, the generated file among them, but doesn't know which task writes it
+tasks.configureEach { if (name.startsWith("lint") || name.endsWith("LintModel")) dependsOn(testEnvironment) }
 
 // `./gradlew test`, as CI runs it, runs the shared tests here on the JVM
 tasks.register("test") {
