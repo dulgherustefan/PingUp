@@ -5,11 +5,11 @@ Ce trebuie pentru prima trimitere a aplicației iPhone, după regulile Apple din
 ## Ce e gata în proiect
 
 - Manifestul de confidențialitate (`iosApp/PingUp/PrivacyInfo.xcprivacy`): fără tracking, fără date colectate, motivele pentru API-urile pe care Apple le cere declarate.
-- Textele pentru permisiuni, în română și engleză: Bluetooth (și cu telefonul în buzunar), camera (doar pentru coduri QR), locația (doar în rapoarte).
+- Textele pentru permisiuni, în română și engleză: Bluetooth (și cu telefonul în buzunar), camera (doar pentru coduri QR), locația (în rapoarte și la prietenii aleși).
 - Modurile de fundal sunt doar cele două de Bluetooth, folosite exact pentru rețea (regula 2.5.4).
 - Notificările urgente (Time Sensitive) sunt doar în build-ul Release și doar pentru incidente urgente; nu cer formular la Apple.
 - Ecranul de lansare, iconița, iOS 16 sau mai nou, build-ul Release pentru telefoane verificat nesemnat cu Xcode 27 (Apple cere Xcode 26 sau mai nou la upload).
-- În aplicație: blocare din profil și „Raportează la staff” pentru hărțuirea venită prin aplicație (regula 1.2); „Nu înlocuiește 112” și butonul „Sună la 112” lângă raport (regula 5.1.5: aplicația nu e un serviciu de urgență); locația pleacă doar cu un raport, iar fără permisiune se alege zona de pe hartă (5.1.1).
+- În aplicație: blocare din profil și „Raportează la staff” pentru hărțuirea venită prin aplicație (regula 1.2); „Nu înlocuiește 112” și butonul „Sună la 112” lângă raport (regula 5.1.5: aplicația nu e un serviciu de urgență); locația pleacă doar cu un raport sau, criptată cap-coadă, la prietenii aleși în Eu › Partajarea locației, iar fără permisiune se alege zona de pe hartă (5.1.1).
 - Licența: codul e GPL-3.0-or-later. Condițiile App Store contrazic GPL-ul doar pentru cine distribuie codul GPL al altcuiva; noi publicăm codul nostru, ca autori, deci nu e conflict (așa publică și Signal, Mullvad sau Proton). De aceea, cod din afară intră doar cu acordul din `CONTRIBUTING.md`. La „License Agreement” rămâne EULA standard a Apple.
 
 ## De făcut înainte de trimitere

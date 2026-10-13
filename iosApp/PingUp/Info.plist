@@ -32,7 +32,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Poziția arată în ce zonă ești și ajunge la echipe doar când trimiți un raport, ca să te găsească.</string>
+	<string>Poziția arată în ce zonă ești. Ajunge la echipe doar într-un raport, ca să te găsească, și la prietenii cu care alegi să o împarți.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>
