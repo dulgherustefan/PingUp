@@ -83,11 +83,16 @@ class TranslationTest {
     @Test
     fun englishHasNoRomanianLeftOver() {
         val romanian = Regex("[ăâîșțşţĂÂÎȘȚŞŢ„]")
+        // the authors' names stay as in their IDs, in English too
+        val names = listOf("Ștefan", "Cîrciumaru")
         for ((_, en) in sets) {
             val texts = en.strings.entries.map { it.key to it.value } +
                 en.plurals.flatMap { (key, items) -> items.values.map { key to it } } +
                 en.arrays.flatMap { (key, items) -> items.map { key to it } }
-            for ((key, text) in texts) assertTrue("$key: $text", !romanian.containsMatchIn(text))
+            for ((key, text) in texts) {
+                val words = names.fold(text) { left, name -> left.replace(name, "") }
+                assertTrue("$key: $text", !romanian.containsMatchIn(words))
+            }
         }
     }
 
