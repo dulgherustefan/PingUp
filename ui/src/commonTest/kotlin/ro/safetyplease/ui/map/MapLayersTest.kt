@@ -1,7 +1,5 @@
 package ro.safetyplease.ui.map
 
-import ro.safetyplease.core.venue.GeoPoint
-import ro.safetyplease.core.venue.Spot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -26,15 +24,5 @@ class MapLayersTest {
         layers.toggle("water")
         assertNull(layers.picked)
         assertEquals(emptySet(), layers.types)
-    }
-
-    @Test
-    fun theRouteTakesTheTargetOnce() {
-        val layers = MapLayers()
-        val spot = Spot("water", "Apă", GeoPoint(44.0, 28.0))
-        layers.routeTo(spot)
-        assertEquals(spot, layers.routeTarget.value)
-        layers.routeTaken()
-        assertNull(layers.routeTarget.value)
     }
 }

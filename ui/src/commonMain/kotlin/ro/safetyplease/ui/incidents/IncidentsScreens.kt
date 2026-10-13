@@ -84,6 +84,7 @@ import ro.safetyplease.ui.designsystem.ConfirmDialog
 import ro.safetyplease.ui.designsystem.EmptyState
 import ro.safetyplease.ui.designsystem.GlassIconButton
 import ro.safetyplease.ui.designsystem.GroupDivider
+import ro.safetyplease.ui.designsystem.GroupRow
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.IconCircle
 import ro.safetyplease.ui.designsystem.InsetGroup
@@ -101,6 +102,7 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.largeFont
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
 import ro.safetyplease.ui.resources.chain_handover
@@ -145,6 +147,7 @@ import ro.safetyplease.ui.resources.incidents_for_me_empty_text
 import ro.safetyplease.ui.resources.more_options
 import ro.safetyplease.ui.resources.notif_off_staff_text
 import ro.safetyplease.ui.resources.reports
+import ro.safetyplease.ui.resources.route_go_incident
 import ro.safetyplease.ui.resources.sev_urgent
 import ro.safetyplease.ui.resources.staff_codes_open
 import ro.safetyplease.ui.resources.staff_status_mine
@@ -610,7 +613,18 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 highlightZone = incident.zone,
                 mapOverlay = lastSeenOverlay(vm, incident),
             )
-            LastSeenBlock(vm, incident)
+            // a team on its way: the walk there, around closed zones and through the staff's own gates
+            val walks = settings.role == AppRole.STAFF && !closed
+            val point = incidentPoint(vm.venue, incident)
+            if (walks && point != null && vm.c.walkRouter.covers(point)) {
+                InsetGroup(Modifier.padding(top = 12.dp)) {
+                    GroupRow(
+                        stringResource(Res.string.route_go_incident), icon = Sym.Walk, tint = colors.accent, chevron = true,
+                        onClick = { vm.navigate(NavTarget.Incident(incident.incidentId)) },
+                    )
+                }
+            }
+            LastSeenBlock(vm, incident, walk = walks)
             InsetGroup(Modifier.padding(top = 20.dp)) { StaffReportBlock(incident, settings.teamName, incidentPlace(vm, incident)) }
             // the medical team that has the incident keeps its hand-over card here, from what this phone holds
             if (isAssignedTo(incident.teamName, settings.teamName) && Responders.isResponder(settings.teamName)) {

@@ -24,6 +24,7 @@ import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.map.MapOverlay
+import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.map.OverlayLayer
 import ro.safetyplease.ui.map.OverlayPin
 import ro.safetyplease.ui.map.PinKind
@@ -47,12 +48,13 @@ import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.ui.text.rememberNow
 
 /**
- * Finding each other, over every screen: "X s-a pierdut" with "Vin acolo", "Te caută prietenii" with "Sunt bine", and
- * the reporter's offer to close a report once the friend it looks for is fine; one dialog at a time. It also keeps
- * the map layer of this feature: the landmark this phone is headed to and the friends' last signals. [AppRoot] hosts it.
+ * Finding each other, over every screen: "X s-a pierdut" with "Vin acolo", which opens the walk to the meeting landmark,
+ * "Te caută prietenii" with "Sunt bine", and the reporter's offer to close a report once the friend it looks for is
+ * fine; one dialog at a time, and none while [dialogs] is off (an evacuation holds the screen). It also keeps the map
+ * layer of this feature: the landmark this phone is headed to and the friends' last signals. [AppRoot] hosts it.
  */
 @Composable
-fun RegasireRequests(vm: AppViewModel) {
+fun RegasireRequests(vm: AppViewModel, dialogs: Boolean = true) {
     val reg = vm.c.regasire
     val alerts by reg.alerts.collectAsStateWithLifecycle()
     val searched by reg.searchedBy.collectAsStateWithLifecycle()
@@ -61,6 +63,7 @@ fun RegasireRequests(vm: AppViewModel) {
     val gasps by reg.gasps.collectAsStateWithLifecycle()
     val now = rememberNow()
     RegasireLayer(vm, target?.takeIf { it.untilMs > now }, gasps.filter { now - it.fixAtMs < Regasire.GASP_SHOWN_MS }, now)
+    if (!dialogs) return
 
     val reply = found.firstOrNull()
     val search = searched.firstOrNull { it.untilMs > now }
@@ -89,7 +92,11 @@ private fun LostDialog(vm: AppViewModel, alert: LostAlert) {
     )
     AppDialog(
         { reg.dismiss(alert) }, stringResource(Res.string.lost_alert_title, vm.c.chat.nameOf(alert.sender)), stringResource(Res.string.lost_come),
-        onConfirm = { reg.comeThere(alert) }, dismissLabel = stringResource(Res.string.not_now),
+        onConfirm = {
+            reg.comeThere(alert)
+            vm.navigate(NavTarget.meeting(alert.landmark))
+        },
+        dismissLabel = stringResource(Res.string.not_now),
     ) {
         Note((listOf(stringResource(Res.string.lost_alert_place, meetingPlaceName(alert.landmark))) + details).joinToString(" · "))
     }
@@ -117,7 +124,10 @@ private fun Note(text: String) {
     Text(text, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel)
 }
 
-/** The landmark a lost session sends this phone to, and where friends' phones last were before their battery ran out. */
+/**
+ * The landmark a lost session sends this phone to, a tap on it the walk there, and where friends' phones last were
+ * before their battery ran out.
+ */
 @Composable
 private fun RegasireLayer(vm: AppViewModel, target: LostTarget?, gasps: List<FriendGasp>, now: Long) {
     val targetPin = target?.let { OverlayPin(TARGET_KEY, it.point, PinKind.MEETING, meetingPlaceName(it.landmark)) }
@@ -133,7 +143,7 @@ private fun RegasireLayer(vm: AppViewModel, target: LostTarget?, gasps: List<Fri
         }
         vm.mapOverlays.set(OverlayLayer.REGASIRE, overlay) { pin ->
             when {
-                pin.key == TARGET_KEY -> vm.open(Dest.Pin(pin.point.lat, pin.point.lon, "", pin.label.replaceFirstChar { it.uppercase() }))
+                pin.key == TARGET_KEY -> target?.let { vm.navigate(NavTarget.meeting(it.landmark)) }
                 pin.key.startsWith(GASP_KEY) -> pin.key.removePrefix(GASP_KEY).toLongOrNull()?.let { vm.open(Dest.Profile(Conversations.friend(it))) }
             }
         }

@@ -81,6 +81,9 @@ data class MapOverlay(
 /** The layers of [MapOverlays], one per feature, so no two features write over each other. */
 object OverlayLayer {
     const val ROUTE = "route"
+
+    /** The way out of an evacuation, kept apart from the route screen's so neither clears the other. */
+    const val EVACUATION = "evacuation"
     const val CONTROL = "control"
     const val REGASIRE = "regasire"
     const val LAYERS = "layers"

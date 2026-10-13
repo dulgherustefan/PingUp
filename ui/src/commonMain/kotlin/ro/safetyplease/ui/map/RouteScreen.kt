@@ -25,7 +25,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -42,25 +41,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.position.Guide
 import ro.safetyplease.core.venue.GeoPoint
-import ro.safetyplease.core.venue.route.AnchorKind
+import ro.safetyplease.core.venue.ServiceLayer
 import ro.safetyplease.core.venue.route.Route
-import ro.safetyplease.core.venue.route.RouteStep
 import ro.safetyplease.core.venue.route.Turn
-import ro.safetyplease.core.venue.route.WalkNavigation
 import ro.safetyplease.core.venue.route.WalkState
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.common.FriendSpot
 import ro.safetyplease.ui.common.MapCamera
 import ro.safetyplease.ui.common.VenueMap
+import ro.safetyplease.ui.common.rememberWalk
 import ro.safetyplease.ui.common.spotColor
 import ro.safetyplease.ui.common.venueAspect
+import ro.safetyplease.ui.common.walkStepText
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.GlassIconButton
@@ -81,13 +79,13 @@ import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
 import ro.safetyplease.ui.resources.map_meeting_point
 import ro.safetyplease.ui.resources.map_meters
-import ro.safetyplease.ui.resources.route_ahead
 import ro.safetyplease.ui.resources.route_arrive_at
 import ro.safetyplease.ui.resources.route_arrived
-import ro.safetyplease.ui.resources.route_gate
+import ro.safetyplease.ui.resources.route_dea
+import ro.safetyplease.ui.resources.route_dea_taken
 import ro.safetyplease.ui.resources.route_incident
 import ro.safetyplease.ui.resources.route_landmark
-import ro.safetyplease.ui.resources.route_last
+import ro.safetyplease.ui.resources.route_last_seen
 import ro.safetyplease.ui.resources.route_left
 import ro.safetyplease.ui.resources.route_near
 import ro.safetyplease.ui.resources.route_no_goal
@@ -97,19 +95,11 @@ import ro.safetyplease.ui.resources.route_outside
 import ro.safetyplease.ui.resources.route_outside_text
 import ro.safetyplease.ui.resources.route_steps
 import ro.safetyplease.ui.resources.route_title
-import ro.safetyplease.ui.resources.route_toward
-import ro.safetyplease.ui.resources.route_turn_back
-import ro.safetyplease.ui.resources.route_turn_left
 import ro.safetyplease.ui.resources.route_turn_on
-import ro.safetyplease.ui.resources.route_turn_right
-import ro.safetyplease.ui.resources.route_turn_straight
 import ro.safetyplease.ui.resources.route_unreachable
 import ro.safetyplease.ui.resources.route_unreachable_text
 import ro.safetyplease.ui.text.rememberNow
 import kotlin.math.max
-
-/** How often the walk is followed: a fix comes about every second while it lasts. */
-private const val TICK_MS = 1_000L
 
 /** How often the arrow follows the compass between fixes. */
 private const val ARROW_TICK_MS = 250L
@@ -119,53 +109,31 @@ private const val END_PIN = "route:end"
 /**
  * The walk to [target]: the route on the map, the next step told by a landmark in large text, an arrow when the phone
  * knows which way it faces or the person walks, and every step left. The screen stays on while it leads; a turn coming,
- * leaving the route and arriving vibrate. It plans again only as [WalkNavigation] allows.
+ * leaving the route and arriving vibrate. It plans again only as [ro.safetyplease.core.venue.route.WalkNavigation]
+ * allows. A walk that goes on from where it ends, as from the defibrillator to the patient, offers that next leg.
  */
 @Composable
 fun RouteScreen(vm: AppViewModel, target: NavTarget) {
-    val settings by vm.settings.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
     val friends by vm.friends.collectAsStateWithLifecycle()
     val colors = AppTheme.colors
-    val staff = settings.role.hasStaffKeys
-    val nav = remember(target, staff) { WalkNavigation(vm.c.walkRouter, staff) }
-    var walk by remember(nav) { mutableStateOf<WalkState?>(null) }
-    var accuracy by remember { mutableFloatStateOf(0f) }
     val beacon = remember { vm.phone.beacon(sound = false) }
     val requestLocation = rememberLocationRequest(vm)
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
 
     DisposableEffect(Unit) {
-        vm.phone.urgentLocation(true)
         onDispose {
-            vm.phone.urgentLocation(false)
             beacon.release()
             vm.mapOverlays.clear(OverlayLayer.ROUTE)
         }
     }
-    LaunchedEffect(nav) {
-        while (true) {
-            val now = vm.c.clock.wallMs()
-            val at = vm.pointNow()
-            // a simulated position has no accuracy of its own
-            val fix = vm.c.locationFix.value?.takeIf { at != null && it.lat == at.lat && it.lon == at.lon }
-            val spots = FriendSpot.of(vm.friendPositions.value, vm.friends.value, now, vm.venue)
-            val goal = target.goal(vm.venue, spots, vm.incidents.value.staff, closedPoints(vm.c.points.value, now))
-            val state = vm.c.mapState.value
-            val mono = vm.c.clock.monoMs()
-            val next = withContext(Dispatchers.Default) { nav.update(at, fix?.accuracyM ?: 0f, mono, state, goal) }
-            accuracy = fix?.accuracyM ?: 0f
-            walk = next
-            (next as? WalkState.Guiding)?.progress?.event?.let { beacon.vibrate(buzz(it)) }
-            // there: the fast fixes and the guidance stop, the screen keeps the arrival
-            if ((next as? WalkState.Guiding)?.progress?.arrived == true) {
-                vm.phone.urgentLocation(false)
-                break
-            }
-            delay(TICK_MS)
-        }
-    }
+    val track = rememberWalk(vm, target, goal = {
+        val now = vm.c.clock.wallMs()
+        val spots = FriendSpot.of(vm.friendPositions.value, vm.friends.value, now, vm.venue)
+        target.goal(vm.venue, spots, vm.incidents.value.staff, ServiceLayer.closedPoints(vm.c.points.value, now))
+    }) { beacon.vibrate(buzz(it)) }
+    val walk = track.state
 
     val guiding = walk as? WalkState.Guiding
     val route = guiding?.route
@@ -177,6 +145,8 @@ fun RouteScreen(vm: AppViewModel, target: NavTarget) {
         is NavTarget.Nearest -> guiding?.destination?.let { it.name.ifEmpty { null } ?: if (it.number > 0) stringResource(Res.string.route_landmark, it.number) else null }
         is NavTarget.Place -> target.label
         is NavTarget.Incident -> stringResource(Res.string.route_incident)
+        is NavTarget.LastSeen -> stringResource(Res.string.route_last_seen)
+        is NavTarget.Defibrillator -> target.name.ifEmpty { stringResource(Res.string.route_dea) }
     } ?: stringResource(Res.string.route_title)
     LaunchedEffect(route, label) {
         if (route == null) vm.mapOverlays.clear(OverlayLayer.ROUTE)
@@ -190,8 +160,14 @@ fun RouteScreen(vm: AppViewModel, target: NavTarget) {
         leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding).padding(bottom = 24.dp)) {
-            RouteMap(vm, position, accuracy, route, Modifier.padding(start = Gutter, end = Gutter, top = 8.dp))
+            RouteMap(vm, position, track.accuracyM, route, Modifier.padding(start = Gutter, end = Gutter, top = 8.dp))
             Spacer(Modifier.height(16.dp))
+            target.next?.let { next ->
+                AppButton(
+                    stringResource(Res.string.route_dea_taken), { vm.navigateInstead(next) },
+                    Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, bottom = 16.dp), icon = Sym.Walk,
+                )
+            }
             when (val state = walk) {
                 null -> Unit
                 WalkState.NoPosition -> RouteNote(stringResource(Res.string.route_no_position), null) {
@@ -219,7 +195,7 @@ private fun Guidance(vm: AppViewModel, walk: WalkState.Guiding, label: String, m
             Column(Modifier.weight(1f)) {
                 Text(
                     when {
-                        !progress.arrived -> stepText(route.steps[progress.step], label)
+                        !progress.arrived -> walkStepText(route.steps[progress.step], label)
                         progress.close -> stringResource(Res.string.route_arrived)
                         else -> stringResource(Res.string.route_near)
                     },
@@ -248,7 +224,7 @@ private fun Guidance(vm: AppViewModel, walk: WalkState.Guiding, label: String, m
     InsetGroup {
         ahead.forEachIndexed { index, step ->
             GroupRow(
-                if (step.turn == Turn.ARRIVE) stringResource(Res.string.route_arrive_at, label) else stepText(step, label),
+                if (step.turn == Turn.ARRIVE) stringResource(Res.string.route_arrive_at, label) else walkStepText(step, label),
                 value = stringResource(Res.string.map_meters, max(0, step.alongM - walked)),
                 leading = {
                     Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
@@ -291,29 +267,6 @@ private fun RouteArrow(vm: AppViewModel, me: GeoPoint?, toward: GeoPoint, arrive
             else -> Icon(Sym.Walk, null, Modifier.size(28.dp), tint = colors.onAccent)
         }
     }
-}
-
-/** "Spre Reperul 14, apoi la dreapta"; with nothing to see nearby, "Înainte, apoi la dreapta". */
-@Composable
-private fun stepText(step: RouteStep, label: String): String {
-    if (step.turn == Turn.ARRIVE) return stringResource(Res.string.route_last, label)
-    val turn = stringResource(
-        when (step.turn) {
-            Turn.LEFT -> Res.string.route_turn_left
-            Turn.RIGHT -> Res.string.route_turn_right
-            Turn.BACK -> Res.string.route_turn_back
-            else -> Res.string.route_turn_straight
-        },
-    )
-    val anchor = step.anchor
-    val place = when (anchor.kind) {
-        AnchorKind.LANDMARK -> stringResource(Res.string.route_landmark, anchor.number)
-        AnchorKind.GATE -> anchor.name.ifEmpty { null }
-            ?: if (anchor.number > 0) stringResource(Res.string.route_landmark, anchor.number) else stringResource(Res.string.route_gate)
-        AnchorKind.ZONE -> anchor.name
-        AnchorKind.NONE -> null
-    }
-    return if (place != null) stringResource(Res.string.route_toward, place, turn) else stringResource(Res.string.route_ahead, turn)
 }
 
 @Composable
@@ -390,7 +343,7 @@ fun rememberWalkMeters(vm: AppViewModel, origin: GeoPoint?, types: Collection<St
         value = if (origin == null) {
             emptyMap()
         } else {
-            val closed = closedPoints(points, vm.c.clock.wallMs())
+            val closed = ServiceLayer.closedPoints(points, vm.c.clock.wallMs())
             withContext(Dispatchers.Default) {
                 types.mapNotNull { type -> vm.c.walkRouter.nearestOpen(origin, type, mapState, staff, closed)?.let { type to it.route.meters } }.toMap()
             }

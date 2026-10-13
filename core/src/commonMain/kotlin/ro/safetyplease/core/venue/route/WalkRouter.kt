@@ -85,7 +85,7 @@ class WalkRouter(val venue: Venue) {
         val reached = search.run(start, -1, goals)
         if (reached < 0) return null
         val place = candidates[goals[reached]]
-        return Destination(place.name, place.number, build(grid, costs, search.path(reached), from, place.point))
+        return Destination(place.name, place.number, build(grid, costs, search.path(reached), from, place.point), place.point)
     }
 
     /**

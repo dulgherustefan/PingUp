@@ -1,9 +1,12 @@
 package ro.safetyplease.core.venue
 
+import ro.safetyplease.core.announce.MapState
+import ro.safetyplease.core.announce.ZoneState
 import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.control.PointReport
 import ro.safetyplease.core.event.ScheduleItem
 import ro.safetyplease.core.protocol.PointLevel
+import ro.safetyplease.core.venue.route.WalkRouter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -134,13 +137,24 @@ class LayersTest {
     }
 
     @Test
-    fun theNearestOpenSkipsClosedAndUnreachable() {
+    fun theNearestOpenIsTheRoutersAndSkipsClosedAndUnreachable() {
         val from = GeoPoint(44.0005, 28.0015)
         val board = mapOf(8 to report(8, PointLevel.CLOSED))
-        assertEquals(9, ServiceLayer.nearestOpen(venue, "water", board, now, from, StraightLine)?.number)
-        // a walk that can't reach 9 (a fence) leaves 10
-        val fenced = WalkDistance { a, b -> if (b.lon == 28.0040) null else StraightLine.meters(a, b) }
-        assertEquals(10, ServiceLayer.nearestOpen(venue, "water", board, now, from, fenced)?.number)
-        assertNull(ServiceLayer.nearestOpen(venue, "lockers", board, now, from, StraightLine))
+        assertEquals(9, ServiceLayer.nearestOpen(WalkRouter(venue), "water", board, now, from)?.number)
+        // a fence all around 9 leaves 10, and so does the console closing a zone around it
+        val ring = listOf(
+            GeoPoint(44.0003, 28.0038), GeoPoint(44.0003, 28.0042), GeoPoint(44.0007, 28.0042), GeoPoint(44.0007, 28.0038), GeoPoint(44.0003, 28.0038),
+        )
+        assertEquals(10, ServiceLayer.nearestOpen(WalkRouter(venue.copy(barriers = listOf(ring))), "water", board, now, from)?.number)
+        val around = venue.copy(zones = venue.zones + square("nine", "Lângă 9", 44.0, 28.0035, "bar"))
+        val closed = MapState(mapOf("nine" to ZoneState.CLOSED))
+        assertEquals(10, ServiceLayer.nearestOpen(WalkRouter(around), "water", board, now, from, closed)?.number)
+        assertNull(ServiceLayer.nearestOpen(WalkRouter(venue), "lockers", board, now, from))
+    }
+
+    @Test
+    fun closedPointsAreTheFreshClosedOnes() {
+        val board = mapOf(8 to report(8, PointLevel.CLOSED), 9 to report(9, PointLevel.BUSY), 10 to report(10, PointLevel.CLOSED, ageMs = 24 * 3_600_000L))
+        assertEquals(setOf(8), ServiceLayer.closedPoints(board, now))
     }
 }

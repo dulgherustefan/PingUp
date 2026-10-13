@@ -1,11 +1,9 @@
 package ro.safetyplease.ui.map
 
-import ro.safetyplease.core.control.PointBoard
-import ro.safetyplease.core.control.PointReport
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.position.FriendPace
-import ro.safetyplease.core.protocol.PointLevel
+import ro.safetyplease.core.position.SeenAt
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
@@ -52,14 +50,28 @@ class NavTargetTest {
     }
 
     @Test
-    fun onlyAFreshClosedStatusTakesAPointOut() {
-        val now = 10 * PointBoard.STALE_MS
-        val points = mapOf(
-            1 to PointReport(1, PointLevel.CLOSED, "A", now - 60_000, 0),
-            2 to PointReport(2, PointLevel.BUSY, "A", now - 60_000, 0),
-            3 to PointReport(3, PointLevel.CLOSED, "A", now - PointBoard.STALE_MS, 0),
-        )
-        assertEquals(setOf(1), closedPoints(points, now))
+    fun aLastSeenTargetFollowsTheReportAndTheDefibrillatorLeadsOnToThePatient() {
+        val incident = StaffIncident("i1", 1, 2, "stage", reportedAt = 0, receivedAt = 0, hops = 1)
+        assertNull(goal(NavTarget.LastSeen("i1"), listOf(incident)))
+        val seen = incident.copy(lastSeen = SeenAt(44.007, 26.007, 0, 3))
+        assertEquals(WalkGoal.To(GeoPoint(44.007, 26.007)), goal(NavTarget.LastSeen("i1"), listOf(seen)))
+        assertEquals(PinKind.LAST_SEEN, NavTarget.LastSeen("i1").pin)
+
+        val dea = NavTarget.Defibrillator("i1", GeoPoint(44.008, 26.008), "DEA")
+        assertEquals(WalkGoal.To(GeoPoint(44.008, 26.008)), goal(dea))
+        assertEquals(NavTarget.Incident("i1"), dea.next)
+        assertEquals(PinKind.SERVICE, dea.pin)
+        assertNull(NavTarget.Incident("i1").next)
+        assertNull(NavTarget.MeetingPoint.next)
+    }
+
+    @Test
+    fun aLostSessionMeetsAtItsLandmarkAndAMapPlaceGoesByItsNumber() {
+        assertEquals(NavTarget.Landmark(8), NavTarget.meeting(8))
+        assertEquals(NavTarget.MeetingPoint, NavTarget.meeting(0))
+        val point = GeoPoint(44.004, 26.004)
+        assertEquals(NavTarget.Landmark(14), NavTarget.place(14, point, "Info"))
+        assertEquals(NavTarget.Place(point, "Cortul"), NavTarget.place(0, point, "Cortul"))
     }
 
     @Test

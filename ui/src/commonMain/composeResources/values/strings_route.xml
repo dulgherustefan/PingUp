@@ -26,4 +26,12 @@
     <string name="route_no_goal">Nu știm acum unde e. Drumul apare când primim o poziție.</string>
     <string name="route_unreachable">Nu găsim un drum pe jos până acolo</string>
     <string name="route_unreachable_text">Apa, gardurile sau o zonă închisă de organizator îl blochează. Întreabă pe cineva din staff.</string>
+    <string name="route_last_seen">Ultima poziție</string>
+    <string name="route_dea">Defibrilator</string>
+    <string name="route_dea_taken">Am defibrilatorul → la pacient</string>
+    <string name="route_go_saved">Du-mă la locul salvat</string>
+    <string name="route_go_incident">Du-mă la incident</string>
+    <string name="route_go_last_seen">Du-mă la ultima poziție</string>
+    <string name="route_go_dea">Du-mă la defibrilator</string>
+    <string name="route_go_patient">Du-mă la pacient</string>
 </resources>

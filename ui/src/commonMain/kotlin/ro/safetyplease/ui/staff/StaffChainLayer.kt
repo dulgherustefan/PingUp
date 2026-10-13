@@ -33,10 +33,12 @@ import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
+import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
 import ro.safetyplease.ui.map.MapOverlay
+import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.map.OverlayLayer
 import ro.safetyplease.ui.map.OverlayPin
 import ro.safetyplease.ui.map.PinKind
@@ -59,6 +61,8 @@ import ro.safetyplease.ui.resources.responder_open
 import ro.safetyplease.ui.resources.responder_sheet
 import ro.safetyplease.ui.resources.responder_title
 import ro.safetyplease.ui.resources.responder_zone
+import ro.safetyplease.ui.resources.route_go_dea
+import ro.safetyplease.ui.resources.route_go_patient
 import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.ui.text.fill
 
@@ -129,7 +133,7 @@ private fun ManDownQuestion(vm: AppViewModel, untilMs: Long) {
     }
 }
 
-/** Someone doesn't breathe nearby: how far, the defibrillator on the way, the incident and the sheet. */
+/** Someone doesn't breathe nearby: how far, the walk by the defibrillator on the way, the incident and the sheet. */
 @Composable
 private fun ResponderAlert(vm: AppViewModel, target: ResponderTarget, onClose: () -> Unit) {
     val colors = AppTheme.colors
@@ -151,10 +155,23 @@ private fun ResponderAlert(vm: AppViewModel, target: ResponderTarget, onClose: (
             Text(stringResource(Res.string.responder_title), style = MaterialTheme.typography.title2, color = colors.redInk, fontWeight = FontWeight.Bold)
             where?.let { Text(it, style = MaterialTheme.typography.headline) }
             Text(dea, style = MaterialTheme.typography.subheadline)
+            // the walk to the defibrillator first, then on to the patient; without one, straight to the patient
+            val defibrillator = target.dea
+            AppButton(
+                stringResource(if (defibrillator != null) Res.string.route_go_dea else Res.string.route_go_patient),
+                {
+                    onClose()
+                    vm.navigate(
+                        if (defibrillator != null) NavTarget.Defibrillator(target.incidentId, defibrillator.point, deaName)
+                        else NavTarget.Incident(target.incidentId),
+                    )
+                },
+                Modifier.fillMaxWidth(), kind = ButtonKind.Danger, icon = Sym.Walk,
+            )
             AppButton(stringResource(Res.string.responder_open), {
                 onClose()
                 vm.open(Dest.Incident(target.incidentId))
-            }, Modifier.fillMaxWidth(), kind = ButtonKind.Danger)
+            }, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary)
             AppButton(stringResource(Res.string.responder_sheet), {
                 onClose()
                 vm.open(Dest.FirstAidSheet(NOT_BREATHING_SHEET))

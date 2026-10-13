@@ -41,5 +41,8 @@ data class Route(val points: List<GeoPoint>, val meters: Int, val seconds: Int, 
     }
 }
 
-/** The place [nearest][WalkRouter.nearestOpen] found: its [name], its landmark [number] (0 for none) and the way there. */
-data class Destination(val name: String, val number: Int, val route: Route)
+/**
+ * The place [nearest][WalkRouter.nearestOpen] found: its [name], its landmark [number] (0 for none), where it stands
+ * ([point], the middle of a zone) and the way there.
+ */
+data class Destination(val name: String, val number: Int, val route: Route, val point: GeoPoint = route.end)

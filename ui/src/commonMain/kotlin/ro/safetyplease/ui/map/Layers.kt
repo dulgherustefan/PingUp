@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -38,6 +39,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.data.Conversations
@@ -184,6 +188,7 @@ fun LayersPanel(vm: AppViewModel, origin: GeoPoint?, onShow: (GeoPoint) -> Unit)
     var query by rememberSaveable { mutableStateOf("") }
     val schedule = vm.c.program.schedule
     val present = remember(vm.venue) { ServiceLayer.present(vm.venue) }
+    val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxWidth()) {
         InputField(
@@ -244,9 +249,15 @@ fun LayersPanel(vm: AppViewModel, origin: GeoPoint?, onShow: (GeoPoint) -> Unit)
                 present.forEach { type ->
                     LayerChip(serviceGlyph(type), stringResource(typeLabel(type)), spotColor(colors, type), type in layers.types) {
                         layers.toggle(type)
-                        // switched on, it shows the nearest one not said to be closed, by the walk there
+                        // switched on, it shows the nearest one open by the walk there, the one "Du-mă acolo" would lead to
                         if (type in layers.types && origin != null) {
-                            ServiceLayer.nearestOpen(vm.venue, type, board, now, origin, vm.c.walkDistance)?.let { near ->
+                            val state = vm.c.mapState.value
+                            val staff = settings.role.hasStaffKeys
+                            scope.launch {
+                                val near = withContext(Dispatchers.Default) {
+                                    ServiceLayer.nearestOpen(vm.c.walkRouter, type, board, now, origin, state, staff)
+                                } ?: return@launch
+                                if (type !in layers.types) return@launch
                                 layers.picked = LayerPick.Service(near.key)
                                 onShow(near.point)
                             }
@@ -271,6 +282,9 @@ fun LayersPanel(vm: AppViewModel, origin: GeoPoint?, onShow: (GeoPoint) -> Unit)
     }
 }
 
+/** What the card under the map shows of a pick, and where its "Du-mă acolo" leads. */
+private class PickCard(val title: String, val detail: String?, val spot: Spot, val glyph: ImageVector, val target: NavTarget)
+
 /** The card of what a tap or a search picked: its name, status and walk, and the way there. */
 @Composable
 private fun PickedCard(vm: AppViewModel, origin: GeoPoint?, services: List<ServicePoint>, saved: GeoPoint?, onShow: (GeoPoint) -> Unit) {
@@ -279,37 +293,38 @@ private fun PickedCard(vm: AppViewModel, origin: GeoPoint?, services: List<Servi
     val stateWords = ServiceState.entries.associateWith { stringResource(stateLabel(it)) }
     val savedName = stringResource(Res.string.layers_saved_place)
     val picked = layers.picked ?: return
-    val card: Triple<String, String?, Pair<Spot, ImageVector>> = when (picked) {
+    val card = when (picked) {
         is LayerPick.Service -> {
             val p = services.firstOrNull { it.key == picked.key } ?: return
             val name = p.name.ifEmpty { stringResource(typeLabel(p.type)) }
             val title = if (p.number > 0) stringResource(Res.string.layers_landmark_named, p.number, name) else name
-            Triple(title, stateWords.getValue(p.state), p.spot to serviceGlyph(p.type))
+            PickCard(title, stateWords.getValue(p.state), p.spot, serviceGlyph(p.type), NavTarget.place(p.number, p.point, title))
         }
         is LayerPick.Result -> {
-            val point = picked.found.point ?: return
-            val spot = Spot(picked.found.type, picked.found.name, point)
-            Triple(foundTitle(picked.found), foundDetail(vm, picked.found), spot to foundGlyph(picked.found))
+            val found = picked.found
+            val point = found.point ?: return
+            val title = foundTitle(found)
+            val target = if (found.kind == FoundKind.FRIEND) NavTarget.Friend(found.friend) else NavTarget.place(found.number, point, title)
+            PickCard(title, foundDetail(vm, found), Spot(found.type, found.name, point), foundGlyph(found), target)
         }
         LayerPick.Saved -> {
             val point = saved ?: return
-            Triple(savedName, null, Spot("", savedName, point) to Sym.Place)
+            PickCard(savedName, null, Spot("", savedName, point), Sym.Place, NavTarget.Place(point, savedName))
         }
     }
-    val (title, detail, target) = card
-    val (spot, glyph) = target
+    val spot = card.spot
     InsetGroup(Modifier.padding(top = 4.dp)) {
         GroupRow(
-            title,
-            subtitle = listOfNotNull(detail, walkLine(vm, origin, spot.point)).joinToString(" · "),
+            card.title,
+            subtitle = listOfNotNull(card.detail, walkLine(vm, origin, spot.point)).joinToString(" · "),
             leading = {
-                IconCircle(glyph, if (picked == LayerPick.Saved) colors.green else spotColor(colors, spot.type), Color.White, 36.dp)
+                IconCircle(card.glyph, if (picked == LayerPick.Saved) colors.green else spotColor(colors, spot.type), Color.White, 36.dp)
             },
             onClick = { onShow(spot.point) },
             trailing = { IconBtn(Sym.Close, stringResource(Res.string.close), { layers.picked = null }) },
         )
         Row(Modifier.padding(start = 64.dp, end = Gutter, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            AppButton(stringResource(Res.string.layers_go), { layers.routeTo(spot) }, compact = true)
+            if (vm.c.walkRouter.covers(spot.point)) AppButton(stringResource(Res.string.layers_go), { vm.navigate(card.target) }, compact = true)
             if (picked == LayerPick.Saved) {
                 TextLink(stringResource(Res.string.layers_remove_place), {
                     vm.c.settings.update { it.copy(savedPlace = null) }

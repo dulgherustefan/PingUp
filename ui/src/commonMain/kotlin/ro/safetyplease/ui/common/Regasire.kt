@@ -40,7 +40,6 @@ import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.distanceMeters
 import ro.safetyplease.core.venue.radians
 import ro.safetyplease.ui.AppViewModel
-import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Avatar
@@ -57,6 +56,7 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.map.MapOverlay
 import ro.safetyplease.ui.map.MapRoute
+import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.map.OverlayPin
 import ro.safetyplease.ui.map.PinKind
 import ro.safetyplease.ui.map.RouteStyle
@@ -96,6 +96,7 @@ import ro.safetyplease.ui.resources.lastseen_section
 import ro.safetyplease.ui.resources.lastseen_staff
 import ro.safetyplease.ui.resources.lastseen_staff_title
 import ro.safetyplease.ui.resources.lastseen_told
+import ro.safetyplease.ui.resources.route_go_last_seen
 import ro.safetyplease.ui.resources.steps_text
 import ro.safetyplease.ui.resources.steps_title
 import ro.safetyplease.ui.text.agoText
@@ -178,7 +179,7 @@ class RegasireMap(private val venue: Venue) {
 @Composable
 fun rememberRegasireMap(vm: AppViewModel): RegasireMap = remember(vm) { RegasireMap(vm.venue) }
 
-/** The map screen's rows: where a lost session sends you, "M-am pierdut de grup" and "Sunt lângă un reper". */
+/** The map screen's rows: where a lost session sends you, a tap the walk there, "M-am pierdut de grup" and "Sunt lângă un reper". */
 @Composable
 fun RegasireMapRows(vm: AppViewModel, origin: GeoPoint?) {
     val reg = vm.c.regasire
@@ -193,7 +194,7 @@ fun RegasireMapRows(vm: AppViewModel, origin: GeoPoint?) {
             val name = meetingPlaceName(t.landmark)
             GroupRow(
                 stringResource(Res.string.lost_target, name), subtitle = origin?.let { routeText(it, t.point) }, icon = Sym.Flag,
-                onClick = { vm.open(Dest.Pin(t.point.lat, t.point.lon, "", name.replaceFirstChar { it.uppercase() })) },
+                onClick = { vm.navigate(NavTarget.meeting(t.landmark)) },
                 trailing = if (t.mine) {
                     { TextLink(stringResource(Res.string.lost_found), { reg.foundGroup(t.conversation) }) }
                 } else null,
@@ -351,9 +352,9 @@ fun lastSeenOverlay(vm: AppViewModel, incident: StaffIncident): MapOverlay {
     )
 }
 
-/** The same in words, under the incident's map. */
+/** The same in words, under the incident's map, with the walk there for a team that goes to look. */
 @Composable
-fun LastSeenBlock(vm: AppViewModel, incident: StaffIncident) {
+fun LastSeenBlock(vm: AppViewModel, incident: StaffIncident, walk: Boolean) {
     val seen = incident.lastSeen ?: return
     val now = rememberNow()
     val point = GeoPoint(seen.lat, seen.lon)
@@ -364,6 +365,13 @@ fun LastSeenBlock(vm: AppViewModel, incident: StaffIncident) {
             stringResource(Res.string.lastseen_staff_title), subtitle = stringResource(Res.string.lastseen_staff, agoText(seen.atMs, now), radius.toString()) + near,
             icon = Sym.PersonSearch,
         )
+        if (walk && vm.c.walkRouter.covers(point)) {
+            GroupDivider()
+            GroupRow(
+                stringResource(Res.string.route_go_last_seen), icon = Sym.Walk, tint = AppTheme.colors.accent, chevron = true,
+                onClick = { vm.navigate(NavTarget.LastSeen(incident.incidentId)) },
+            )
+        }
     }
 }
 

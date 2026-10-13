@@ -332,6 +332,24 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
     /** "Du-mă acolo": the walking route to [target], on its own screen. */
     fun navigate(target: NavTarget) = open(Dest.Walk(target))
 
+    /** The walk on screen goes on to [target] instead, as from the defibrillator to the patient. */
+    fun navigateInstead(target: NavTarget) {
+        if (stack.lastOrNull() is Dest.Walk) stack.removeAt(stack.lastIndex)
+        navigate(target)
+    }
+
+    /**
+     * A walk starts ([on]) or ends, on the route screen or out of an evacuation: fast fixes and, with the setting, the
+     * steps while it leads. Calls nest.
+     */
+    fun walking(on: Boolean) {
+        phone.urgentLocation(on)
+        c.positioning.navigating(on)
+    }
+
+    /** Friends' dialogs and links wait while an evacuation concerns this phone. */
+    val gate = EvacuationGate()
+
     fun back(): Boolean {
         if (stack.isEmpty()) return false
         stack.removeAt(stack.lastIndex)
@@ -353,6 +371,7 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
     }
 
     fun openTarget(target: String) {
+        if (!gate.admits(target)) return
         stack.clear()
         val (tab, dest) = landing(target) ?: return
         this.tab = tab

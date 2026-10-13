@@ -1,10 +1,7 @@
 package ro.safetyplease.ui.map
 
-import ro.safetyplease.core.control.PointBoard
-import ro.safetyplease.core.control.PointReport
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.position.Guide
-import ro.safetyplease.core.protocol.PointLevel
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.route.GuideEvent
@@ -32,6 +29,12 @@ sealed interface NavTarget {
     /** An open incident, for staff. */
     data class Incident(val id: String) : NavTarget
 
+    /** Where the person a lost report looks for was last seen, for staff; it follows the report's updates. */
+    data class LastSeen(val incidentId: String) : NavTarget
+
+    /** The defibrillator a responder fetches on the way to the patient of [incidentId]; the walk goes on from there. */
+    data class Defibrillator(val incidentId: String, val point: GeoPoint, val name: String) : NavTarget
+
     /** Where the walk leads now; null when the target has no place, like a friend who shares nothing. */
     fun goal(venue: Venue, friends: List<FriendSpot>, incidents: List<StaffIncident>, closedPoints: Set<Int>): WalkGoal? = when (this) {
         is Friend -> friends.firstOrNull { it.friend.nodeId == nodeId }?.point?.let(WalkGoal::To)
@@ -40,22 +43,33 @@ sealed interface NavTarget {
         is Nearest -> WalkGoal.NearestOpen(type, closedPoints)
         is Place -> WalkGoal.To(point)
         is Incident -> incidents.firstOrNull { it.incidentId == id }?.let { incidentPoint(venue, it) }?.let(WalkGoal::To)
+        is LastSeen -> incidents.firstOrNull { it.incidentId == incidentId }?.lastSeen?.let { WalkGoal.To(GeoPoint(it.lat, it.lon)) }
+        is Defibrillator -> WalkGoal.To(point)
     }
 
     /** The pin at the end of the route. */
     val pin: PinKind
         get() = when (this) {
-            is Friend -> PinKind.LAST_SEEN
+            is Friend, is LastSeen -> PinKind.LAST_SEEN
             MeetingPoint, is Landmark -> PinKind.MEETING
-            is Nearest -> PinKind.SERVICE
+            is Nearest, is Defibrillator -> PinKind.SERVICE
             is Place -> PinKind.SHARED_PLACE
             is Incident -> PinKind.INCIDENT
         }
-}
 
-/** The numbered points staff marked closed or out of service and nobody contradicted since. */
-fun closedPoints(points: Map<Int, PointReport>, nowMs: Long): Set<Int> =
-    points.values.filter { it.level == PointLevel.CLOSED && !PointBoard.isStale(it, nowMs) }.map { it.point }.toSet()
+    /** Where the walk goes on once this one is reached: from the defibrillator to the patient; null for the rest. */
+    val next: NavTarget?
+        get() = (this as? Defibrillator)?.let { Incident(it.incidentId) }
+
+    companion object {
+        /** Where a lost session meets: [landmark], or the venue's meeting point for 0. */
+        fun meeting(landmark: Int): NavTarget = if (landmark != 0) Landmark(landmark) else MeetingPoint
+
+        /** A place of the map by its landmark [number] when it has one, which the walk then names; else by its point. */
+        fun place(number: Int, point: GeoPoint, label: String): NavTarget =
+            if (number in Venue.LANDMARK_NUMBERS) Landmark(number) else Place(point, label)
+    }
+}
 
 /**
  * The arrow's angle on screen, clockwise, towards [toward]: from the way the phone faces, else from the way the person

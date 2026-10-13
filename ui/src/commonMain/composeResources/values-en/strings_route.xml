@@ -26,4 +26,12 @@
     <string name="route_no_goal">We don’t know where it is right now. The route appears once a position arrives.</string>
     <string name="route_unreachable">No walking route gets there</string>
     <string name="route_unreachable_text">Water, fences or a zone the organiser closed are in the way. Ask a staff member.</string>
+    <string name="route_last_seen">Last position</string>
+    <string name="route_dea">Defibrillator</string>
+    <string name="route_dea_taken">I have the defibrillator → to the patient</string>
+    <string name="route_go_saved">Take me to the saved place</string>
+    <string name="route_go_incident">Take me to the incident</string>
+    <string name="route_go_last_seen">Take me to the last position</string>
+    <string name="route_go_dea">Take me to the defibrillator</string>
+    <string name="route_go_patient">Take me to the patient</string>
 </resources>

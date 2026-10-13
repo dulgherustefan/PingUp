@@ -1,8 +1,10 @@
 package ro.safetyplease.core.venue
 
+import ro.safetyplease.core.announce.MapState
 import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.control.PointReport
 import ro.safetyplease.core.protocol.PointLevel
+import ro.safetyplease.core.venue.route.WalkRouter
 
 /** How a service point is: as staff last said, or [UNKNOWN] when nobody said or nobody confirmed it lately. */
 enum class ServiceState { FREE, BUSY, CLOSED, UNKNOWN }
@@ -56,9 +58,25 @@ object ServiceLayer {
                 }
         }.filter { !openOnly || it.state != ServiceState.CLOSED }
 
-    /** The nearest place of [type] not said to be closed, by the walk from [from]; one no walk reaches doesn't count. */
-    fun nearestOpen(venue: Venue, type: String, board: Map<Int, PointReport>, nowMs: Long, from: GeoPoint, walk: WalkDistance): ServicePoint? =
-        points(venue, setOf(type), board, nowMs, openOnly = true)
-            .mapNotNull { p -> walk.meters(from, p.point)?.let { p to it } }
-            .minByOrNull { it.second }?.first
+    /** The numbered points staff marked closed or out of service and nobody contradicted since. */
+    fun closedPoints(board: Map<Int, PointReport>, nowMs: Long): Set<Int> =
+        board.values.filter { it.level == PointLevel.CLOSED && !PointBoard.isStale(it, nowMs) }.map { it.point }.toSet()
+
+    /**
+     * The place of [type] nearest by walking from [from], neither said to be closed nor in a zone the console closed:
+     * the router's own search ([WalkRouter.nearestOpen]), so the layer and the route agree. One no walk reaches doesn't
+     * count. It plans: call it off the main thread.
+     */
+    fun nearestOpen(
+        router: WalkRouter,
+        type: String,
+        board: Map<Int, PointReport>,
+        nowMs: Long,
+        from: GeoPoint,
+        state: MapState = MapState.OPEN,
+        staff: Boolean = false,
+    ): ServicePoint? {
+        val found = router.nearestOpen(from, type, state, staff, closedPoints(board, nowMs)) ?: return null
+        return points(router.venue, setOf(type), board, nowMs).firstOrNull { it.point == found.point && it.number == found.number }
+    }
 }

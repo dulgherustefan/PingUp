@@ -27,10 +27,12 @@ import ro.safetyplease.core.safety.Card112
 import ro.safetyplease.core.safety.NearbyPlace
 import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Banner
+import ro.safetyplease.ui.designsystem.ButtonKind
 import ro.safetyplease.ui.designsystem.GlassIconButton
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.NavScreen
@@ -40,6 +42,7 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title1
 import ro.safetyplease.ui.designsystem.title2
+import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
 import ro.safetyplease.ui.resources.card112_accuracy
@@ -62,6 +65,7 @@ import ro.safetyplease.ui.resources.card112_stale_text
 import ro.safetyplease.ui.resources.card112_stale_title
 import ro.safetyplease.ui.resources.card112_title
 import ro.safetyplease.ui.resources.emergency_call
+import ro.safetyplease.ui.resources.route_go
 import ro.safetyplease.ui.resources.safety_meters
 import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.ui.text.rememberNow
@@ -135,8 +139,9 @@ fun Card112Screen(vm: AppViewModel) {
                 card.gridCell?.let { Fact(stringResource(Res.string.card112_square), it) }
                 if (card.landline != null || card.medical != null) {
                     Text(stringResource(Res.string.card112_help_title), style = MaterialTheme.typography.headline)
-                    card.landline?.let { Help(stringResource(Res.string.card112_landline), it) }
-                    card.medical?.let { Help(stringResource(Res.string.card112_medical), it) }
+                    // the walk goes to the nearest open one from where the phone is then, around closed zones
+                    card.landline?.let { Help(stringResource(Res.string.card112_landline), it) { vm.navigate(NavTarget.Nearest(Venue.PHONE)) } }
+                    card.medical?.let { Help(stringResource(Res.string.card112_medical), it) { vm.navigate(NavTarget.Nearest(MEDICAL)) } }
                 }
             }
             AppButton(stringResource(Res.string.emergency_call), { vm.phone.dial112() }, Modifier.fillMaxWidth(), icon = Sym.Phone)
@@ -164,7 +169,7 @@ private fun Fact(label: String, value: String, mono: Boolean = false) {
 }
 
 @Composable
-private fun Help(label: String, place: NearbyPlace) {
+private fun Help(label: String, place: NearbyPlace, onWalk: () -> Unit) {
     val colors = AppTheme.colors
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(colors.cell).padding(16.dp)) {
         Text(label, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
@@ -172,5 +177,8 @@ private fun Help(label: String, place: NearbyPlace) {
             listOf(place.name, stringResource(Res.string.safety_meters, place.meters)).filter { it.isNotEmpty() }.joinToString(" · "),
             style = MaterialTheme.typography.title2,
         )
+        AppButton(stringResource(Res.string.route_go), onWalk, Modifier.padding(top = 10.dp), kind = ButtonKind.Secondary, compact = true, icon = Sym.Walk)
     }
 }
+
+private const val MEDICAL = "medical"

@@ -121,6 +121,7 @@ import ro.safetyplease.ui.notices.EvacuationUi
 import ro.safetyplease.ui.notices.NoticeAlert
 import ro.safetyplease.ui.notices.NoticeBands
 import ro.safetyplease.ui.notices.myEvacuation
+import ro.safetyplease.ui.notices.rememberEvacuationWalk
 import ro.safetyplease.ui.notices.rememberWhereabouts
 import ro.safetyplease.ui.notices.screenAlert
 import ro.safetyplease.ui.notices.shownNotices
@@ -195,6 +196,8 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
         onPauseOrDispose { }
     }
     val alert = screenAlert(shown, vm.venue, here)
+    // friends wait while an evacuation concerns this phone, and a link to one of them opens once it ends
+    LaunchedEffect(evacuation != null) { vm.gate.evacuation(evacuation != null)?.let(vm::openTarget) }
     ControlMapLayer(vm, hereZone)
     CompositionLocalProvider(LocalTextOnly provides textOnly, LocalReduceMotion provides reduce) {
         FullScreen {
@@ -213,11 +216,11 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
                 }
             }
             alert?.let { NoticeAlert(it, vm.c.exercise) { vm.c.notices.alerted(it.notice.topic, it.notice.seq) } }
-            MeetupRequests(vm)
+            if (evacuation == null) MeetupRequests(vm)
             StaffChainLayer(vm)
-            RegasireRequests(vm)
-            // above a friend's torch: nothing covers the way out
-            evacuation?.let { EvacuationMode(vm, it, hereZone, evacuationUi) }
+            RegasireRequests(vm, dialogs = evacuation == null)
+            // above everything else, and its way out goes on while it is minimised
+            evacuation?.let { EvacuationMode(vm, it, hereZone, evacuationUi, rememberEvacuationWalk(vm, hereZone)) }
         }
     }
 }

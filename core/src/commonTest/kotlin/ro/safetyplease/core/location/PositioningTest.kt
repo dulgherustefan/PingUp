@@ -163,6 +163,13 @@ class PositioningTest {
         p.follow(setting = true, exactShare = false)
         p.navigating(true)
         assertTrue(p.stepsWanted.value)
+        // the route screen and an evacuation's way out guide at once; one ending leaves the other its steps
+        p.navigating(true)
+        p.navigating(false)
+        assertTrue(p.stepsWanted.value)
+        p.navigating(false)
+        assertFalse(p.stepsWanted.value)
+        p.navigating(true)
         p.follow(setting = false, exactShare = true)
         assertFalse(p.stepsWanted.value)
     }

@@ -67,6 +67,7 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title1
+import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.me.BatteryGroup
 import ro.safetyplease.ui.rememberRadioGate
 import ro.safetyplease.ui.resources.Res
@@ -89,6 +90,7 @@ import ro.safetyplease.ui.resources.gnss_row_text
 import ro.safetyplease.ui.resources.gnss_searching
 import ro.safetyplease.ui.resources.gnss_searching_text
 import ro.safetyplease.ui.resources.gnss_title
+import ro.safetyplease.ui.resources.layers_saved_place
 import ro.safetyplease.ui.resources.me_auto_answer
 import ro.safetyplease.ui.resources.me_auto_answer_text
 import ro.safetyplease.ui.resources.me_battery
@@ -140,6 +142,7 @@ import ro.safetyplease.ui.resources.relayed_packets
 import ro.safetyplease.ui.resources.role_anchor
 import ro.safetyplease.ui.resources.role_control
 import ro.safetyplease.ui.resources.role_staff
+import ro.safetyplease.ui.resources.route_go_saved
 import ro.safetyplease.ui.resources.save
 import ro.safetyplease.ui.resources.staff_verified
 import ro.safetyplease.ui.resources.zone_unknown
@@ -240,6 +243,17 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         } else {
                             GroupRow(stringResource(Res.string.gnss_prewarm), subtitle = stringResource(Res.string.gnss_prewarm_text), icon = Sym.Place)
                         }
+                    }
+                }
+
+                // the place kept with a long press on the map, a walk away
+                settings.savedPlace?.takeIf { vm.c.walkRouter.covers(it) }?.let { saved ->
+                    val savedName = stringResource(Res.string.layers_saved_place)
+                    InsetGroup {
+                        GroupRow(
+                            stringResource(Res.string.route_go_saved), icon = Sym.Walk, tint = colors.accent, chevron = true,
+                            onClick = { vm.navigate(NavTarget.Place(saved, savedName)) },
+                        )
                     }
                 }
 

@@ -44,6 +44,7 @@ import ro.safetyplease.ui.designsystem.TextLink
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
 import ro.safetyplease.ui.resources.checkin_alert_dismiss
@@ -58,6 +59,7 @@ import ro.safetyplease.ui.resources.checkin_alert_silent
 import ro.safetyplease.ui.resources.checkin_alert_time
 import ro.safetyplease.ui.resources.checkin_alerts_empty
 import ro.safetyplease.ui.resources.checkin_alerts_title
+import ro.safetyplease.ui.resources.route_go_to
 import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.ui.text.rememberNow
 
@@ -135,6 +137,12 @@ private fun FriendAlertCard(vm: AppViewModel, alert: FriendAlert, now: Long) {
             },
             Modifier.fillMaxWidth(), kind = ButtonKind.Secondary, icon = Sym.PersonSearch,
         )
+        if (point != null && vm.c.walkRouter.covers(point)) {
+            AppButton(
+                stringResource(Res.string.route_go_to, name), { vm.navigate(NavTarget.Place(point, name)) },
+                Modifier.fillMaxWidth(), kind = ButtonKind.Secondary, icon = Sym.Walk,
+            )
+        }
         if (point != null) {
             AppButton(
                 stringResource(Res.string.checkin_alert_map),

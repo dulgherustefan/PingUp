@@ -23,6 +23,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,10 +62,16 @@ import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 import ro.safetyplease.core.venue.compassSector
+import ro.safetyplease.core.venue.route.Route
+import ro.safetyplease.core.venue.route.WalkGoal
+import ro.safetyplease.core.venue.route.WalkState
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.common.BackHandler
 import ro.safetyplease.ui.common.VenueMap
+import ro.safetyplease.ui.common.WalkTrack
 import ro.safetyplease.ui.common.onSite
+import ro.safetyplease.ui.common.rememberWalk
+import ro.safetyplease.ui.common.walkStepText
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
@@ -74,6 +82,11 @@ import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title1
 import ro.safetyplease.ui.designsystem.title2
 import ro.safetyplease.ui.designsystem.title3
+import ro.safetyplease.ui.map.MapOverlay
+import ro.safetyplease.ui.map.MapRoute
+import ro.safetyplease.ui.map.OverlayLayer
+import ro.safetyplease.ui.map.OverlayPin
+import ro.safetyplease.ui.map.PinKind
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.evac_banner
 import ro.safetyplease.ui.resources.evac_banner_closed
@@ -96,6 +109,8 @@ import ro.safetyplease.ui.resources.evac_your_zone
 import ro.safetyplease.ui.resources.exercise_banner
 import ro.safetyplease.ui.resources.map_directions
 import ro.safetyplease.ui.resources.map_route
+import ro.safetyplease.ui.resources.route_arrived
+import ro.safetyplease.ui.resources.route_left
 import ro.safetyplease.ui.text.rememberNow
 
 /** What the evacuation mode tells a phone besides its exit, when it has none. */
@@ -204,7 +219,7 @@ fun EvacuationBanner(vm: AppViewModel, shown: ShownNotice, zone: String?, status
  * In an exercise it says so at the top; the alarm sound stays off, as everywhere in an exercise.
  */
 @Composable
-fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: EvacuationUi) {
+fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: EvacuationUi, walk: WalkTrack) {
     if (shown.held.alerted && !ui.reopened) return
     val state by vm.c.mapState.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
@@ -240,11 +255,14 @@ fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: Evac
                     Line(goText(target.exit), type.title1, bold = true)
                 }
                 if (target.switched) Line(stringResource(Res.string.evac_switched), type.subheadline)
-                here?.let { WayTo(vm, it, target.exit.point) }
+                // the walk out, step by step, once it has a route; else the way as the crow flies
+                val guiding = walk.state as? WalkState.Guiding
+                if (guiding != null) WalkLine(vm, guiding, exitLabel(target.exit), here)
+                else here?.let { WayTo(vm, it, target.exit.point) }
                 target.fallback?.let { Line(stringResource(Res.string.evac_fallback, exitLabel(it)), type.title3) }
                 VenueMap(
                     vm.venue, Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(16.dp)), position = here,
-                    myZone = zone.orEmpty(), target = target.point, mapOverlay = overlay,
+                    myZone = zone.orEmpty(), target = target.point.takeIf { guiding == null }, mapOverlay = overlay,
                 )
             } else {
                 Line(stringResource(caseText(view.case)), type.title3)
@@ -258,6 +276,57 @@ fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: Evac
 }
 
 private val Ink = Color.White
+
+private const val EXIT_PIN = "evacuation:exit"
+
+/**
+ * The walk out of an evacuation for a phone in [zone], to the exit its plan gives it now, around the zones the console
+ * closed. It starts by itself and lasts while the evacuation is in force, minimised or not, so the route stays on both
+ * maps through the evacuation's own overlay layer. Without a position there is no route, and the mode keeps its list.
+ */
+@Composable
+fun rememberEvacuationWalk(vm: AppViewModel, zone: String?): WalkTrack {
+    val state by vm.c.mapState.collectAsStateWithLifecycle()
+    val exit = Evacuations.target(vm.venue, state, zone)?.exit
+    // a walk per exit: a closure that switches it plans the new way from scratch, and no exit keeps the GPS slow
+    val track = if (exit != null) rememberWalk(vm, exit.number, goal = { WalkGoal.To(exit.point) }) else remember { WalkTrack() }
+    val route = (track.state as? WalkState.Guiding)?.route?.takeIf { exit != null }
+    val label = exit?.let { exitLabel(it) }.orEmpty()
+    LaunchedEffect(route, label) {
+        if (route == null) vm.mapOverlays.clear(OverlayLayer.EVACUATION)
+        else {
+            val pin = OverlayPin(EXIT_PIN, route.end, PinKind.SERVICE, label)
+            vm.mapOverlays.set(OverlayLayer.EVACUATION, MapOverlay(routes = listOf(MapRoute(route.points)), pins = listOf(pin)))
+        }
+    }
+    DisposableEffect(Unit) { onDispose { vm.mapOverlays.clear(OverlayLayer.EVACUATION) } }
+    return track
+}
+
+/** The next step out told by a landmark, with the walk left; an arrow turns with the phone where it has a compass. */
+@Composable
+private fun WalkLine(vm: AppViewModel, walk: WalkState.Guiding, exit: String, from: GeoPoint?) {
+    val progress = walk.progress
+    if (progress.arrived) {
+        Line(stringResource(Res.string.route_arrived), MaterialTheme.typography.title3, bold = true)
+        return
+    }
+    // the compass has no flow of its own: read it again every second
+    rememberNow(1_000)
+    val heading = vm.phone.heading()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (from != null && heading != null) {
+            Icon(Sym.Send, null, Modifier.size(32.dp).rotate(Guide.arrowDeg(Guide.bearing(from, progress.toward), heading)), tint = Ink)
+            Spacer(Modifier.width(12.dp))
+        }
+        Line(
+            walkStepText(walk.route.steps[progress.step], exit), MaterialTheme.typography.title3, bold = true,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
+    val minutes = Route.minutes(progress.remainingSec)
+    Line(stringResource(Res.string.route_left, progress.remainingM, minutes.first, minutes.last), MaterialTheme.typography.subheadline)
+}
 
 @Composable
 private fun Line(text: String, style: TextStyle, bold: Boolean = false, modifier: Modifier = Modifier) = Text(

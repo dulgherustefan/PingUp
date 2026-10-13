@@ -87,7 +87,7 @@ class Positioning(private val clock: Clock) {
     private val _stepsWanted = MutableStateFlow(false)
     private var needs = Needs()
 
-    private data class Needs(val setting: Boolean = false, val exactShare: Boolean = false, val reports: Int = 0, val navigating: Boolean = false)
+    private data class Needs(val setting: Boolean = false, val exactShare: Boolean = false, val reports: Int = 0, val navigating: Int = 0)
 
     /** What the app shows and sends; [position] is the same fix without the method. */
     val fused: StateFlow<Fused?> = _fused
@@ -150,10 +150,10 @@ class Positioning(private val clock: Clock) {
     fun reportOpen(open: Boolean) = need { it.copy(reports = (it.reports + if (open) 1 else -1).coerceAtLeast(0)) }
 
     /**
-     * For the walking route (`route/`): it calls this while it guides the person, so the steps can bridge a GNSS gap
-     * on the way. Nothing else calls it.
+     * A walk starts ([on]) or ends: the route screen and the evacuation's way out call this while they guide the person,
+     * so the steps can bridge a GNSS gap on the way. Calls nest, like [reportOpen].
      */
-    fun navigating(on: Boolean) = need { it.copy(navigating = on) }
+    fun navigating(on: Boolean) = need { it.copy(navigating = (it.navigating + if (on) 1 else -1).coerceAtLeast(0)) }
 
     /** The steps setting, and whether an exact share runs now. */
     fun follow(setting: Boolean, exactShare: Boolean) = need { it.copy(setting = setting, exactShare = exactShare) }
@@ -170,7 +170,7 @@ class Positioning(private val clock: Clock) {
 
     private fun need(change: (Needs) -> Needs) = synchronized(lock) {
         needs = change(needs)
-        _stepsWanted.value = needs.setting && (needs.exactShare || needs.reports > 0 || needs.navigating)
+        _stepsWanted.value = needs.setting && (needs.exactShare || needs.reports > 0 || needs.navigating > 0)
     }
 
     /** The landmark while it holds, stamped now so it stays fresh; else [shown], the last fix through the filter. */
