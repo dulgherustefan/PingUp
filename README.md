@@ -1,5 +1,5 @@
 # PingUp
-O aplicație Android pentru raportarea incidentelor și mesajelor, care merge fără internet, fără date mobile, fără Wi-Fi, fără server.
+O aplicație pentru Android și iPhone pentru raportarea incidentelor și mesajelor, care merge fără internet, fără date mobile, fără Wi-Fi, fără server.
 Ideea de la care am pornit:  In timpul unui festival sau a unui eveniment aglomerat, trimiterea mesajelor este aproape imposibila din cauza lipsei de semnal.
 
 ## Cum funcționează, pe scurt
@@ -17,10 +17,16 @@ A  →  B  →  C  →  D
 - Fără server și fără conturi. Ce date folosește aplicația și unde ajung: [PRIVACY.md](PRIVACY.md).
 
 ## Tehnologii
-Kotlin, Jetpack Compose, Bluetooth LE (GATT), libsodium (prin lazysodium), Gradle, Python (script pentru chei de staff).
+Kotlin Multiplatform, Compose Multiplatform (aceleași ecrane pe Android și iPhone), Bluetooth LE (GATT; CoreBluetooth pe iPhone), libsodium, Gradle, SwiftUI doar cât să găzduiască ecranele pe iPhone, Python (script pentru chei de staff).
 
 ## Structura
-Două module: `core/` are toată logica (protocolul, rețeaua mesh, criptarea, chatul, incidentele) în Kotlin pur, fără Android; `app/` are Bluetooth-ul, notificările și ecranele. Detalii și reguli în [ARCHITECTURE.md](ARCHITECTURE.md).
+Un singur cod pentru ambele telefoane:
+- `core/` are toată logica (protocolul, rețeaua mesh, criptarea, chatul, incidentele), în Kotlin comun;
+- `ui/` are ecranele, comune pentru Android și iPhone, plus ce e al fiecărui telefon (`androidMain`, `iosMain`: Bluetooth-ul iPhone-ului, notificările, locația, Keychain);
+- `app/` e aplicația Android: Bluetooth-ul, serviciul din fundal, notificările;
+- `iosApp/` e aplicația iPhone: proiectul Xcode, făcut cu XcodeGen din `project.yml`.
+
+Detalii și reguli în [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Cum rulezi proiectul
 Cel mai simplu: deschizi folderul în Android Studio și dai Run.
@@ -42,6 +48,22 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 `test` rulează testele din ambele module. Apoi instalezi pe telefon (cu USB debugging activat):
 ```
 adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Pe iPhone
+
+Pe un Mac, cu Xcode 26 sau mai nou și JDK-ul de mai sus:
+
+```
+brew install xcodegen
+cd iosApp && xcodegen
+open PingUp.xcodeproj
+```
+
+Xcode construiește întâi ecranele din Kotlin, prin Gradle, apoi aplicația. Simulatorul nu are Bluetooth și cameră: rețeaua și scanarea QR se încearcă pe un iPhone real. Un cont Apple gratuit ajunge pentru build-ul Debug pe telefonul tău (Signing & Capabilities → Team); Release cere Apple Developer Program, pentru notificările urgente care trec prin Focus. Testele comune rulează și pe iPhone:
+
+```
+./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test
 ```
 
 ## Instalare
