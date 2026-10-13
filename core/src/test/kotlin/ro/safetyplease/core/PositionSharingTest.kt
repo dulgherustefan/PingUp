@@ -119,6 +119,26 @@ class PositionSharingTest {
     }
 
     @Test
+    fun aPositionThatCouldNotGoIsSentOnceALinkIsBack() = runTest {
+        val w = World(this, tmp.root)
+        val (a, b) = pair(w)
+        a.chat.startShare(Conversations.friend(b.nodeId), 30, SharePrecision.EXACT)
+        a.fix(w, spot(300, 300))
+        advanceTimeBy(10_000)
+        assertEquals(1, b.positions.value.records.size)
+
+        w.net.cut("A", "B")
+        advanceTimeBy(60_000)
+        val moved = spot(600, 300)
+        a.fix(w, moved)
+        advanceTimeBy(1_000)
+        w.net.heal("A", "B")
+        advanceTimeBy(30_000)
+        val seen = b.positions.value.records.single()
+        assertTrue("not held back until the next heartbeat", distanceMeters(GeoPoint(seen.lat, seen.lon), moved) <= 1)
+    }
+
+    @Test
     fun anApproximateShareNeverLeavesThePhoneMorePreciseThanItsCell() = runTest {
         val w = World(this, tmp.root)
         val (a, b) = pair(w)

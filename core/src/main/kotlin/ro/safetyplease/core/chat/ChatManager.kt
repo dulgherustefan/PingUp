@@ -319,14 +319,16 @@ class ChatManager(
         val accuracyM = radiusOf(fix, approximate)?.roundToInt()
         val keys = liveKeys()
         if (!policy.due(now, at, accuracyM, keys)) return
-        policy.sent(now, at, accuracyM)
         val nextUpdate = NextUpdate.of(policy.nextUpdateMs(keys))
         val seq = nextSeq()
         val readers = positions.value.readers
+        var sent = false
         for ((recipient, precision) in targets) {
             if (precision == SharePrecision.ZONE || recipient !in readers) tellZone(recipient)
-            else sendPosition(recipient, positionOf(fix, frame, precision, seq, nextUpdate))
+            else if (sendPosition(recipient, positionOf(fix, frame, precision, seq, nextUpdate))) sent = true
         }
+        // nothing went (no link, over budget): the next fix tries again instead of waiting for the next heartbeat
+        if (sent) policy.sent(now, at, accuracyM)
     }
 
     /** START until the recipient accepts, a minute apart, [MAX_START_TRIES] times: an older phone never will. */
