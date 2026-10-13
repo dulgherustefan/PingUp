@@ -133,6 +133,9 @@ class EvacuationsTest {
         val both = Evacuations.target(venue, state(closed("b", "c"), evacuation(1)), "b")!!
         assertEquals(2, both.exit.number)
         assertFalse(both.switched)
+        assertTrue(both.closed, "the screen warns that the exit stands in a closed zone")
+        assertFalse(b.closed)
+        assertFalse(a.closed)
     }
 
     @Test
@@ -148,8 +151,18 @@ class EvacuationsTest {
         val state = state(evacuation(2))
         assertNull(Evacuations.target(venue, state, null))
         assertNull(Evacuations.target(venue, state, ""))
-        assertEquals(listOf(1, 3, 4), Evacuations.exits(venue, Evacuations.plan(venue, state)).map { it.number })
-        assertEquals(listOf(1, 2, 3, 4), Evacuations.exits(venue, null).map { it.number }, "no plan: every exit")
+        assertEquals(listOf(1, 3, 4), Evacuations.exits(venue, Evacuations.plan(venue, state)).map { it.exit.number })
+        assertEquals(listOf(1, 2, 3, 4), Evacuations.exits(venue, null).map { it.exit.number }, "no plan: every exit")
+    }
+
+    @Test
+    fun theListOfExitsPutsTheClosedOnesLastAndTheNearestFirst() {
+        val state = state(closed("a"), evacuation(null))
+        val byNumber = Evacuations.exits(venue, null, state)
+        assertEquals(listOf(2, 3, 4, 1), byNumber.map { it.exit.number }, "Poarta A stands in closed a")
+        assertEquals(listOf(false, false, false, true), byNumber.map { it.closed })
+        val fromC = Evacuations.exits(venue, null, state, from = GeoPoint(44.0005, 26.0026))
+        assertEquals(listOf(3, 2, 4, 1), fromC.map { it.exit.number })
     }
 
     @Test
@@ -171,10 +184,67 @@ class EvacuationsTest {
         val now = 1_000_000L
         val inB = GeoFix(44.0005, 26.0015, 5f, now - 1_000)
         assertEquals("b", NoticeReach.zone(venue, Settings(), inB, now))
-        assertEquals("b", NoticeReach.zone(venue, Settings(manualZone = "a"), inB, now), "the fix wins")
-        assertEquals("a", NoticeReach.zone(venue, Settings(manualZone = "a"), inB.copy(timeMs = now - GeoFix.FRESH_MS), now), "a stale fix doesn't")
+        val pickedA = Settings(manualZone = "a", manualZoneAt = now - 60_000)
+        assertEquals("b", NoticeReach.zone(venue, pickedA, inB, now), "the fix wins")
+        assertEquals("a", NoticeReach.zone(venue, pickedA, inB.copy(timeMs = now - GeoFix.FRESH_MS), now), "a stale fix doesn't")
+        val longAgo = pickedA.copy(manualZoneAt = now - NoticeReach.MANUAL_ZONE_MS - 1)
+        assertNull(NoticeReach.zone(venue, longAgo, null, now), "a zone picked long ago is unknown")
+        assertNull(NoticeReach.zone(venue, Settings(manualZone = "a"), null, now), "as is one picked before the time was kept")
         assertEquals("", NoticeReach.zone(venue, Settings(), GeoFix(44.005, 26.005, 5f, now), now), "outside every zone")
         assertNull(NoticeReach.zone(venue, Settings(), null, now))
         assertEquals("c", NoticeReach.zone(venue, Settings(simLat = 44.0005, simLon = 26.0025), null, now), "the demo's position")
+    }
+
+    @Test
+    fun aStaleZonePickedByHandDoesNotSilenceAnEvacuation() {
+        val now = 1_000_000L
+        val evac = evacuation(1, setOf("b"))
+        val fresh = Settings(manualZone = "a", manualZoneAt = now - 5 * 60_000)
+        assertEquals(NoticeAlarm.NONE, NoticeReach.alarm(evac, venue, NoticeReach.zone(venue, fresh, null, now), exercise = false))
+        val stale = fresh.copy(manualZoneAt = now - 30 * 60_000)
+        assertEquals(NoticeAlarm.LOUD, NoticeReach.alarm(evac, venue, NoticeReach.zone(venue, stale, null, now), exercise = false))
+    }
+
+    @Test
+    fun aPhoneWhoseFixReachesAnEvacuatedZoneIsConcerned() {
+        val now = 1_000_000L
+        // in a, about 20 m west of b's border
+        val nearB = GeoFix(44.0005, 26.00073, 30f, now)
+        val here = NoticeReach.whereabouts(venue, Settings(), nearB, now)
+        assertEquals("a", here.zone)
+        assertEquals(setOf("b"), here.near)
+        val evac = evacuation(1, setOf("b"))
+        assertEquals(NoticeAlarm.LOUD, NoticeReach.alarmAt(evac, venue, here, exercise = false))
+        assertEquals("b", Evacuations.zoneFor(state(evac), here), "it follows b's way out")
+        val precise = NoticeReach.whereabouts(venue, Settings(), nearB.copy(accuracyM = 5f), now)
+        assertTrue(precise.near.isEmpty())
+        assertEquals(NoticeAlarm.NONE, NoticeReach.alarmAt(evac, venue, precise, exercise = false))
+        assertTrue(NoticeReach.whereabouts(venue, Settings(simLat = nearB.lat, simLon = nearB.lon), null, now).near.isEmpty(), "the demo's position is exact")
+    }
+
+    @Test
+    fun anEvacuationComesThroughWithTheNoticesTurnedOff() {
+        val evac = evacuation(1, setOf("a"))
+        val heat = sign(NoticeTopic.HEAT, 3)
+        val pause = sign(NoticeTopic.ALERT, NoticeLevel.PAUSE)
+        fun posts(n: Notice, zone: String?, exercise: Boolean = false, notices: Boolean = false) =
+            NoticeReach.alarm(n, venue, zone, exercise).takeIf { NoticeReach.posts(n, it, notices, showsEvacuation = true) }
+        assertEquals(NoticeAlarm.LOUD, posts(evac, "a"))
+        assertNull(posts(evac, "b"), "another zone's evacuation stays behind the opt-in")
+        assertEquals(NoticeAlarm.NONE, posts(evac, "b", notices = true), "with the notices on, it shows quietly")
+        assertEquals(NoticeAlarm.SILENT, posts(evac, "a", exercise = true))
+        assertNull(posts(pause, "a"), "a pause stays behind the opt-in")
+        assertNull(posts(heat, "a"))
+        val cancel = Notice.sign(testCrypto, credential, NoticeTopic.ALERT, NoticeLevel.EVACUATION, 3, 0, 3600, 0, flags = Notice.CANCEL)
+        assertEquals(NoticeAlarm.NONE, posts(cancel, "b"), "the withdrawal passes, so the notification goes")
+        assertFalse(NoticeReach.posts(evac, NoticeAlarm.LOUD, showsNotices = false, showsEvacuation = false), "the console")
+    }
+
+    @Test
+    fun onlyTheMapStateIsSilent() {
+        val map = Notice.sign(testCrypto, credential, NoticeTopic.MAP_STATE, 1, 1, 0, 3600, 0, extras = NoticeExtras(states = zones.map { ZoneState.OPEN }))
+        assertTrue(map.silent)
+        assertFalse(Notice.sign(testCrypto, credential, NoticeTopic.HEAT, 1, 1, 0, 3600, 0).silent, "another topic with no words still shows")
+        assertFalse(Notice.sign(testCrypto, credential, NoticeTopic.ALERT, NoticeLevel.INFO, 1, 0, 3600, 0).silent)
     }
 }

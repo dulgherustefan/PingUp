@@ -83,7 +83,7 @@ fun ZoneStateEditor(vm: AppViewModel, onDismiss: () -> Unit) {
     val draft = remember(edits, board) { editor.draft() }
     val held = board.active(now / 1000).firstOrNull { it.second.topic == NoticeTopic.MAP_STATE }
     var selected by remember { mutableStateOf(vm.venue.zones.firstOrNull()?.id) }
-    val due = editor.dueAtMs()
+    val dueIn = editor.dueInMs()
     val styles = remember(draft) { MapOverlay.zoneStyles(MapState(draft.filterValues { it != ZoneState.OPEN }), vm.venue) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -99,11 +99,11 @@ fun ZoneStateEditor(vm: AppViewModel, onDismiss: () -> Unit) {
             }
             val closes = draft.values.any { it != ZoneState.OPEN }
             val status = when {
-                due != null -> stringResource(Res.string.control_map_pending, ((due - now + 999) / 1000).coerceAtLeast(0).toInt())
+                dueIn != null -> stringResource(Res.string.control_map_pending, ((dueIn + 999) / 1000).toInt())
                 held != null && closes -> stringResource(Res.string.control_map_since, Labels.clock(held.first.receivedAt))
                 else -> stringResource(Res.string.control_map_all_open)
             }
-            Text(status, style = MaterialTheme.typography.headline, color = if (due != null) colors.orange else colors.label)
+            Text(status, style = MaterialTheme.typography.headline, color = if (dueIn != null) colors.orange else colors.label)
             VenueMap(
                 vm.venue, Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(16.dp)),
                 highlightZone = selected.orEmpty(), onTap = { _, zone -> zone?.let { selected = it.id } },

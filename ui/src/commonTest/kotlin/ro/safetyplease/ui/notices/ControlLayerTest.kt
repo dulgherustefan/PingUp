@@ -9,6 +9,7 @@ import ro.safetyplease.core.announce.NoticeExtras
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.announce.ZoneSet
+import ro.safetyplease.core.announce.Whereabouts
 import ro.safetyplease.core.announce.ZoneState
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.Certificate
@@ -29,6 +30,11 @@ import ro.safetyplease.ui.resources.control_map_all_open
 import ro.safetyplease.ui.resources.control_map_closed_list
 import ro.safetyplease.ui.resources.control_map_crowded_list
 import ro.safetyplease.ui.resources.control_map_exit_list
+import ro.safetyplease.ui.resources.evac_exits
+import ro.safetyplease.ui.resources.evac_exits_all
+import ro.safetyplease.ui.resources.evac_no_exit
+import ro.safetyplease.ui.resources.evac_outside
+import ro.safetyplease.ui.resources.evac_unknown
 import ro.safetyplease.ui.resources.notice_in_zone
 import ro.safetyplease.ui.text.ControlNoticeText
 import kotlin.test.Test
@@ -46,7 +52,10 @@ class ControlLayerTest {
         "test", Bounds(43.99, 25.99, 44.01, 26.01),
         listOf("a", "b", "c").mapIndexed { i, id -> Zone(id, id.uppercase(), "#336699", square(26.000 + i * 0.001)) },
         pois = listOf(Poi(Venue.EXIT, 44.0005, 26.0005, "Poarta A", 1), Poi(Venue.EXIT, 44.0005, 26.0025, "", 3)),
-        evacuation = listOf(EvacuationPlan(1, "Plan A", mapOf("a" to EvacuationExit(1, 3), "b" to EvacuationExit(3, 1), "c" to EvacuationExit(3, 1)))),
+        evacuation = listOf(
+            EvacuationPlan(1, "Plan A", mapOf("a" to EvacuationExit(1, 3), "b" to EvacuationExit(3, 1), "c" to EvacuationExit(3, 1))),
+            EvacuationPlan(2, "Fără C", mapOf("a" to EvacuationExit(1, 3), "b" to EvacuationExit(3, 1))),
+        ),
     )
     private val certificate = Certificate(CertRole.CONTROL, ByteArray(32), 0, 0xFFFFFFFFL, 1, "Control", ByteArray(64))
 
@@ -99,10 +108,43 @@ class ControlLayerTest {
         val state = state(evacuation(emptySet()))
         val unknown = evacuationView(venue, state, null)
         assertNull(unknown.target)
-        assertEquals(listOf(1, 3), unknown.exits.map { it.number })
-        assertEquals(false, unknown.outside)
-        assertTrue(evacuationView(venue, state, "").outside)
-        assertEquals("A", evacuationView(venue, state, "a").zone?.name)
+        assertEquals(EvacuationCase.UNKNOWN, unknown.case)
+        assertEquals(Res.string.evac_unknown, caseText(unknown.case))
+        assertEquals(listOf(1, 3), unknown.exits.map { it.exit.number })
+        assertEquals(Res.string.evac_exits, exitsHeading(unknown), "the plan's exits, as listed")
+        val outside = evacuationView(venue, state, "")
+        assertEquals(EvacuationCase.OUTSIDE, outside.case)
+        assertEquals(Res.string.evac_outside, caseText(outside.case))
+        val inA = evacuationView(venue, state, "a")
+        assertEquals("A", inA.zone?.name)
+        assertEquals(EvacuationCase.EXIT, inA.case)
+    }
+
+    @Test
+    fun aKnownZoneWithoutAnExitOfItsOwnGoesToTheExitsListed() {
+        val planless = evacuationView(venue, state(evacuation(emptySet(), plan = null)), "a")
+        assertNull(planless.target)
+        assertEquals(EvacuationCase.NO_EXIT, planless.case)
+        assertEquals(Res.string.evac_no_exit, caseText(planless.case))
+        assertEquals(Res.string.evac_exits_all, exitsHeading(planless), "no plan: the venue's exits, under their own heading")
+        assertEquals(listOf(1, 3), planless.exits.map { it.exit.number })
+        val lacking = evacuationView(venue, state(evacuation(emptySet(), plan = 2)), "c")
+        assertEquals(EvacuationCase.NO_EXIT, lacking.case)
+        assertEquals(Res.string.evac_exits, exitsHeading(lacking))
+    }
+
+    @Test
+    fun aWithdrawnOrExpiredEvacuationLeavesTheMapAndTheScreen() {
+        val evac = evacuation(setOf("b"))
+        val cancel = Notice(NoticeTopic.ALERT, NoticeLevel.EVACUATION, Notice.CANCEL, 3, 0, 3600, 0, "", emptyList(), certificate, ByteArray(64))
+        val held = NoticeBoard(listOf(HeldNotice(evac.topic, evac.seq, evac.encode().toHex(), 0)))
+        assertTrue(MapState.of(held, venue, 10).evacuation != null)
+        val withdrawn = NoticeBoard(listOf(HeldNotice(cancel.topic, cancel.seq, cancel.encode().toHex(), 0)))
+        for ((board, now) in listOf(withdrawn to 10L, held to 3600L)) {
+            assertNull(MapState.of(board, venue, now).evacuation)
+            val shown = board.active(now).map { shown(it.second) }
+            assertNull(myEvacuation(shown, venue, Whereabouts("b")))
+        }
     }
 
     @Test
@@ -110,12 +152,13 @@ class ControlLayerTest {
         val evac = shown(evacuation(setOf("b")))
         val pause = shown(notice(NoticeTopic.ALERT, NoticeLevel.PAUSE, zone = "a"))
         val all = listOf(evac, pause)
-        assertSame(evac, myEvacuation(all, venue, "b"))
-        assertNull(myEvacuation(all, venue, "a"), "another zone's evacuation stays a band")
-        assertSame(evac, myEvacuation(all, venue, null), "a phone that doesn't know its zone may be in it")
-        assertSame(pause, screenAlert(all, venue, "a"), "an evacuation never takes the pause's way")
-        assertNull(screenAlert(all, venue, "c"))
-        assertNull(screenAlert(listOf(shown(pause.notice, alerted = true)), venue, "a"), "once read")
+        assertSame(evac, myEvacuation(all, venue, Whereabouts("b")))
+        assertNull(myEvacuation(all, venue, Whereabouts("a")), "another zone's evacuation stays a band")
+        assertSame(evac, myEvacuation(all, venue, Whereabouts("a", near = setOf("b"))), "unless the fix reaches its zone")
+        assertSame(evac, myEvacuation(all, venue, Whereabouts(null)), "a phone that doesn't know its zone may be in it")
+        assertSame(pause, screenAlert(all, venue, Whereabouts("a")), "an evacuation never takes the pause's way")
+        assertNull(screenAlert(all, venue, Whereabouts("c")))
+        assertNull(screenAlert(listOf(shown(pause.notice, alerted = true)), venue, Whereabouts("a")), "once read")
     }
 
     @Test

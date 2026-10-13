@@ -196,7 +196,7 @@ class FakeNotifications : Notifications {
     }
 
     override fun notice(notice: Notice, title: String, text: String, alarm: NoticeAlarm) {
-        posted += "notice $title"
+        posted += "notice $title $alarm"
     }
 
     override fun shiftEnded() {

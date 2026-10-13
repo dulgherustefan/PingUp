@@ -49,16 +49,16 @@
   {
     "id": 7, "topic": "alert", "level": 1,
     "text": {
-      "ro": "{1} e plină. Folosește {2} și urmează staff-ul.",
-      "en": "{1} is full. Use {2} and follow the staff."
+      "ro": "{1} s-a umplut. Mergi pe {2} și urmează staff-ul.",
+      "en": "{1} is full. Go by {2} and follow the staff."
     },
     "params": [{"ro": "Locul plin", "en": "Full place"}, {"ro": "Pe unde să meargă", "en": "Way to use"}]
   },
   {
     "id": 8, "topic": "alert", "level": 3,
     "text": {
-      "ro": "Evacuare. Ieși calm pe ieșirea arătată în aplicație. Nu alerga, nu te întoarce după lucruri și urmează staff-ul.",
-      "en": "Evacuation. Walk calmly to the exit the app shows you. Don't run, don't go back for your things and follow the staff."
+      "ro": "Evacuare. Ieși calm pe ieșirea arătată de staff sau de aplicație ori, fără una, pe cea mai apropiată ieșire deschisă. Nu alerga și nu te întoarce după lucruri.",
+      "en": "Evacuation. Walk calmly to the exit the staff or the app point you to or, without one, to the nearest open exit. Don't run and don't go back for your things."
     }
   },
   {

@@ -1029,7 +1029,7 @@
     <string name="map_about_subtitle">© OpenStreetMap și licențe</string>
     <string name="map_about_text">Harta de bază: © OpenStreetMap contributors, date sub Open Database License (ODbL 1.0), prin Protomaps. Fonturile Noto Sans: SIL Open Font License 1.1. Afișarea hărții: MapLibre Native, licență BSD-2-Clause. Zonele, punctele și grila sunt ale organizatorului.</string>
     <string name="me_notices">Anunțurile organizatorilor</string>
-    <string name="me_notices_text">Alerte de vreme, căldură și schimbări de program sau transport, chiar fără semnal.</string>
+    <string name="me_notices_text">Alerte de vreme, căldură și schimbări de program sau transport, chiar fără semnal. Evacuările pentru zona ta apar mereu, chiar și cu anunțurile oprite.</string>
     <string name="notice_composer_title">Anunț</string>
     <string name="notice_reach">Ajunge doar la telefoanele cu Ping Up din rețea. Nu înlocuiește scena, ecranele sau RO-ALERT.</string>
     <string name="notice_no_shift">Doar o consolă cu un cod de tură de control valid semnează anunțuri.</string>
@@ -1040,7 +1040,6 @@
     <string name="notice_topic_heat">Căldură</string>
     <string name="notice_topic_schedule">Program</string>
     <string name="notice_topic_transport">Transport</string>
-    <string name="notice_zone">Zona</string>
     <string name="notice_zone_all">Tot festivalul</string>
     <string name="notice_duration">Cât rămâne în vigoare</string>
     <string name="notice_preview">Cum se vede pe telefoane</string>

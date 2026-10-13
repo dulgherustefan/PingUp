@@ -5,9 +5,11 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeExtras
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.announce.NoticeTemplate
 import ro.safetyplease.core.announce.NoticeTopic
+import ro.safetyplease.core.announce.ZoneState
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.testCrypto
 import ro.safetyplease.core.mesh.CachedIncidents
@@ -261,5 +263,28 @@ class NoticesTest {
         expired.restore(saved, 5_000, wall + 2 * 3_600_000L + 1, 60 * 60_000L)
         assertTrue(expired.held(SummaryKind.NOTICES, 5_000).isEmpty())
         assertFalse(expired.offerNotice(notice, packet, 5_000, wall), "its sequence number stays")
+    }
+
+    @Test
+    fun aTeamCanSendNeitherTheMapStateNorAnEvacuationPlan() = runTest {
+        val w = World(this)
+        val console = w.console("K")
+        val sender = w.phone("S")
+        val phone = w.phone("A")
+        started(w)
+        val team = w.event.staffCrypto.credentialFrom(w.event.shift(CertRole.STAFF, "Medical 1"))!!.first
+        val now = w.nowSec()
+        val mapState = Notice.sign(
+            testCrypto, team, NoticeTopic.MAP_STATE, 1, 1, now, now + 600, 0, extras = NoticeExtras(states = List(8) { ZoneState.CLOSED }),
+        )
+        val plan = Notice.sign(testCrypto, team, NoticeTopic.ALERT, NoticeLevel.EVACUATION, 1, now, now + 600, 8, extras = NoticeExtras(plan = 1))
+        sender.engine.broadcast(PacketType.ANNOUNCEMENT, mapState.encode())
+        advanceTimeBy(20_000)
+        sender.engine.broadcast(PacketType.ANNOUNCEMENT, plan.encode())
+        advanceTimeBy(20_000)
+        assertTrue(phone.notices.board.value.notices.isEmpty(), "both refused")
+        val sent = console.notices.publish(info, emptyList(), "", 3600)!!
+        advanceTimeBy(20_000)
+        assertEquals(listOf(sent.seq), phone.active(w).map { it.seq }, "the console's own one comes through")
     }
 }

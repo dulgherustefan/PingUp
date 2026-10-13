@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -37,9 +38,11 @@ import okio.SYSTEM
 import ro.safetyplease.core.announce.MapState
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeBoard
+import ro.safetyplease.core.announce.NoticeAlarm
 import ro.safetyplease.core.announce.NoticeReach
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.announce.Notices
+import ro.safetyplease.core.announce.Whereabouts
 import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.chat.PositionFrame
 import ro.safetyplease.core.chat.PositionPolicy
@@ -385,27 +388,54 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     fun showsNotices(s: Settings): Boolean = s.role == Role.STAFF || (s.role == Role.PARTICIPANT && s.notices)
 
+    /** An evacuation for this phone's zone shows on every participant's and team's phone, whatever [Settings.notices] says. */
+    fun showsEvacuation(s: Settings): Boolean = s.role == Role.STAFF || s.role == Role.PARTICIPANT
+
     /** The zones' states and the evacuation in force, from the console's latest notices, whoever shows them. */
     val mapState: StateFlow<MapState> = combine(notices.board, minuteTicks()) { board, _ -> MapState.of(board, venue, clock.wallMs() / 1000) }
         .stateIn(ioScope, SharingStarted.Eagerly, MapState.of(notices.board.value, venue, clock.wallMs() / 1000))
 
     /** The console's zone states, sent as map states. */
-    val mapEditor = MapEditor(meshScope, venue, clock, notices)
+    val mapEditor = MapEditor(meshScope, venue, clock, notices, settings.state.map { it.role == Role.CONTROL })
 
     /** Metres of walking between two points of the site; in a straight line until the walking routes take over. */
     val walkDistance: WalkDistance = StraightLine
 
+    /** The alerts that already sounded here, by topic: the seq of the last. */
+    private val sounded = mutableMapOf<Int, Long>()
+
+    private fun whereabouts(): Whereabouts = NoticeReach.whereabouts(venue, settings.value, locationFix.value, clock.wallMs())
+
     /**
      * The console logs every notice it sends or hears; a phone that shows them notifies, unless it signed the notice or
-     * the notice has no words (the map state). An alarm sounds only where the notice is for this phone's zone.
+     * the notice has no words (the map state). An alarm sounds only where the notice is for this phone's zone. An
+     * evacuation for this phone's zone, and its withdrawal, come through even with the notices turned off.
      */
-    private fun onNotice(notice: Notice, own: Boolean) {
+    internal fun onNotice(notice: Notice, own: Boolean) {
         val title = platform.noticeTitle(notice)
         val text = platform.noticeBody(noticeTemplates, venue, notice)
         if (settings.value.role == Role.CONTROL) console.notice(notice, if (notice.cancelled) title else "$title: $text", own)
-        if (!own && !notice.silent && showsNotices(settings.value)) {
-            val zone = NoticeReach.zone(venue, settings.value, locationFix.value, clock.wallMs())
-            notifications.notice(notice, title, text, NoticeReach.alarm(notice, venue, zone, exercise))
+        if (own) return
+        val alarm = NoticeReach.alarmAt(notice, venue, whereabouts(), exercise)
+        if (!NoticeReach.posts(notice, alarm, showsNotices(settings.value), showsEvacuation(settings.value))) return
+        notifications.notice(notice, title, text, alarm)
+        if (alarm != NoticeAlarm.NONE) sounded[notice.topic] = notice.seq
+    }
+
+    /**
+     * A phone that walks into the zones of an evacuation still in force, after it came, gets its alarm then, once; as
+     * does one whose fix now reaches them.
+     */
+    private fun soundOnArrival() {
+        val s = settings.value
+        if (!showsNotices(s) && !showsEvacuation(s)) return
+        val here = whereabouts()
+        for ((held, notice) in notices.board.value.active(clock.wallMs() / 1000)) {
+            if (held.own || held.alerted || !NoticeReach.isEvacuation(notice) || sounded[notice.topic] == notice.seq) continue
+            val alarm = NoticeReach.alarmAt(notice, venue, here, exercise)
+            if (alarm == NoticeAlarm.NONE) continue
+            notifications.notice(notice, platform.noticeTitle(notice), platform.noticeBody(noticeTemplates, venue, notice), alarm)
+            sounded[notice.topic] = notice.seq
         }
     }
 
@@ -453,6 +483,10 @@ open class PingUpSession(private val platform: AppPlatform) {
             }
         }
         ioScope.launch { logMobileNetwork() }
+        meshScope.launch {
+            // the first value is where the phone was when the notices it holds came: they were decided then
+            combine(settings.state, platform.location) { _, _ -> whereabouts() }.distinctUntilChanged().drop(1).collect { soundOnArrival() }
+        }
         meshScope.launch {
             settings.state.map { it.role == Role.CONTROL }.distinctUntilChanged().collectLatest { control ->
                 if (control) {

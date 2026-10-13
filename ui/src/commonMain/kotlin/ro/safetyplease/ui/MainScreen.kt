@@ -70,6 +70,8 @@ import ro.safetyplease.ui.control.ControlScreen
 import ro.safetyplease.ui.report.MyReportsScreen
 import ro.safetyplease.ui.report.ReportScreen
 import ro.safetyplease.ui.report.ReportSentScreen
+import ro.safetyplease.core.announce.Evacuations
+import ro.safetyplease.core.announce.NoticeReach
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
@@ -117,7 +119,7 @@ import ro.safetyplease.ui.notices.EvacuationUi
 import ro.safetyplease.ui.notices.NoticeAlert
 import ro.safetyplease.ui.notices.NoticeBands
 import ro.safetyplease.ui.notices.myEvacuation
-import ro.safetyplease.ui.notices.rememberHereZone
+import ro.safetyplease.ui.notices.rememberWhereabouts
 import ro.safetyplease.ui.notices.screenAlert
 import ro.safetyplease.ui.notices.shownNotices
 import ro.safetyplease.ui.onboarding.OnboardingScreen
@@ -169,9 +171,16 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
     if (settings.role == AppRole.CONTROL) ConsoleWindow()
     val board by vm.c.notices.board.collectAsStateWithLifecycle()
     val now = rememberNow()
-    val shown = shownNotices(vm, if (vm.c.showsNotices(settings)) board.active(now / 1000) else emptyList())
-    val hereZone = rememberHereZone(vm, now)
-    val evacuation = myEvacuation(shown, vm.venue, hereZone)
+    val showsNotices = vm.c.showsNotices(settings)
+    // an evacuation for this phone's zone shows whatever the person chose for the other notices
+    val showsEvacuation = vm.c.showsEvacuation(settings)
+    val active = board.active(now / 1000)
+    val shown = shownNotices(vm, if (showsNotices) active else emptyList())
+    val here = rememberWhereabouts(vm, now)
+    val evacuations = if (showsEvacuation && !showsNotices) shownNotices(vm, active.filter { NoticeReach.isEvacuation(it.second) }) else shown
+    val evacuation = myEvacuation(evacuations, vm.venue, here)
+    val mapState by vm.c.mapState.collectAsStateWithLifecycle()
+    val hereZone = Evacuations.zoneFor(mapState, here)
     val evacuationUi = remember { EvacuationUi() }
     val bands = shown.filter { !it.held.dismissed && it !== evacuation }
     val sharing by vm.sharing.collectAsStateWithLifecycle()
@@ -180,7 +189,7 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
         vm.phone.sharingLocation(sharing != null)
         onPauseOrDispose { }
     }
-    val alert = screenAlert(shown, vm.venue, hereZone)
+    val alert = screenAlert(shown, vm.venue, here)
     ControlMapLayer(vm, hereZone)
     CompositionLocalProvider(LocalTextOnly provides textOnly, LocalReduceMotion provides reduce) {
         FullScreen {
@@ -199,8 +208,9 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
                 }
             }
             alert?.let { NoticeAlert(it, vm.c.exercise) { vm.c.notices.alerted(it.notice.topic, it.notice.seq) } }
-            evacuation?.let { EvacuationMode(vm, it, hereZone, evacuationUi) }
             MeetupRequests(vm)
+            // above a friend's torch: nothing covers the way out
+            evacuation?.let { EvacuationMode(vm, it, hereZone, evacuationUi) }
         }
     }
 }

@@ -70,12 +70,15 @@ fun ZoneSetPicker(venue: Venue, zones: Set<String>, evacuation: Boolean, onChang
     Text(stringResource(note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
 }
 
+/** The operator's pick of a plan for an evacuation: [id] null for none, the phones then listing every exit. */
+data class PlanChoice(val id: Int?)
+
 /**
  * The organiser's plan an evacuation starts: only those [EvacuationPlans.usable] passes are offered, each with its exits;
- * the others are named, so the operator knows why they are missing.
+ * the others are named, so the operator knows why they are missing. Nothing is picked until the operator picks.
  */
 @Composable
-fun EvacuationPlanPicker(venue: Venue, plan: Int?, onChange: (Int?) -> Unit) {
+fun EvacuationPlanPicker(venue: Venue, plan: PlanChoice?, onChange: (PlanChoice) -> Unit) {
     val colors = AppTheme.colors
     val usable = remember(venue) { EvacuationPlans.usable(venue) }
     val rejected = remember(venue) { venue.evacuation.filter { it !in usable } }
@@ -86,13 +89,13 @@ fun EvacuationPlanPicker(venue: Venue, plan: Int?, onChange: (Int?) -> Unit) {
             val exits = p.exits.values.flatMap { listOf(it.main, it.alternative) }.filter { it != 0 }.distinct().sorted()
             GroupRow(
                 p.name, subtitle = stringResource(Res.string.control_plan_exits, exits.joinToString(", ")),
-                icon = if (p.id == plan) Sym.CheckCircle else null, tint = colors.accent, onClick = { onChange(p.id) },
+                icon = if (plan?.id == p.id) Sym.CheckCircle else null, tint = colors.accent, onClick = { onChange(PlanChoice(p.id)) },
             )
         }
         if (usable.isNotEmpty()) GroupDivider(start = 16.dp)
         GroupRow(
-            stringResource(Res.string.control_plan_none), icon = if (plan == null) Sym.CheckCircle else null, tint = colors.accent,
-            onClick = { onChange(null) },
+            stringResource(Res.string.control_plan_none), icon = if (plan != null && plan.id == null) Sym.CheckCircle else null,
+            tint = colors.accent, onClick = { onChange(PlanChoice(null)) },
         )
     }
     if (rejected.isNotEmpty()) {

@@ -39,7 +39,6 @@ import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.announce.ZoneSet
 import ro.safetyplease.core.announce.target
-import ro.safetyplease.core.venue.EvacuationPlans
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppDialog
@@ -78,6 +77,7 @@ import ro.safetyplease.ui.resources.notice_topic_alert
 import ro.safetyplease.ui.resources.notice_topic_heat
 import ro.safetyplease.ui.resources.notice_topic_schedule
 import ro.safetyplease.ui.resources.notice_topic_transport
+import ro.safetyplease.ui.resources.control_map_before_evacuation
 import ro.safetyplease.ui.resources.notice_withdraw
 import ro.safetyplease.ui.resources.notice_withdraw_text
 import ro.safetyplease.ui.resources.notice_withdraw_title
@@ -110,14 +110,17 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     var templateId by remember { mutableIntStateOf(0) }
     val params = remember { mutableStateListOf<String>() }
     var zones by remember { mutableStateOf(emptySet<String>()) }
-    var plan by remember { mutableStateOf(EvacuationPlans.usable(vm.venue).firstOrNull()?.id) }
+    // no plan is preselected: the operator picks one, or "no plan", knowingly
+    var plan by remember { mutableStateOf<PlanChoice?>(null) }
     var minutes by rememberSaveable { mutableIntStateOf(60) }
     var confirm by remember { mutableStateOf(false) }
     var second by remember { mutableStateOf(false) }
     var withdraw by remember { mutableStateOf<Int?>(null) }
     val template = c.noticeTemplates.byId(templateId)?.takeIf { it.topic == topic }
     val evacuation = template?.let { it.topic == NoticeTopic.ALERT && it.level == NoticeLevel.EVACUATION } == true
-    val ready = template != null && params.size == template.params.size && params.all { it.isNotBlank() } && c.notices.canSign
+    val ready = template != null && params.size == template.params.size && params.all { it.isNotBlank() } && c.notices.canSign &&
+        (!evacuation || plan != null)
+    val mapPending by c.mapEditor.edits.collectAsStateWithLifecycle()
 
     fun choose(t: NoticeTemplate) {
         templateId = t.id
@@ -128,7 +131,9 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     fun send() {
         val t = template ?: return
         // one zone also goes in the zone field, which phones from before zone sets read
-        val extras = if (evacuation) Evacuations.extras(vm.venue, plan, zones) else NoticeExtras(zones = ZoneSet.target(vm.venue, zones))
+        // the phones pick the exits from the zones as the console left them: the map state goes first
+        if (evacuation) c.mapEditor.sendNow()
+        val extras = if (evacuation) Evacuations.extras(vm.venue, plan?.id, zones) else NoticeExtras(zones = ZoneSet.target(vm.venue, zones))
         val sent = extras?.let { c.notices.publish(t, params.map { it.trim() }, zones.singleOrNull().orEmpty(), minutes * 60L, it) }
         vm.phone.toast(if (sent != null) sentText else notSentText, long = true)
         if (sent != null) onDismiss()
@@ -178,7 +183,12 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
                     )
                 }
                 ZoneSetPicker(vm.venue, zones, evacuation) { zones = it }
-                if (evacuation) EvacuationPlanPicker(vm.venue, plan) { plan = it }
+                if (evacuation) {
+                    EvacuationPlanPicker(vm.venue, plan) { plan = it }
+                    if (mapPending.isNotEmpty()) {
+                        Text(stringResource(Res.string.control_map_before_evacuation), style = MaterialTheme.typography.footnote, color = colors.orange)
+                    }
+                }
                 Text(stringResource(Res.string.notice_duration), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
                 SegmentedControl(Durations.map { it to durationLabel(it) }, minutes, { minutes = it })
                 Text(stringResource(Res.string.notice_preview), style = MaterialTheme.typography.headline)
@@ -203,7 +213,7 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     if (confirm && template != null) {
         ConfirmDialog(
             stringResource(Res.string.notice_confirm_title, noticeTitle(template.topic, template.level)),
-            NoticeTemplates.fill(template.text(language), params) + "\n\n" + targetsSummary(vm.venue, zones, plan.takeIf { evacuation }) +
+            NoticeTemplates.fill(template.text(language), params) + "\n\n" + targetsSummary(vm.venue, zones, plan?.id.takeIf { evacuation }) +
                 "\n\n" + stringResource(Res.string.notice_reach),
             { confirm = false }, stringResource(Res.string.notice_send), destructive = evacuation,
         ) { if (evacuation) second = true else send() }

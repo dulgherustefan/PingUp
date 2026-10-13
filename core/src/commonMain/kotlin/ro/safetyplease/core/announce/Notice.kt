@@ -70,8 +70,8 @@ class Notice(
     /** The fields of [NoticeExtras], when flag [EXTRAS] says the extensions hold them. */
     val extras: NoticeExtras get() = if (flags and EXTRAS != 0) NoticeExtras.decode(extensions) else NoticeExtras.NONE
 
-    /** Data for the map with no words, as the map state: neither shown nor notified. */
-    val silent: Boolean get() = !cancelled && template == 0 && params.isEmpty()
+    /** The map state: data for the map with no words, neither shown nor notified. Only topic 5 is ever silent. */
+    val silent: Boolean get() = topic == NoticeTopic.MAP_STATE && !cancelled && template == 0 && params.isEmpty()
 
     /**
      * Whether the notice is for a phone in [zoneId] of [venue]: the zone set decides, else the zone, else everyone. A zone

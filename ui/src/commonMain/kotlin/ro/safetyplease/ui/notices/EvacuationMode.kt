@@ -44,13 +44,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.announce.EvacuationTarget
+import ro.safetyplease.core.announce.ExitChoice
 import ro.safetyplease.core.announce.Evacuations
 import ro.safetyplease.core.announce.MapState
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.announce.NoticeReach
+import ro.safetyplease.core.announce.Whereabouts
 import ro.safetyplease.core.position.Guide
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
@@ -69,17 +72,23 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.largeTitle
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title1
+import ro.safetyplease.ui.designsystem.title2
 import ro.safetyplease.ui.designsystem.title3
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.evac_banner
+import ro.safetyplease.ui.resources.evac_banner_closed
 import ro.safetyplease.ui.resources.evac_banner_plain
 import ro.safetyplease.ui.resources.evac_exit_number
+import ro.safetyplease.ui.resources.evac_exit_closed
 import ro.safetyplease.ui.resources.evac_exits
+import ro.safetyplease.ui.resources.evac_exits_all
 import ro.safetyplease.ui.resources.evac_fallback
-import ro.safetyplease.ui.resources.evac_follow
 import ro.safetyplease.ui.resources.evac_go
+import ro.safetyplease.ui.resources.evac_go_closed
+import ro.safetyplease.ui.resources.evac_go_number
 import ro.safetyplease.ui.resources.evac_meeting
 import ro.safetyplease.ui.resources.evac_minimise
+import ro.safetyplease.ui.resources.evac_no_exit
 import ro.safetyplease.ui.resources.evac_outside
 import ro.safetyplease.ui.resources.evac_switched
 import ro.safetyplease.ui.resources.evac_unknown
@@ -89,34 +98,56 @@ import ro.safetyplease.ui.resources.map_directions
 import ro.safetyplease.ui.resources.map_route
 import ro.safetyplease.ui.text.rememberNow
 
-/**
- * What the evacuation mode tells a phone in [zone] (null: it doesn't know; "": outside every zone): its exit when the
- * plan gives its zone one, else every exit of the plan, with the meeting point.
- */
-data class EvacuationView(val zone: Zone?, val target: EvacuationTarget?, val exits: List<Poi>, val outside: Boolean)
+/** What the evacuation mode tells a phone besides its exit, when it has none. */
+enum class EvacuationCase {
+    /** The plan gives the phone's zone an exit. */
+    EXIT,
 
-fun evacuationView(venue: Venue, state: MapState, zone: String?): EvacuationView {
-    val target = Evacuations.target(venue, state, zone)
-    val exits = if (target == null) Evacuations.exits(venue, Evacuations.plan(venue, state)) else emptyList()
-    return EvacuationView(zone?.let(venue::zone), target, exits, outside = zone == "")
+    /** The phone doesn't know which zone it is in. */
+    UNKNOWN,
+
+    /** The phone stands outside every zone. */
+    OUTSIDE,
+
+    /** The zone is known but has no exit of its own: the evacuation names no plan, or a plan without the zone. */
+    NO_EXIT,
 }
 
-/** The evacuation among the [shown] notices that is for a phone in [zone]; the others stay ordinary bands. */
-fun myEvacuation(shown: List<ShownNotice>, venue: Venue, zone: String?): ShownNotice? = shown.firstOrNull {
-    it.notice.urgent && it.notice.level == NoticeLevel.EVACUATION && NoticeReach.concerns(it.notice, venue, zone)
+/**
+ * What the evacuation mode shows a phone in [zone] (null: it doesn't know; "": outside every zone): its exit when the
+ * plan gives its zone one, else [exits], those of the plan ([fromPlan]) or of the venue, with the meeting point.
+ */
+data class EvacuationView(val zone: Zone?, val target: EvacuationTarget?, val exits: List<ExitChoice>, val case: EvacuationCase, val fromPlan: Boolean)
+
+fun evacuationView(venue: Venue, state: MapState, zone: String?, from: GeoPoint? = null): EvacuationView {
+    val target = Evacuations.target(venue, state, zone)
+    val plan = Evacuations.plan(venue, state)
+    val exits = if (target == null) Evacuations.exits(venue, plan, state, from) else emptyList()
+    val case = when {
+        target != null -> EvacuationCase.EXIT
+        zone == null -> EvacuationCase.UNKNOWN
+        zone.isEmpty() -> EvacuationCase.OUTSIDE
+        else -> EvacuationCase.NO_EXIT
+    }
+    return EvacuationView(zone?.let(venue::zone), target, exits, case, fromPlan = plan != null)
+}
+
+/** The evacuation among the [shown] notices that is for a phone [here]; the others stay ordinary bands. */
+fun myEvacuation(shown: List<ShownNotice>, venue: Venue, here: Whereabouts): ShownNotice? = shown.firstOrNull {
+    it.notice.urgent && it.notice.level == NoticeLevel.EVACUATION && NoticeReach.concernsAt(it.notice, venue, here)
 }
 
 /** The pause that takes the screen once: one for this phone, not read yet. An evacuation has its own mode. */
-fun screenAlert(shown: List<ShownNotice>, venue: Venue, zone: String?): ShownNotice? = shown.firstOrNull {
-    it.notice.urgent && it.notice.level != NoticeLevel.EVACUATION && !it.held.alerted && NoticeReach.concerns(it.notice, venue, zone)
+fun screenAlert(shown: List<ShownNotice>, venue: Venue, here: Whereabouts): ShownNotice? = shown.firstOrNull {
+    it.notice.urgent && it.notice.level != NoticeLevel.EVACUATION && !it.held.alerted && NoticeReach.concernsAt(it.notice, venue, here)
 }
 
-/** The zone this phone is in, as [NoticeReach.zone] reads it. */
+/** Where this phone is, as [NoticeReach.whereabouts] reads it. */
 @Composable
-fun rememberHereZone(vm: AppViewModel, nowMs: Long): String? {
+fun rememberWhereabouts(vm: AppViewModel, nowMs: Long): Whereabouts {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val fix by vm.c.locationFix.collectAsStateWithLifecycle()
-    return NoticeReach.zone(vm.venue, settings, fix, nowMs)
+    return NoticeReach.whereabouts(vm.venue, settings, fix, nowMs)
 }
 
 /** Whether the person brought the evacuation back to the whole screen after minimising it. */
@@ -125,9 +156,14 @@ class EvacuationUi {
     var reopened by mutableStateOf(false)
 }
 
-/** An exit's name for the screen. */
+/** An exit's name for the screen: "Ieșirea 3" for one the venue gives no name. */
 @Composable
 private fun exitLabel(exit: Poi): String = exitName(exit.name, exit.number, stringResource(Res.string.evac_exit_number))
+
+/** "Ieși pe Poarta A", or "Ieși pe ieșirea 3" for an exit without a name. */
+@Composable
+private fun goText(exit: Poi): String =
+    if (exit.name.isBlank()) stringResource(Res.string.evac_go_number, exit.number) else stringResource(Res.string.evac_go, exit.name)
 
 /**
  * The minimised evacuation: a red band above every screen while it is in force, which can't be hidden. A tap brings the
@@ -137,7 +173,11 @@ private fun exitLabel(exit: Poi): String = exitName(exit.name, exit.number, stri
 fun EvacuationBanner(vm: AppViewModel, shown: ShownNotice, zone: String?, statusBar: Boolean, onOpen: () -> Unit) {
     val state by vm.c.mapState.collectAsStateWithLifecycle()
     val target = Evacuations.target(vm.venue, state, zone)
-    val text = target?.let { stringResource(Res.string.evac_banner, exitLabel(it.exit)) } ?: stringResource(Res.string.evac_banner_plain)
+    val text = when {
+        target == null -> stringResource(Res.string.evac_banner_plain)
+        target.closed -> stringResource(Res.string.evac_banner_closed)
+        else -> stringResource(Res.string.evac_banner, goText(target.exit))
+    }
     Row(
         Modifier.fillMaxWidth().background(AppTheme.colors.red).then(if (statusBar) Modifier.statusBarsPadding() else Modifier)
             .clickable(onClickLabel = shown.title, role = Role.Button, onClick = onOpen)
@@ -158,7 +198,9 @@ fun EvacuationBanner(vm: AppViewModel, shown: ShownNotice, zone: String?, status
 /**
  * The evacuation for this phone's zone takes the whole screen and keeps it on, until the person minimises it to its band;
  * it can't be dismissed while it holds. At most five things: what happens, your zone, your exit with the way to it, the
- * alternative and "follow the staff". Outside the zones or without a position, the plan's exits and the meeting point.
+ * alternative and the notice's text. Without an exit of its own (no position, outside the zones, a plan-less evacuation
+ * or a zone the plan lacks), it says which of these it is and lists the exits, open and nearest first, and the meeting
+ * point.
  * In an exercise it says so at the top; the alarm sound stays off, as everywhere in an exercise.
  */
 @Composable
@@ -167,8 +209,8 @@ fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: Evac
     val state by vm.c.mapState.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
     val overlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
-    val view = evacuationView(vm.venue, state, zone)
     val here = onSite(position, vm.venue)
+    val view = evacuationView(vm.venue, state, zone, here)
     val type = MaterialTheme.typography
     fun minimise() {
         vm.c.notices.alerted(shown.notice.topic, shown.notice.seq)
@@ -192,7 +234,11 @@ fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: Evac
             view.zone?.let { Line(stringResource(Res.string.evac_your_zone, it.name), type.headline) }
             val target = view.target
             if (target != null) {
-                Line(stringResource(Res.string.evac_go, exitLabel(target.exit)), type.title1, bold = true)
+                if (target.closed) {
+                    Line(stringResource(Res.string.evac_go_closed, exitLabel(target.exit)), type.title2, bold = true)
+                } else {
+                    Line(goText(target.exit), type.title1, bold = true)
+                }
                 if (target.switched) Line(stringResource(Res.string.evac_switched), type.subheadline)
                 here?.let { WayTo(vm, it, target.exit.point) }
                 target.fallback?.let { Line(stringResource(Res.string.evac_fallback, exitLabel(it)), type.title3) }
@@ -201,11 +247,10 @@ fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: Evac
                     myZone = zone.orEmpty(), target = target.point, mapOverlay = overlay,
                 )
             } else {
-                Line(stringResource(if (view.outside) Res.string.evac_outside else Res.string.evac_unknown), type.title3)
-                ExitList(vm, view.exits, here)
+                Line(stringResource(caseText(view.case)), type.title3)
+                ExitList(vm, view, here)
             }
             Line(shown.text, type.subheadline)
-            Line(stringResource(Res.string.evac_follow), type.title3, bold = true)
             Spacer(Modifier.height(8.dp))
             AppButton(stringResource(Res.string.evac_minimise), ::minimise, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary)
         }
@@ -234,14 +279,24 @@ private fun WayTo(vm: AppViewModel, from: GeoPoint, to: GeoPoint) {
     }
 }
 
-/** The plan's exits and the meeting point, each with the way to it when the phone is on the site. */
+fun caseText(case: EvacuationCase): StringResource = when (case) {
+    EvacuationCase.UNKNOWN -> Res.string.evac_unknown
+    EvacuationCase.OUTSIDE -> Res.string.evac_outside
+    EvacuationCase.EXIT, EvacuationCase.NO_EXIT -> Res.string.evac_no_exit
+}
+
+/** The heading over the exits: the plan's, or the festival's when the evacuation names no plan. */
+fun exitsHeading(view: EvacuationView): StringResource = if (view.fromPlan) Res.string.evac_exits else Res.string.evac_exits_all
+
+/** The exits and the meeting point, each with the way to it when the phone is on the site; a closed one says so. */
 @Composable
-private fun ExitList(vm: AppViewModel, exits: List<Poi>, here: GeoPoint?) {
+private fun ExitList(vm: AppViewModel, view: EvacuationView, here: GeoPoint?) {
     val type = MaterialTheme.typography
-    Line(stringResource(Res.string.evac_exits), type.headline)
-    for (exit in exits) {
-        Line(exitLabel(exit), type.title3, bold = true)
-        here?.let { WayTo(vm, it, exit.point) }
+    Line(stringResource(exitsHeading(view)), type.headline)
+    for ((exit, closed) in view.exits) {
+        val label = exitLabel(exit)
+        Line(if (closed) stringResource(Res.string.evac_exit_closed, label) else label, type.title3, bold = !closed)
+        if (!closed) here?.let { WayTo(vm, it, exit.point) }
     }
     vm.venue.meetingPoint?.let { meeting ->
         Line(stringResource(Res.string.evac_meeting), type.title3, bold = true)
