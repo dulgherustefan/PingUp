@@ -341,4 +341,41 @@ class EventPackTest {
             assertEquals(PackStatus.MALFORMED, event.check(text = event.text(body)).status, bad)
         }
     }
+
+    @Test
+    fun theScheduleAndTheSitePlanComeWithThePack() {
+        val event = Event()
+        assertEquals(emptyList(), event.pack().schedule)
+        assertNull(event.pack().plan)
+
+        val zones = """"zones":[]"""
+        val stage = """"zones":[{"id":"main","name":"Scena","color":"#E5484D","polygon":[{"lat":44.001,"lon":26.001},""" +
+            """{"lat":44.001,"lon":26.002},{"lat":44.002,"lon":26.002}]}]"""
+        val png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        val corners = """"topLeft":{"lat":44.01,"lon":26.0},"topRight":{"lat":44.01,"lon":26.01},""" +
+            """"bottomRight":{"lat":44.0,"lon":26.01},"bottomLeft":{"lat":44.0,"lon":26.0}"""
+        fun with(schedule: String, plan: String = """{"png":"$png",$corners}""") =
+            event.body().replace(zones, stage).dropLast(1) + ""","schedule":$schedule,"plan":$plan}"""
+        val sets = """[{"stage":"main","title":"Late","start":${t0 + 7200},"end":${t0 + 9000}},""" +
+            """{"stage":"main","title":"Early","start":$t0,"end":${t0 + 3600}}]"""
+        val pack = event.check(text = event.text(with(sets))).pack!!
+        assertEquals(listOf("Early", "Late"), pack.schedule.map { it.title }, "by start")
+        assertEquals(ScheduleItem("main", "Early", t0, t0 + 3600), pack.schedule.first())
+        val plan = pack.plan!!
+        assertEquals(listOf(44.01 to 26.0, 44.01 to 26.01, 44.0 to 26.01, 44.0 to 26.0), plan.corners.map { it.lat to it.lon })
+        assertEquals(0x89, plan.png[0].toInt() and 0xFF)
+
+        val malformed = listOf(
+            with("""[{"stage":"nowhere","title":"X","start":$t0,"end":${t0 + 60}}]"""),
+            with("""[{"stage":"main","title":"X","start":$t0,"end":$t0}]"""),
+            with("""[{"stage":"main","title":"X","start":$t0,"end":${t0 + EventPacks.SET_MAX_S + 1}}]"""),
+            with("""[{"stage":"main","title":"${"x".repeat(EventPacks.SCHEDULE_TITLE_CHARS + 1)}","start":$t0,"end":${t0 + 60}}]"""),
+            with("[]", """{"png":"aGVsbG8=",$corners}"""),
+            with("[]", """{"png":"not base64!",$corners}"""),
+            with("[]", """{"png":"$png"}"""),
+            with("[]", """{"png":"$png",${corners.replace("26.01},\"bottomRight", "26.0},\"bottomRight")}}"""),
+            with("[]", """{"png":"${"A".repeat((EventPacks.PLAN_MAX_BYTES + 2) / 3 * 4 + 4)}",$corners}"""),
+        )
+        for (body in malformed) assertEquals(PackStatus.MALFORMED, event.check(text = event.text(body)).status, body.takeLast(120))
+    }
 }

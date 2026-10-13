@@ -100,5 +100,45 @@
     [ { "lat": 43.94805, "lon": 28.63355 }, { "lat": 43.94893, "lon": 28.63355 } ],
     [ { "lat": 43.94805, "lon": 28.63520 }, { "lat": 43.94893, "lon": 28.63520 } ],
     [ { "lat": 43.94805, "lon": 28.63650 }, { "lat": 43.94893, "lon": 28.63650 } ]
+  ],
+  "water": [
+    [ { "lat": 43.9400, "lon": 28.6410 }, { "lat": 43.9480, "lon": 28.6400 }, { "lat": 43.9530, "lon": 28.6404 }, { "lat": 43.9600, "lon": 28.6420 }, { "lat": 43.9600, "lon": 28.6600 }, { "lat": 43.9400, "lon": 28.6600 } ]
+  ],
+  "barriers": [
+    [ { "lat": 43.94803, "lon": 28.63206 }, { "lat": 43.95110, "lon": 28.63206 }, { "lat": 43.95110, "lon": 28.63814 }, { "lat": 43.94803, "lon": 28.63814 }, { "lat": 43.94803, "lon": 28.63206 } ],
+    [ { "lat": 43.95085, "lon": 28.63470 }, { "lat": 43.95100, "lon": 28.63470 }, { "lat": 43.95100, "lon": 28.63550 }, { "lat": 43.95085, "lon": 28.63550 }, { "lat": 43.95085, "lon": 28.63470 } ]
+  ],
+  "gates": [
+    { "number": 1, "name": "Poarta principală", "name_en": "Main gate", "lat": 43.94805, "lon": 28.63435 },
+    { "number": 2, "name": "Poarta vest", "name_en": "West gate", "lat": 43.94950, "lon": 28.63208 },
+    { "number": 3, "name": "Poarta est", "name_en": "East gate", "lat": 43.94930, "lon": 28.63812 },
+    { "number": 4, "name": "Poarta nord", "name_en": "North gate", "lat": 43.95108, "lon": 28.63320 },
+    { "name": "Acces backstage", "name_en": "Backstage access", "staffOnly": true, "lat": 43.95085, "lon": 28.63510 }
+  ],
+  "blocked": [
+    {
+      "name": "Backstage",
+      "name_en": "Backstage",
+      "access": "staff",
+      "polygon": [ { "lat": 43.95085, "lon": 28.63470 }, { "lat": 43.95100, "lon": 28.63470 }, { "lat": 43.95100, "lon": 28.63550 }, { "lat": 43.95085, "lon": 28.63550 } ]
+    }
+  ],
+  "meetingLandmarks": [ 8, 9, 11, 12 ],
+  "evacuation": [
+    {
+      "id": 1,
+      "name": "Plan A: toate ieșirile",
+      "name_en": "Plan A: every exit",
+      "exits": {
+        "main-stage": { "main": 4, "alternative": 3 },
+        "second-stage": { "main": 3, "alternative": 1 },
+        "food": { "main": 2, "alternative": 4 },
+        "bar": { "main": 1, "alternative": 4 },
+        "medical": { "main": 1, "alternative": 3 },
+        "entrance": { "main": 1, "alternative": 2 },
+        "camping": { "main": 2, "alternative": 1 },
+        "chill": { "main": 3, "alternative": 1 }
+      }
+    }
   ]
 }

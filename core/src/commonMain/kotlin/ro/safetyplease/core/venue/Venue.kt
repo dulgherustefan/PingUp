@@ -32,6 +32,39 @@ data class Poi(val type: String, val lat: Double, val lon: Double, val name: Str
     val point: GeoPoint get() = GeoPoint(lat, lon)
 }
 
+/**
+ * An opening in a barrier, the only place a walk may cross one: within [REACH_M] of its point. [number] names the
+ * useful point it stands at (an exit, usually), 0 for none; a [staffOnly] gate is closed to the public.
+ */
+@Serializable
+data class Gate(val lat: Double, val lon: Double, val name: String = "", val number: Int = 0, val staffOnly: Boolean = false) {
+    val point: GeoPoint get() = GeoPoint(lat, lon)
+
+    companion object {
+        const val REACH_M = 5
+    }
+}
+
+/** An area nobody walks through ([NONE]) or only staff do ([STAFF]): backstage, technical areas, VIP. */
+@Serializable
+data class BlockedArea(val polygon: List<GeoPoint>, val access: String = STAFF, val name: String = "") {
+    companion object {
+        const val STAFF = "staff"
+        const val NONE = "none"
+    }
+}
+
+/** Where one zone leaves in an evacuation: the numbers of two exit points; [alternative] is 0 when there is none. */
+@Serializable
+data class EvacuationExit(val main: Int, val alternative: Int = 0)
+
+/**
+ * One of the organiser's approved evacuation plans: [id] 1..255 is what the console's evacuation names on the wire,
+ * [exits] gives each zone, by id, its exits. [EvacuationPlans] checks it against the venue.
+ */
+@Serializable
+data class EvacuationPlan(val id: Int, val name: String, val exits: Map<String, EvacuationExit> = emptyMap())
+
 /** A place the map can lead you to: a useful point, the center of a zone or the meeting point. */
 data class Spot(val type: String, val name: String, val point: GeoPoint)
 
@@ -49,6 +82,13 @@ data class Venue(
     val safeguarding: Boolean = false,
     /** Lakes, the sea, rivers: a fix inside one is a GNSS error, since nobody stands there. */
     val water: List<List<GeoPoint>> = emptyList(),
+    /** Fences as polylines: nobody crosses one but at a [Gate]. */
+    val barriers: List<List<GeoPoint>> = emptyList(),
+    val gates: List<Gate> = emptyList(),
+    val blocked: List<BlockedArea> = emptyList(),
+    /** Numbers of the landmarks fit for meeting someone; empty means every numbered landmark ([meetingPlaces]). */
+    val meetingLandmarks: List<Int> = emptyList(),
+    val evacuation: List<EvacuationPlan> = emptyList(),
 ) {
     fun zoneAt(lat: Double, lon: Double): Zone? = zones.firstOrNull { pointInPolygon(lat, lon, it.polygon) }
 
@@ -69,6 +109,14 @@ data class Venue(
 
     fun landmark(number: Int): Poi? = if (number in LANDMARK_NUMBERS) pois.firstOrNull { it.number == number } else null
 
+    /** The landmarks a group may be sent to meet at: those the organiser marked, else every numbered one. */
+    fun meetingPlaces(): List<Poi> {
+        val numbered = pois.filter { it.number in LANDMARK_NUMBERS }
+        return if (meetingLandmarks.isEmpty()) numbered else numbered.filter { it.number in meetingLandmarks }
+    }
+
+    fun evacuationPlan(id: Int): EvacuationPlan? = evacuation.firstOrNull { it.id == id }
+
     /** The landmark a team would walk to: the nearest numbered point, if one is within [LANDMARK_METERS]. */
     fun nearestLandmark(from: GeoPoint): Poi? = pois.filter { it.number in LANDMARK_NUMBERS }
         .map { it to distanceMeters(from, it.point) }
@@ -80,6 +128,7 @@ data class Venue(
 
         const val MEETING = "meeting"
         const val DEA = "dea"
+        const val EXIT = "exit"
 
         /** A shaded place, where the heat notice sends people. */
         const val SHADE = "shade"

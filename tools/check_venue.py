@@ -3,8 +3,9 @@
 
   python3 tools/check_venue.py app/src/main/assets/venue.json
 
-The file has a name, the bounds of the area, the zones, and optionally a meeting point, useful points
-and walkways (core/venue/Venue.kt reads it):
+The file has a name, the bounds of the area, the zones, and optionally a meeting point, useful points,
+walkways, water, fences with their gates, blocked areas, the landmarks fit for meeting and the
+evacuation plans (core/venue/Venue.kt reads it):
 
   {
     "name": "Festival",
@@ -15,22 +16,38 @@ and walkways (core/venue/Venue.kt reads it):
        "polygon": [{"lat": 43.951, "lon": 28.6344}, {"lat": 43.951, "lon": 28.6358}, ...]}
     ],
     "pois": [{"type": "dea", "lat": 43.9495, "lon": 28.6349, "name": "DEA intrare", "number": 3}],
-    "paths": [[{"lat": 43.9485, "lon": 28.633}, {"lat": 43.9505, "lon": 28.637}]]
+    "paths": [[{"lat": 43.9485, "lon": 28.633}, {"lat": 43.9505, "lon": 28.637}]],
+    "water": [[{"lat": 43.94, "lon": 28.641}, {"lat": 43.96, "lon": 28.642}, {"lat": 43.96, "lon": 28.66}]],
+    "barriers": [[{"lat": 43.948, "lon": 28.632}, {"lat": 43.951, "lon": 28.632}]],
+    "gates": [{"lat": 43.9495, "lon": 28.632, "name": "Poarta vest", "number": 2, "staffOnly": false}],
+    "blocked": [{"access": "staff", "name": "Backstage", "polygon": [{"lat": 43.9509, "lon": 28.6347}, ...]}],
+    "meetingLandmarks": [3],
+    "evacuation": [{"id": 1, "name": "Plan A", "exits": {"main-stage": {"main": 4, "alternative": 2}}}]
   }
 
 A zone's id travels in reports and messages, so it must stay the same for the whole event and fit in
 32 bytes. Corners go around the zone in order. Zones may share a border but not overlap: a point has
 to belong to a single zone. A point's number makes it a landmark that reports name in one byte, so it
-goes from 1 to 255 and isn't repeated. Exits with 1 and lists the problems if there are any. The same
-check runs before gen_staff_keys.py signs an event pack.
+goes from 1 to 255 and isn't repeated. Water may reach past the bounds (the sea beside the site), but no zone,
+point or gate may stand in it, since the app drops a fix inside water. A fence is crossed only at a
+gate, so a gate stands within 5 m of a fence; a gate's number names the useful point it stands at.
+A blocked area is "staff" (backstage, VIP) or "none" (technical). The meeting landmarks are numbers
+of points. An evacuation plan has an id from 1 to 255 that no other plan has and gives every zone a
+main exit and, if it can, an alternative: numbers of points of type exit, two different ones, and
+the plan as a whole uses at least two exits. Exits with 1 and lists the problems if there are any.
+The same check runs before gen_staff_keys.py signs an event pack.
 """
 
 import json
+import math
 import re
 import sys
 
 ZONE_BYTES = 32
 LANDMARK_MAX = 255
+PLAN_MAX = 255
+GATE_REACH_M = 5
+ACCESS = ("staff", "none")
 COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
@@ -91,6 +108,76 @@ def _interior_points(points):
 
 def _area(points):
     return abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in _edges(points))) / 2
+
+
+def _to_segment(p, a, b):
+    """Metres from p to the segment a-b, on a flat projection around p."""
+    scale = math.cos(math.radians(p[0]))
+
+    def xy(q):
+        return (q[1] - p[1]) * 111_320.0 * scale, (q[0] - p[0]) * 111_320.0
+
+    (ax, ay), (bx, by) = xy(a), xy(b)
+    dx, dy = bx - ax, by - ay
+    length = dx * dx + dy * dy
+    t = 0.0 if length == 0 else max(0.0, min(1.0, -(ax * dx + ay * dy) / length))
+    return math.hypot(ax + t * dx, ay + t * dy)
+
+
+def _line(found, label, line, outside, closed=False):
+    """The points of a line or a polygon, or None once the reason it can't be read is noted."""
+    try:
+        points = _points(line)
+    except (KeyError, TypeError):
+        found.append(f"{label}: points need lat and lon")
+        return None
+    least = 3 if closed else 2
+    if len(points) < least:
+        found.append(f"{label}: needs at least {least} points")
+        return None
+    if outside is not None and any(outside(lat, lon) for lat, lon in points):
+        found.append(f"{label}: a point is outside bounds")
+    return points
+
+
+def _evacuation_problems(venue, exits):
+    found = []
+    zone_ids = [z.get("id", "") for z in venue.get("zones", [])]
+    ids = [plan.get("id") for plan in venue.get("evacuation", [])]
+    for index, plan in enumerate(venue.get("evacuation", []), start=1):
+        plan_id = plan.get("id")
+        label = f"evacuation plan {plan_id if plan_id is not None else index}"
+        if not (isinstance(plan_id, int) and 1 <= plan_id <= PLAN_MAX):
+            found.append(f"{label}: the id goes from 1 to {PLAN_MAX}")
+        elif ids.count(plan_id) > 1:
+            found.append(f"{label}: another plan has the same id")
+        if not plan.get("name"):
+            found.append(f"{label}: missing name")
+        routes = plan.get("exits")
+        if not isinstance(routes, dict):
+            found.append(f"{label}: needs exits, by zone id")
+            continue
+        for zone_id in zone_ids:
+            if zone_id not in routes:
+                found.append(f"{label}: zone {zone_id} has no exit")
+        used = set()
+        for zone_id, route in routes.items():
+            if zone_id not in zone_ids:
+                found.append(f"{label}: {zone_id} is not a zone of the venue")
+            if not isinstance(route, dict):
+                found.append(f"{label}, zone {zone_id}: needs a main exit")
+                continue
+            main, alternative = route.get("main"), route.get("alternative", 0)
+            if main not in exits:
+                found.append(f"{label}, zone {zone_id}: main exit {main} is not the number of an exit point")
+            if alternative and alternative not in exits:
+                found.append(f"{label}, zone {zone_id}: alternative exit {alternative} is not the number of an exit point")
+            if alternative and alternative == main:
+                found.append(f"{label}, zone {zone_id}: the alternative is the main exit again")
+            used.update(n for n in (main, alternative) if n)
+        if len(used) < 2:
+            found.append(f"{label}: every zone leaves through a single exit")
+    return found
 
 
 def problems(venue):
@@ -190,6 +277,67 @@ def problems(venue):
             found.append(f"path {index}: a walkway needs at least 2 points")
         elif any(outside(lat, lon) for lat, lon in points):
             found.append(f"path {index}: a point is outside bounds")
+
+    numbered = {p.get("number"): p for p in venue.get("pois", []) if isinstance(p, dict) and p.get("number")}
+
+    waters = []
+    for index, water in enumerate(venue.get("water", []), start=1):
+        label = f"water {index}"
+        points = _line(found, label, water, None, closed=True)
+        if points is None:
+            continue
+        if _area(points) == 0:
+            found.append(f"{label}: the polygon has no area")
+        waters.append(points)
+        for name, zone in shapes:
+            if any(_strictly_inside(p, points) for p in zone + _interior_points(zone)) or \
+                    any(_strictly_inside(p, zone) for p in points):
+                found.append(f"{label} covers {name}; a fix there would be dropped")
+        for poi in venue.get("pois", []):
+            try:
+                if _strictly_inside((poi["lat"], poi["lon"]), points):
+                    found.append(f"{label} covers point {poi.get('name') or poi.get('type')}")
+            except (KeyError, TypeError):
+                pass
+
+    fences = []
+    for index, barrier in enumerate(venue.get("barriers", []), start=1):
+        points = _line(found, f"barrier {index}", barrier, outside)
+        if points is not None:
+            fences.append(points)
+
+    for index, gate in enumerate(venue.get("gates", []), start=1):
+        label = f"gate {index} ({gate.get('name') or '?'})"
+        try:
+            point = (gate["lat"], gate["lon"])
+        except (KeyError, TypeError):
+            found.append(f"{label}: needs lat and lon")
+            continue
+        if outside(*point):
+            found.append(f"{label}: outside bounds")
+        number = gate.get("number", 0)
+        if number and number not in numbered:
+            found.append(f"{label}: number {number} is not the number of a point")
+        reach = min((_to_segment(point, a, b) for line in fences for a, b in zip(line, line[1:])), default=None)
+        if reach is None or reach > GATE_REACH_M:
+            found.append(f"{label}: not on a barrier; a gate stands within {GATE_REACH_M} m of a fence")
+        if any(_strictly_inside(point, points) for points in waters):
+            found.append(f"{label}: in the water")
+
+    for index, area in enumerate(venue.get("blocked", []), start=1):
+        label = f"blocked area {index} ({area.get('name') or '?'})"
+        if area.get("access", "staff") not in ACCESS:
+            found.append(f'{label}: access is "staff" or "none"')
+        points = _line(found, label, area.get("polygon"), outside, closed=True)
+        if points is not None and _area(points) == 0:
+            found.append(f"{label}: the polygon has no area")
+
+    for number in venue.get("meetingLandmarks", []):
+        if number not in numbered:
+            found.append(f"meeting landmark {number} is not the number of a point")
+
+    exits = {n for n, poi in numbered.items() if poi.get("type") == "exit"}
+    found += _evacuation_problems(venue, exits)
     return found
 
 

@@ -96,6 +96,71 @@ class CheckVenueTest(unittest.TestCase):
         self.assertTrue(any("path 2" in p for p in found), found)
         self.assertTrue(any("path 3" in p and "outside bounds" in p for p in found), found)
 
+    def site(self):
+        """Two zones, a fence along lat 5 with a gate at exit 1, exits 1 and 2, and a valid plan."""
+        v = venue(square("a", 1, 1), square("b", 1, 3))
+        v["pois"] = [{"type": "exit", "lat": 5, "lon": 2, "number": 1}, {"type": "exit", "lat": 0.5, "lon": 4, "number": 2},
+                     {"type": "info", "lat": 3, "lon": 3, "number": 3}]
+        v["barriers"] = [[{"lat": 5, "lon": 0.5}, {"lat": 5, "lon": 9.5}]]
+        v["gates"] = [{"lat": 5, "lon": 2, "name": "Poarta", "number": 1}]
+        v["evacuation"] = [{"id": 1, "name": "A", "exits": {"a": {"main": 1, "alternative": 2}, "b": {"main": 2}}}]
+        return v
+
+    def test_the_site_data_passes(self):
+        v = self.site()
+        v["water"] = [[{"lat": 6, "lon": 6}, {"lat": 12, "lon": 6}, {"lat": 12, "lon": 12}, {"lat": 6, "lon": 12}]]
+        v["blocked"] = [{"access": "staff", "polygon": [{"lat": 1.2, "lon": 1.2}, {"lat": 1.2, "lon": 1.5}, {"lat": 1.5, "lon": 1.5}]}]
+        v["meetingLandmarks"] = [3]
+        self.assertEqual([], check_venue.problems(v))
+
+    def test_water_over_a_zone_or_a_point_is_reported(self):
+        v = self.site()
+        v["water"] = [[{"lat": 0, "lon": 0}, {"lat": 0, "lon": 2.5}, {"lat": 4, "lon": 2.5}, {"lat": 4, "lon": 0}]]
+        found = check_venue.problems(v)
+        self.assertTrue(any("water 1 covers zone a" in p for p in found), found)
+        v["water"] = [[{"lat": 2.8, "lon": 2.8}, {"lat": 2.8, "lon": 3.2}, {"lat": 3.2, "lon": 3.2}, {"lat": 3.2, "lon": 2.8}]]
+        v["zones"] = [square("a", 1, 1)]
+        v["evacuation"] = []
+        found = check_venue.problems(v)
+        self.assertTrue(any("covers point" in p for p in found), found)
+
+    def test_a_gate_off_every_fence_or_naming_no_point_is_reported(self):
+        v = self.site()
+        v["gates"] = [{"lat": 6, "lon": 2, "name": "Departe"}, {"lat": 5, "lon": 3, "name": "Fără punct", "number": 9}]
+        found = check_venue.problems(v)
+        self.assertTrue(any("Departe" in p and "not on a barrier" in p for p in found), found)
+        self.assertTrue(any("Fără punct" in p and "number 9" in p for p in found), found)
+
+    def test_a_blocked_area_needs_a_known_access_and_a_polygon(self):
+        v = self.site()
+        v["blocked"] = [{"access": "vip", "polygon": [{"lat": 1, "lon": 1}, {"lat": 1, "lon": 2}, {"lat": 2, "lon": 2}]},
+                        {"access": "none", "polygon": [{"lat": 1, "lon": 1}]}]
+        found = check_venue.problems(v)
+        self.assertTrue(any("blocked area 1" in p and "access" in p for p in found), found)
+        self.assertTrue(any("blocked area 2" in p and "at least 3" in p for p in found), found)
+
+    def test_meeting_landmarks_are_numbers_of_points(self):
+        v = self.site()
+        v["meetingLandmarks"] = [3, 7]
+        found = check_venue.problems(v)
+        self.assertEqual(["meeting landmark 7 is not the number of a point"], found)
+
+    def test_an_evacuation_plan_covers_every_zone_with_two_different_exits(self):
+        v = self.site()
+        v["evacuation"] = [
+            {"id": 1, "name": "A", "exits": {"a": {"main": 1, "alternative": 1}, "x": {"main": 3}}},
+            {"id": 1, "name": "B", "exits": {"a": {"main": 2}, "b": {"main": 2}}},
+            {"id": 300, "name": "C", "exits": {"a": {"main": 1}, "b": {"main": 2}}},
+        ]
+        found = check_venue.problems(v)
+        self.assertTrue(any("plan 1, zone a" in p and "main exit again" in p for p in found), found)
+        self.assertTrue(any("zone b has no exit" in p for p in found), found)
+        self.assertTrue(any("x is not a zone" in p for p in found), found)
+        self.assertTrue(any("zone x: main exit 3 is not the number of an exit point" in p for p in found), found)
+        self.assertTrue(any("same id" in p for p in found), found)
+        self.assertTrue(any("single exit" in p for p in found), found)
+        self.assertTrue(any("plan 300" in p and "1 to 255" in p for p in found), found)
+
 
 if __name__ == "__main__":
     unittest.main()

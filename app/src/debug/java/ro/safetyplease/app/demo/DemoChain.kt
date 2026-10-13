@@ -57,7 +57,10 @@ class DemoChain(
         return issuer.shift(role, team, nowSec - 3600, nowSec + SHIFT_HOURS * 3600, zone, key, seed, legacyBoxSeed)
     }
 
-    /** The demo pack from today for [PACK_DAYS] days; a new day gives a newer version, with that day's keys. */
+    /**
+     * The demo pack from today for [PACK_DAYS] days, with the schedule of those nights ([DemoSchedule]); a new day gives a
+     * newer version, with that day's keys.
+     */
     fun pack(template: JsonObject, venue: String, notices: String, firstAid: Map<String, String>, pages: Map<String, Map<String, String>>, nowSec: Long): String {
         val today = today(nowSec)
         val body = buildJsonObject {
@@ -72,6 +75,7 @@ class DemoChain(
                 for (i in 0 until PACK_DAYS) add(reportKey(today.plusDays(i)).first.encode().toHex())
             }
             put("venue", Json.parseToJsonElement(venue))
+            put("schedule", DemoSchedule.json(DemoSchedule.sets(today, PACK_DAYS, zone)))
             put("notices", Json.parseToJsonElement(notices))
             putJsonObject("firstAid") { firstAid.forEach { (name, text) -> put(name, text) } }
             putJsonObject("pages") {

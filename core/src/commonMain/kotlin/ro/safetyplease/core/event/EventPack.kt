@@ -25,9 +25,11 @@ import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.sha256
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.utf8
+import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.PositionBox
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
+import kotlin.io.encoding.Base64
 
 private const val DAY_S = 86_400L
 
@@ -65,6 +67,9 @@ class EventPack(
     val positionBox: PositionBox?,
     /** Seconds; positions count their minutes from it. `dayStart` in the pack, else the UTC day of [validFrom]. */
     val dayStart: Long,
+    /** The sets on the stages, by start; empty when the pack has none. */
+    val schedule: List<ScheduleItem> = emptyList(),
+    val plan: SitePlan? = null,
 ) {
     val exercise: Boolean get() = kind == EventKind.EXERCISE
 
@@ -76,12 +81,35 @@ class EventPack(
     fun publicKeys(bundled: StaffPublicKeys): StaffPublicKeys = StaffPublicKeys(box ?: bundled.box, sign ?: bundled.sign)
 }
 
+/** One set on a stage: [stage] is the id of a venue zone; [start] and [end] are seconds since the Unix epoch. */
+data class ScheduleItem(val stage: String, val title: String, val start: Long, val end: Long)
+
+/**
+ * The organiser's illustrated site plan (the pack's `plan`), a PNG laid over the real map with its corners on these
+ * points; the image's top edge runs from [topLeft] to [topRight].
+ */
+class SitePlan(val png: ByteArray, val topLeft: GeoPoint, val topRight: GeoPoint, val bottomRight: GeoPoint, val bottomLeft: GeoPoint) {
+    val corners: List<GeoPoint> get() = listOf(topLeft, topRight, bottomRight, bottomLeft)
+}
+
 class PackCheck(val status: PackStatus, val pack: EventPack? = null)
 
 object EventPacks {
     const val FORMAT = "pingup-event"
     const val MAX_BYTES = 4 * 1024 * 1024
+
+    /**
+     * The site plan's PNG, decoded. In base64 it takes a third more, so a pack with the largest plan stays under
+     * [MAX_BYTES], the size every version reads.
+     */
+    const val PLAN_MAX_BYTES = 2 * 1024 * 1024
+    const val SCHEDULE_MAX_ITEMS = 1000
+    const val SCHEDULE_TITLE_CHARS = 80
+
+    /** A set longer than this is a typing error. */
+    const val SET_MAX_S = 12 * 3600L
     private const val MAX_ID = 64
+    private val PNG_SIGNATURE = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
     private val DOMAIN = "SP-PACK-v1".utf8()
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -164,7 +192,7 @@ object EventPacks {
         val sign = o.key("sign") ?: return null
         if (kind == EventKind.EXERCISE && (box.isEmpty() || sign.isEmpty())) return null
         val venue = (o["venue"] as? JsonObject)?.toString() ?: return null
-        if (runCatching { Venue.parse(venue) }.isFailure) return null
+        val site = runCatching { Venue.parse(venue) }.getOrNull() ?: return null
         val gridObject = o["grid"] as? JsonObject
         val grid = gridObject?.int("cellMeters") ?: SiteGrid.CELL_METERS
         if (grid !in 10..500) return null
@@ -173,11 +201,51 @@ object EventPacks {
         val firstAid = (o["firstAid"] as? JsonObject)?.mapValues { (_, v) -> (v as? JsonPrimitive)?.contentOrNull ?: return null }.orEmpty()
         val notices = o["notices"]?.let { NoticeTemplates.parse(it) ?: return null }
         val pages = InfoPages.fromJson(o["pages"]) ?: return null
+        val schedule = o["schedule"]?.let { schedule(it, site) ?: return null }.orEmpty()
+        val plan = o["plan"]?.let { plan(it) ?: return null }
         return EventPack(
             id, version, kind, o.string("name").orEmpty(), from, until, organiser, event, reportKeys,
             box.takeIf { it.isNotEmpty() }, sign.takeIf { it.isNotEmpty() }, venue, grid, firstAid, pages, hashOf(body), notices,
-            positionBox, dayStart ?: (from.floorDiv(DAY_S) * DAY_S),
+            positionBox, dayStart ?: (from.floorDiv(DAY_S) * DAY_S), schedule, plan,
         )
+    }
+
+    /**
+     * `[{"stage", "title", "start", "end"}]`, sorted by start: each stage a zone of [venue], a title of at most
+     * [SCHEDULE_TITLE_CHARS], a set of at most [SET_MAX_S]; null when one isn't, or past [SCHEDULE_MAX_ITEMS].
+     */
+    private fun schedule(element: JsonElement, venue: Venue): List<ScheduleItem>? {
+        val list = element as? JsonArray ?: return null
+        if (list.size > SCHEDULE_MAX_ITEMS) return null
+        return list.map { entry ->
+            val o = entry as? JsonObject ?: return null
+            val stage = o.string("stage")?.takeIf { venue.zone(it) != null } ?: return null
+            val title = o.string("title")?.takeIf { it.isNotBlank() && it.length <= SCHEDULE_TITLE_CHARS } ?: return null
+            val start = o.long("start") ?: return null
+            val end = o.long("end")?.takeIf { it > start && it - start <= SET_MAX_S } ?: return null
+            ScheduleItem(stage, title, start, end)
+        }.sortedBy { it.start }
+    }
+
+    /** `{"png": base64, "topLeft", "topRight", "bottomRight", "bottomLeft": {"lat", "lon"}}`, a PNG of at most [PLAN_MAX_BYTES]. */
+    private fun plan(element: JsonElement): SitePlan? {
+        val o = element as? JsonObject ?: return null
+        val text = o.string("png")?.takeIf { it.length <= (PLAN_MAX_BYTES + 2) / 3 * 4 } ?: return null
+        val png = try {
+            Base64.Default.decode(text)
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        if (png.size > PLAN_MAX_BYTES || png.size < PNG_SIGNATURE.size || !png.copyOf(PNG_SIGNATURE.size).contentEquals(PNG_SIGNATURE)) return null
+        fun corner(key: String): GeoPoint? {
+            val c = o[key] as? JsonObject ?: return null
+            val lat = c.double("lat")?.takeIf { it in -90.0..90.0 } ?: return null
+            val lon = c.double("lon")?.takeIf { it in -180.0..180.0 } ?: return null
+            return GeoPoint(lat, lon)
+        }
+        val corners = listOf("topLeft", "topRight", "bottomRight", "bottomLeft").map { corner(it) ?: return null }
+        if (corners.toSet().size != corners.size) return null
+        return SitePlan(png, corners[0], corners[1], corners[2], corners[3])
     }
 
     /** `{"originLat", "originLon", "azimuth", "version"}`; azimuth and version may be left out. */
