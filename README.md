@@ -115,5 +115,14 @@ Build-ul debug are o pereche separată, publică (`--demo`), pe care release-ul 
 
 Harta unui festival nou se pune în `app/src/main/assets/venue.json` și se verifică cu `python3 tools/check_venue.py app/src/main/assets/venue.json`: zonele nu au voie să se suprapună, id-urile încap în protocol, iar numerele reperelor sunt unice. Aceeași verificare rulează în CI și înainte ca `gen_staff_keys.py pack` să semneze pachetul de eveniment. Formatul e descris în script.
 
-## Drepturi
-Toate drepturile rezervate. Detalii în [LICENSE](LICENSE).
+## Licență
+Copyright © 2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver.
+
+- **Codul**: [GPL-3.0-or-later](LICENSE). Îl poți folosi, studia, modifica și distribui; o versiune modificată pe care o distribui rămâne tot sub GPL, cu codul ei sursă.
+- **Documentația**, inclusiv [protocolul](PROTOCOL.md) și vectorii lui de test, și **textele din aplicație** (paginile cu informații, fișele de prim ajutor, harta demo, anunțurile): [CC BY 4.0](LICENSES/CC-BY-4.0.txt), cu numele autorilor. Oricine poate face o aplicație compatibilă.
+- **Numele „Ping Up”, logo-ul și mascota** nu intră sub aceste licențe: [TRADEMARKS.md](TRADEMARKS.md). O versiune modificată are alt nume și alt logo.
+- **Ce e făcut de alții** își păstrează licența: fonturile Inter și Noto Sans (OFL-1.1), iconițele Phosphor și cele ale hărții, desenate de Mapzen (MIT), datele hărții, de la OpenStreetMap (ODbL-1.0), scripturile Gradle (Apache-2.0) și bibliotecile din Gradle.
+
+Licența fiecărui fișier e în [REUSE.toml](REUSE.toml), iar textele licențelor în [LICENSES/](LICENSES). Pentru alte condiții, de exemplu Ping Up într-o aplicație care nu e open source, scrie-ne: contactul e în [PRIVACY.md](PRIVACY.md).
+
+Ping Up nu e un serviciu de urgență și nu înlocuiește 112. E oferit fără nicio garanție (GPL, secțiunile 15 și 16).

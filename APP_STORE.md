@@ -10,13 +10,14 @@ Ce trebuie pentru prima trimitere a aplicației iPhone, după regulile Apple din
 - Notificările urgente (Time Sensitive) sunt doar în build-ul Release și doar pentru incidente urgente; nu cer formular la Apple.
 - Ecranul de lansare, iconița, iOS 16 sau mai nou, build-ul Release pentru telefoane verificat nesemnat cu Xcode 27 (Apple cere Xcode 26 sau mai nou la upload).
 - În aplicație: blocare din profil și „Raportează la staff” pentru hărțuirea venită prin aplicație (regula 1.2); „Nu înlocuiește 112” și butonul „Sună la 112” lângă raport (regula 5.1.5: aplicația nu e un serviciu de urgență); locația pleacă doar cu un raport, iar fără permisiune se alege zona de pe hartă (5.1.1).
+- Licența: codul e GPL-3.0-or-later. Condițiile App Store contrazic GPL-ul doar pentru cine distribuie codul GPL al altcuiva; noi publicăm codul nostru, ca autori, deci nu e conflict (așa publică și Signal, Mullvad sau Proton). De aceea, cod din afară intră doar cu acordul din `CONTRIBUTING.md`. La „License Agreement” rămâne EULA standard a Apple.
 
 ## De făcut înainte de trimitere
 
 1. **Contul Apple Developer.** O persoană fizică trebuie să aibă 18 ani; altfel îl face un părinte sau școala (ca organizație, cu număr D-U-N-S). Școlile acreditate și ONG-urile pot cere scutire de taxă.
 2. **Textele cu „(sursa: organizatorul)”** din `app/src/main/assets/pages` și `pages-en`: Apple respinge conținutul provizoriu (2.1). Se completează cu organizatorul.
 3. **Fișele de prim ajutor** (`firstaid`, `firstaid-en`) apar ca ciornă, „neverificate de un medic”: le aprobă un medic înainte de trimitere (1.4.1), altfel e risc de respingere.
-4. **Adresa de contact** (regula 1.2 cere date de contact) e acum în `PRIVACY.md`, în aplicație și în `LICENSE`; se trece și în App Store Connect.
+4. **Adresa de contact** (regula 1.2 cere date de contact) e acum în `PRIVACY.md` și în aplicație; se trece și în App Store Connect.
 5. **Un cod de staff pentru recenzie**, făcut cu cheile evenimentului (`python tools/gen_staff_keys.py`): build-ul Release nu acceptă cheile demo. Se pune ca imagine în „Attachment” la notele pentru recenzie, împreună cu o scrisoare de la organizator.
 6. **Un video scurt** cu două iPhone-uri, unul blocat în buzunar: prieteni, mesaj, raport, alerta la staff. Apple nu-l cere, dar o rețea Bluetooth fără internet e greu de încercat de recenzent.
 7. **Criptarea la export**, decizia cu Franța (mai jos).

@@ -1,0 +1,39 @@
+Ping Up: logo-ul și mascota
+
+Copyright (c) 2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver.
+Toate drepturile rezervate, cu excepțiile de mai jos.
+
+1. Fișierele cu această licență conțin logo-ul Ping Up (pinul cu raze de lumină) și mascota (pinul care
+   zâmbește). Nu sunt acoperite nici de licența GPL a codului, nici de licența CC BY a documentației. Lista
+   lor e în REUSE.toml.
+2. Fără să ne ceri acordul, le poți copia și distribui, doar nemodificate:
+   a) ca parte din Ping Up nemodificat: codul sursă, aplicația publicată de noi sau aplicația compilată de
+      altcineva din codul nostru nemodificat (de exemplu, de F-Droid);
+   b) ca să prezinți Ping Up: în articole, prezentări, concursuri, recenzii și în paginile aplicației din
+      magazinele și cataloagele de aplicații.
+3. Pentru orice altă folosire ai nevoie de acordul nostru scris, inclusiv într-o versiune modificată a
+   aplicației, într-un alt program, produs sau serviciu, sau pentru desene modificate. Cine publică o versiune
+   modificată a Ping Up înlocuiește aceste fișiere; TRADEMARKS.md spune cum.
+4. Fișierele sunt oferite „așa cum sunt”, fără nicio garanție.
+5. Se aplică legea română. Dacă textul în română și cel în engleză diferă, prevalează cel în română.
+
+---
+
+Ping Up: the logo and the mascot
+
+Copyright (c) 2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver.
+All rights reserved, except as set out below.
+
+1. The files under this license contain the Ping Up logo (the pin with rays of light) and the mascot (the
+   smiling pin). They are covered neither by the GPL license of the code nor by the CC BY license of the
+   documentation. They are listed in REUSE.toml.
+2. Without asking us, you may copy and distribute them, unmodified only:
+   a) as part of unmodified Ping Up: the source code, the app we publish, or the app built by someone else
+      from our unmodified source code (for example, by F-Droid);
+   b) to present Ping Up: in articles, presentations, contests, reviews, and on the app's pages in app stores
+      and app catalogs.
+3. Any other use needs our written permission, including in a modified version of the app, in another
+   program, product or service, or for modified drawings. Anyone who publishes a modified version of Ping Up
+   replaces these files; TRADEMARKS.md says how.
+4. The files are provided "as is", without any warranty.
+5. Romanian law applies. If the Romanian and the English texts differ, the Romanian text prevails.
