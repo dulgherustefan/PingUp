@@ -32,7 +32,10 @@ targets:
         CFBundleLocalizations: [ro, en]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        UILaunchScreen: {}
+        # the app's own background while it starts, white or the green-black night (Android's windowBackground);
+        # left empty, iOS shows pure black in dark mode and then fades it into the app
+        UILaunchScreen:
+          UIColorName: Background
         # all the app ever shows; landscape only for the control console, as the app delegate says
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         # Compose draws at the screen's own rate (120 Hz on ProMotion) only with this
