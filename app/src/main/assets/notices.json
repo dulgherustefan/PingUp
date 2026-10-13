@@ -47,6 +47,21 @@
     "params": [{"ro": "Zona", "en": "Area"}, {"ro": "Ieșirea", "en": "Exit"}]
   },
   {
+    "id": 7, "topic": "alert", "level": 1,
+    "text": {
+      "ro": "{1} e plină. Folosește {2} și urmează staff-ul.",
+      "en": "{1} is full. Use {2} and follow the staff."
+    },
+    "params": [{"ro": "Locul plin", "en": "Full place"}, {"ro": "Pe unde să meargă", "en": "Way to use"}]
+  },
+  {
+    "id": 8, "topic": "alert", "level": 3,
+    "text": {
+      "ro": "Evacuare. Ieși calm pe ieșirea arătată în aplicație. Nu alerga, nu te întoarce după lucruri și urmează staff-ul.",
+      "en": "Evacuation. Walk calmly to the exit the app shows you. Don't run, don't go back for your things and follow the staff."
+    }
+  },
+  {
     "id": 10, "topic": "heat", "level": 1,
     "text": {
       "ro": "E cald. Bea apă des și stai la umbră când poți.",
