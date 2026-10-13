@@ -8,6 +8,7 @@ import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.event.ScheduleItem
 import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.mesh.BatteryReading
 import ro.safetyplease.core.mesh.PowerPlan
@@ -117,6 +118,9 @@ interface Notifications {
 
     /** Every few hours of a location share without an end: it still runs, with [people] seeing this phone. */
     fun shareReminder(people: Int)
+
+    /** "Amintește-mi": [set] starts soon on [stage], and the walk there takes [walkMin] minutes (0 when unknown). */
+    fun setReminder(set: ScheduleItem, stage: String, walkMin: Int)
 }
 
 /** The Bluetooth radio as the session drives it: on while the mesh runs, at the power the plan asks for. */
