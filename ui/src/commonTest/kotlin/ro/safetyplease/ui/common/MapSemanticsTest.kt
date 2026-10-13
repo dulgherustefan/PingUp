@@ -1,19 +1,16 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
-import ro.safetyplease.ui.common.mapNodes
-import ro.safetyplease.ui.common.MapWords
-import ro.safetyplease.ui.common.MapPin
 import androidx.compose.ui.graphics.Color
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
-import org.junit.Test
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 
 class MapSemanticsTest {
     private fun square(id: String, name: String, type: String, lat: Double, lon: Double) = Zone(
@@ -84,7 +81,7 @@ class MapSemanticsTest {
         val all = nodes(position = inStage)
         // the camping's center is 0.001 degrees east, about 80 m at this latitude
         assertEquals("Camping, 80 m spre est", all[1].description)
-        assertEquals("rounded to 5 m", "Fântână, apă potabilă, 110 m spre nord", all[4].description)
+        assertEquals("Fântână, apă potabilă, 110 m spre nord", all[4].description, "rounded to 5 m")
     }
 
     @Test

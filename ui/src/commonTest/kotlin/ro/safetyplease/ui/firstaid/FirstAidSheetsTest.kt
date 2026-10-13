@@ -1,17 +1,13 @@
-package ro.safetyplease.app.ui.firstaid
+package ro.safetyplease.ui.firstaid
 
-import ro.safetyplease.ui.firstaid.sheetParts
-import ro.safetyplease.ui.firstaid.parseSheet
-import ro.safetyplease.ui.firstaid.readSheets
-import ro.safetyplease.ui.firstaid.sheetDirectory
-import ro.safetyplease.ui.firstaid.FirstAidSheet
-import ro.safetyplease.ui.firstaid.SheetBlock
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import java.io.File
+import ro.safetyplease.ui.names
+import ro.safetyplease.ui.readText
+import ro.safetyplease.ui.repoFile
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class FirstAidSheetsTest {
     private val sample = """
@@ -33,7 +29,7 @@ class FirstAidSheetsTest {
         val sheet = parseSheet("04-sangerare", sample)
         assertEquals("04-sangerare", sheet.id)
         assertEquals("Sângerează mult", sheet.title)
-        assertEquals("a line right under a block continues it", "Sângele curge mult dintr-o rană.", sheet.summary)
+        assertEquals("Sângele curge mult dintr-o rană.", sheet.summary, "a line right under a block continues it")
         assertEquals(
             listOf(
                 SheetBlock.Text("Sângele curge mult dintr-o rană."),
@@ -54,7 +50,7 @@ class FirstAidSheetsTest {
         val approved = parseSheet("a", "$sample\n\nAprobat: Dr. Ana Pop, șef medical, 12.06.2027")
         assertEquals("Dr. Ana Pop, șef medical, 12.06.2027", approved.approval)
         assertFalse(approved.draft)
-        assertTrue("an empty approval approves nothing", parseSheet("a", "$sample\n\nAprobat:").draft)
+        assertTrue(parseSheet("a", "$sample\n\nAprobat:").draft, "an empty approval approves nothing")
     }
 
     @Test
@@ -74,24 +70,24 @@ class FirstAidSheetsTest {
     }
 
     private fun bundled(language: String): List<FirstAidSheet> {
-        val dir = File("src/main/assets/${sheetDirectory(language)}")
-        return readSheets(dir.list().orEmpty().toList()) { File(dir, it).readText() }
+        val dir = repoFile("app/src/main/assets/${sheetDirectory(language)}")
+        return readSheets(dir.names().toList()) { (dir / it).readText() }
     }
 
     @Test
     fun bundledSheetsAreFourNumberedDraftsAndOnlyCprSendsForADefibrillator() {
         for ((language, word) in mapOf("ro" to "DEA", "en" to "AED")) {
             val sheets = bundled(language)
-            assertEquals(language, listOf("01-nu-respira", "02-inconstient-respira", "03-caldura", "04-sangerare"), sheets.map { it.id })
+            assertEquals(listOf("01-nu-respira", "02-inconstient-respira", "03-caldura", "04-sangerare"), sheets.map { it.id }, language)
             for (sheet in sheets) {
-                assertTrue(sheet.id, sheet.title.isNotEmpty() && sheet.summary.isNotEmpty())
+                assertTrue(sheet.title.isNotEmpty() && sheet.summary.isNotEmpty(), sheet.id)
                 val steps = sheet.blocks.filterIsInstance<SheetBlock.Step>()
-                assertEquals(sheet.id, (1..steps.size).toList(), steps.map { it.number })
-                assertTrue(sheet.id, steps.size in 4..8)
-                assertTrue("not approved by a medical lead yet: ${sheet.id}", sheet.draft)
-                assertFalse("cedilla instead of comma below: ${sheet.id}", sheet.blocks.any { it.text.contains(Regex("[şţŞŢ]")) })
+                assertEquals((1..steps.size).toList(), steps.map { it.number }, sheet.id)
+                assertTrue(steps.size in 4..8, sheet.id)
+                assertTrue(sheet.draft, "not approved by a medical lead yet: ${sheet.id}")
+                assertFalse(sheet.blocks.any { it.text.contains(Regex("[şţŞŢ]")) }, "cedilla instead of comma below: ${sheet.id}")
             }
-            assertEquals(language, listOf("01-nu-respira"), sheets.filter { it.mentions(word) }.map { it.id })
+            assertEquals(listOf("01-nu-respira"), sheets.filter { it.mentions(word) }.map { it.id }, language)
         }
     }
 
@@ -99,13 +95,13 @@ class FirstAidSheetsTest {
     fun englishCopiesFollowTheRomanianOnesStepForStep() {
         for ((ro, en) in bundled("ro").zip(bundled("en"))) {
             assertEquals(ro.id, en.id)
-            assertEquals(ro.id, ro.blocks.map { it::class }, en.blocks.map { it::class })
-            assertEquals(ro.id, ro.approval == null, en.approval == null)
+            assertEquals(ro.blocks.map { it::class }, en.blocks.map { it::class }, ro.id)
+            assertEquals(ro.approval == null, en.approval == null, ro.id)
         }
         val titles = bundled("en").map { it.title }
         for (sheet in bundled("en")) {
             for (quoted in Regex("\"([^\"]+)\"").findAll(sheet.blocks.joinToString(" ") { it.text }).map { it.groupValues[1] }) {
-                assertTrue("${sheet.id} points to a sheet that does not exist: $quoted", quoted in titles || quoted == "AED")
+                assertTrue(quoted in titles || quoted == "AED", "${sheet.id} points to a sheet that does not exist: $quoted")
             }
         }
     }

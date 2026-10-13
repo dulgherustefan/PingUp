@@ -1,8 +1,7 @@
-package ro.safetyplease.app.ui.report
+package ro.safetyplease.ui.report
 
-import ro.safetyplease.ui.report.categoryColumns
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class ReportLayoutTest {
     @Test

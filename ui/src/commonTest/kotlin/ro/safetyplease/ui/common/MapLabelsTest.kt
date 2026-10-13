@@ -1,22 +1,14 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import ro.safetyplease.ui.common.MapCorner
-import ro.safetyplease.ui.common.MeasuredName
-import ro.safetyplease.ui.common.ZoneLabelMode
-import ro.safetyplease.ui.common.breaksWord
-import ro.safetyplease.ui.common.chooseZoneLabel
-import ro.safetyplease.ui.common.cornerRect
-import ro.safetyplease.ui.common.firstFree
-import ro.safetyplease.ui.common.placeClear
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class MapLabelsTest {
     private val clean = MeasuredName(40f, 28f, true)
@@ -57,11 +49,11 @@ class MapLabelsTest {
     @Test
     fun aLineEndingInsideAWordIsABrokenWord() {
         val name = "Chill-out area"
-        assertTrue("Chill-o / ut area", breaksWord(name, listOf(7, name.length)))
-        assertFalse("after the hyphen", breaksWord(name, listOf(6, name.length)))
-        assertFalse("at the space", breaksWord(name, listOf(10, name.length)))
-        assertFalse("one line", breaksWord(name, listOf(name.length)))
-        assertFalse("the last line ends the text", breaksWord(name, listOf(name.length, name.length)))
+        assertTrue(breaksWord(name, listOf(7, name.length)), "Chill-o / ut area")
+        assertFalse(breaksWord(name, listOf(6, name.length)), "after the hyphen")
+        assertFalse(breaksWord(name, listOf(10, name.length)), "at the space")
+        assertFalse(breaksWord(name, listOf(name.length)), "one line")
+        assertFalse(breaksWord(name, listOf(name.length, name.length)), "the last line ends the text")
     }
 
     private val within = Rect(0f, 0f, 200f, 100f)
@@ -70,7 +62,7 @@ class MapLabelsTest {
     @Test
     fun aClearBlockStaysWhereItIsWantedAndInsideItsZone() {
         assertEquals(Offset(70f, 35f), placeClear(block, Offset(70f, 35f), within, emptyList()))
-        assertEquals("pulled inside", Offset(140f, 70f), placeClear(block, Offset(190f, 95f), within, emptyList()))
+        assertEquals(Offset(140f, 70f), placeClear(block, Offset(190f, 95f), within, emptyList()), "pulled inside")
     }
 
     @Test
@@ -79,7 +71,7 @@ class MapLabelsTest {
         val spot = placeClear(block, Offset(140f, 70f), within, listOf(control))!!
         assertFalse(Rect(spot, block).overlaps(control))
         assertTrue(spot.x >= within.left && spot.y >= within.top && spot.x + block.width <= within.right && spot.y + block.height <= within.bottom)
-        assertEquals("left of the control, same row", Offset(90f, 70f), spot)
+        assertEquals(Offset(90f, 70f), spot, "left of the control, same row")
     }
 
     @Test
@@ -103,7 +95,7 @@ class MapLabelsTest {
         assertEquals(corners[0], firstFree(corners, emptyList()))
         assertEquals(corners[1], firstFree(corners, listOf(corners[0])))
         assertEquals(corners[2], firstFree(corners, listOf(corners[0], corners[1])))
-        assertNotNull("all covered: the usual corner", firstFree(corners, corners))
+        assertNotNull(firstFree(corners, corners), "all covered: the usual corner")
         assertEquals(corners[0], firstFree(corners, corners))
     }
 }

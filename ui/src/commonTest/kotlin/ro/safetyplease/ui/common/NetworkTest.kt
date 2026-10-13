@@ -1,11 +1,8 @@
-package ro.safetyplease.app.ui.common
+package ro.safetyplease.ui.common
 
-import ro.safetyplease.ui.common.problem
-import ro.safetyplease.ui.common.RadioProblem
-import ro.safetyplease.ui.common.RadioGate
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class NetworkTest {
     private fun gate(access: Boolean = true, bluetooth: Boolean = true, locationOff: Boolean = false, meshOff: Boolean = false) =

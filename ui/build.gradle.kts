@@ -66,6 +66,23 @@ compose.resources {
     publicResClass = true
 }
 
+// The tests read the app's assets by path: the iPhone simulator runs them off the Mac's disk too
+val testEnvironment = tasks.register("testEnvironment") {
+    val root = rootDir.absolutePath
+    val output = layout.buildDirectory.dir("generated/testEnvironment")
+    inputs.property("root", root)
+    outputs.dir(output)
+    doLast {
+        val file = output.get().file("ro/safetyplease/ui/TestEnvironment.kt").asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            "package ro.safetyplease.ui\n\n/** Where the repository is on the machine that built the tests. */\n" +
+                "internal const val REPO_ROOT = \"" + root.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\"\n",
+        )
+    }
+}
+kotlin.sourceSets.commonTest { kotlin.srcDir(testEnvironment) }
+
 // `./gradlew test`, as CI runs it, runs the shared tests here on the JVM
 tasks.register("test") {
     description = "Runs the shared tests on the JVM."

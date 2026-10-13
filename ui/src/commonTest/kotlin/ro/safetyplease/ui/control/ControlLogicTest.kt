@@ -1,10 +1,5 @@
-package ro.safetyplease.app.ui.control
+package ro.safetyplease.ui.control
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.LogEntry
@@ -14,17 +9,11 @@ import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Severity
-import ro.safetyplease.ui.control.Action
-import ro.safetyplease.ui.control.RadioWords
-import ro.safetyplease.ui.control.ackFor
-import ro.safetyplease.ui.control.actions
-import ro.safetyplease.ui.control.crowdSignals
-import ro.safetyplease.ui.control.mutedMinutes
-import ro.safetyplease.ui.control.queue
-import ro.safetyplease.ui.control.radioPhrase
-import ro.safetyplease.ui.control.reopened
-import ro.safetyplease.ui.control.teamChoices
-import ro.safetyplease.ui.control.urgent
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ControlLogicTest {
     private val t0 = 1_791_832_500_000L
@@ -85,7 +74,7 @@ class ControlLogicTest {
         assertEquals(listOf(Action.ASSIGN, Action.TAKE, Action.CLOSE, Action.UNFOUNDED), actions(case("a", Severity.URGENT, 0)))
         assertEquals(Action.CLOSE, actions(case("a", Severity.URGENT, 0, CaseState.ASSIGNED)).first())
         assertEquals(listOf(Action.REOPEN), actions(case("a", Severity.URGENT, 0, CaseState.CLOSED)))
-        assertEquals("the epoch is one byte", emptyList<Action>(), actions(case("a", Severity.URGENT, 0, CaseState.CLOSED, epoch = 255)))
+        assertEquals(emptyList<Action>(), actions(case("a", Severity.URGENT, 0, CaseState.CLOSED, epoch = 255)), "the epoch is one byte")
     }
 
     @Test
@@ -99,16 +88,16 @@ class ControlLogicTest {
     fun decisionsGoOutOnlyWhileTheNetworkIsBehind() {
         assertEquals(AckStatus.ACKNOWLEDGED, ackFor(Action.ASSIGN, AckStatus.RECEIVED))
         assertEquals(AckStatus.ACKNOWLEDGED, ackFor(Action.TAKE, AckStatus.NONE))
-        assertEquals("after a reopen", AckStatus.ACKNOWLEDGED, ackFor(Action.ASSIGN, AckStatus.REOPENED))
-        assertNull("no reassignment on the network yet", ackFor(Action.ASSIGN, AckStatus.ACKNOWLEDGED))
+        assertEquals(AckStatus.ACKNOWLEDGED, ackFor(Action.ASSIGN, AckStatus.REOPENED), "after a reopen")
+        assertNull(ackFor(Action.ASSIGN, AckStatus.ACKNOWLEDGED), "no reassignment on the network yet")
         assertNull(ackFor(Action.ASSIGN, AckStatus.ON_SCENE))
         assertEquals(AckStatus.CLOSED_BY_CONTROL, ackFor(Action.CLOSE, AckStatus.HANDED_OVER))
-        assertEquals("control closes what a team resolved", AckStatus.CLOSED_BY_CONTROL, ackFor(Action.CLOSE, AckStatus.RESOLVED))
+        assertEquals(AckStatus.CLOSED_BY_CONTROL, ackFor(Action.CLOSE, AckStatus.RESOLVED), "control closes what a team resolved")
         assertEquals(AckStatus.UNFOUNDED, ackFor(Action.UNFOUNDED, AckStatus.RECEIVED))
         assertEquals(AckStatus.UNFOUNDED, ackFor(Action.UNFOUNDED, AckStatus.CLOSED_BY_CONTROL))
         assertNull(ackFor(Action.UNFOUNDED, AckStatus.CANCELLED))
         assertEquals(AckStatus.CANCELLED, ackFor(Action.CONFIRM_CANCEL, AckStatus.ACKNOWLEDGED))
-        assertEquals("a reopen starts the next epoch, whatever closed it", AckStatus.REOPENED, ackFor(Action.REOPEN, AckStatus.CANCELLED))
+        assertEquals(AckStatus.REOPENED, ackFor(Action.REOPEN, AckStatus.CANCELLED), "a reopen starts the next epoch, whatever closed it")
     }
 
     @Test
@@ -177,7 +166,7 @@ class ControlLogicTest {
     fun theMuteCountsDownInWholeMinutesAndNeverPastTen() {
         assertEquals(0, mutedMinutes(0, t0))
         assertEquals(10, mutedMinutes(t0 + 10 * 60_000L, t0))
-        assertEquals("a stale clock doesn't show eleven", 10, mutedMinutes(t0 + 10 * 60_000L + 20_000, t0))
+        assertEquals(10, mutedMinutes(t0 + 10 * 60_000L + 20_000, t0), "a stale clock doesn't show eleven")
         assertEquals(1, mutedMinutes(t0 + 1_000, t0))
         assertEquals(0, mutedMinutes(t0, t0))
     }
@@ -219,6 +208,6 @@ class ControlLogicTest {
         val cases = (0 until 4).map { crowdCase("c$it", it) } + crowdCase("closed", 4, CaseState.CLOSED) +
             case("medical", Severity.URGENT, 4)
         assertTrue(crowdSignals(cases, t0 + 5 * 60_000L).isEmpty())
-        assertEquals("a taken one still counts", 5, crowdSignals(cases + crowdCase("taken", 4, CaseState.ASSIGNED), t0 + 5 * 60_000L).single().count)
+        assertEquals(5, crowdSignals(cases + crowdCase("taken", 4, CaseState.ASSIGNED), t0 + 5 * 60_000L).single().count, "a taken one still counts")
     }
 }

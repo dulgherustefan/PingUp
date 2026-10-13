@@ -1,16 +1,5 @@
-package ro.safetyplease.app.ui.incidents
+package ro.safetyplease.ui.incidents
 
-import ro.safetyplease.ui.incidents.listRows
-import ro.safetyplease.ui.incidents.IncidentList
-import ro.safetyplease.ui.incidents.incidentRows
-import ro.safetyplease.ui.incidents.isAssignedToMe
-import ro.safetyplease.ui.incidents.isMine
-import ro.safetyplease.ui.incidents.isOpen
-import ro.safetyplease.ui.incidents.nextFieldStep
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Routing
 import ro.safetyplease.core.incidents.StaffProfile
@@ -18,6 +7,10 @@ import ro.safetyplease.core.incidents.StatusFilter
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Severity
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class IncidentRowsTest {
     private fun incident(
@@ -47,8 +40,8 @@ class IncidentRowsTest {
             listOf("alocat-rolului", "alocat-echipei", "nepreluat", "alocat-altora"),
             incidentRows(staff, StatusFilter.ACTIVE, team = "Medical 2").map { it.incidentId },
         )
-        assertEquals("without a team, the order stays", "nepreluat", incidentRows(staff, StatusFilter.ACTIVE).first().incidentId)
-        assertFalse("closed work isn't the team's any more", staff.last().isMine("Medical 2"))
+        assertEquals("nepreluat", incidentRows(staff, StatusFilter.ACTIVE).first().incidentId, "without a team, the order stays")
+        assertFalse(staff.last().isMine("Medical 2"), "closed work isn't the team's any more")
     }
 
     @Test
@@ -56,16 +49,16 @@ class IncidentRowsTest {
         val assigned = incident("alocat", 0, status = AckStatus.ACKNOWLEDGED, team = "Medical", assigned = true)
         val taken = incident("preluat", 1, status = AckStatus.ACKNOWLEDGED, team = "Medical 2")
         assertTrue(assigned.isAssignedToMe("Medical 2"))
-        assertFalse("the team's own take is not an assignment", taken.isAssignedToMe("Medical 2"))
-        assertTrue("but it is still the team's work", taken.isMine("Medical 2"))
-        assertFalse("assigned to another team", assigned.isAssignedToMe("Securitate 1"))
-        assertFalse("closed", assigned.copy(status = AckStatus.RESOLVED).isAssignedToMe("Medical 2"))
+        assertFalse(taken.isAssignedToMe("Medical 2"), "the team's own take is not an assignment")
+        assertTrue(taken.isMine("Medical 2"), "but it is still the team's work")
+        assertFalse(assigned.isAssignedToMe("Securitate 1"), "assigned to another team")
+        assertFalse(assigned.copy(status = AckStatus.RESOLVED).isAssignedToMe("Medical 2"), "closed")
     }
 
     @Test
     fun twoMedicalCasesInTheSameZoneAreTwoRows() {
         val rows = incidentRows(listOf(incident("a", 0), incident("b", 1)), StatusFilter.ACTIVE)
-        assertEquals("newest first", listOf("b", "a"), rows.map { it.incidentId })
+        assertEquals(listOf("b", "a"), rows.map { it.incidentId }, "newest first")
     }
 
     @Test
@@ -86,7 +79,7 @@ class IncidentRowsTest {
         val onScene = incident("la-fata-locului", 0, status = AckStatus.ON_SCENE, team = "Medical 2")
         assertTrue(onScene.isMine("Medical 2"))
         assertFalse(onScene.isOpen())
-        assertTrue("a reopened incident waits for a team again", incident("redeschis", 1, status = AckStatus.REOPENED).isOpen())
+        assertTrue(incident("redeschis", 1, status = AckStatus.REOPENED).isOpen(), "a reopened incident waits for a team again")
         assertEquals(AckStatus.ON_SCENE, nextFieldStep(AckStatus.ACKNOWLEDGED))
         assertEquals(AckStatus.HANDED_OVER, nextFieldStep(AckStatus.ON_SCENE))
         for (status in listOf(AckStatus.RECEIVED, AckStatus.HANDED_OVER, AckStatus.CLOSED_BY_CONTROL, AckStatus.REOPENED)) {
@@ -118,15 +111,15 @@ class IncidentRowsTest {
         val now = 4 * 60_000L + 10_000
         assertEquals(listOf("alocat", "urgent-in-zona"), listRows(staff, IncidentList.FOR_ME, me, now).map { it.incidentId })
         assertEquals(
-            "everything open, what is routed here first",
             listOf("alocat", "urgent-in-zona", "urgent-altundeva", "mediu-in-zona"),
             listRows(staff, IncidentList.ALL, me, now).map { it.incidentId },
+            "everything open, what is routed here first",
         )
         assertEquals(listOf("rezolvat"), listRows(staff, IncidentList.CLOSED, me, now).map { it.incidentId })
         val later = now + Routing.WIDEN_AFTER_MS
         assertTrue(
-            "nobody took them: the role's phones see them too",
             listRows(staff, IncidentList.FOR_ME, me, later).map { it.incidentId }.containsAll(listOf("urgent-altundeva", "mediu-in-zona")),
+            "nobody took them: the role's phones see them too",
         )
     }
 
@@ -134,8 +127,8 @@ class IncidentRowsTest {
     fun anAssignmentIsAcceptedByTheTeamsOwnTake() {
         val assigned = incident("alocat", 0, status = AckStatus.ACKNOWLEDGED, team = "Medical", assigned = true)
         assertTrue(Routing.awaitsAcceptance(assigned, "Medical 2"))
-        assertFalse("accepted: the take replaces the assignment", Routing.awaitsAcceptance(assigned.copy(assigned = false, teamName = "Medical 2"), "Medical 2"))
-        assertFalse("on scene says it too", Routing.awaitsAcceptance(assigned.copy(status = AckStatus.ON_SCENE), "Medical 2"))
+        assertFalse(Routing.awaitsAcceptance(assigned.copy(assigned = false, teamName = "Medical 2"), "Medical 2"), "accepted: the take replaces the assignment")
+        assertFalse(Routing.awaitsAcceptance(assigned.copy(status = AckStatus.ON_SCENE), "Medical 2"), "on scene says it too")
         assertFalse(Routing.awaitsAcceptance(assigned, "Securitate 1"))
     }
 

@@ -1,11 +1,5 @@
-package ro.safetyplease.app.ui
+package ro.safetyplease.ui
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import ro.safetyplease.app.MainActivity
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.data.StaffIncident
@@ -23,20 +17,14 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
-import ro.safetyplease.ui.Dest
-import ro.safetyplease.ui.Tab
-import ro.safetyplease.ui.chatPoint
-import ro.safetyplease.ui.closedIncidents
-import ro.safetyplease.ui.closedReports
 import ro.safetyplease.ui.common.Nearby
 import ro.safetyplease.ui.common.helpOrigin
 import ro.safetyplease.ui.common.onSite
-import ro.safetyplease.ui.currentPoint
-import ro.safetyplease.ui.isOpen
-import ro.safetyplease.ui.landing
-import ro.safetyplease.ui.pickedZoneAge
-import ro.safetyplease.ui.push
-import ro.safetyplease.ui.reportSpot
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class UiLogicTest {
     private fun square(id: String, lat: Double, lon: Double) =
@@ -58,7 +46,7 @@ class UiLogicTest {
     @Test
     fun distancesAreMeasuredOnlyFromInsideTheVenue() {
         assertEquals(inA, onSite(inA, venue))
-        assertNull("at home, far from the venue", onSite(GeoPoint(44.43, 26.10), venue))
+        assertNull(onSite(GeoPoint(44.43, 26.10), venue), "at home, far from the venue")
         assertNull(onSite(null, venue))
     }
 
@@ -75,8 +63,8 @@ class UiLogicTest {
         val picked = Settings(manualZone = "bar", manualZoneAt = t0)
         assertNull(pickedZoneAge(picked, t0 + 5 * 60_000L - 1))
         assertEquals(5 * 60_000L, pickedZoneAge(picked, t0 + 5 * 60_000L))
-        assertNull("no zone", pickedZoneAge(Settings(manualZoneAt = t0), t0 + 60 * 60_000L))
-        assertNull("picked before the time was kept", pickedZoneAge(Settings(manualZone = "bar"), t0))
+        assertNull(pickedZoneAge(Settings(manualZoneAt = t0), t0 + 60 * 60_000L), "no zone")
+        assertNull(pickedZoneAge(Settings(manualZone = "bar"), t0), "picked before the time was kept")
     }
 
     @Test
@@ -96,7 +84,7 @@ class UiLogicTest {
     fun zoneFollowsOnlyAFreshFix() {
         fun zoneAt(nowMs: Long) = currentPoint(Settings(), fix, nowMs)?.let { venue.zoneAt(it.lat, it.lon) }?.id
         assertEquals("a", zoneAt(t0 + 60_000))
-        assertNull("40 minutes later the old zone is no longer ours", zoneAt(t0 + 40 * 60_000))
+        assertNull(zoneAt(t0 + 40 * 60_000), "40 minutes later the old zone is no longer ours")
     }
 
     @Test
@@ -117,7 +105,7 @@ class UiLogicTest {
 
     @Test
     fun chatCoordinatesContradictingTheZoneAreDropped() {
-        assertNull("the user picked B but stands in A", chatPoint("b", inA, venue))
+        assertNull(chatPoint("b", inA, venue), "the user picked B but stands in A")
         assertNull(chatPoint("a", null, venue))
     }
 
@@ -148,7 +136,7 @@ class UiLogicTest {
         val spot = reportSpot(Settings(simLat = inB.lat, simLon = inB.lon), fix, t0, venue)!!
         assertEquals(inB, spot.point)
         assertEquals(0, spot.accuracyM)
-        assertNull("nothing to add to the coordinates", spot.fields)
+        assertNull(spot.fields, "nothing to add to the coordinates")
     }
 
     @Test
@@ -247,8 +235,9 @@ class UiLogicTest {
             staff("preluat", "", 0, AckStatus.ACKNOWLEDGED),
         )
         assertEquals(
+            setOf("rezolvat", "anulat", "rezolvat-langa-deschis"),
+            closedIncidents(incidents).toSet(),
             "an open report from the same zone, a minute later, is another incident and stays",
-            setOf("rezolvat", "anulat", "rezolvat-langa-deschis"), closedIncidents(incidents).toSet(),
         )
     }
 
@@ -256,15 +245,15 @@ class UiLogicTest {
 
     @Test
     fun reportLinkOpensTheCategoriesWithNothingOnTop() {
-        assertEquals(Tab.REPORT to null, landing(MainActivity.OPEN_REPORT))
+        assertEquals(Tab.REPORT to null, landing(OpenTarget.REPORT))
     }
 
     @Test
     fun linksLandOnTheirTabAndScreen() {
-        assertEquals(Tab.REPORT to Dest.ReportSent("ab12"), landing(MainActivity.OPEN_REPORT_PREFIX + "ab12"))
-        assertEquals(Tab.MESSAGES to Dest.Conversation("f1"), landing(MainActivity.OPEN_CHAT_PREFIX + "f1"))
-        assertEquals(Tab.INCIDENTS to null, landing(MainActivity.OPEN_INCIDENTS))
-        assertNull("home keeps the tab the user was on", landing(MainActivity.OPEN_HOME))
+        assertEquals(Tab.REPORT to Dest.ReportSent("ab12"), landing(OpenTarget.REPORT_PREFIX + "ab12"))
+        assertEquals(Tab.MESSAGES to Dest.Conversation("f1"), landing(OpenTarget.CHAT_PREFIX + "f1"))
+        assertEquals(Tab.INCIDENTS to null, landing(OpenTarget.INCIDENTS))
+        assertNull(landing(OpenTarget.HOME), "home keeps the tab the user was on")
     }
 
     @Test

@@ -1,10 +1,5 @@
-package ro.safetyplease.app.ui.report
+package ro.safetyplease.ui.report
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.incidents.ESCALATE_AFTER_MS
 import ro.safetyplease.core.incidents.EscalationReminder
@@ -20,11 +15,6 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 import ro.safetyplease.ui.common.helpOrigin
-import ro.safetyplease.ui.report.MEDICAL
-import ro.safetyplease.ui.report.reportStep
-import ro.safetyplease.ui.report.staysPut
-import ro.safetyplease.ui.report.stepLabel
-import ro.safetyplease.ui.report.stepNote
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.status_acknowledged
 import ro.safetyplease.ui.resources.status_acknowledged_pending
@@ -40,6 +30,11 @@ import ro.safetyplease.ui.resources.status_sending
 import ro.safetyplease.ui.resources.status_unfounded
 import ro.safetyplease.ui.resources.status_waiting_link
 import ro.safetyplease.ui.text.Labels
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ReportProgressTest {
     private val t0 = 1_000_000L
@@ -75,7 +70,7 @@ class ReportProgressTest {
         assertEquals(Res.string.status_acknowledged, stepLabel(3, taken))
         assertEquals(Res.string.status_acknowledged, Labels.myReportStatus(AckStatus.ACKNOWLEDGED, hasTeam = true))
         assertEquals(Res.string.status_acknowledged_pending, Labels.myReportStatus(AckStatus.ACKNOWLEDGED, hasTeam = false))
-        assertNull("no note once a person confirmed", stepNote(3))
+        assertNull(stepNote(3), "no note once a person confirmed")
         // the step still to come names no team
         assertEquals(Res.string.status_acknowledged_pending, stepLabel(3, report(status = AckStatus.RECEIVED, team = "Medical 1")))
     }
@@ -88,7 +83,7 @@ class ReportProgressTest {
         assertEquals(Res.string.status_sending, stepLabel(1, report(sent = true)))
         assertEquals(4, reportStep(report(status = AckStatus.RESOLVED)))
         assertEquals(Res.string.status_resolved, Labels.myReportStatus(AckStatus.RESOLVED, hasTeam = true))
-        assertNull("nothing to tell before a staff phone has it", Labels.myReportStatus(AckStatus.NONE, hasTeam = false))
+        assertNull(Labels.myReportStatus(AckStatus.NONE, hasTeam = false), "nothing to tell before a staff phone has it")
         assertNull(Labels.myReportStatus(AckStatus.CANCELLED, hasTeam = false))
     }
 
@@ -99,7 +94,7 @@ class ReportProgressTest {
         assertEquals(Res.string.status_on_scene, stepLabel(3, onScene))
         assertEquals(Res.string.status_handed_over, stepLabel(3, report(status = AckStatus.HANDED_OVER, team = "Medical 1")))
         val reopened = report(status = AckStatus.REOPENED, team = "Control")
-        assertEquals("back with staff", 3, reportStep(reopened))
+        assertEquals(3, reportStep(reopened), "back with staff")
         assertEquals(Res.string.status_reopened, stepLabel(3, reopened))
         val closed = report(status = AckStatus.CLOSED_BY_CONTROL, team = "Control")
         assertEquals(4, reportStep(closed))
@@ -122,10 +117,10 @@ class ReportProgressTest {
         val waiting = report()
         assertFalse(waiting.needsEscalation(t0 + ESCALATE_AFTER_MS - 1))
         assertTrue(waiting.needsEscalation(t0 + ESCALATE_AFTER_MS))
-        assertTrue("an automatic RECEIVED doesn't stop it", report(status = AckStatus.RECEIVED).needsEscalation(t0 + ESCALATE_AFTER_MS))
+        assertTrue(report(status = AckStatus.RECEIVED).needsEscalation(t0 + ESCALATE_AFTER_MS), "an automatic RECEIVED doesn't stop it")
         assertFalse(report(status = AckStatus.ACKNOWLEDGED).needsEscalation(t0 + 60 * 60_000L))
         assertFalse(report(status = AckStatus.RESOLVED).needsEscalation(t0 + 60 * 60_000L))
-        assertFalse("control has seen a reopened one", report(status = AckStatus.REOPENED).needsEscalation(t0 + 60 * 60_000L))
+        assertFalse(report(status = AckStatus.REOPENED).needsEscalation(t0 + 60 * 60_000L), "control has seen a reopened one")
     }
 
     @Test
@@ -146,10 +141,10 @@ class ReportProgressTest {
         assertEquals(at, nextEscalation(mine, t0))
         assertEquals(emptyList<MyReport>(), escalationsBetween(mine, t0, at - 1))
         assertEquals(listOf(first), escalationsBetween(mine, at - 1, at))
-        assertEquals("already told", emptyList<MyReport>(), escalationsBetween(mine, at, at + 1_000))
+        assertEquals(emptyList<MyReport>(), escalationsBetween(mine, at, at + 1_000), "already told")
         assertEquals(at + 60_000, nextEscalation(mine, at))
         assertNull(nextEscalation(mine, at + 60_000))
-        assertEquals("moments before the app started aren't told", emptyList<MyReport>(), escalationsBetween(mine, at + 90_000, at + 150_000))
+        assertEquals(emptyList<MyReport>(), escalationsBetween(mine, at + 90_000, at + 150_000), "moments before the app started aren't told")
     }
 
     @Test
@@ -160,7 +155,7 @@ class ReportProgressTest {
         assertEquals(emptyList<MyReport>(), reminder.due(listOf(waiting), at, foreground = true))
         assertEquals(emptyList<MyReport>(), reminder.due(listOf(waiting), at + 30_000, foreground = true))
         assertEquals(listOf(waiting), reminder.due(listOf(waiting), at + 60_000, foreground = false))
-        assertEquals("only once", emptyList<MyReport>(), reminder.due(listOf(waiting), at + 90_000, foreground = false))
+        assertEquals(emptyList<MyReport>(), reminder.due(listOf(waiting), at + 90_000, foreground = false), "only once")
     }
 
     @Test
@@ -179,7 +174,7 @@ class ReportProgressTest {
         assertEquals(listOf(waiting), reminder.due(listOf(waiting), t0 + ESCALATE_AFTER_MS, foreground = false))
         val restarted = EscalationReminder(t0 + ESCALATE_AFTER_MS)
         val later = t0 + 2 * ESCALATE_AFTER_MS
-        assertEquals("not again after a restart", emptyList<MyReport>(), restarted.due(listOf(waiting), later, foreground = false))
+        assertEquals(emptyList<MyReport>(), restarted.due(listOf(waiting), later, foreground = false), "not again after a restart")
     }
 
     // --- where help is measured from ---
@@ -197,9 +192,9 @@ class ReportProgressTest {
         assertEquals(here, helpOrigin(here, reported, "", venue))
         assertEquals(GeoPoint(0.5, 0.5), helpOrigin(null, reported, "", venue))
         assertEquals(camping.center, helpOrigin(null, report().copy(zone = "camping"), "", venue))
-        assertEquals("the zone picked by hand", camping.center, helpOrigin(null, report(), "camping", venue))
+        assertEquals(camping.center, helpOrigin(null, report(), "camping", venue), "the zone picked by hand")
         assertNull(helpOrigin(null, report(), "", venue))
-        assertEquals("no report: the zone picked by hand", camping.center, helpOrigin(null, null, "camping", venue))
+        assertEquals(camping.center, helpOrigin(null, null, "camping", venue), "no report: the zone picked by hand")
         assertEquals(here, helpOrigin(here, null, "camping", venue))
     }
 
@@ -207,7 +202,7 @@ class ReportProgressTest {
     fun anOpenMedicalOrUrgentReportStaysPut() {
         assertTrue(staysPut(report(), escalated = false))
         assertTrue(staysPut(report().copy(severity = Severity.MEDIUM), escalated = false))
-        assertFalse("then the reporter goes to a steward", staysPut(report(), escalated = true))
+        assertFalse(staysPut(report(), escalated = true), "then the reporter goes to a steward")
         assertFalse(staysPut(report(cancelled = true), escalated = false))
         assertFalse(staysPut(report(status = AckStatus.RESOLVED), escalated = false))
         assertFalse(staysPut(report(severity = Severity.MEDIUM).copy(category = IncidentCategory.CROWD), escalated = false))

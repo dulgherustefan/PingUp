@@ -1,8 +1,5 @@
-package ro.safetyplease.app.ui.me
+package ro.safetyplease.ui.me
 
-import ro.safetyplease.ui.me.loadMessage
-import org.junit.Assert.assertEquals
-import org.junit.Test
 import ro.safetyplease.core.event.Added
 import ro.safetyplease.core.event.Loaded
 import ro.safetyplease.core.event.PackStatus
@@ -14,6 +11,8 @@ import ro.safetyplease.ui.resources.event_older
 import ro.safetyplease.ui.resources.event_shared_key
 import ro.safetyplease.ui.resources.event_tampered
 import ro.safetyplease.ui.resources.event_wrong_chain
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class EventScreenTest {
     @Test
