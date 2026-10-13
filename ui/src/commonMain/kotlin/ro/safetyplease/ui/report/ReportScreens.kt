@@ -536,6 +536,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         )
                     }
                 }
+                if (category == 0) QuickHelpRows(vm, Modifier.padding(top = 12.dp))
                 if (category != 0) {
                     Text(
                         stringResource(Labels.categoryExample(category)).replaceFirstChar { it.uppercase() },

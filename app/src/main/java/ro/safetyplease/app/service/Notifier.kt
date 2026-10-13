@@ -29,6 +29,7 @@ import ro.safetyplease.core.incidents.AlertLevel
 import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.incidents.AlertReason
 import ro.safetyplease.core.incidents.Discreet
+import ro.safetyplease.core.incidents.ResponderTarget
 import ro.safetyplease.core.incidents.needsEscalation
 import ro.safetyplease.core.position.SharingNow
 import ro.safetyplease.core.session.Notifications
@@ -222,6 +223,8 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             AlertReason.ASSIGNED -> context.getString(R.string.notif_assigned_title, category)
             AlertReason.UNACCEPTED -> context.getString(R.string.notif_unaccepted_title, incident.teamName, category)
             AlertReason.ROLE, AlertReason.EVERYONE -> context.getString(R.string.notif_widened_title, category)
+            AlertReason.ESCALATED -> context.getString(R.string.notif_escalated_title, category)
+            AlertReason.RESPONDER -> context.getString(R.string.notif_responder_title, zone)
             else -> context.getString(R.string.notif_incident_title, category, context.text(Labels.urgency(incident.severity)))
         }
         val level = post.route.level
@@ -247,6 +250,59 @@ class Notifier(private val context: Context, private val venue: Venue, private v
     }
 
     override fun cancelStaffAlert(incidentId: String) = manager.cancel(incidentId.hashCode())
+
+    /** Someone doesn't breathe nearby: how far, and the defibrillator to fetch on the way, under the incident's own id. */
+    override fun responderAlert(post: AlertPost, target: ResponderTarget?) {
+        if (!canPost()) return
+        val incident = post.incident
+        val title = target?.direct?.let { context.getString(R.string.responder_distance, it) }
+            ?.let { "${context.getString(R.string.responder_title)} · $it" } ?: context.getString(R.string.responder_title)
+        val deaName = target?.dea?.name?.ifEmpty { null } ?: context.getString(R.string.responder_dea_name)
+        val toDea = target?.toDea
+        val deaToPatient = target?.deaToPatient
+        val text = when {
+            target?.dea == null || deaToPatient == null -> context.getString(R.string.responder_no_dea)
+            toDea != null -> context.getString(R.string.responder_dea, deaName, toDea, deaToPatient)
+            else -> context.getString(R.string.responder_dea_patient, deaName, deaToPatient)
+        }
+        val id = incident.incidentId.hashCode()
+        val open = open(MainActivity.OPEN_INCIDENTS, id)
+        val builder = NotificationCompat.Builder(context, if (exercise) CHANNEL_VIBRATE else CHANNEL_ALARM)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(marked(title))
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setSilent(post.silent)
+        if (!exercise) builder.setCategory(NotificationCompat.CATEGORY_ALARM)
+        if (post.fullScreen && !exercise) builder.setFullScreenIntent(open, true)
+        manager.notify(id, builder.build())
+    }
+
+    /**
+     * "Ești OK?": the alarm sound again and again until an answer or [untilMs]; tapping it opens the question. In an
+     * exercise it neither takes over the screen nor rings as an alarm. False when notifications aren't allowed.
+     */
+    override fun manDownCheck(untilMs: Long): Boolean {
+        if (!canPost() || !manager.areNotificationsEnabled()) return false
+        val open = open(MainActivity.OPEN_HOME, RequestCodes.MAN_DOWN)
+        val builder = NotificationCompat.Builder(context, if (exercise) CHANNEL_VIBRATE else CHANNEL_ALARM)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(marked(context.getString(R.string.mandown_title)))
+            .setContentText(context.getString(R.string.mandown_notification))
+            .setContentIntent(open)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setTimeoutAfter((untilMs - System.currentTimeMillis()).coerceAtLeast(1_000))
+        if (!exercise) builder.setCategory(NotificationCompat.CATEGORY_ALARM).setFullScreenIntent(open, true)
+        val notification = builder.build().apply { if (!exercise) flags = flags or Notification.FLAG_INSISTENT }
+        manager.notify(MAN_DOWN_ID, notification)
+        return true
+    }
+
+    override fun cancelManDownCheck() = manager.cancel(MAN_DOWN_ID)
 
     /**
      * Status of your report, in the same words as its screen. An urgent report nobody on staff has confirmed in time
@@ -362,6 +418,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         private const val CHANNEL_SHARING = "sharing_reminder"
         private const val SHARING_REMINDER_ID = 3
         private const val CHANNEL_PROGRAM = "program"
+        private const val MAN_DOWN_ID = 4
         private const val NOTICE_ID = 100
         private const val CHANNEL_NOTICE = "notice"
         private const val CHANNEL_NOTICE_PAUSE = "notice_pause"

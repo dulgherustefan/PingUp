@@ -8,9 +8,12 @@ import kotlinx.datetime.toLocalDateTime
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
 import ro.safetyplease.core.control.ConsoleView
+import ro.safetyplease.core.control.DensityReading
+import ro.safetyplease.core.control.DensityStep
 import ro.safetyplease.core.control.LogEntry
 import ro.safetyplease.core.control.LogEvent
 import ro.safetyplease.core.control.MetricsJoin
+import ro.safetyplease.core.control.StaffDensity
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.incidents.Routing
@@ -164,6 +167,8 @@ class EditionReport(
     val exercise: Part,
     val network: NetworkHealth,
     val limits: List<Limit>,
+    /** Staff's crowd levels, zone by zone, as they changed over the window. */
+    val density: List<DensityStep> = emptyList(),
 )
 
 object EditionReports {
@@ -195,11 +200,15 @@ object EditionReports {
         records: List<ReportTiming>,
         anchors: List<AnchorSeen>,
         zone: TimeZone,
+        density: List<DensityReading> = emptyList(),
     ): EditionReport {
         val realPart = Part(rows(real, grid, from, until), zone)
         val exercisePart = Part(rows(exercise, grid, from, until), zone)
         val network = network(from, until, real, exercise, snapshots, samples, records, anchors)
-        return EditionReport(from, until, realPart, exercisePart, network, limits(realPart, exercisePart, network, samples))
+        return EditionReport(
+            from, until, realPart, exercisePart, network, limits(realPart, exercisePart, network, samples),
+            StaffDensity.timeline(density, from, until),
+        )
     }
 
     fun rows(log: ModeLog, grid: SiteGrid, from: Long, until: Long): List<ReportRow> {

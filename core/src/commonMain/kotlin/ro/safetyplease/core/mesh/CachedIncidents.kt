@@ -28,6 +28,8 @@ data class CachedIncident(
     val update: CachedPacket? = null,
     /** The highest update sequence number seen, kept after the packet expires; 0 for none. */
     val updateVersion: Long = 0,
+    /** A routine report, which nobody acknowledges. */
+    val routine: Boolean = false,
 )
 
 /** [frame] is the packet as it goes on the wire, unfragmented, in hex. */

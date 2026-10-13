@@ -360,6 +360,8 @@ open class PingUpSession(private val platform: AppPlatform) {
         onReportResponse = { notifications.reportResponse(it) },
         onAck = { ack, own, hops -> if (settings.value.role == Role.CONTROL) console.sawAck(ack, own, hops) },
         staffCap = { if (settings.value.role == Role.CONTROL) IncidentManager.MAX_STAFF_CONSOLE else IncidentManager.MAX_STAFF },
+        priority = { staffChain.priority },
+        divert = { staffChain.divert(it) },
     )
 
     private val revocations = Revocations(
@@ -406,6 +408,13 @@ open class PingUpSession(private val platform: AppPlatform) {
         settings = { settings.value }, fix = { platform.location.value }, walk = { walkDistance },
     ) { set, walkMin -> notifications.setReminder(set, venue.zoneName(set.stage), walkMin) }
 
+    /** Priority, crowd levels, hand-over notes, responders and man-down. */
+    val staffChain: StaffChain = StaffChain(
+        meshScope, ioScope, platform, notifications, clock, settings, incidentStore.state, venue, { walkDistance },
+        { draft, bypass -> incidents.report(draft, bypass) },
+        modeFile("density.json"), modeFile("handover.json"), dataDir / "staff_chain.json", exportDir, foreground,
+    )
+
     /**
      * The console logs every notice it sends or hears; a phone that shows them notifies, unless it signed the notice or
      * the notice has no words (the map state).
@@ -426,6 +435,7 @@ open class PingUpSession(private val platform: AppPlatform) {
             engine.start()
             chat.start()
             incidents.start()
+            staffChain.start()
             revocations.start()
             notices.start()
             settings.state.collect { s ->
@@ -611,15 +621,16 @@ open class PingUpSession(private val platform: AppPlatform) {
      */
     private suspend fun routeAlerts() {
         val planner = AlertPlanner(clock.wallMs())
-        combine(incidentStore.state, settings.state, mutedUntil) { data, s, muted -> Triple(data, s, muted) }.collectLatest { (data, s, muted) ->
-            if (!s.role.hasStaffKeys) return@collectLatest
-            val me = Routing.profile(s)
+        combine(incidentStore.state, settings.state, mutedUntil, staffChain.position, staffChain.nearIncidents) { data, s, muted, here, near ->
+            Triple(data, Routing.profile(s).copy(position = here, near = near).takeIf { s.role.hasStaffKeys }, muted)
+        }.collectLatest { (data, me, muted) ->
+            if (me == null) return@collectLatest
             val own = data.mine.mapTo(HashSet()) { it.incidentId }
             while (true) {
                 val now = clock.wallMs()
                 val plan = planner.plan(me, data.staff, own, now, muted)
                 plan.stop.forEach(notifications::cancelStaffAlert)
-                plan.post.forEach(notifications::staffAlert)
+                plan.post.forEach(staffChain::post)
                 val next = plan.nextAt ?: break
                 delay(next - now)
             }
@@ -749,6 +760,7 @@ open class PingUpSession(private val platform: AppPlatform) {
             .forEach { it.flush() }
         positions.flush()
         chatStore.flush()
+        staffChain.flush()
     }
 
     fun removeEventPack(hash: String) = events.update { it.without(hash) }

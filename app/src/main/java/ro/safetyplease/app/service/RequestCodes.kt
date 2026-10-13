@@ -15,4 +15,5 @@ object RequestCodes {
     const val STOP_MESH = 7
     const val STOP_SHARING = 8
     const val SHARING_REMINDER = 9
+    const val MAN_DOWN = 10
 }

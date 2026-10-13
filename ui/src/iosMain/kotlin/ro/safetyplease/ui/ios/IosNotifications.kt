@@ -31,8 +31,10 @@ import ro.safetyplease.ui.resources.layers_reminder_walk
 import ro.safetyplease.ui.resources.msg_group_left
 import ro.safetyplease.ui.resources.msg_zone
 import ro.safetyplease.ui.resources.notif_assigned_title
+import ro.safetyplease.ui.resources.notif_escalated_title
 import ro.safetyplease.ui.resources.notif_incident_title
 import ro.safetyplease.ui.resources.notif_report_title
+import ro.safetyplease.ui.resources.notif_responder_title
 import ro.safetyplease.ui.resources.notif_response_title
 import ro.safetyplease.ui.resources.notif_shift_ended_text
 import ro.safetyplease.ui.resources.notif_shift_ended_title
@@ -78,6 +80,8 @@ class IosNotifications(private val venue: Venue, private val exercise: Boolean, 
             AlertReason.ASSIGNED -> getString(Res.string.notif_assigned_title, category)
             AlertReason.UNACCEPTED -> getString(Res.string.notif_unaccepted_title, incident.teamName, category)
             AlertReason.ROLE, AlertReason.EVERYONE -> getString(Res.string.notif_widened_title, category)
+            AlertReason.ESCALATED -> getString(Res.string.notif_escalated_title, category)
+            AlertReason.RESPONDER -> getString(Res.string.notif_responder_title, zone)
             else -> getString(Res.string.notif_incident_title, category, getString(Labels.urgency(incident.severity)))
         }
         val insistent = post.route.level == AlertLevel.INSISTENT && !exercise

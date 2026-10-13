@@ -7,6 +7,7 @@ import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.core.venue.GeoPoint
 
 /**
  * Who a staff phone is, for routing: the control console, or a team in the field with its zone. A role lead (the
@@ -17,6 +18,10 @@ data class StaffProfile(
     val team: String = "",
     val zone: String = "",
     val lead: Boolean = false,
+    /** The phone's position, for [Responders]; null without a fix. */
+    val position: GeoPoint? = null,
+    /** The incidents [Responders] already had this phone in range of: it leaves their range only past the margin. */
+    val near: Set<String> = emptySet(),
 )
 
 /** How a phone tells its holder, weakest first. */
@@ -50,6 +55,12 @@ enum class AlertReason {
 
     /** Console only: the team it assigned hasn't accepted within [Routing.WIDEN_AFTER_MS]. */
     UNACCEPTED,
+
+    /** Urgent and unacknowledged for [UrgentEscalation.ACK_WITHIN_MS]: every lead of its role hears it. */
+    ESCALATED,
+
+    /** Someone doesn't breathe or respond nearby: [Responders]. */
+    RESPONDER,
 }
 
 data class Route(val level: AlertLevel, val reason: AlertReason? = null) {
@@ -111,7 +122,7 @@ object Routing {
         incident.assigned && incident.status == AckStatus.ACKNOWLEDGED && isAssignedTo(incident.teamName, team)
 
     /** Since when nobody has had it: since this phone opened the report, or since the console reopened it. */
-    private fun waitingSince(incident: StaffIncident): Long =
+    fun waitingSince(incident: StaffIncident): Long =
         if (incident.status == AckStatus.REOPENED) incident.statusAt else incident.receivedAt
 
     /** 0 while it's fresh, 1 once its role hears it, 2 once everyone does; 0 when someone has it. */
@@ -138,6 +149,7 @@ object Routing {
         }
         if (awaitsAcceptance(incident, me.team)) return Route(AlertLevel.VIBRATE, AlertReason.ASSIGNED)
         if (handled(incident)) return Route.SILENT
+        if (Responders.alerts(me, incident)) return Route(AlertLevel.INSISTENT, AlertReason.RESPONDER)
         val role = roleOf(incident)
         val ofMyRole = me.team.isNotBlank() && (role == null || inRole(role, me.team))
         val zone = incident.zone.trim()
@@ -148,13 +160,15 @@ object Routing {
         }
         // safeguarding hears a discreet request at once, wherever the team stands, and nobody else is told early
         if (role == Discreet.ROLE && ofMyRole) return Route(AlertLevel.VIBRATE, AlertReason.ROLE)
+        if (me.lead && ofMyRole && UrgentEscalation.overdue(incident, nowMs)) return Route(AlertLevel.INSISTENT, AlertReason.ESCALATED)
         // a phone that knows neither its team nor its zone can't be routed to: it hears every urgency
         val unrouted = me.team.isBlank() && me.zone.isBlank()
         val stage = stage(incident, nowMs)
         return when {
             urgent && (inMyZone || unrouted) -> Route(AlertLevel.VIBRATE, AlertReason.ZONE)
             stage >= 2 -> Route(AlertLevel.VIBRATE, AlertReason.EVERYONE)
-            stage >= 1 && role != null && ofMyRole -> Route(AlertLevel.VIBRATE, AlertReason.ROLE)
+            // a lead waits for the escalation instead, so the urgency reaches it once
+            stage >= 1 && role != null && ofMyRole && !(me.lead && urgent) -> Route(AlertLevel.VIBRATE, AlertReason.ROLE)
             else -> Route.SILENT
         }
     }
@@ -170,7 +184,9 @@ object Routing {
         val moments = when {
             me.console -> if (incident.assigned && incident.status == AckStatus.ACKNOWLEDGED) listOf(incident.statusAt + WIDEN_AFTER_MS) else emptyList()
             handled(incident) -> emptyList()
-            else -> waitingSince(incident).let { listOf(it + WIDEN_AFTER_MS, it + 2 * WIDEN_AFTER_MS) }
+            else -> waitingSince(incident).let { since ->
+                listOfNotNull(since + WIDEN_AFTER_MS, UrgentEscalation.deadline(incident)?.takeIf { me.lead }, since + 2 * WIDEN_AFTER_MS)
+            }
         }
         return moments.filter { it > nowMs }.minOrNull()
     }

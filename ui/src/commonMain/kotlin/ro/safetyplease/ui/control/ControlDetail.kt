@@ -242,6 +242,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
             }
             if (case.cancelRequested) Note(stringResource(Res.string.incident_cancel_requested), colors.orangeInk)
             if (Priority.isInformational(r.category)) Note(stringResource(Res.string.incident_informational), colors.secondaryLabel)
+            MedicalPanel(vm, case, incident, history)
 
             Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.fill).padding(12.dp)) {
                 Text(

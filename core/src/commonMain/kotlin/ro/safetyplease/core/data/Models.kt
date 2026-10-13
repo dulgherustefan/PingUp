@@ -250,6 +250,13 @@ data class StaffIncident(
     val updates: List<IncidentUpdate> = emptyList(),
     /** Responses this phone sent the reporter, oldest first. */
     val responses: List<ReportResponse> = emptyList(),
+    /** From the report's extension block: staff's crowd level 1..5 (0: none) and the three flags. */
+    val density: Int = 0,
+    val cannotMove: Boolean = false,
+    val manDown: Boolean = false,
+    val unconscious: Boolean = false,
+    /** The [ro.safetyplease.core.incidents.PriorityRule] that made it urgent on this phone; empty for none. */
+    val topRule: String = "",
 )
 
 @Serializable

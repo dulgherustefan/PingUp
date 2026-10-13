@@ -451,11 +451,16 @@ class MeshEngine(
         return packet
     }
 
-    /** Our own report: the cache keeps it until staff confirms receipt, whatever else arrives. */
-    fun publishReport(incidentId: ByteArray, sealed: ByteArray): Packet {
+    /**
+     * Our own report: the cache keeps it until staff confirms receipt, whatever else arrives; a [routine] one, which
+     * nobody confirms ([IncidentCache.settle]), only briefly.
+     */
+    fun publishReport(incidentId: ByteArray, sealed: ByteArray, routine: Boolean = false): Packet {
         val payload = IncidentReportCodec.encode(incidentId, sealed)
         val packet = newPacket(PacketType.INCIDENT_REPORT, payload, null, encrypted = true, anonymous = true)
-        if (cache.offerReport(incidentId, packet, clock.monoMs(), own = true)) saveCache()
+        val kept = cache.offerReport(incidentId, packet, clock.monoMs(), own = true)
+        if (routine) cache.settle(incidentId, clock.monoMs())
+        if (kept || routine) saveCache()
         ownNewsMs = clock.monoMs()
         flood(packet, own = true)
         publishState()
@@ -516,6 +521,12 @@ class MeshEngine(
         ownNewsMs = clock.monoMs()
         flood(packet, own = true)
         return packet
+    }
+
+    /** A report a staff phone opened as routine ([IncidentCache.settle]). */
+    fun settleReport(incidentId: ByteArray) {
+        cache.settle(incidentId, clock.monoMs())
+        saveCache()
     }
 
     /** After a cancel we stop spreading our own report; the trace stays so neighbors don't bring it back. */

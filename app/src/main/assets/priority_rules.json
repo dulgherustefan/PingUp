@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "approved": "",
+  "rules": [
+    { "id": "not_breathing", "breathes": 2 },
+    { "id": "unconscious", "flags": ["unconscious"] },
+    { "id": "unresponsive", "responds": 2 },
+    { "id": "man_down", "flags": ["man_down"] },
+    { "id": "seizure", "categories": [1], "words": ["convuls", "seizure", "epilep"] },
+    { "id": "high_temperature", "categories": [1], "minTemperatureC": 40.0 },
+    { "id": "hot_skin", "categories": [1], "words": ["fierbinte", "hot skin", "supraincalz", "overheat", "heatstroke", "insolatie"] },
+    { "id": "confusion", "categories": [1], "words": ["confuz", "confused", "dezorientat", "disoriented", "delir"] },
+    { "id": "heavy_bleeding", "words": ["sangereaza mult", "sangerare abundenta", "hemoragie", "heavy bleeding", "bleeding heavily"] }
+  ]
+}

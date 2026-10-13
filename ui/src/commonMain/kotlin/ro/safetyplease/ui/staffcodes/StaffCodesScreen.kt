@@ -136,6 +136,8 @@ fun StaffCodesScreen(vm: AppViewModel) {
 
             Feedback(result, vm)
 
+            DensityCodes(vm)
+
             SectionTitle(stringResource(Res.string.staff_codes_state_title), top = 12.dp)
             for ((code, label, icon) in FIELD_CODES) {
                 val target = remember(incidents.staff, settings.teamName, code) { StaffCodes.target(code, incidents.staff, settings.teamName) }

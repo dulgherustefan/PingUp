@@ -58,8 +58,8 @@ object Clustering {
     }
 }
 
-/** A crowd report as the signal sees it: the zone it names and when its reporter wrote it. */
-class CrowdReport(val zone: String, val reportedAt: Long)
+/** A crowd report as the signal sees it: the zone it names, when its reporter wrote it, and whether it says "nu mă pot mișca". */
+class CrowdReport(val zone: String, val reportedAt: Long, val cannotMove: Boolean = false)
 
 /** [count] crowd reports from [zone], written over [minutes] minutes. */
 class CrowdSignal(val zone: String, val count: Int, val minutes: Int)
@@ -73,12 +73,19 @@ object CrowdWatch {
     const val WINDOW_MS = 10 * 60_000L
     const val MIN_REPORTS = 5
 
-    /** The zones with at least [MIN_REPORTS] reports written in the last [WINDOW_MS], the busiest first. */
+    /**
+     * "Nu mă pot mișca" says more than "it's packed", so a zone that has some counts this many reports more. Only so
+     * many, whatever their number: reports are anonymous, and one phone, at [IncidentManager.RATE_MAX] reports in the
+     * window, must stay short of [MIN_REPORTS] on its own.
+     */
+    const val CANNOT_MOVE_BONUS = MIN_REPORTS - 1 - IncidentManager.RATE_MAX
+
+    /** The zones whose reports of the last [WINDOW_MS] weigh at least [MIN_REPORTS], the busiest first. */
     fun signals(reports: Collection<CrowdReport>, nowMs: Long): List<CrowdSignal> =
         reports.filter { it.zone.isNotBlank() && nowMs - it.reportedAt <= WINDOW_MS }
             .groupBy { it.zone.trim().lowercase() }
             .values
-            .filter { it.size >= MIN_REPORTS }
+            .filter { zone -> zone.size + minOf(zone.count { it.cannotMove }, CANNOT_MOVE_BONUS) >= MIN_REPORTS }
             .map { zone ->
                 val span = zone.maxOf { it.reportedAt } - zone.minOf { it.reportedAt }
                 CrowdSignal(zone.first().zone.trim(), zone.size, maxOf(1L, (span + 59_999) / 60_000).toInt())

@@ -174,6 +174,27 @@ class MeshPartsTest {
     }
 
     @Test
+    fun aRoutineReportGoesFirstAndSoonEvenOnItsAuthorsPhone() {
+        val c = IncidentCache(maxReports = 2)
+        c.offerReport(id(1), packet(PacketType.INCIDENT_REPORT, 1), 0)
+        c.offerReport(id(2), packet(PacketType.INCIDENT_REPORT, 2), 10, own = true)
+        c.settle(id(2), 10)
+        c.offerReport(id(3), packet(PacketType.INCIDENT_REPORT, 3), 20)
+        assertNull(c.report(2L), "nobody acknowledges a routine level: it doesn't wait for staff")
+        assertNotNull(c.report(1L), "a report still waiting for staff stays")
+
+        val d = IncidentCache()
+        d.offerReport(id(4), packet(PacketType.INCIDENT_REPORT, 4), 0)
+        d.settle(id(4), 0)
+        d.offerReport(id(5), packet(PacketType.INCIDENT_REPORT, 5), 0)
+        val saved = d.snapshot(0, 1_000_000)
+        assertEquals(setOf(5L), d.summary(IncidentCache.ROUTINE_MS + 1).map { it.id8 }.toSet(), "served a few minutes only")
+        val restored = IncidentCache()
+        restored.restore(saved, 0, 1_000_000, 60 * 60_000L)
+        assertEquals(setOf(5L), restored.summary(IncidentCache.ROUTINE_MS + 1).map { it.id8 }.toSet(), "and so after a restart")
+    }
+
+    @Test
     fun higherAckReplacesLower() {
         val c = IncidentCache()
         assertTrue(c.offerAck(ack(1, AckStatus.RECEIVED), packet(PacketType.INCIDENT_ACK, 1), 0))

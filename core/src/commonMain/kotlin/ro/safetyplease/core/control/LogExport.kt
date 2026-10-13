@@ -67,7 +67,7 @@ class ExportDocument(
  */
 object LogExport {
     const val FORMAT = "pingup-console-log"
-    const val VERSION = 2
+    const val VERSION = 3
 
     private val codec = Json { encodeDefaults = true }
     /** ISO 8601 to the second with the local offset: 2026-07-10T21:04:05+03:00, or Z at UTC. */
