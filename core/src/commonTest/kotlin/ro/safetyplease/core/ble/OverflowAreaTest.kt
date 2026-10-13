@@ -52,6 +52,10 @@ class OverflowAreaTest {
         // Android 14 keeps only the last Apple block of a record and 15 joins them, so its own parsing can't be trusted
         assertTrue(OverflowArea.inRecord((flags + nearby + ours).hexToBytes(), bit))
         assertTrue(OverflowArea.inRecord((flags + ours + "00" + nearby).hexToBytes(), bit), "padding between the parts")
+        // Apple packs [type, length, value] items in one block; the overflow item has no length byte (linky, iOS 27)
+        assertTrue(OverflowArea.inRecord((flags + "18ff4c00" + "10020b00" + "01" + "0000000000000000000000000000" + "0400").hexToBytes(), bit))
+        assertFalse(OverflowArea.inRecord((flags + "18ff4c00" + "10020b00" + "01" + "00".repeat(16)).hexToBytes(), bit))
+        assertFalse(OverflowArea.inRecord((flags + "09ff4c00" + "10020b00" + "0104").hexToBytes(), bit), "an area cut short")
         assertFalse(OverflowArea.inRecord((flags + "14ff4c0001" + "00".repeat(16)).hexToBytes(), bit), "another app's area")
         assertFalse(OverflowArea.inRecord((flags + "14ff4c0002" + "0000000000000000000000000000" + "0400").hexToBytes(), bit), "not type 1")
         assertFalse(OverflowArea.inRecord((flags + "14ff750001" + "0000000000000000000000000000" + "0400").hexToBytes(), bit), "not Apple")

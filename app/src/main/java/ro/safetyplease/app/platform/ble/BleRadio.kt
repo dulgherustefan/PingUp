@@ -44,6 +44,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import ro.safetyplease.core.ble.Advert
 import ro.safetyplease.core.ble.AdvertData
+import ro.safetyplease.core.ble.AppleSweep
 import ro.safetyplease.core.ble.BleLayout
 import ro.safetyplease.core.ble.OverflowArea
 import ro.safetyplease.core.ble.ScanCycle
@@ -236,6 +237,10 @@ class BleRadio(
     /** A batched scan failed to start on this stack; plain scans until the radio restarts. */
     private var batchingBroken = false
 
+    /** The second, short scan for every Apple advertisement ([AppleSweep]). */
+    private var sweepJob: Job? = null
+    private var sweeping = false
+
     private var canAdvertise = true
     private val failures = AdvertiseFailures()
     private val legacyAdv = AdvSet(coded = false)
@@ -351,6 +356,7 @@ class BleRadio(
         )
         if (!openServer()) log("GATT server unavailable")
         requestScan()
+        startSweeps()
         publishStatus()
     }
 
@@ -364,6 +370,8 @@ class BleRadio(
         cycleJob?.cancel()
         cycle.resume()
         advertiseJob?.cancel()
+        sweepJob?.cancel()
+        stopSweep()
         stopScanNow()
         legacyAdv.stop()
         codedAdv.stop()
@@ -942,6 +950,51 @@ class BleRadio(
                 log("batched scan refused, scanning without batches")
             }
             publishStatus()
+        }
+    }
+
+    // --- the Apple sweep ---
+
+    private fun startSweeps() {
+        sweepJob?.cancel()
+        sweepJob = scope.launch {
+            while (isActive) {
+                delay(AppleSweep.EVERY_MS)
+                if (!active || !AppleSweep.wanted(plan?.profile) || !startSweep()) continue
+                delay(AppleSweep.FOR_MS)
+                stopSweep()
+            }
+        }
+    }
+
+    private fun startSweep(): Boolean {
+        val scanner = adapter?.bluetoothLeScanner ?: return false
+        // it counts toward Android's five starts in 30 s like the main scan, so it keeps the same spacing
+        if (now() - lastScanStartAt < BleConstants.SCAN_START_SPACING_MS || now() < scanBlockedUntil) return false
+        val filter = ScanFilter.Builder().setManufacturerData(OverflowArea.APPLE, ByteArray(0)).build()
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+            .build()
+        sweeping = runCatching { scanner.startScan(listOf(filter), settings, sweepCallback) }.isSuccess
+        if (sweeping) lastScanStartAt = now()
+        return sweeping
+    }
+
+    private fun stopSweep() {
+        if (!sweeping) return
+        sweeping = false
+        runCatching { adapter?.bluetoothLeScanner?.stopScan(sweepCallback) }
+    }
+
+    private val sweepCallback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult) = heard(listOf(result))
+
+        override fun onBatchScanResults(results: MutableList<ScanResult>) = heard(results)
+
+        override fun onScanFailed(errorCode: Int) = post {
+            sweeping = false
+            log("apple sweep failed: $errorCode")
         }
     }
 

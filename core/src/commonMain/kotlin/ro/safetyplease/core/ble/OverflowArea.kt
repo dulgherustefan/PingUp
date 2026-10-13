@@ -37,8 +37,8 @@ object OverflowArea {
 
     /**
      * True if a raw advertising [record] (the advertisement and the scan response as Android hands them over) holds an
-     * overflow area with [bit] set. Read here byte by byte: Android's own parsing keeps only the last Apple block of a
-     * record (14 and earlier) or joins them (15 and later), and Apple may put other data beside it.
+     * overflow area with [bit] set. Read here byte by byte: a backgrounded iPhone sends other Apple data too, in other
+     * blocks and in the same one (iOS 27), and Android's own parsing keeps only the last Apple block of a record.
      */
     fun inRecord(record: ByteArray?, bit: Int): Boolean {
         if (record == null) return false
@@ -52,16 +52,26 @@ object OverflowArea {
             }
             val end = i + 1 + length
             if (end > record.size) return false
-            if (length >= 3 + SIZE && isOverflowArea(record, i + 1) && record[i + 5 + bit / 8].toInt() and (1 shl (bit % 8)) != 0) return true
+            if (isApple(record, i + 1, end) && areaHas(record, i + 4, end, bit)) return true
             i = end
         }
         return false
     }
 
-    private fun isOverflowArea(record: ByteArray, at: Int): Boolean =
-        record[at].toInt() and 0xff == MANUFACTURER_DATA &&
-            record[at + 1].toInt() and 0xff == APPLE and 0xff && record[at + 2].toInt() and 0xff == APPLE shr 8 &&
-            record[at + 3].toInt() == TYPE
+    private fun isApple(record: ByteArray, at: Int, end: Int): Boolean =
+        end - at >= 3 && record[at].toInt() and 0xff == MANUFACTURER_DATA &&
+            record[at + 1].toInt() and 0xff == APPLE and 0xff && record[at + 2].toInt() and 0xff == APPLE shr 8
+
+    /** Apple's items are type, length and value, except the overflow area: its type is followed by the mask itself. */
+    private fun areaHas(record: ByteArray, from: Int, end: Int, bit: Int): Boolean {
+        var j = from
+        while (j < end) {
+            if (record[j].toInt() == TYPE) return j + SIZE <= end && record[j + 1 + bit / 8].toInt() and (1 shl (bit % 8)) != 0
+            if (j + 1 >= end) return false
+            j += 2 + (record[j + 1].toInt() and 0xff)
+        }
+        return false
+    }
 
     private fun set(area: ByteArray, bit: Int) {
         area[1 + bit / 8] = (area[1 + bit / 8].toInt() or (1 shl (bit % 8))).toByte()
