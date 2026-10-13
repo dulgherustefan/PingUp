@@ -209,14 +209,14 @@ class PingUpSessionTest {
         val credential = Credential(
             Certificate.issue(testCrypto, CertRole.CONTROL, control.publicKey, 0, 0xFFFFFFFFL, "Control", testCrypto.signKeyPair()), control,
         )
-        val states = List(8) { if (it == 1) ZoneState.CLOSED else ZoneState.OPEN }
+        val states = List(12) { if (it == 1) ZoneState.CLOSED else ZoneState.OPEN }
         val notice = Notice.sign(testCrypto, credential, NoticeTopic.MAP_STATE, 1, 1, now, now + 3600, 0, extras = NoticeExtras(states = states))
         val board = NoticeBoard(listOf(HeldNotice(notice.topic, notice.seq, notice.encode().toHex(), 0)))
         (platform.filesDir / "data").mkdirs()
         (platform.filesDir / "data" / "notices.json").writeText(Json.encodeToString(NoticeBoard.serializer(), board))
 
         val s = session(platform)
-        assertEquals(8, s.venue.zones.size)
+        assertEquals(12, s.venue.zones.size)
         assertEquals(mapOf(s.venue.zones[1].id to ZoneState.CLOSED), s.mapState.value.zones)
         assertNull(s.mapState.value.evacuation)
         // across the closed second stage the walk goes around it; off the site, a straight line

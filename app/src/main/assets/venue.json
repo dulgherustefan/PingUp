@@ -72,6 +72,38 @@
       "type": "chill",
       "color": "#12A594",
       "polygon": [ { "lat": 43.94870, "lon": 28.63670 }, { "lat": 43.94870, "lon": 28.63810 }, { "lat": 43.94810, "lon": 28.63810 }, { "lat": 43.94810, "lon": 28.63670 } ]
+    },
+    {
+      "id": "gate-main",
+      "name": "Poarta principală",
+      "name_en": "Main gate",
+      "type": "gate",
+      "color": "#6E56CF",
+      "polygon": [ { "lat": 43.94809, "lon": 28.63420 }, { "lat": 43.94809, "lon": 28.63450 }, { "lat": 43.94800, "lon": 28.63450 }, { "lat": 43.94800, "lon": 28.63420 } ]
+    },
+    {
+      "id": "gate-west",
+      "name": "Poarta vest",
+      "name_en": "West gate",
+      "type": "gate",
+      "color": "#6E56CF",
+      "polygon": [ { "lat": 43.94960, "lon": 28.63200 }, { "lat": 43.94960, "lon": 28.63218 }, { "lat": 43.94940, "lon": 28.63218 }, { "lat": 43.94940, "lon": 28.63200 } ]
+    },
+    {
+      "id": "gate-east",
+      "name": "Poarta est",
+      "name_en": "East gate",
+      "type": "gate",
+      "color": "#6E56CF",
+      "polygon": [ { "lat": 43.94938, "lon": 28.63802 }, { "lat": 43.94938, "lon": 28.63819 }, { "lat": 43.94922, "lon": 28.63819 }, { "lat": 43.94922, "lon": 28.63802 } ]
+    },
+    {
+      "id": "gate-north",
+      "name": "Poarta nord",
+      "name_en": "North gate",
+      "type": "gate",
+      "color": "#6E56CF",
+      "polygon": [ { "lat": 43.95118, "lon": 28.63305 }, { "lat": 43.95118, "lon": 28.63335 }, { "lat": 43.95102, "lon": 28.63335 }, { "lat": 43.95102, "lon": 28.63305 } ]
     }
   ],
   "pois": [
@@ -137,7 +169,11 @@
         "medical": { "main": 1, "alternative": 3 },
         "entrance": { "main": 1, "alternative": 2 },
         "camping": { "main": 2, "alternative": 1 },
-        "chill": { "main": 3, "alternative": 1 }
+        "chill": { "main": 3, "alternative": 1 },
+        "gate-main": { "main": 1, "alternative": 2 },
+        "gate-west": { "main": 2, "alternative": 1 },
+        "gate-east": { "main": 3, "alternative": 1 },
+        "gate-north": { "main": 4, "alternative": 3 }
       }
     }
   ]
