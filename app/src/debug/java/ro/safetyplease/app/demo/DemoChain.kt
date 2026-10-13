@@ -64,8 +64,8 @@ class DemoChain(
     }
 
     /**
-     * The demo pack from today for [PACK_DAYS] days, with the schedule of those nights ([DemoSchedule]); a new day gives a
-     * newer version, with that day's keys.
+     * The demo pack from today for [PACK_DAYS] days, with the schedule of those nights ([DemoSchedule]); every pack made
+     * is newer than the last (its version counts minutes), and a new day brings that day's keys.
      */
     fun pack(template: JsonObject, venue: String, notices: String, firstAid: Map<String, String>, pages: Map<String, Map<String, String>>, nowSec: Long): String {
         val today = today(nowSec)
@@ -75,7 +75,8 @@ class DemoChain(
                 put("id", EXERCISE_ID)
                 put("name", EXERCISE_NAME)
             }
-            put("version", today.toEpochDay().toInt())
+            // minutes, not days: a demo pack made again the same day (vitrina after vitrina-stop) must still be newer
+            put("version", (nowSec / 60).toInt())
             put("kind", if (exercise) "exercise" else "real")
             shared?.let { (box, sign) ->
                 put("box", box.toHex())
