@@ -245,12 +245,14 @@ class PingUpSessionTest {
     }
 
     @Test
-    fun anEvacuationForItsZoneReachesAParticipantWithTheNoticesOff() {
+    fun anEvacuationForItsZoneReachesAParticipantWithTheNoticesOff() = runBlocking {
         val platform = FakePlatform(tmp)
         val s = session(platform)
         s.settings.update { it.copy(role = Role.PARTICIPANT, notices = false) }
         val now = platform.clock.wallMs() / 1000
         platform.location.value = inside(s, 0).copy(timeMs = platform.clock.wallMs())
+        // the session reads the filtered position, which follows the platform's fix asynchronously
+        eventually { s.locationFix.value != null }
         val (a, b) = s.venue.zones.take(2).map { it.id }
 
         s.onNotice(evacuation(s, now, b, seq = 1), own = false)
@@ -286,15 +288,17 @@ class PingUpSessionTest {
 
         val s = session(platform)
         s.settings.update { it.copy(role = Role.PARTICIPANT, notices = false) }
-        platform.location.value = inA.copy(timeMs = platform.clock.wallMs())
+        // each fix newer than the last, as a GNSS receiver gives them: the position filter drops older ones
+        val t0 = platform.clock.wallMs()
+        platform.location.value = inA.copy(timeMs = t0)
         delay(200)
         assertTrue(platform.shown.posted.none { it.startsWith("notice") }, "zone $a isn't evacuated")
-        platform.location.value = inB.copy(timeMs = platform.clock.wallMs())
+        platform.location.value = inB.copy(timeMs = t0 + 1_000)
         eventually { platform.shown.posted.any { it.startsWith("notice") } }
         assertEquals(listOf("notice Anunț ${NoticeTopic.ALERT} LOUD"), platform.shown.posted.filter { it.startsWith("notice") })
-        platform.location.value = inA.copy(timeMs = platform.clock.wallMs())
+        platform.location.value = inA.copy(timeMs = t0 + 2_000)
         delay(100)
-        platform.location.value = inB.copy(timeMs = platform.clock.wallMs() + 1)
+        platform.location.value = inB.copy(timeMs = t0 + 3_000)
         delay(200)
         assertEquals(1, platform.shown.posted.count { it.startsWith("notice") }, "once")
     }
