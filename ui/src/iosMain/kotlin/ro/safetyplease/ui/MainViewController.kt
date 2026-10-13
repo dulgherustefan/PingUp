@@ -1,9 +1,14 @@
 package ro.safetyplease.ui
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.window.ComposeUIViewController
 import platform.UIKit.UIViewController
 import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.rememberFontScale
 import ro.safetyplease.ui.ios.IosApp
 
 private var started: IosApp? = null
@@ -23,10 +28,15 @@ fun startApp(): IosApp = started ?: run {
 fun MainViewController(): UIViewController {
     val app = startApp()
     return ComposeUIViewController {
-        AppTheme {
-            // a new session brings new screens, without the old ones' state
-            key(app.model) { AppRoot(app.model, onStartMesh = app::startMesh) }
-            app.toasts.Host()
+        // the screen's density with the text size the phone asks for now, also after a change in Settings
+        val density = LocalDensity.current.density
+        val fontScale = rememberFontScale()
+        CompositionLocalProvider(LocalDensity provides remember(density, fontScale) { Density(density, fontScale) }) {
+            AppTheme {
+                // a new session brings new screens, without the old ones' state
+                key(app.model) { AppRoot(app.model, onStartMesh = app::startMesh) }
+                app.toasts.Host()
+            }
         }
     }
 }
