@@ -60,11 +60,30 @@ cd iosApp && xcodegen
 open PingUp.xcodeproj
 ```
 
-Xcode construiește întâi ecranele din Kotlin, prin Gradle, apoi aplicația. Simulatorul nu are Bluetooth și cameră: rețeaua și scanarea QR se încearcă pe un iPhone real. Un cont Apple gratuit ajunge pentru build-ul Debug pe telefonul tău (Signing & Capabilities → Team); Release cere Apple Developer Program, pentru notificările urgente care trec prin Focus. Testele comune rulează și pe iPhone:
+Xcode construiește întâi ecranele din Kotlin, prin Gradle, apoi aplicația. Simulatorul nu are Bluetooth și cameră: rețeaua și scanarea QR se încearcă pe un iPhone real. Testele comune rulează și pe iPhone:
 
 ```
 ./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test
 ```
+
+Pe un iPhone real ajunge un cont Apple gratuit, pentru build-ul Debug (Release cere Apple Developer Program, pentru notificările urgente care trec prin Focus):
+
+1. Pe iPhone: Settings → Privacy & Security → Developer Mode, pornit (telefonul repornește). Îl legi cu cablul și alegi „Trust”.
+2. În Xcode: Settings → Accounts → adaugi contul Apple. La target-ul PingUp, Signing & Capabilities → Team: echipa ta („Personal Team”).
+3. Ca să nu alegi echipa din nou după fiecare `xcodegen`, o treci în `iosApp/Local.xcconfig`, care nu intră în git. ID-ul echipei îl scoți așa, după ce ai ales-o o dată:
+
+   ```
+   grep -m1 DEVELOPMENT_TEAM iosApp/PingUp.xcodeproj/project.pbxproj
+   ```
+
+   ```
+   DEVELOPMENT_TEAM = ID-UL_TĂU
+   PRODUCT_BUNDLE_IDENTIFIER = org.pingup.app.numele-tău
+   ```
+
+   A doua linie trebuie doar dacă Xcode spune că `org.pingup.app` e luat: un cont gratuit nu poate semna un id deja înregistrat de altă echipă, de exemplu de un coleg.
+4. Alegi iPhone-ul sus în Xcode și dai Run. Prima dată, pe iPhone: Settings → General → VPN & Device Management → ai încredere în dezvoltator. Cu un cont gratuit aplicația merge 7 zile, apoi o instalezi din nou.
+5. Pentru rețeaua din fundal, oprești aplicația în Xcode și o deschizi de pe ecranul principal: sub debugger, iOS n-o suspendă ca de obicei. Ce face rețeaua se vede în Console.app pe Mac: alegi iPhone-ul, apeși Start și cauți `Mesh:`.
 
 ## Instalare
 

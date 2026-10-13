@@ -21,6 +21,7 @@
 		71B5785356A0F8914AB7DD5F /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = ../app/src/main/assets; sourceTree = SOURCE_ROOT; };
 		AD80B33C55B538CF3FD3A1DA /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		CBBE556015D106F2E073FB7F /* PingUp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PingUp.entitlements; sourceTree = "<group>"; };
+		D36ED98DF41588AF3FAA629E /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		EA86D8801676F739A4738B33 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		F254425B1A6F3FAD5CBF58D2 /* PingUp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PingUp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingUpApp.swift; sourceTree = "<group>"; };
@@ -64,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				DE540C602A18448E24D11D0A /* app */,
+				95B99A3479EE95E964D3DF95 /* iosApp */,
 			);
 			name = pingup;
 			path = ..;
@@ -80,6 +82,14 @@
 				6398700908A499B5420D225D /* InfoPlist.strings */,
 			);
 			path = PingUp;
+			sourceTree = "<group>";
+		};
+		95B99A3479EE95E964D3DF95 /* iosApp */ = {
+			isa = PBXGroup;
+			children = (
+				D36ED98DF41588AF3FAA629E /* Signing.xcconfig */,
+			);
+			path = iosApp;
 			sourceTree = "<group>";
 		};
 		DE540C602A18448E24D11D0A /* app */ = {
@@ -101,6 +111,7 @@
 				8F00EDE8837FA041A9CC7B50 /* Sources */,
 				7EE9BF4C10CDA030A919052D /* Add the debug assets */,
 				904624ACF758FDD304E7E37C /* Resources */,
+				15FF970A037667E42E3DF518 /* Set the version */,
 			);
 			buildRules = (
 			);
@@ -122,6 +133,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					477257CFCEF70F73AA30C907 = {
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = 260FB4554CC0A9BCC7035441 /* Build configuration list for PBXProject "PingUp" */;
@@ -159,6 +173,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		15FF970A037667E42E3DF518 /* Set the version */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Set the version";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# the version of the last release tag, as on Android, and a build number that only grows, which TestFlight\n# wants new for every upload: the number of commits. The app is signed after this, with what it wrote\nplist=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\nversion=$(git -C \"$SRCROOT\" describe --tags --abbrev=0 --match 'v*.*.*' 2>/dev/null | sed 's/^v//')\nbuild=$(git -C \"$SRCROOT\" rev-list --count HEAD 2>/dev/null)\nif [ -n \"$version\" ]; then /usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $version\" \"$plist\"; fi\nif [ -n \"$build\" ]; then /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $build\" \"$plist\"; fi\n";
+		};
 		7EE9BF4C10CDA030A919052D /* Add the debug assets */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -225,6 +258,7 @@
 /* Begin XCBuildConfiguration section */
 		0A029994577EC93BDC297B4A /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D36ED98DF41588AF3FAA629E /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = PingUp/PingUp.entitlements;
@@ -244,7 +278,6 @@
 					"-framework",
 					PingUpUi,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = org.pingup.app;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -371,6 +404,7 @@
 		};
 		DF1C4175F7984352B3B7D8DC /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D36ED98DF41588AF3FAA629E /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -389,7 +423,6 @@
 					"-framework",
 					PingUpUi,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = org.pingup.app;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};

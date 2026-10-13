@@ -46,11 +46,15 @@ targets:
         NSCameraUsageDescription: Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.
         NSBluetoothAlwaysUsageDescription: Ping Up trimite mesajele și rapoartele din telefon în telefon prin Bluetooth, fără semnal, chiar și cu telefonul în buzunar.
         NSLocationWhenInUseUsageDescription: Poziția arată în ce zonă ești și ajunge la echipe doar când trimiți un raport, ca să te găsească.
+    # the bundle id and the team, which a Local.xcconfig of your own can change (Signing.xcconfig says how)
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: org.pingup.app
         # one 1024 px icon, drawn from the same artwork as the Android one; iOS rounds the corners
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # only when git can't tell: "Set the version" below takes them from the last release tag and the commits
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1"
@@ -75,6 +79,17 @@ targets:
             mkdir -p "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/assets-debug"
             cp -R "$SRCROOT/../app/src/debug/assets/." "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/assets-debug/"
           fi
+    postBuildScripts:
+      - name: Set the version
+        basedOnDependencyAnalysis: false
+        script: |
+          # the version of the last release tag, as on Android, and a build number that only grows, which TestFlight
+          # wants new for every upload: the number of commits. The app is signed after this, with what it wrote
+          plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+          version=$(git -C "$SRCROOT" describe --tags --abbrev=0 --match 'v*.*.*' 2>/dev/null | sed 's/^v//')
+          build=$(git -C "$SRCROOT" rev-list --count HEAD 2>/dev/null)
+          if [ -n "$version" ]; then /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$plist"; fi
+          if [ -n "$build" ]; then /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build" "$plist"; fi
     preBuildScripts:
       - name: Build the Kotlin framework
         basedOnDependencyAnalysis: false
