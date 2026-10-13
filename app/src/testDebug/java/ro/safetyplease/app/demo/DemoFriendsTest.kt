@@ -12,8 +12,6 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.distanceMeters
 import java.io.File
-import java.time.Instant
-import java.time.ZoneId
 
 class DemoFriendsTest {
     private val venue = Venue.parse(File("src/main/assets/venue.json").readText())
@@ -48,8 +46,8 @@ class DemoFriendsTest {
         assertEquals(Conversations.friend(DemoFriends.ID_BASE), proposal.conversation)
         assertEquals(DemoFriends.ID_BASE, proposal.proposer)
         assertNotNull(venue.landmark(proposal.place.landmark))
-        val at = Instant.ofEpochMilli(now + 30 * 60_000L).atZone(ZoneId.systemDefault())
-        assertEquals(at.hour * 60 + at.minute, proposal.minuteOfDay)
+        // a moment, so it reads the same in any time zone
+        assertEquals((now + 30 * 60_000L) / 1000, proposal.meetAtSec)
         assertTrue(proposal.expiresAtMs > now)
     }
 

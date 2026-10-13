@@ -1,7 +1,14 @@
 package ro.safetyplease.core.chat
 
-import ro.safetyplease.core.protocol.MeetingLimits
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atTime
+import kotlinx.datetime.plus
+import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 import ro.safetyplease.core.venue.GeoPoint
+import kotlin.time.Instant
 
 /** Where a meeting point is: a numbered landmark of the site plan, or a point (the venue's meeting point, or any other). */
 data class MeetingPlace(val landmark: Int = 0, val point: GeoPoint? = null, val venuePoint: Boolean = false) {
@@ -17,9 +24,8 @@ data class MeetingPlace(val landmark: Int = 0, val point: GeoPoint? = null, val 
 }
 
 /**
- * The meeting point pinned at the top of [conversation]: who proposed it, where, at what time of day
- * ([minuteOfDay], null for none) and until when it shows. [accepted] are the members who said yes, the proposer
- * not included.
+ * The meeting point pinned at the top of [conversation]: who proposed it, where, when ([meetAtSec], Unix seconds, null
+ * for no time) and until when it shows. [accepted] are the members who said yes, the proposer not included.
  */
 data class MeetingProposal(
     val conversation: String,
@@ -27,7 +33,7 @@ data class MeetingProposal(
     val msgId: Long,
     val seq: Int,
     val place: MeetingPlace,
-    val minuteOfDay: Int?,
+    val meetAtSec: Long?,
     val expiresAtMs: Long,
     val accepted: List<Long> = emptyList(),
 )
@@ -38,18 +44,32 @@ data class FriendAsk(val sender: Long, val atMs: Long, val seq: Int = 0, val pre
 /** A friend whose torch is lit for us, until [untilMs]. */
 data class Lighting(val friend: Long, val untilMs: Long)
 
-/** The time of day of a meeting point, on the clock the phones at one festival share. */
+/**
+ * The time of a meeting point is a moment, in seconds since the Unix epoch, so every phone reads the same one whatever
+ * time zone it is in, and [isLate] takes none. A zone comes in only where a person picks a time of day, which
+ * [nextOccurrence] turns into a moment; a phone shows a moment as the time of day on its own clock.
+ */
 object MeetingTime {
     /** A meeting point whose time passed by more than this when it arrives is dropped. */
     const val LATE_MIN = 60
-    private const val DAY = MeetingLimits.MINUTES_PER_DAY
+    private const val MINUTES_PER_DAY = 24 * 60
+    private const val LATE_SEC = LATE_MIN * 60L
 
-    /** Whether [minuteOfDay] (null: no time) is more than [LATE_MIN] before [nowMinute], both minutes after midnight, the day wrapping. */
-    fun isLate(minuteOfDay: Int?, nowMinute: Int): Boolean {
-        if (minuteOfDay == null) return false
-        // the signed distance from now to the meeting, the nearer way round the clock
-        val ahead = (minuteOfDay - nowMinute + DAY / 2).mod(DAY) - DAY / 2
-        return ahead < -LATE_MIN
+    /** Whether [meetAtSec] (null: no time) is more than [LATE_MIN] minutes before [nowSec], both Unix seconds. */
+    fun isLate(meetAtSec: Long?, nowSec: Long): Boolean = meetAtSec != null && nowSec - meetAtSec > LATE_SEC
+
+    /**
+     * The moment, in Unix seconds, that [minuteOfDay] (minutes after midnight, 0 until 1440) on the clock of [zone] means
+     * from [nowSec] on: today's if it is not more than [LATE_MIN] minutes past, so a meeting that has just begun still
+     * counts, otherwise tomorrow's. Today is the calendar day in [zone].
+     */
+    fun nextOccurrence(minuteOfDay: Int, nowSec: Long, zone: TimeZone): Long {
+        require(minuteOfDay in 0 until MINUTES_PER_DAY)
+        val time = LocalTime(minuteOfDay / 60, minuteOfDay % 60)
+        val today = Instant.fromEpochSeconds(nowSec).toLocalDateTime(zone).date
+        val todays = today.atTime(time).toInstant(zone).epochSeconds
+        if (nowSec - todays <= LATE_SEC) return todays
+        return today.plus(1, DateTimeUnit.DAY).atTime(time).toInstant(zone).epochSeconds
     }
 }
 

@@ -441,6 +441,9 @@ private fun Random.pointStatus() = PointStatus(
     if (nextBoolean()) certificate() else null, nextBytes(64), if (nextInt(4) == 0) nextBytes(nextInt(0, 20)) else ByteArray(0),
 )
 
+/** Any time a meeting point can carry: Unix seconds from 1 to the end of a u32. */
+private fun Random.meetAt(): Long = nextLong(1, MeetingLimits.MAX_MEET_AT + 1)
+
 private fun Random.inner(): Inner {
     val msgId = nextLong()
     val group = if (nextBoolean()) nextLong() else null
@@ -462,10 +465,13 @@ private fun Random.inner(): Inner {
         10 -> Inner.ShareSession(nextInt(ShareAction.START, ShareAction.COME_AGREE + 1), nextInt(0x10000), nextInt(3), nextInt(256))
         11 -> Inner.PingRequest(nextInt(PingAction.ASK, PingAction.LIGHTING + 1), nextInt(1, PingAction.MAX_SECONDS + 1))
         12 -> if (nextBoolean()) {
-            Inner.MeetingPoint(msgId, group, nextInt(256), nextInt(1, 256), null, null, false, null, nextInt(1, MeetingLimits.MAX_EXPIRY_MIN + 1))
+            Inner.MeetingPoint(
+                msgId, group, nextInt(256), nextInt(1, 256), null, null, false, if (nextBoolean()) meetAt() else null,
+                nextInt(1, MeetingLimits.MAX_EXPIRY_MIN + 1),
+            )
         } else {
             Inner.MeetingPoint(
-                msgId, group, nextInt(256), 0, coordinate(90), coordinate(180), nextBoolean(), nextInt(MeetingLimits.MINUTES_PER_DAY),
+                msgId, group, nextInt(256), 0, coordinate(90), coordinate(180), nextBoolean(), if (nextBoolean()) meetAt() else null,
                 nextInt(1, MeetingLimits.MAX_EXPIRY_MIN + 1),
             )
         }

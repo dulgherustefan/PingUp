@@ -717,7 +717,7 @@ private object Golden {
     val shareSession = Inner.ShareSession(ShareAction.START, 90, SharePrecision.APPROXIMATE, 3)
     val comeSession = Inner.ShareSession(ShareAction.COME_ASK, 15, SharePrecision.EXACT, 9)
     val pingRequest = Inner.PingRequest(PingAction.ASK, 10)
-    val meetingPoint = Inner.MeetingPoint(msgId, groupId, 3, 14, null, null, false, 22 * 60 + 30, 90)
+    val meetingPoint = Inner.MeetingPoint(msgId, groupId, 3, 14, null, null, false, TIME + 30 * 60, 90)
     val venueMeetingPoint = Inner.MeetingPoint(msgId, null, 4, 0, -22.951916, -43.210487, true, null, 60)
     val meetingReply = Inner.MeetingReply(msgId, groupId, MeetingAction.ACCEPT, otherId)
     val invite = Inner.GroupInvite(
@@ -893,7 +893,7 @@ private fun Inner.fields(): List<Any?> = when (this) {
     is Inner.Position -> listOf("position", point, accuracy, method, fixMinute, seq, nextUpdate, heading)
     is Inner.ShareSession -> listOf("share_session", action, durationMin, precision, seq)
     is Inner.PingRequest -> listOf("ping_request", action, seconds)
-    is Inner.MeetingPoint -> listOf("meeting_point", msgId, groupId, seq, landmark, lat, lon, venuePoint, minuteOfDay, expiryMin)
+    is Inner.MeetingPoint -> listOf("meeting_point", msgId, groupId, seq, landmark, lat, lon, venuePoint, meetAt, expiryMin)
     is Inner.MeetingReply -> listOf("meeting_reply", msgId, groupId, action, proposalId)
     is Inner.GroupInvite ->
         listOf("invite", msgId, groupId, name, members.map { listOf(it.nodeId, it.boxKey.toHex(), it.nickname) })

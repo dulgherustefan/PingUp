@@ -54,10 +54,6 @@ import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.truncateUtf8
 import ro.safetyplease.core.venue.GeoPoint
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -560,22 +556,23 @@ class ChatManager(
     }
 
     /**
-     * Proposes [place] as the meeting point of [conversation], a friend or a group, at [minuteOfDay] (null: no time),
-     * shown for [expiryMin] minutes (1 to 720). It replaces the conversation's meeting point. At most one a minute per
-     * conversation; it goes with the retries of a message. False when the limit holds or nobody is there to tell.
+     * Proposes [place] as the meeting point of [conversation], a friend or a group, for [meetAtSec] (Unix seconds, a
+     * moment; null: no time), shown for [expiryMin] minutes (1 to 720). It replaces the conversation's meeting point. At
+     * most one a minute per conversation; it goes with the retries of a message. False when the limit holds or nobody is
+     * there to tell.
      */
-    suspend fun proposeMeeting(conversation: String, place: MeetingPlace, minuteOfDay: Int?, expiryMin: Int): Boolean = scope.async {
+    suspend fun proposeMeeting(conversation: String, place: MeetingPlace, meetAtSec: Long?, expiryMin: Int): Boolean = scope.async {
         val (groupId, recipients) = recipientsOf(conversation) ?: return@async false
         if (recipients.isEmpty()) return@async false
         if (!proposed.tryTake(groupId ?: recipients.single(), clock.monoMs())) return@async false
         val minutes = expiryMin.coerceIn(1, MeetingLimits.MAX_EXPIRY_MIN)
-        val minute = minuteOfDay?.takeIf { it in 0 until MeetingLimits.MINUTES_PER_DAY }
+        val meetAt = meetAtSec?.takeIf { it in 1..MeetingLimits.MAX_MEET_AT }
         meetingSeq = (meetingSeq + 1) and 0xFF
         val inner = Inner.MeetingPoint(
-            newId(), groupId, meetingSeq, place.landmark, place.point?.lat, place.point?.lon, place.venuePoint, minute, minutes,
+            newId(), groupId, meetingSeq, place.landmark, place.point?.lat, place.point?.lon, place.venuePoint, meetAt, minutes,
         )
         val proposal = MeetingProposal(
-            conversation, identity.nodeId, inner.msgId, inner.seq, place, minute, clock.wallMs() + minutes * 60_000L,
+            conversation, identity.nodeId, inner.msgId, inner.seq, place, meetAt, clock.wallMs() + minutes * 60_000L,
         )
         seenMeeting(identity.nodeId, inner.msgId)
         _meetings.update { list -> list.filterNot { it.conversation == conversation } + proposal }
@@ -627,14 +624,14 @@ class ChatManager(
         confirm(sender, inner.msgId)
         if (!seenMeeting(sender, inner.msgId)) return
         // a retried copy can arrive long after its time
-        if (MeetingTime.isLate(inner.minuteOfDay, minuteOfDayNow())) return
+        if (MeetingTime.isLate(inner.meetAt, clock.wallMs() / 1000)) return
         val current = _meetings.value.firstOrNull { it.conversation == conversation }
         // of two from the same proposer the later seq wins, whichever arrives last
         if (current != null && current.proposer == sender && ((inner.seq - current.seq) and 0xFF) !in 1..127) return
         val place = if (inner.landmark != 0) MeetingPlace.landmark(inner.landmark)
         else MeetingPlace(point = GeoPoint(inner.lat!!, inner.lon!!), venuePoint = inner.venuePoint)
         val proposal = MeetingProposal(
-            conversation, sender, inner.msgId, inner.seq, place, inner.minuteOfDay, clock.wallMs() + inner.expiryMin * 60_000L,
+            conversation, sender, inner.msgId, inner.seq, place, inner.meetAt, clock.wallMs() + inner.expiryMin * 60_000L,
         )
         _meetings.update { list -> list.filterNot { it.conversation == conversation } + proposal }
     }
@@ -650,13 +647,6 @@ class ChatManager(
             }
             MeetingAction.WITHDRAW -> if (sender == proposal.proposer) _meetings.update { list -> list - proposal }
         }
-    }
-
-    /** The time of day here, in minutes after midnight, as [MeetingProposal.minuteOfDay] counts it. */
-    @OptIn(ExperimentalTime::class)
-    private fun minuteOfDayNow(): Int {
-        val now = Instant.fromEpochMilliseconds(clock.wallMs()).toLocalDateTime(TimeZone.currentSystemDefault())
-        return now.hour * 60 + now.minute
     }
 
     /** False if this meeting point was seen before. */

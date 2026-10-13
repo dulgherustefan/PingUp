@@ -41,8 +41,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.chat.FriendAsk
@@ -104,7 +102,6 @@ import ro.safetyplease.ui.resources.seen_text
 import ro.safetyplease.ui.resources.seen_title
 import ro.safetyplease.ui.resources.seen_white
 import ro.safetyplease.ui.text.Labels
-import kotlin.time.Instant
 
 /**
  * Friends' requests to this phone, "Fă-te văzut" and "Vin la tine", each asked in a dialog; a yes to the first flashes
@@ -249,8 +246,6 @@ private fun placeText(place: MeetingPlace, middle: Boolean = false): String = wh
     else -> stringResource(Res.string.meet_place_point)
 }
 
-private fun clockText(minuteOfDay: Int): String = Labels.two(minuteOfDay / 60) + ":" + Labels.two(minuteOfDay % 60)
-
 /** The conversation's meeting point, pinned under the top bar, with its one-tap yes. */
 @Composable
 fun MeetingPin(vm: AppViewModel, proposal: MeetingProposal, now: Long, backdrop: Backdrop, modifier: Modifier = Modifier) {
@@ -258,7 +253,8 @@ fun MeetingPin(vm: AppViewModel, proposal: MeetingProposal, now: Long, backdrop:
     val chat = vm.c.chat
     val mine = proposal.proposer == vm.c.identity.nodeId
     val place = placeText(proposal.place)
-    val title = proposal.minuteOfDay?.let { stringResource(Res.string.meet_title_time, place, clockText(it)) }
+    // the time is a moment: each phone shows it as the time of day on its own clock
+    val title = proposal.meetAtSec?.let { stringResource(Res.string.meet_title_time, place, Labels.clock(it * 1000)) }
         ?: stringResource(Res.string.meet_title, place)
     val by = if (mine) stringResource(Res.string.meet_by_me) else stringResource(Res.string.meet_by, chat.nameOf(proposal.proposer))
     val left = stringResource(Res.string.meet_left, ((proposal.expiresAtMs - now + 59_999) / 60_000).toInt().coerceAtLeast(1))
@@ -290,10 +286,6 @@ fun MeetingPin(vm: AppViewModel, proposal: MeetingProposal, now: Long, backdrop:
     }
 }
 
-/** The time of day on this phone's clock, in minutes after midnight. */
-private fun minuteOfDayNow(nowMs: Long): Int =
-    Instant.fromEpochMilliseconds(nowMs).toLocalDateTime(TimeZone.currentSystemDefault()).let { it.hour * 60 + it.minute }
-
 /** Minutes ahead the meeting can be set for; it stays pinned this long after that. */
 private val WhenOptions = listOf(0, 15, 30, 60)
 private const val MEETING_GRACE_MIN = 30
@@ -313,8 +305,9 @@ fun MeetingDialog(vm: AppViewModel, conversation: String, onDismiss: () -> Unit)
         onDismiss, stringResource(Res.string.meet_dialog_title), stringResource(Res.string.meet_send),
         onConfirm = {
             chosen?.let { place ->
-                val minute = if (ahead == 0) null else (minuteOfDayNow(vm.c.clock.wallMs()) + ahead) % (24 * 60)
-                vm.askFriend(null) { vm.c.chat.proposeMeeting(conversation, place, minute, ahead + MEETING_GRACE_MIN) }
+                // a moment, not a time of day: it means the same on a friend's phone whatever time zone that is set to
+                val meetAt = if (ahead == 0) null else vm.c.clock.wallMs() / 1000 + ahead * 60L
+                vm.askFriend(null) { vm.c.chat.proposeMeeting(conversation, place, meetAt, ahead + MEETING_GRACE_MIN) }
             }
             onDismiss()
         },

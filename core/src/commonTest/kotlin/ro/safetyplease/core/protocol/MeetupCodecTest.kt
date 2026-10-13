@@ -1,7 +1,9 @@
 package ro.safetyplease.core.protocol
 
+import ro.safetyplease.core.util.toHex
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -24,26 +26,57 @@ class MeetupCodecTest {
 
     @Test
     fun aMeetingPointCarriesALandmarkOrAPointATimeAndAnExpiry() {
-        val landmark = Inner.MeetingPoint(5L, 9L, 200, 255, null, null, false, 1439, 720)
-        assertEquals(1 + 8 + 1 + 8 + 1 + 1 + 2 + 2, InnerCodec.encode(landmark).size)
+        val landmark = Inner.MeetingPoint(5L, 9L, 200, 255, null, null, false, MeetingLimits.MAX_MEET_AT, 720)
+        assertEquals(1 + 8 + 1 + 8 + 1 + 1 + 4 + 2, InnerCodec.encode(landmark).size)
         val back = roundTrip(landmark) as Inner.MeetingPoint
-        assertEquals(listOf(5L, 9L, 200, 255, null, null, false, 1439, 720), fields(back))
+        assertEquals(listOf(5L, 9L, 200, 255, null, null, false, MeetingLimits.MAX_MEET_AT, 720), fields(back))
 
-        val point = Inner.MeetingPoint(6L, null, 1, 0, 44.123456, 26.654321, true, null, 1)
-        assertEquals(1 + 8 + 1 + 1 + 1 + 8 + 2, InnerCodec.encode(point).size)
-        assertEquals(listOf(6L, null, 1, 0, 44.123456, 26.654321, true, null, 1), fields(roundTrip(point) as Inner.MeetingPoint))
+        val point = Inner.MeetingPoint(6L, null, 1, 0, 44.123456, 26.654321, true, 1_760_001_800L, 1)
+        assertEquals(1 + 8 + 1 + 1 + 1 + 8 + 4 + 2, InnerCodec.encode(point).size)
+        assertEquals(listOf(6L, null, 1, 0, 44.123456, 26.654321, true, 1_760_001_800L, 1), fields(roundTrip(point) as Inner.MeetingPoint))
+    }
+
+    @Test
+    fun theLargestMeetingPointIs34BytesAndTheTimeIsAMomentInSeconds() {
+        val largest = Inner.MeetingPoint(1L, 2L, 255, 0, 44.123456, 26.654321, true, 1_760_001_800L, MeetingLimits.MAX_EXPIRY_MIN)
+        val bytes = InnerCodec.encode(largest)
+        assertEquals(34, bytes.size)
+        // the four bytes before the expiry: Unix seconds, big-endian (PROTOCOL.md, section 6.6.1)
+        assertEquals("68e77f08", bytes.copyOfRange(bytes.size - 6, bytes.size - 2).toHex())
+
+        val first = roundTrip(Inner.MeetingPoint(1L, null, 1, 3, null, null, false, 1L, 30)) as Inner.MeetingPoint
+        assertEquals(1L, first.meetAt, "the second after the epoch is a time")
+    }
+
+    @Test
+    fun noTimeIsFourZeroBytesAndComesBackAsNull() {
+        val none = Inner.MeetingPoint(1L, null, 1, 3, null, null, false, null, 30)
+        val bytes = InnerCodec.encode(none)
+        assertEquals(1 + 8 + 1 + 1 + 1 + 4 + 2, bytes.size)
+        assertEquals("00000000", bytes.copyOfRange(bytes.size - 6, bytes.size - 2).toHex())
+        assertNull((InnerCodec.decode(bytes) as Inner.MeetingPoint).meetAt)
+
+        // 0 is the wire's way to say "none", so it is never a time to build one with, and a u32 is as far as a time goes
+        fun meeting(meetAt: Long) = Inner.MeetingPoint(1L, null, 1, 3, null, null, false, meetAt, 30)
+        assertFailsWith<IllegalArgumentException> { meeting(0L) }
+        assertFailsWith<IllegalArgumentException> { meeting(-1L) }
+        assertFailsWith<IllegalArgumentException> { meeting(MeetingLimits.MAX_MEET_AT + 1) }
     }
 
     @Test
     fun aMeetingPointThatCantBeRightIsRefused() {
-        val bytes = InnerCodec.encode(Inner.MeetingPoint(5L, null, 1, 14, null, null, false, 600, 60))
+        val bytes = InnerCodec.encode(Inner.MeetingPoint(5L, null, 1, 14, null, null, false, 1_760_001_800L, 60))
         fun with(index: Int, value: Int) = bytes.copyOf().also { it[index] = value.toByte() }
         val flags = 9
-        assertNull(InnerCodec.decode(with(flags, 0x02 or 0x04)), "a venue point with a landmark")
-        assertNull(InnerCodec.decode(with(flags, 0x02 or 0x08)), "an unknown flag")
-        assertNull(InnerCodec.decode(with(12, 0x05).also { it[13] = 0xA0.toByte() }), "minute 1440")
-        assertNull(InnerCodec.decode(with(15, 0)), "no expiry")
+        val expiry = 16
+        assertEquals(18, bytes.size)
+        assertNull(InnerCodec.decode(with(flags, 0x04)), "a venue point with a landmark")
+        assertNull(InnerCodec.decode(with(flags, 0x02)), "0x02 is no flag: the time is always there")
+        assertNull(InnerCodec.decode(with(flags, 0x08)), "an unknown flag")
+        assertNull(InnerCodec.decode(with(expiry + 1, 0)), "no expiry")
+        assertNull(InnerCodec.decode(with(expiry, 0x02).also { it[expiry + 1] = 0xD1.toByte() }), "an expiry of 721 minutes")
         assertNull(InnerCodec.decode(bytes.copyOf(bytes.size - 1)), "cut short")
+        assertNull(InnerCodec.decode(bytes.copyOf(bytes.size - 3)), "cut short in the time")
         assertNull(InnerCodec.decode(bytes + 0), "a byte too many")
     }
 
@@ -78,5 +111,5 @@ class MeetupCodecTest {
         assertNull(InnerCodec.decode(byteArrayOf(17, 0, 0, 0, 0, 0, 0, 0, 0, 0)), "a kind after these is still dropped")
     }
 
-    private fun fields(m: Inner.MeetingPoint) = listOf(m.msgId, m.groupId, m.seq, m.landmark, m.lat, m.lon, m.venuePoint, m.minuteOfDay, m.expiryMin)
+    private fun fields(m: Inner.MeetingPoint) = listOf(m.msgId, m.groupId, m.seq, m.landmark, m.lat, m.lon, m.venuePoint, m.meetAt, m.expiryMin)
 }

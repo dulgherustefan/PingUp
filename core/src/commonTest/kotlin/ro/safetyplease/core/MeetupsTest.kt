@@ -4,12 +4,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import okio.Path
 import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.chat.MeetingPlace
-import ro.safetyplease.core.chat.MeetingTime
 import ro.safetyplease.core.chat.TorchPulse
 import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.Identity
@@ -32,11 +29,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 
 /** "Fă-te văzut", meeting points and "Vin la tine" over the mesh (PROTOCOL.md, section 6.6.1). */
-@OptIn(ExperimentalCoroutinesApi::class, ExperimentalTime::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 class MeetupsTest {
     private val tmp = TempDir()
 
@@ -49,6 +44,9 @@ class MeetupsTest {
         private val event = TestEvent()
         private var seed = 1300L
         val phone: (String) -> TestPhone = { name -> TestPhone(name, scope, net, clock, dir, event, seed++) }
+
+        /** The test clock [minutes] from now, in Unix seconds: the time of a meeting point, whatever zone this machine is in. */
+        fun inMinutes(minutes: Int): Long = clock.wallMs() / 1000 + minutes * 60L
     }
 
     private val box = PositionBox(BOX_LAT, BOX_LON)
@@ -180,13 +178,15 @@ class MeetupsTest {
         val w = World(this, tmp.root)
         val (a, b, c) = group(w)
         val conversation = Conversations.group(a.groups.value.single().id)
-        a.chat.proposeMeeting(conversation, MeetingPlace.landmark(14), 22 * 60 + 30, 60)
+        // the evening, hours ahead of the test clock's morning: the time is a moment, so no zone makes it a day away
+        val tonight = w.inMinutes(13 * 60 + 30)
+        a.chat.proposeMeeting(conversation, MeetingPlace.landmark(14), tonight, 60)
         advanceTimeBy(5_000)
         for (phone in listOf(b, c)) {
             val pinned = phone.chat.meetings.value.single()
             assertEquals(a.nodeId, pinned.proposer)
             assertEquals(14, pinned.place.landmark)
-            assertEquals(22 * 60 + 30, pinned.minuteOfDay)
+            assertEquals(tonight, pinned.meetAtSec)
         }
         assertTrue(a.chatStore.value.outbox.isEmpty(), "delivered like a message")
 
@@ -226,7 +226,7 @@ class MeetupsTest {
     fun aMeetingPointEndsByItselfAndOnlyItsProposerWithdrawsIt() = runTest {
         val w = World(this, tmp.root)
         val (a, b) = pair(w)
-        a.chat.proposeMeeting(Conversations.friend(b.nodeId), MeetingPlace.landmark(7), 23 * 60, 3)
+        a.chat.proposeMeeting(Conversations.friend(b.nodeId), MeetingPlace.landmark(7), w.inMinutes(30), 3)
         advanceTimeBy(5_000)
         b.chat.withdrawMeeting(Conversations.friend(a.nodeId))
         advanceTimeBy(5_000)
@@ -243,33 +243,20 @@ class MeetupsTest {
         val w = World(this, tmp.root)
         val (a, b) = pair(w)
         val conversation = Conversations.friend(b.nodeId)
-        val now = Instant.fromEpochMilliseconds(w.clock.wallMs()).toLocalDateTime(TimeZone.currentSystemDefault()).let { it.hour * 60 + it.minute }
-        fun at(minutesFromNow: Int) = (now + minutesFromNow).mod(24 * 60)
-        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(3), at(-90), 60))
+        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(3), w.inMinutes(-90), 60))
         advanceTimeBy(5_000)
         assertTrue(b.chat.meetings.value.isEmpty(), "B drops it")
         assertTrue(a.chatStore.value.outbox.isEmpty(), "and still confirms it")
 
         advanceTimeBy(ChatManager.MEETING_INTERVAL_MS)
-        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(4), at(-30), 60))
+        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(4), w.inMinutes(-30), 60))
         advanceTimeBy(5_000)
         assertEquals(4, b.chat.meetings.value.single().place.landmark)
 
         advanceTimeBy(ChatManager.MEETING_INTERVAL_MS)
-        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(5), at(30), 60))
+        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(5), w.inMinutes(30), 60))
         advanceTimeBy(5_000)
         assertEquals(5, b.chat.meetings.value.single().place.landmark)
-    }
-
-    @Test
-    fun aMeetingTimeIsLateOnlyPastAnHourAndTheDayWraps() {
-        assertFalse(MeetingTime.isLate(null, 600), "no time")
-        assertFalse(MeetingTime.isLate(22 * 60 + 30, 23 * 60 + 30), "an hour exactly")
-        assertTrue(MeetingTime.isLate(22 * 60 + 30, 23 * 60 + 31))
-        assertFalse(MeetingTime.isLate(12 * 60, 3 * 60), "later today")
-        assertFalse(MeetingTime.isLate(23 * 60 + 30, 10), "40 minutes ago, across midnight")
-        assertTrue(MeetingTime.isLate(23 * 60, 90), "150 minutes ago, across midnight")
-        assertFalse(MeetingTime.isLate(15, 23 * 60 + 50), "tomorrow's first minutes, near midnight")
     }
 
     @Test

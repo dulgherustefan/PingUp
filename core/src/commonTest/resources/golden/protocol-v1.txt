@@ -93,10 +93,10 @@ inner.share_session 0d01005a0103
 inner.share_session.come 0d05000f0009
 # PingRequest ("Fă-te văzut", no msgId): ASK, 10 seconds
 inner.ping_request 0e010a
-# MeetingPoint: MSG, GROUP, time set, seq 3, landmark 14, 22:30 (minute 1350), expires after 90 minutes
-inner.meeting_point 0f0102030405060708031112131415161718030e0546005a
-# MeetingPoint: MSG, no group, the venue's meeting point at -22.951916, -43.210487, no time, seq 4, expires after 60 minutes
-inner.meeting_point.venue 0f0102030405060708040400fea1c814fd6ca909003c
+# MeetingPoint: MSG, GROUP, seq 3, landmark 14, meets at TIME + 30 minutes (1760001800 = 0x68e77f08), expires after 90 minutes
+inner.meeting_point 0f0102030405060708011112131415161718030e68e77f08005a
+# MeetingPoint: MSG, no group, the venue's meeting point at -22.951916, -43.210487, no time (0), seq 4, expires after 60 minutes
+inner.meeting_point.venue 0f0102030405060708040400fea1c814fd6ca90900000000003c
 # MeetingReply: MSG, GROUP, ACCEPT, proposal OTHER
 inner.meeting_reply 100102030405060708011112131415161718012122232425262728
 # PRIVATE payload: nonce e0 e1 ... f7 || crypto_box(inner.text) from alice's box key to bob's.

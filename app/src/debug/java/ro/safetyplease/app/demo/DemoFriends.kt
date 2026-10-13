@@ -17,8 +17,6 @@ import ro.safetyplease.core.protocol.SharePrecision
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
-import java.time.Instant
-import java.time.ZoneId
 import kotlin.math.cos
 
 /**
@@ -75,8 +73,8 @@ object DemoFriends {
     fun meeting(venue: Venue, nowMs: Long): MeetingProposal? {
         val place = venue.pois.map { it.number }.filter { it in Venue.LANDMARK_NUMBERS }.maxOrNull()?.let(MeetingPlace::landmark)
             ?: venue.meetingPoint?.let(MeetingPlace::venue) ?: return null
-        val at = Instant.ofEpochMilli(nowMs + 30 * MIN).atZone(ZoneId.systemDefault())
-        return MeetingProposal(Conversations.friend(ID_BASE), ID_BASE, ID_BASE, 1, place, at.hour * 60 + at.minute, nowMs + SESSION_MS)
+        val meetAtSec = (nowMs + 30 * MIN) / 1000
+        return MeetingProposal(Conversations.friend(ID_BASE), ID_BASE, ID_BASE, 1, place, meetAtSec, nowMs + SESSION_MS)
     }
 
     fun seed(c: AppContainer): String {

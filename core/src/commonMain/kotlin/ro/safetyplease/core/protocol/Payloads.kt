@@ -920,9 +920,9 @@ sealed interface Inner {
 
     /**
      * A meeting point proposed in a friend's or a group's chat (1.1): the landmark numbered [landmark] (1..255), or, with
-     * [landmark] 0, the point [lat], [lon] ([venuePoint]: the venue's meeting point). [minuteOfDay] is the time on the
-     * sender's clock, null for none; the proposal ends [expiryMin] after it arrives. A later [seq] from the same sender
-     * replaces it.
+     * [landmark] 0, the point [lat], [lon] ([venuePoint]: the venue's meeting point). [meetAt] is when they meet, in
+     * seconds since the Unix epoch, so it is the same moment whatever time zone a phone is in; null for no time (0 on the
+     * wire). The proposal ends [expiryMin] after it arrives. A later [seq] from the same sender replaces it.
      */
     class MeetingPoint(
         val msgId: Long,
@@ -932,13 +932,13 @@ sealed interface Inner {
         val lat: Double?,
         val lon: Double?,
         val venuePoint: Boolean,
-        val minuteOfDay: Int?,
+        val meetAt: Long?,
         val expiryMin: Int,
     ) : Inner {
         init {
             require(seq in 0..0xFF && landmark in 0..0xFF && expiryMin in 1..MeetingLimits.MAX_EXPIRY_MIN)
             require(if (landmark == 0) lat != null && lon != null else lat == null && lon == null && !venuePoint)
-            require(minuteOfDay == null || minuteOfDay in 0 until MeetingLimits.MINUTES_PER_DAY)
+            require(meetAt == null || meetAt in 1..MeetingLimits.MAX_MEET_AT)
         }
     }
 
@@ -1057,7 +1057,8 @@ object MeetingAction {
 }
 
 object MeetingLimits {
-    const val MINUTES_PER_DAY = 24 * 60
+    /** The latest time a meeting point can carry: Unix seconds in a `u32`, up to the year 2106. */
+    const val MAX_MEET_AT = 0xFFFF_FFFFL
 
     /** Twelve hours: a meeting point is for tonight, not for the festival. */
     const val MAX_EXPIRY_MIN = 720
@@ -1098,7 +1099,7 @@ object InnerCodec {
     fun introSignedBytes(recipient: Long, msgId: Long, boxKey: ByteArray, signKey: ByteArray, nickname: String): ByteArray =
         INTRO_DOMAIN + WireWriter().i64(recipient).i64(msgId).bytes(boxKey).bytes(signKey).bytes(nickname.utf8()).toByteArray()
 
-    private const val MEET_TIME = 0x02
+    // 0x02 is not used: a meeting point always carries its time, 0 for none
     private const val MEET_VENUE_POINT = 0x04
 
     private const val POSITION_ABSOLUTE = 0x01
@@ -1159,12 +1160,10 @@ object InnerCodec {
                 w.u8(SHARE_SESSION).u8(inner.action).u16(inner.durationMin).u8(inner.precision).u8(inner.seq)
             is Inner.PingRequest -> w.u8(PING_REQUEST).u8(inner.action).u8(inner.seconds)
             is Inner.MeetingPoint -> {
-                val time = if (inner.minuteOfDay != null) MEET_TIME else 0
                 val venue = if (inner.venuePoint) MEET_VENUE_POINT else 0
-                w.u8(MEETING_POINT).i64(inner.msgId).group(inner.groupId, time or venue).u8(inner.seq).u8(inner.landmark)
+                w.u8(MEETING_POINT).i64(inner.msgId).group(inner.groupId, venue).u8(inner.seq).u8(inner.landmark)
                 if (inner.landmark == 0) w.coord(inner.lat!!).coord(inner.lon!!)
-                inner.minuteOfDay?.let { w.u16(it) }
-                w.u16(inner.expiryMin)
+                w.u32(inner.meetAt ?: 0L).u16(inner.expiryMin)
             }
             is Inner.MeetingReply ->
                 w.u8(MEETING_REPLY).i64(inner.msgId).group(inner.groupId, 0).u8(inner.action).i64(inner.proposalId)
@@ -1318,19 +1317,18 @@ object InnerCodec {
     }
 
     private fun WireReader.meetingPoint(msgId: Long): Inner.MeetingPoint {
-        val (groupId, flags) = group(MEET_TIME or MEET_VENUE_POINT)
+        val (groupId, flags) = group(MEET_VENUE_POINT)
         val seq = u8()
         val landmark = u8()
         val venuePoint = flags and MEET_VENUE_POINT != 0
         if (landmark != 0 && venuePoint) throw MalformedException("meeting place")
         val lat = if (landmark == 0) coord() else null
         val lon = if (landmark == 0) coord() else null
-        val minute = if (flags and MEET_TIME != 0) u16() else null
+        val meetAt = u32().takeIf { it != 0L }
         val expiry = u16()
         expectEnd()
-        if (minute != null && minute >= MeetingLimits.MINUTES_PER_DAY) throw MalformedException("meeting time")
         if (expiry !in 1..MeetingLimits.MAX_EXPIRY_MIN) throw MalformedException("meeting expiry")
-        return Inner.MeetingPoint(msgId, groupId, seq, landmark, lat, lon, venuePoint, minute, expiry)
+        return Inner.MeetingPoint(msgId, groupId, seq, landmark, lat, lon, venuePoint, meetAt, expiry)
     }
 
     private fun WireReader.group(allowedExtra: Int): Pair<Long?, Int> {
