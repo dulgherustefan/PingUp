@@ -91,6 +91,7 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.rememberRadioGate
+import ro.safetyplease.ui.map.MapOverlay
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.control_coverage_cellular_legend
 import ro.safetyplease.ui.resources.control_coverage_mesh_legend
@@ -176,6 +177,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val squares = remember(heard, now) { Coverage.squares(heard.values, now) }
     val selected = selectedId?.let(cases::get)
     val onMap = remember(cases) { cases.values.filter { it.state != CaseState.CLOSED } }
+    val mapOverlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize().background(colors.grouped).windowInsetsPadding(WindowInsets.safeDrawing)) {
         Row(Modifier.fillMaxWidth().height(NavHeight).padding(horizontal = Gutter), verticalAlignment = Alignment.CenterVertically) {
@@ -209,12 +211,14 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 if (!wide) pane = Pane.INCIDENT
             }
             val queuePane = @Composable { modifier: Modifier ->
-                QueuePane(cases, filter, { filter = it }, selectedId, select, vm.venue, now, modifier)
+                QueuePane(cases, filter, { filter = it }, selectedId, select, vm.venue, now, modifier, { DensityRows(vm, now) }) { case ->
+                    UrgentTimer(case, incidents.staff.firstOrNull { it.incidentId == case.incidentId })
+                }
             }
             val detailPane = @Composable { modifier: Modifier -> DetailPane(vm, selected, log.entries, now, modifier) }
             val mapPane = @Composable { modifier: Modifier ->
                 val shades = coverageShades(colors, squares, layer)
-                MapPane(vm.venue, c.grid, onMap, selected, select, pointRings(points, now), shades, layer, { layer = it }, modifier)
+                MapPane(vm.venue, c.grid, onMap, selected, select, pointRings(points, now), shades, layer, { layer = it }, modifier, mapOverlay)
             }
             val networkPane = @Composable { modifier: Modifier -> NetworkPane(mesh, heard, gate, now, c.grid, modifier) }
             val pointsPane = @Composable { modifier: Modifier -> PointsPane(vm.venue, points, now, modifier) }
@@ -287,6 +291,8 @@ private fun QueuePane(
     venue: Venue,
     now: Long,
     modifier: Modifier,
+    top: @Composable () -> Unit,
+    badge: @Composable (Case) -> Unit,
 ) {
     val colors = AppTheme.colors
     val rows = remember(cases, filter) { queue(cases.values, filter) }
@@ -307,6 +313,7 @@ private fun QueuePane(
             CrowdSignalRow(signal, venue)
             GroupDivider(start = 0.dp)
         }
+        top()
         if (rows.isEmpty()) {
             // an empty filter doesn't mean nothing arrived
             if (cases.isEmpty()) EmptyState(stringResource(Res.string.incidents_empty_title), stringResource(Res.string.incidents_empty_text), icon = Sym.Bell)
@@ -314,7 +321,7 @@ private fun QueuePane(
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(rows, key = { it.incidentId }) { case ->
-                    QueueRow(case, venue, now, case.incidentId == selectedId) { onSelect(case.incidentId) }
+                    QueueRow(case, venue, now, case.incidentId == selectedId, { badge(case) }) { onSelect(case.incidentId) }
                     GroupDivider(start = 58.dp)
                 }
             }
@@ -324,7 +331,7 @@ private fun QueuePane(
 
 /** One incident: category and status, then a cancel to check, urgency, square, zone and age, then the reporter's words. */
 @Composable
-private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, onClick: () -> Unit) {
+private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, badge: @Composable () -> Unit, onClick: () -> Unit) {
     val colors = AppTheme.colors
     val r = case.report
     val (status, icon, color) = caseLook(case)
@@ -350,6 +357,8 @@ private fun QueueRow(case: Case, venue: Venue, now: Long, selected: Boolean, onC
                 Icon(icon, null, Modifier.size(14.dp), tint = color)
                 Spacer(Modifier.width(4.dp))
                 Text(status, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium, color = color, maxLines = 1)
+                Spacer(Modifier.width(6.dp))
+                badge()
             }
             // urgency is spelled out, not only colored
             Text(
@@ -394,6 +403,7 @@ private fun MapPane(
     layer: MapLayer,
     onLayer: (MapLayer) -> Unit,
     modifier: Modifier,
+    overlay: MapOverlay,
 ) {
     val colors = AppTheme.colors
     val camera = remember { MapCamera() }
@@ -421,6 +431,7 @@ private fun MapPane(
                 grid = grid,
                 squareShades = shades,
                 poiRings = rings,
+                mapOverlay = overlay,
             )
         }
     }

@@ -20,6 +20,7 @@ import ro.safetyplease.app.platform.ble.BleRadio
 import ro.safetyplease.app.platform.keystore.KeyVault
 import ro.safetyplease.app.platform.location.GnssPrewarm
 import ro.safetyplease.app.platform.location.LocationSource
+import ro.safetyplease.app.platform.motion.MotionSensor
 import ro.safetyplease.app.platform.network.MobileNetwork
 import ro.safetyplease.app.platform.power.BatteryMonitor
 import ro.safetyplease.app.service.Notifier
@@ -28,6 +29,7 @@ import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.SodiumCrypto
+import ro.safetyplease.core.incidents.MotionSample
 import ro.safetyplease.core.mesh.BatteryReading
 import ro.safetyplease.core.session.AppPlatform
 import ro.safetyplease.core.util.Clock
@@ -57,6 +59,7 @@ class AndroidPlatform(private val app: Application) : AppPlatform {
     /** [LocationSource] lives on the main thread. */
     private val main = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mobileNetwork = MobileNetwork(app)
+    private val motion = MotionSensor(app)
 
     /** Made by the session as it starts; the service and the screens reach them through [AppContainer]. */
     lateinit var bleRadio: BleRadio
@@ -86,6 +89,10 @@ class AndroidPlatform(private val app: Application) : AppPlatform {
     override fun watchBattery(onReading: (BatteryReading) -> Unit) {
         BatteryMonitor(app, onReading)
     }
+
+    override fun watchMotion(onSample: ((MotionSample) -> Unit)?) = motion.watch(onSample)
+
+    override val watchesMotion: Boolean get() = motion.available
 
     override suspend fun sampleMobileNetwork(atMs: Long, cell: String) = withContext(Dispatchers.IO) { mobileNetwork.sample(atMs, cell) }
 

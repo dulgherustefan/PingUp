@@ -66,6 +66,8 @@ fun buildReport(c: PingUpSession, kind: ReportKind, now: Long): EditionReport {
     return EditionReports.build(
         from, now, real, exercise, c.grid, c.metricsLog.value.snapshots, c.networkLog.value.samples,
         c.reporterMetrics.value.reports, anchors, TimeZone.currentSystemDefault(),
+        // the readings of the mode in use: the real ones only outside an exercise
+        if (c.exercise) emptyList() else c.staffChain.density.value.readings,
     )
 }
 

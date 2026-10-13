@@ -1,3 +1,130 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Crowd density in five pictures -->
+    <string name="density_level_1">Liber</string>
+    <string name="density_level_2">Normal</string>
+    <string name="density_level_3">Plin</string>
+    <string name="density_level_4">Înghesuit</string>
+    <string name="density_level_5">Periculos</string>
+    <string name="density_hint_1">sub 1 om pe m²</string>
+    <string name="density_hint_2">1–2 oameni pe m²</string>
+    <string name="density_hint_3">2–4 oameni pe m²</string>
+    <string name="density_hint_4">4–5 pe m², oamenii se ating</string>
+    <string name="density_hint_5">peste 5 pe m², împingeri</string>
+    <string name="density_title">Densitate</string>
+    <string name="density_in_zone">În %1$s. Nivelurile 4 și 5 deschid un incident de aglomerație.</string>
+    <string name="density_no_zone">Fără zonă: pornește locația sau alege zona în Raportează.</string>
+    <string name="density_latest">Ultimul raport aici: %1$s (%2$d/5) · %3$s</string>
+    <string name="density_sent">Trimis: %1$s (%2$d/5)</string>
+    <string name="density_phone_wait">Poți trimite din nou la 2 minute după ultimul raport.</string>
+    <string name="density_zone_recent">Zona tocmai a fost raportată; consola are nivelul ei.</string>
+    <string name="density_known">Consola are deja nivelul acesta pentru zonă.</string>
+    <string name="density_rate_limited">Prea multe rapoarte de pe telefonul ăsta. Încearcă mai târziu.</string>
+    <string name="density_value">%1$s (%2$d/5)</string>
+    <string name="density_row">%1$s: %2$s (%3$d/5) · %4$s</string>
+    <string name="density_pin">%1$d/5 · %2$s</string>
+    <string name="density_section">Densitate raportată de staff</string>
+    <string name="density_section_empty">Nicio densitate raportată în intervalul raportului.</string>
+
+    <!-- Quick reports of a participant -->
+    <string name="quick_unconscious_title">Cineva e inconștient sau nu respiră</string>
+    <string name="quick_unconscious_text">Alertă imediată către echipa medicală din apropiere, apoi fișa de prim ajutor.</string>
+    <string name="quick_unconscious_confirm">Trimiți alerta?</string>
+    <string name="quick_unconscious_confirm_text">Echipa medicală din apropiere primește locul tău. Sună și la 112 dacă poți.</string>
+    <string name="quick_cannot_move_title">Nu mă pot mișca</string>
+    <string name="quick_cannot_move_text">Ești prins în mulțime și nu poți ieși.</string>
+    <string name="quick_cannot_move_confirm">Trimiți „Nu mă pot mișca”?</string>
+    <string name="quick_cannot_move_confirm_text">Consola vede zona ta și câți spun același lucru.</string>
+    <string name="quick_send">Trimite</string>
+
+    <!-- The priority table's rules -->
+    <string name="rule_not_breathing">nu respiră</string>
+    <string name="rule_unconscious">inconștient</string>
+    <string name="rule_unresponsive">nu răspunde</string>
+    <string name="rule_man_down">om la pământ</string>
+    <string name="rule_seizure">convulsii</string>
+    <string name="rule_high_temperature">temperatură foarte mare</string>
+    <string name="rule_hot_skin">piele fierbinte</string>
+    <string name="rule_confusion">confuzie</string>
+    <string name="rule_heavy_bleeding">sângerare abundentă</string>
+
+    <!-- The console -->
+    <string name="chain_top_priority">Prioritate maximă: %1$s</string>
+    <string name="chain_unconscious">Inconștient sau nu respiră</string>
+    <string name="chain_man_down">Om la pământ: n-a răspuns la „Ești OK?”</string>
+    <string name="chain_cannot_move">Prins în mulțime, nu se poate mișca</string>
+    <string name="chain_density">Densitate: %1$s (%2$d/5)</string>
+    <string name="chain_waiting">Neconfirmat de %1$s din 2:00</string>
+    <string name="chain_overdue">Neconfirmat de %1$s: șefii de rol au primit alerta</string>
+    <string name="chain_handover">Fișă de predare</string>
+
+    <!-- The hand-over card -->
+    <string name="handover_title">Fișă de predare</string>
+    <string name="handover_share">Trimite</string>
+    <string name="handover_qr">Cod QR</string>
+    <string name="handover_qr_hide">Ascunde codul</string>
+    <string name="handover_qr_description">Fișa de predare, ca text</string>
+    <string name="handover_prealert">Pre-alertă, de citit la telefon sau stație</string>
+    <string name="handover_timeline">Cronologie</string>
+    <string name="handover_add">Notează acum</string>
+    <string name="handover_local">Rămâne doar pe telefonul ăsta și nu pleacă prin rețea.</string>
+    <string name="handover_case">Incident %1$s</string>
+    <string name="handover_place">Loc</string>
+    <string name="handover_coords">Coordonate</string>
+    <string name="handover_zone">Zonă</string>
+    <string name="handover_kind">Tip</string>
+    <string name="handover_value">Valoare</string>
+    <string name="handover_to">Echipaj sau spital</string>
+    <string name="handover_note_hint">Text scurt</string>
+    <string name="handover_remove">Ștergi nota de la %1$s?</string>
+    <string name="step_reported">Raportat</string>
+    <string name="step_opened">Primit aici</string>
+    <string name="step_received">Primit de staff</string>
+    <string name="step_assigned">Alocat</string>
+    <string name="step_taken">Preluat</string>
+    <string name="step_on_scene">La fața locului</string>
+    <string name="step_handed_over">Predat</string>
+    <string name="step_closed">Închis</string>
+    <string name="mark_found">Găsit</string>
+    <string name="mark_at_post">La postul medical</string>
+    <string name="mark_temperature">Temperatură</string>
+    <string name="mark_pulse">Puls</string>
+    <string name="mark_score">Scor</string>
+    <string name="mark_cooling">Răcire începută</string>
+    <string name="mark_ambulance">Ambulanță chemată</string>
+    <string name="mark_prealerted">Spital pre-alertat</string>
+    <string name="mark_handed_to">Predat către</string>
+    <string name="mark_left">Plecat de pe teren</string>
+    <string name="mark_note">Notă</string>
+    <string name="unit_celsius">%1$s °C</string>
+    <string name="unit_pulse">%1$s/min</string>
+    <string name="prealert_intro">Pre-alertă de la %1$s: %2$s</string>
+    <string name="prealert_reported">raportat la %1$s</string>
+    <string name="prealert_found">găsit la %1$s</string>
+    <string name="prealert_temperature">temperatură %1$s °C la %2$s</string>
+    <string name="prealert_pulse">puls %1$s la %2$s</string>
+    <string name="prealert_score">scor %1$s la %2$s</string>
+    <string name="prealert_cooling">răcire începută la %1$s</string>
+    <string name="prealert_no_cooling">fără răcire notată</string>
+    <string name="prealert_ambulance">ambulanță chemată la %1$s</string>
+    <string name="prealert_left">plecat la %1$s</string>
+    <string name="prealert_triage">răspunde: %1$s, respiră normal: %2$s</string>
+
+    <!-- Man-down and the responders' alert -->
+    <string name="mandown_title">Ești OK?</string>
+    <string name="mandown_text">Telefonul a simțit o cădere și apoi nicio mișcare.</string>
+    <string name="mandown_countdown">Fără răspuns în %1$d s, consola primește „Staff în pericol” cu poziția ta.</string>
+    <string name="mandown_ok">Sunt OK</string>
+    <string name="mandown_notification">Atinge ca să răspunzi. Fără răspuns, consola primește alerta.</string>
+    <string name="mandown_setting">Om la pământ</string>
+    <string name="mandown_setting_text">După o cădere urmată de nemișcare, telefonul te întreabă 30 de secunde „Ești OK?”. Fără răspuns, trimite „Staff în pericol” cu ultima poziție.</string>
+    <string name="responder_title">Inconștient sau nu respiră</string>
+    <string name="responder_distance">La %1$d m de tine</string>
+    <string name="responder_zone">În %1$s</string>
+    <string name="responder_dea">Defibrilator: %1$s, la %2$d m de tine, apoi %3$d m până la pacient</string>
+    <string name="responder_dea_patient">Defibrilator: %1$s, la %2$d m de pacient</string>
+    <string name="responder_no_dea">Niciun defibrilator pe hartă.</string>
+    <string name="responder_dea_name">DEA</string>
+    <string name="responder_open">Deschide incidentul</string>
+    <string name="responder_sheet">Fișa „Nu respiră”</string>
 </resources>

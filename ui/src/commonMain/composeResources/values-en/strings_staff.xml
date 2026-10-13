@@ -1,3 +1,130 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Crowd density in five pictures -->
+    <string name="density_level_1">Free</string>
+    <string name="density_level_2">Normal</string>
+    <string name="density_level_3">Full</string>
+    <string name="density_level_4">Packed</string>
+    <string name="density_level_5">Dangerous</string>
+    <string name="density_hint_1">under 1 person per m²</string>
+    <string name="density_hint_2">1–2 people per m²</string>
+    <string name="density_hint_3">2–4 people per m²</string>
+    <string name="density_hint_4">4–5 per m², people touching</string>
+    <string name="density_hint_5">over 5 per m², pushing</string>
+    <string name="density_title">Density</string>
+    <string name="density_in_zone">In %1$s. Levels 4 and 5 open a crowd incident.</string>
+    <string name="density_no_zone">No zone: turn on location or pick the zone in Report.</string>
+    <string name="density_latest">Latest report here: %1$s (%2$d/5) · %3$s</string>
+    <string name="density_sent">Sent: %1$s (%2$d/5)</string>
+    <string name="density_phone_wait">You can send again 2 minutes after your last report.</string>
+    <string name="density_zone_recent">The zone was just reported; the console has its level.</string>
+    <string name="density_known">The console already has this level for the zone.</string>
+    <string name="density_rate_limited">Too many reports from this phone. Try again later.</string>
+    <string name="density_value">%1$s (%2$d/5)</string>
+    <string name="density_row">%1$s: %2$s (%3$d/5) · %4$s</string>
+    <string name="density_pin">%1$d/5 · %2$s</string>
+    <string name="density_section">Density reported by staff</string>
+    <string name="density_section_empty">No density reported in the report’s window.</string>
+
+    <!-- Quick reports of a participant -->
+    <string name="quick_unconscious_title">Someone is unconscious or not breathing</string>
+    <string name="quick_unconscious_text">An immediate alert to the medical team nearby, then the first-aid sheet.</string>
+    <string name="quick_unconscious_confirm">Send the alert?</string>
+    <string name="quick_unconscious_confirm_text">The medical team nearby gets your location. Call 112 too if you can.</string>
+    <string name="quick_cannot_move_title">I can’t move</string>
+    <string name="quick_cannot_move_text">You’re stuck in the crowd and can’t get out.</string>
+    <string name="quick_cannot_move_confirm">Send “I can’t move”?</string>
+    <string name="quick_cannot_move_confirm_text">The console sees your zone and how many say the same.</string>
+    <string name="quick_send">Send</string>
+
+    <!-- The priority table's rules -->
+    <string name="rule_not_breathing">not breathing</string>
+    <string name="rule_unconscious">unconscious</string>
+    <string name="rule_unresponsive">not responding</string>
+    <string name="rule_man_down">man down</string>
+    <string name="rule_seizure">seizure</string>
+    <string name="rule_high_temperature">very high temperature</string>
+    <string name="rule_hot_skin">hot skin</string>
+    <string name="rule_confusion">confusion</string>
+    <string name="rule_heavy_bleeding">heavy bleeding</string>
+
+    <!-- The console -->
+    <string name="chain_top_priority">Top priority: %1$s</string>
+    <string name="chain_unconscious">Unconscious or not breathing</string>
+    <string name="chain_man_down">Man down: didn’t answer “Are you OK?”</string>
+    <string name="chain_cannot_move">Stuck in the crowd, can’t move</string>
+    <string name="chain_density">Density: %1$s (%2$d/5)</string>
+    <string name="chain_waiting">Unacknowledged for %1$s of 2:00</string>
+    <string name="chain_overdue">Unacknowledged for %1$s: the role leads were alerted</string>
+    <string name="chain_handover">Hand-over card</string>
+
+    <!-- The hand-over card -->
+    <string name="handover_title">Hand-over card</string>
+    <string name="handover_share">Share</string>
+    <string name="handover_qr">QR code</string>
+    <string name="handover_qr_hide">Hide the code</string>
+    <string name="handover_qr_description">The hand-over card, as text</string>
+    <string name="handover_prealert">Pre-alert, to read on the phone or radio</string>
+    <string name="handover_timeline">Timeline</string>
+    <string name="handover_add">Note now</string>
+    <string name="handover_local">Stays on this phone only and never goes over the network.</string>
+    <string name="handover_case">Incident %1$s</string>
+    <string name="handover_place">Place</string>
+    <string name="handover_coords">Coordinates</string>
+    <string name="handover_zone">Zone</string>
+    <string name="handover_kind">Type</string>
+    <string name="handover_value">Value</string>
+    <string name="handover_to">Crew or hospital</string>
+    <string name="handover_note_hint">Short text</string>
+    <string name="handover_remove">Delete the note from %1$s?</string>
+    <string name="step_reported">Reported</string>
+    <string name="step_opened">Received here</string>
+    <string name="step_received">Received by staff</string>
+    <string name="step_assigned">Assigned</string>
+    <string name="step_taken">Taken</string>
+    <string name="step_on_scene">On scene</string>
+    <string name="step_handed_over">Handed over</string>
+    <string name="step_closed">Closed</string>
+    <string name="mark_found">Found</string>
+    <string name="mark_at_post">At the medical post</string>
+    <string name="mark_temperature">Temperature</string>
+    <string name="mark_pulse">Pulse</string>
+    <string name="mark_score">Score</string>
+    <string name="mark_cooling">Cooling started</string>
+    <string name="mark_ambulance">Ambulance called</string>
+    <string name="mark_prealerted">Hospital pre-alerted</string>
+    <string name="mark_handed_to">Handed to</string>
+    <string name="mark_left">Left the site</string>
+    <string name="mark_note">Note</string>
+    <string name="unit_celsius">%1$s °C</string>
+    <string name="unit_pulse">%1$s/min</string>
+    <string name="prealert_intro">Pre-alert from %1$s: %2$s</string>
+    <string name="prealert_reported">reported at %1$s</string>
+    <string name="prealert_found">found at %1$s</string>
+    <string name="prealert_temperature">temperature %1$s °C at %2$s</string>
+    <string name="prealert_pulse">pulse %1$s at %2$s</string>
+    <string name="prealert_score">score %1$s at %2$s</string>
+    <string name="prealert_cooling">cooling started at %1$s</string>
+    <string name="prealert_no_cooling">no cooling noted</string>
+    <string name="prealert_ambulance">ambulance called at %1$s</string>
+    <string name="prealert_left">left at %1$s</string>
+    <string name="prealert_triage">responds: %1$s, breathes normally: %2$s</string>
+
+    <!-- Man-down and the responders' alert -->
+    <string name="mandown_title">Are you OK?</string>
+    <string name="mandown_text">The phone felt a fall and then no movement.</string>
+    <string name="mandown_countdown">With no answer in %1$d s, the console gets “Staff in danger” with your position.</string>
+    <string name="mandown_ok">I’m OK</string>
+    <string name="mandown_notification">Tap to answer. With no answer, the console gets the alert.</string>
+    <string name="mandown_setting">Man down</string>
+    <string name="mandown_setting_text">After a fall followed by no movement, the phone asks “Are you OK?” for 30 seconds. With no answer, it sends “Staff in danger” with the last position.</string>
+    <string name="responder_title">Unconscious or not breathing</string>
+    <string name="responder_distance">%1$d m from you</string>
+    <string name="responder_zone">In %1$s</string>
+    <string name="responder_dea">Defibrillator: %1$s, %2$d m from you, then %3$d m to the patient</string>
+    <string name="responder_dea_patient">Defibrillator: %1$s, %2$d m from the patient</string>
+    <string name="responder_no_dea">No defibrillator on the map.</string>
+    <string name="responder_dea_name">AED</string>
+    <string name="responder_open">Open the incident</string>
+    <string name="responder_sheet">“Not breathing” sheet</string>
 </resources>

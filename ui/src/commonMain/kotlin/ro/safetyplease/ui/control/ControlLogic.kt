@@ -45,13 +45,13 @@ enum class Action(val event: LogEvent) {
 fun queue(cases: Collection<Case>, state: CaseState): List<Case> {
     val shown = cases.filter { it.state == state }
     return if (state == CaseState.CLOSED) shown.sortedByDescending { it.closedAt ?: it.report.reportedAt }
-    else shown.sortedWith(compareByDescending<Case> { it.report.severity }.thenBy { it.report.reportedAt })
+    else shown.sortedWith(topFirst.thenByDescending { it.report.severity }.thenBy { it.report.reportedAt })
 }
 
 /** The crowd signal for the queue: crowd reports of cases still open or taken, by zone. Closed ones no longer count. */
 fun crowdSignals(cases: Collection<Case>, nowMs: Long): List<CrowdSignal> = CrowdWatch.signals(
     cases.filter { it.state != CaseState.CLOSED && it.report.category == IncidentCategory.CROWD }
-        .map { CrowdReport(it.report.zone, it.report.reportedAt) },
+        .map { CrowdReport(it.report.zone, it.report.reportedAt, if (it.report.cannotMove) CrowdWatch.CANNOT_MOVE_WEIGHT else 1) },
     nowMs,
 )
 

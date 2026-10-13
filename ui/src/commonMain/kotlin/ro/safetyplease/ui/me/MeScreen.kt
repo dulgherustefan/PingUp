@@ -294,6 +294,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         )
                     }
                 }
+                ManDownSetting(vm)
 
                 if (settings.role != AppRole.PARTICIPANT || vm.demoUnlocked) PilotGroup(vm, settings.role, settings.networkLog, gnss?.let { { gnssPanel = true } }) { confirmMetrics = true }
 

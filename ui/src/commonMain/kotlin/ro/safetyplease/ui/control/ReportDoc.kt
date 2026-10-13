@@ -167,6 +167,7 @@ suspend fun reportDoc(report: EditionReport, kind: String, venue: Venue, generat
                 ),
             )
         }
+        add(densitySection(report.density, venue, ::recent))
         add(network)
         add(exercise)
     }

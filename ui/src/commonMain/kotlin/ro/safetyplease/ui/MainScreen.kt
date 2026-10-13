@@ -132,6 +132,7 @@ import ro.safetyplease.ui.resources.tab_messages
 import ro.safetyplease.ui.resources.tab_report
 import ro.safetyplease.ui.resources.tab_unread
 import ro.safetyplease.ui.safety.DiscreetScreen
+import ro.safetyplease.ui.staff.StaffChainLayer
 import ro.safetyplease.ui.staffcodes.PointsScreen
 import ro.safetyplease.ui.staffcodes.StaffCodesScreen
 import ro.safetyplease.ui.text.rememberNow
@@ -187,6 +188,7 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
             }
             alert?.let { NoticeAlert(it, vm.c.exercise) { vm.c.notices.alerted(it.notice.topic, it.notice.seq) } }
             MeetupRequests(vm)
+            StaffChainLayer(vm)
         }
     }
 }
