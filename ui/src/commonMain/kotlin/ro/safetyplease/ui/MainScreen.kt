@@ -106,6 +106,7 @@ import ro.safetyplease.ui.info.PageScreen
 import ro.safetyplease.ui.info.PagesScreen
 import ro.safetyplease.ui.map.MapScreen
 import ro.safetyplease.ui.map.PinScreen
+import ro.safetyplease.ui.map.RouteScreen
 import ro.safetyplease.ui.me.AnchorScreen
 import ro.safetyplease.ui.me.EventScreen
 import ro.safetyplease.ui.me.MeScreen
@@ -244,6 +245,7 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         Dest.Demo -> demo()
         is Dest.Pin -> PinScreen(vm, dest)
         is Dest.Map -> MapScreen(vm, dest)
+        is Dest.Walk -> RouteScreen(vm, dest.target)
         Dest.FirstAid -> FirstAidScreen(vm)
         is Dest.FirstAidSheet -> FirstAidSheetScreen(vm, dest.id)
         Dest.Pages -> PagesScreen(vm)

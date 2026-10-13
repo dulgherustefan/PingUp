@@ -29,15 +29,17 @@ data class RouteStep(val point: GeoPoint, val alongM: Int, val turn: Turn, val a
 data class Route(val points: List<GeoPoint>, val meters: Int, val seconds: Int, val steps: List<RouteStep>) {
     val end: GeoPoint get() = points.last()
 
-    /** How long it takes, as a range of minutes ("10–15 min"): a single figure would promise more than a crowd allows. */
-    fun minutes(): IntRange {
-        val low = max(1, ceil(seconds / 60.0).toInt())
-        val high = max(low + 1, ceil(seconds * SLOW_FACTOR / 60.0).toInt())
-        return low..high
-    }
+    fun minutes(): IntRange = minutes(seconds)
 
-    private companion object {
-        const val SLOW_FACTOR = 1.5
+    companion object {
+        private const val SLOW_FACTOR = 1.5
+
+        /** [seconds] of walking as a range of minutes ("10–15 min"): a single figure would promise more than a crowd allows. */
+        fun minutes(seconds: Int): IntRange {
+            val low = max(1, ceil(seconds / 60.0).toInt())
+            val high = max(low + 1, ceil(seconds * SLOW_FACTOR / 60.0).toInt())
+            return low..high
+        }
     }
 }
 

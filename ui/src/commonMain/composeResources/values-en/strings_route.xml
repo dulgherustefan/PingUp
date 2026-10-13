@@ -1,3 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="route_title">Walking route</string>
+    <string name="route_go">Take me there</string>
+    <string name="route_go_to">Take me to %1$s</string>
+    <string name="route_incident">Incident</string>
+    <string name="route_landmark">Landmark %1$d</string>
+    <string name="route_gate">Gate</string>
+    <string name="route_toward">Towards %1$s, then %2$s</string>
+    <string name="route_ahead">Straight on, then %1$s</string>
+    <string name="route_last">Towards %1$s</string>
+    <string name="route_arrive_at">Arrive at %1$s</string>
+    <string name="route_turn_left">turn left</string>
+    <string name="route_turn_right">turn right</string>
+    <string name="route_turn_straight">straight on</string>
+    <string name="route_turn_back">turn back</string>
+    <string name="route_left">%1$d m · ~%2$d–%3$d min</string>
+    <string name="route_arrived">You’re there</string>
+    <string name="route_off">You’ve left the route. Keep going this way and we’ll find another.</string>
+    <string name="route_steps">Steps</string>
+    <string name="route_no_position">Turn on location to see the way.</string>
+    <string name="route_turn_on">Turn on location</string>
+    <string name="route_outside">You’re outside the festival map</string>
+    <string name="route_outside_text">Walking routes work only on the festival map. Once you’re there, the route appears by itself.</string>
+    <string name="route_no_goal">We don’t know where it is right now. The route appears once a position arrives.</string>
+    <string name="route_unreachable">No walking route gets there</string>
+    <string name="route_unreachable_text">Water, fences or a zone the organiser closed are in the way. Ask a staff member.</string>
 </resources>
