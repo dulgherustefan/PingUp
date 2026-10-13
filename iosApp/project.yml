@@ -51,6 +51,8 @@ targets:
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "1"
+        # the Kotlin framework has no Intel simulator slice (iosX64 is a tier 3 target since Kotlin 2.3)
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
         FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
         OTHER_LDFLAGS: [$(inherited), -framework, PingUpUi]
         # Gradle writes the framework outside the sandbox Xcode gives build scripts

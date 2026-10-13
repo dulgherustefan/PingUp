@@ -1,5 +1,6 @@
 # On every push, and on pull requests from forks (a branch of this repo is already built by its push):
-# the venue map check, debug build, unit tests and lint. Releases stay in release.yml.
+# the venue map check, debug build, unit tests and lint, and on a Mac the iOS tests and the iPhone app, so that a
+# change to the shared code made on Windows or Linux can't break the iPhone unseen. Releases stay in release.yml.
 name: CI
 
 on:
@@ -44,3 +45,28 @@ jobs:
           name: lint-report
           path: app/build/reports/lint-results-*.html
           if-no-files-found: ignore
+
+  ios:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    # a Mac runner costs nothing on a public repository
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # the simulator is the one Xcode offers by default; libsodium is built from its pinned release first
+      - name: iOS tests
+        run: ./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test
+
+      - name: iPhone app
+        run: >
+          xcodebuild -project iosApp/PingUp.xcodeproj -scheme PingUp -configuration Debug
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build -quiet
