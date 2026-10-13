@@ -34,6 +34,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import okio.Buffer
 import okio.FileSystem
 import okio.SYSTEM
+import ro.safetyplease.core.announce.MapState
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeBoard
 import ro.safetyplease.core.announce.NoticeTemplates
@@ -113,7 +114,9 @@ import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.SiteGrid
+import ro.safetyplease.core.venue.StraightLine
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.core.venue.WalkDistance
 import ro.safetyplease.core.venue.parse
 import kotlin.concurrent.Volatile
 import kotlin.time.ExperimentalTime
@@ -380,12 +383,22 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     fun showsNotices(s: Settings): Boolean = s.role == Role.STAFF || (s.role == Role.PARTICIPANT && s.notices)
 
-    /** The console logs every notice it sends or hears; a phone that shows them notifies, unless it signed the notice. */
+    /** The zones' states and the evacuation in force, from the console's latest notices, whoever shows them. */
+    val mapState: StateFlow<MapState> = combine(notices.board, minuteTicks()) { board, _ -> MapState.of(board, venue, clock.wallMs() / 1000) }
+        .stateIn(ioScope, SharingStarted.Eagerly, MapState.of(notices.board.value, venue, clock.wallMs() / 1000))
+
+    /** Metres of walking between two points of the site; in a straight line until the walking routes take over. */
+    val walkDistance: WalkDistance = StraightLine
+
+    /**
+     * The console logs every notice it sends or hears; a phone that shows them notifies, unless it signed the notice or
+     * the notice has no words (the map state).
+     */
     private fun onNotice(notice: Notice, own: Boolean) {
         val title = platform.noticeTitle(notice)
         val text = platform.noticeBody(noticeTemplates, venue, notice)
         if (settings.value.role == Role.CONTROL) console.notice(notice, if (notice.cancelled) title else "$title: $text", own)
-        if (!own && showsNotices(settings.value)) notifications.notice(notice, title, text)
+        if (!own && !notice.silent && showsNotices(settings.value)) notifications.notice(notice, title, text)
     }
 
     /** This phone holds a shift certificate the chain accepts now. */

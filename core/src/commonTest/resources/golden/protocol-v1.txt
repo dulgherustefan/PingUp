@@ -272,3 +272,34 @@ announcement.notice.cancel 020102010000000268e7787868e7864c00000001034fd099ccd47
 summary2.notices 0402000000000000000100000002000000000000000200000005
 # REQUEST2 kind 4 for topics 1 and 2.
 request2.notices 040200000000000000010000000000000002
+
+# 1.1, the extension block of the report body (PROTOCOL.md, section 6.3): flag 0x80, then entries type, length, value.
+# A lost friend (category 8, severity 2) at TIME in "Scena mare", 44.426765, 26.102538, "Tricou roșu", nickname "Ana",
+# the cancel hash, location fields 12 m and landmark 4, then the block: last seen (1) at 44.4271, 26.1031, 25 minutes
+# before, accuracy class 2 (<= 20 m); witness (4).
+incident.body.last_seen 080268e77800a70a5363656e61206d61726502a5e60d018e4b0a000c547269636f7520726fc8997503416e610117b666bb268fe792c6157cd295fef70c04010b02a5e75c018e4d3c0019020400
+# Harassment (4), severity 2, at TIME in "Bar", no coordinates, no nickname, the cancel hash, then the block: it
+# happened 90 minutes before (2), anonymous (3).
+incident.body.later 040268e77800840342617200000117b666bb268fe792c6157cd295fef70202005a0300
+# A staff report of a crowd (5), severity 3, at TIME in "Scena mare", team "Securitate 1", the cancel hash, staff fields
+# 2 people, then the block: density 4 (5), can't move (6), man down (7), unconscious (8).
+incident.body.staff_extras 050368e77800960a5363656e61206d61726500000c5365637572697461746520310117b666bb268fe792c6157cd295fef70200050104060007000800
+
+# 1.1, notice extensions (PROTOCOL.md, section 6.8): with flag 02, entries type, length, value, before the signature.
+# Topic 5 (map state), level 1, flags 02 (EXTRAS), sequence 1, issued TIME + 60, valid until TIME + 3660, template 0, no zone, no
+# parameters, cert.control, then the map state (3): 8 zones, 2 bits each, open crowded closed exit-only open open
+# crowded open; the shift key's signature over everything before it.
+announcement.notice.map_state 020501020000000168e7783c68e7864c00000001034fd099ccd47d7893dfe9ec24414ecb0d9b5420232aad30d91c465be33cbe65c468e7780068e820c068894d58f18f2c3407436f6e74726f6c14edbe900a36dfdd0d610987b4cbc7fa627e2a155f6b0328b588d9efbb75ad27bcbe9d401395b6961c2444ca29dff8eef56ff53cb5e277a846a57dcba3a1730f0303081b046125d81481b4bb35a8ca746d8a359c834d1f10bf2c2434b3c23c2556a789f771eda2b0c42eba1650f816ccc576990d84606ab2a219209c431aef0d33a3e1c803
+# An evacuation (topic 1, level 3), flags 02 (EXTRAS), sequence 3, issued TIME + 180, valid until TIME + 3780, template 5, no zone, no
+# parameters, cert.control, then the zone set (1): 8 zones, zones 0 and 6; and the plan (2): 1.
+announcement.notice.evacuation 020103020000000368e778b468e786c405000001034fd099ccd47d7893dfe9ec24414ecb0d9b5420232aad30d91c465be33cbe65c468e7780068e820c068894d58f18f2c3407436f6e74726f6c14edbe900a36dfdd0d610987b4cbc7fa627e2a155f6b0328b588d9efbb75ad27bcbe9d401395b6961c2444ca29dff8eef56ff53cb5e277a846a57dcba3a1730f01020882020101a68a50ed9ea2ab5f9b7d7238392ddb67632f2a7d5f83a8ce6aa35bcbebb3abbfcf4d7277df97c4a54f0937e3cccf58845d5ec37e8bd4b724209e92f23361aa09
+
+# 1.1, inner kinds 17 to 19 (PROTOCOL.md, section 6.6).
+# LOST_SESSION (17): msgId 0102030405060708, flags 01, group 1112131415161718, action 1 (start), seq 4, 15 minutes,
+# battery 37 %, landmark 11.
+inner.lost_session 11010203040506070801111213141516171801040f250b
+# LAST_GASP (18): battery 5 %, 44.426765, 26.102538, fixed at TIME + 600, accuracy class 2.
+inner.last_gasp 120502a5e60d018e4b0a68e77a5802
+# CHECKIN_MISSED (19): msgId 0102030405060708, flags 02 (a last fix), deadline TIME + 7200, 44.4271, 26.1031 fixed at
+# TIME + 7000, accuracy class 3, label "Gara Costinești".
+inner.checkin_missed 1301020304050607080268e7942002a5e75c018e4d3c68e7935803104761726120436f7374696e65c8997469

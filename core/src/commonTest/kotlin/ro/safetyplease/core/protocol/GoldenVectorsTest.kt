@@ -3,7 +3,10 @@ package ro.safetyplease.core.protocol
 import kotlinx.serialization.json.JsonPrimitive
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeLevel
+import ro.safetyplease.core.announce.NoticeExtras
 import ro.safetyplease.core.announce.NoticeTopic
+import ro.safetyplease.core.announce.ZoneSet
+import ro.safetyplease.core.announce.ZoneState
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.Certificate
@@ -164,6 +167,14 @@ class GoldenVectorsTest {
         "announcement.notice.cancel" to { Golden.noticeCancel().encode().toHex() },
         "summary2.notices" to { Summary2Codec.encode(Golden.summary2Notices).toHex() },
         "request2.notices" to { Request2Codec.encode(Golden.request2Notices).toHex() },
+        "incident.body.last_seen" to { Golden.lastSeenBody.encode().toHex() },
+        "incident.body.later" to { Golden.laterBody.encode().toHex() },
+        "incident.body.staff_extras" to { Golden.staffExtrasBody.encode().toHex() },
+        "announcement.notice.map_state" to { Golden.mapStateNotice().encode().toHex() },
+        "announcement.notice.evacuation" to { Golden.evacuationNotice().encode().toHex() },
+        "inner.lost_session" to { InnerCodec.encode(Golden.lostSession).toHex() },
+        "inner.last_gasp" to { InnerCodec.encode(Golden.lastGasp).toHex() },
+        "inner.checkin_missed" to { InnerCodec.encode(Golden.checkinMissed).toHex() },
     )
 
     @Test
@@ -276,6 +287,7 @@ class GoldenVectorsTest {
             "inner.share_session" to Golden.shareSession, "inner.share_session.come" to Golden.comeSession,
             "inner.ping_request" to Golden.pingRequest, "inner.meeting_point" to Golden.meetingPoint,
             "inner.meeting_point.venue" to Golden.venueMeetingPoint, "inner.meeting_reply" to Golden.meetingReply,
+            "inner.lost_session" to Golden.lostSession, "inner.last_gasp" to Golden.lastGasp, "inner.checkin_missed" to Golden.checkinMissed,
         )
         for ((name, inner) in inners) assertEquals(inner.fields(), InnerCodec.decode(bytes(name))!!.fields(), name)
         val intro = InnerCodec.decode(bytes("inner.intro")) as Inner.Intro
@@ -542,6 +554,42 @@ class GoldenVectorsTest {
 
         assertEquals(Golden.summary2Notices, Summary2Codec.decode(bytes("summary2.notices")))
         assertEquals(Golden.request2Notices, Request2Codec.decode(bytes("request2.notices")))
+    }
+
+    @Test
+    fun contractFieldsDecodeAndOlderVersionsReadAroundThem() {
+        val bodies = mapOf(
+            "incident.body.last_seen" to Golden.lastSeenBody, "incident.body.later" to Golden.laterBody,
+            "incident.body.staff_extras" to Golden.staffExtrasBody,
+        )
+        for ((name, body) in bodies) {
+            assertEquals(body.fields(), IncidentBody.decode(bytes(name))!!.fields(), name)
+            // a 1.1 phone from before the block opens the same report without it; a 1.0 phone never shows it
+            val old = assertNotNull(Frozen11.body(bytes(name)), name)
+            assertEquals(body.fields().dropLast(1), old.fields().dropLast(1), name)
+            assertEquals(ReportExtras.NONE, old.extras)
+            assertNull(Frozen10.body(bytes(name)), name)
+        }
+        assertEquals(ReportExtras.NONE, IncidentBody.decode(bytes("incident.body.extended"))!!.extras, "the old vector's bytes run past the body")
+
+        val chain = Golden.chain()
+        for (name in listOf("announcement.notice.map_state", "announcement.notice.evacuation")) {
+            assertEquals(Verdict.VALID, chain.checkAnnouncement(bytes(name)), name)
+            assertContentEquals(bytes(name), Notice.decode(bytes(name))!!.encode(), "$name keeps its extensions as they came")
+        }
+        val mapState = Notice.decode(bytes("announcement.notice.map_state"))!!
+        assertEquals(listOf(NoticeTopic.MAP_STATE, 1, 0, emptyList<String>()), listOf(mapState.topic, mapState.level, mapState.template, mapState.params))
+        assertEquals(Golden.STATES, mapState.extras.states)
+        assertTrue(mapState.silent && NoticeTopic.MAP_STATE !in NoticeTopic.KNOWN)
+        val evacuation = Notice.decode(bytes("announcement.notice.evacuation"))!!
+        assertEquals(NoticeExtras(ZoneSet(8, setOf(0, 6)), plan = 1), evacuation.extras)
+        assertTrue(evacuation.urgent && !evacuation.silent)
+        val tampered = bytes("announcement.notice.map_state").also { it[it.size - 65] = (it[it.size - 65] + 1).toByte() }
+        assertEquals(Verdict.INVALID, chain.checkAnnouncement(tampered), "the extensions are signed")
+
+        for (name in listOf("inner.lost_session", "inner.last_gasp", "inner.checkin_missed")) {
+            assertTrue(bytes(name)[0] > Frozen11.LAST_INNER_KIND, "$name is a kind older phones drop")
+        }
     }
 
     @Test
@@ -849,6 +897,45 @@ private object Golden {
         crypto, Credential(controlCert, control), NoticeTopic.ALERT, NoticeLevel.PAUSE, 2, TIME + 120, TIME + 3660, 0, flags = Notice.CANCEL,
     )
 
+    /** A lost friend last seen 25 minutes before the report, within 20 m, by a witness. */
+    val lastSeenBody = IncidentBody(
+        IncidentCategory.LOST_FRIEND, Severity.MEDIUM, TIME, "Scena mare", 44.426765, 26.102538, "Tricou roșu", "Ana",
+        IncidentCancel.hash(TOKEN), location = LocationFields(12, 4),
+        extras = ReportExtras(lastSeen = LastSeen(44.4271, 26.1031, 25, 2), witness = true),
+    )
+
+    /** Harassment told 90 minutes later, anonymously: no nickname, no reply key. */
+    val laterBody = IncidentBody(
+        IncidentCategory.HARASSMENT, Severity.MEDIUM, TIME, "Bar", null, null, "", null, IncidentCancel.hash(TOKEN),
+        extras = ReportExtras(happenedMinAgo = 90, anonymous = true),
+    )
+
+    /** A staff report: density 4, someone who can't move, a colleague down, a person unconscious. */
+    val staffExtrasBody = IncidentBody(
+        IncidentCategory.CROWD, Severity.URGENT, TIME, "Scena mare", null, null, "", "Securitate 1", IncidentCancel.hash(TOKEN),
+        staff = StaffFields(2), extras = ReportExtras(density = 4, cannotMove = true, manDown = true, unconscious = true),
+    )
+
+    /** One state per zone of an eight-zone venue. */
+    val STATES = listOf(
+        ZoneState.OPEN, ZoneState.CROWDED, ZoneState.CLOSED, ZoneState.EXIT_ONLY, ZoneState.OPEN, ZoneState.OPEN, ZoneState.CROWDED, ZoneState.OPEN,
+    )
+
+    /** The map state from TIME + 60 for an hour: topic 5, level 1, sequence 1, no template, the states as an extension. */
+    fun mapStateNotice(): Notice = Notice.sign(
+        crypto, Credential(controlCert, control), NoticeTopic.MAP_STATE, 1, 1, TIME + 60, TIME + 3660, 0, extras = NoticeExtras(states = STATES),
+    )
+
+    /** An evacuation from TIME + 180 for an hour, template 5, for zones 0 and 6 of eight, by plan 1. */
+    fun evacuationNotice(): Notice = Notice.sign(
+        crypto, Credential(controlCert, control), NoticeTopic.ALERT, NoticeLevel.EVACUATION, 3, TIME + 180, TIME + 3780, 5,
+        extras = NoticeExtras(ZoneSet(8, setOf(0, 6)), plan = 1),
+    )
+
+    val lostSession = Inner.LostSession(msgId, groupId, LostAction.START, 4, 15, 37, 11)
+    val lastGasp = Inner.LastGasp(LastFix(44.426765, 26.102538, TIME + 600, 2), 5)
+    val checkinMissed = Inner.CheckinMissed(msgId, null, TIME + 7200, LastFix(44.4271, 26.1031, TIME + 7000, 3), "Gara Costinești")
+
     val summary2Notices = Summary2(SummaryKind.NOTICES, emptyList(), listOf(HeldEntry(1, 2), HeldEntry(2, 5)))
     val request2Notices = Request2(SummaryKind.NOTICES, emptyList(), listOf(1L, 2L))
 
@@ -875,7 +962,7 @@ private fun Hello.fields() =
 private fun Certificate.fields() = listOf(role, key.toHex(), validFrom, validUntil, issuer, name, signature.toHex())
 
 private fun IncidentBody.fields() =
-    listOf(category, severity, timestamp, zone, lat, lon, description, nickname, cancelHash?.toHex(), triage, staff, location, replyKey?.toHex())
+    listOf(category, severity, timestamp, zone, lat, lon, description, nickname, cancelHash?.toHex(), triage, staff, location, replyKey?.toHex(), extras)
 
 private fun IncidentAck.fields() = listOf(incidentId.toHex(), status, timestamp, teamName, signature.toHex(), extensions.toHex())
 
@@ -895,6 +982,9 @@ private fun Inner.fields(): List<Any?> = when (this) {
     is Inner.PingRequest -> listOf("ping_request", action, seconds)
     is Inner.MeetingPoint -> listOf("meeting_point", msgId, groupId, seq, landmark, lat, lon, venuePoint, meetAt, expiryMin)
     is Inner.MeetingReply -> listOf("meeting_reply", msgId, groupId, action, proposalId)
+    is Inner.LostSession -> listOf("lost_session", msgId, groupId, action, seq, minutes, battery, landmark)
+    is Inner.LastGasp -> listOf("last_gasp", fix, battery)
+    is Inner.CheckinMissed -> listOf("checkin_missed", msgId, groupId, deadline, lastFix, label)
     is Inner.GroupInvite ->
         listOf("invite", msgId, groupId, name, members.map { listOf(it.nodeId, it.boxKey.toHex(), it.nickname) })
 }

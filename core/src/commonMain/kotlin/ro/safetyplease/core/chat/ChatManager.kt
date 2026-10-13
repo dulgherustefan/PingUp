@@ -794,6 +794,8 @@ class ChatManager(
         is Inner.LeftGroup -> inner.groupId
         is Inner.MeetingPoint -> inner.groupId
         is Inner.MeetingReply -> inner.groupId
+        is Inner.LostSession -> inner.groupId
+        is Inner.CheckinMissed -> inner.groupId
         else -> null
     }
 
@@ -956,6 +958,8 @@ class ChatManager(
             is Inner.PingRequest -> onPingRequest(sender, inner)
             is Inner.MeetingPoint -> onMeetingPoint(packet, inner)
             is Inner.MeetingReply -> onMeetingReply(packet, inner)
+            // decoded for the features that will read them; until then dropped, unanswered, as an older phone does
+            is Inner.LostSession, is Inner.LastGasp, is Inner.CheckinMissed -> Unit
             // an intro only ever comes sealed
             is Inner.Intro -> Unit
         }
@@ -1122,7 +1126,8 @@ class ChatManager(
     /** A kind added in 1.1: whoever sends one gets positions from now on, instead of only the zone. */
     private fun isOneOne(inner: Inner): Boolean = inner is Inner.LeftGroup || inner is Inner.ZoneRequest ||
         inner is Inner.ZoneUpdate || inner is Inner.Position || inner is Inner.ShareSession || inner is Inner.PingRequest ||
-        inner is Inner.MeetingPoint || inner is Inner.MeetingReply
+        inner is Inner.MeetingPoint || inner is Inner.MeetingReply || inner is Inner.LostSession || inner is Inner.LastGasp ||
+        inner is Inner.CheckinMissed
 
     fun isBlocked(nodeId: Long) = blocked.value.any { it.nodeId == nodeId }
 

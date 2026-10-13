@@ -70,10 +70,11 @@ import ro.safetyplease.ui.text.noticeTitle
 /** A notice in force, with its words in the phone's language. */
 class ShownNotice(val held: HeldNotice, val notice: Notice, val title: String, val text: String)
 
+/** The notices in [active] that have words; the map state goes to the map instead. */
 @Composable
 fun shownNotices(vm: AppViewModel, active: List<Pair<HeldNotice, Notice>>): List<ShownNotice> {
     val language = vm.c.language()
-    return active.map { (held, notice) ->
+    return active.filter { !it.second.silent }.map { (held, notice) ->
         ShownNotice(held, notice, noticeTitle(notice), noticeBody(vm.c.noticeTemplates, vm.venue, notice, language))
     }
 }

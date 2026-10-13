@@ -10,6 +10,7 @@ import ro.safetyplease.core.protocol.WireReader
 import ro.safetyplease.core.protocol.WireWriter
 import ro.safetyplease.core.protocol.parseOrNull
 import ro.safetyplease.core.util.utf8
+import ro.safetyplease.core.venue.Venue
 
 /** What a notice is about; a new one replaces the one of the same topic. A topic this version doesn't know is kept as a number. */
 object NoticeTopic {
@@ -18,13 +19,17 @@ object NoticeTopic {
     const val SCHEDULE = 3
     const val TRANSPORT = 4
 
+    /** The state of every zone ([NoticeExtras.states]); no template and no text, so it is never shown as a notice. */
+    const val MAP_STATE = 5
+
+    /** The topics the console writes from the pack's templates. */
     val KNOWN = listOf(ALERT, HEAT, SCHEDULE, TRANSPORT)
 
     /** The levels a topic has: an alert informs, pauses or evacuates, heat has four steps, a change has one. */
     fun levels(topic: Int): IntRange = when (topic) {
         ALERT -> NoticeLevel.INFO..NoticeLevel.EVACUATION
         HEAT -> 1..4
-        SCHEDULE, TRANSPORT -> 1..1
+        SCHEDULE, TRANSPORT, MAP_STATE -> 1..1
         else -> 1..0xFF
     }
 }
@@ -41,6 +46,7 @@ object NoticeLevel {
  * shift whose [certificate] it carries. The text isn't on the wire: [template] names one of the event pack's, in every
  * language it has, and [params] fill it in. A notice replaces the one of its [topic] with a lower [seq]; [CANCEL] withdraws
  * it. It holds from [issued] to [validUntil] (seconds, the console's clock). [zone] is empty for the whole site.
+ * [extensions] are signed with the rest; [extras] reads them.
  */
 class Notice(
     val topic: Int,
@@ -61,13 +67,35 @@ class Notice(
     /** A pause or an evacuation: it takes the screen once and sounds. */
     val urgent: Boolean get() = topic == NoticeTopic.ALERT && level >= NoticeLevel.PAUSE && !cancelled
 
+    /** The fields of [NoticeExtras], when flag [EXTRAS] says the extensions hold them. */
+    val extras: NoticeExtras get() = if (flags and EXTRAS != 0) NoticeExtras.decode(extensions) else NoticeExtras.NONE
+
+    /** Data for the map with no words, as the map state: neither shown nor notified. */
+    val silent: Boolean get() = !cancelled && template == 0 && params.isEmpty()
+
+    /**
+     * Whether the notice is for a phone in [zoneId] of [venue]: the zone set decides, else the zone, else everyone. A zone
+     * set made for another zone list is for everyone, as a phone from before zone sets reads it.
+     */
+    fun concerns(venue: Venue, zoneId: String?): Boolean {
+        val ids = extras.zones?.ids(venue)?.takeIf { it.isNotEmpty() }
+        return when {
+            ids != null -> zoneId in ids
+            zone.isNotEmpty() -> zoneId == zone
+            else -> true
+        }
+    }
+
     fun encode(): ByteArray = unsigned(topic, level, flags, seq, issued, validUntil, template, zone, params, certificate) + extensions + signature
 
     companion object {
         const val KIND = 2
 
-        /** Flag bit: the notice withdraws the one of its topic and shows nothing. Other bits are reserved and ignored. */
+        /** Flag bit: the notice withdraws the one of its topic and shows nothing. */
         const val CANCEL = 0x01
+
+        /** Flag bit: the extensions start with the entries of [NoticeExtras]. Other bits are reserved and ignored. */
+        const val EXTRAS = 0x02
         const val MAX_PARAMS = 4
         const val PARAM_BYTES = 40
 
@@ -91,15 +119,17 @@ class Notice(
 
         fun signedMessage(payload: ByteArray): ByteArray = Revocation.signedMessage(payload)
 
-        /** Signed with the control shift of [credential]. */
+        /** Signed with the control shift of [credential], [extras] included. */
         fun sign(
             crypto: Crypto, credential: Credential, topic: Int, level: Int, seq: Long, issued: Long, validUntil: Long, template: Int,
-            zone: String = "", params: List<String> = emptyList(), flags: Int = 0,
+            zone: String = "", params: List<String> = emptyList(), flags: Int = 0, extras: NoticeExtras = NoticeExtras.NONE,
         ): Notice {
             val cert = credential.certificate
-            val unsigned = unsigned(topic, level, flags, seq, issued, validUntil, template, zone, params, cert)
+            val extensions = extras.encode()
+            val allFlags = if (extensions.isEmpty()) flags else flags or EXTRAS
+            val unsigned = unsigned(topic, level, allFlags, seq, issued, validUntil, template, zone, params, cert) + extensions
             val signature = crypto.sign(DOMAIN + unsigned, credential.key.secretKey)
-            return Notice(topic, level, flags, seq, issued, validUntil, template, zone, params, cert, signature)
+            return Notice(topic, level, allFlags, seq, issued, validUntil, template, zone, params, cert, signature, extensions)
         }
 
         /** Null for another kind of announcement, or one that doesn't parse. */

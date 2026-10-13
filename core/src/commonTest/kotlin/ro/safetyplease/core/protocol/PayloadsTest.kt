@@ -288,7 +288,8 @@ class PayloadsTest {
     fun incidentBodySkipsFieldsAndFlagsOfANewerVersion() {
         val hash = IncidentCancel.hash(ByteArray(IncidentCancel.TOKEN_SIZE))
         val body = IncidentBody(IncidentCategory.FIRE, Severity.URGENT, 9L, "bar", 43.95, 28.63, "fum", "Ana", hash).encode()
-        val newer = body.copyOf().also { it[6] = (it[6].toInt() or 0x80).toByte() } + byteArrayOf(4, 1, 2, 3, 4)
+        // behind 0x80, the extension block: an entry of a type this version doesn't know, then a byte it can't read
+        val newer = body.copyOf().also { it[6] = (it[6].toInt() or 0x80).toByte() } + byteArrayOf(0x63, 2, 1, 2, 3)
         val d = IncidentBody.decode(newer)!!
         assertEquals("fum", d.description)
         assertEquals("Ana", d.nickname)

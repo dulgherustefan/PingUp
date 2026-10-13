@@ -46,6 +46,7 @@ object Limits {
     const val GROUP_NAME_BYTES = 32
     const val GROUP_NICK_BYTES = 16
     const val GROUP_MAX_MEMBERS = 8
+    const val CHECKIN_LABEL_BYTES = 32
     const val SUMMARY_ENTRIES = 50
 
     /** A SUMMARY2 with epochs: 2 + 47 × 10 + 1 bytes still fit in a payload. */
@@ -449,8 +450,8 @@ const val INCIDENT_ID_SIZE = 16
  * from reports written before cancelling existed.
  *
  * Fields after the cancel hash sit each behind a flag bit of its own: 1.1 adds [triage], [staff], [location] and
- * [replyKey]. This version ignores the flags it doesn't know and everything after the fields it reads. A category it
- * doesn't know is kept as a number.
+ * [replyKey], then, behind the last bit, the extension block [extras], which has room for every field to come. This
+ * version ignores the flags it doesn't know. A category it doesn't know is kept as a number.
  */
 class IncidentBody(
     val category: Int,
@@ -468,6 +469,7 @@ class IncidentBody(
     val location: LocationFields? = null,
     /** The reporter's ephemeral X25519 key: the console seals its responses ([IncidentResponse]) to it. */
     val replyKey: ByteArray? = null,
+    val extras: ReportExtras = ReportExtras.NONE,
 ) {
     fun encode(): ByteArray {
         val zoneBytes = zone.utf8()
@@ -481,7 +483,7 @@ class IncidentBody(
         val flags = (if (hasCoords) FLAG_COORDS else 0) or (if (nickBytes != null) FLAG_NICK else 0) or
             (if (cancelHash != null) FLAG_CANCEL else 0) or (if (triage != null) FLAG_TRIAGE else 0) or
             (if (staff != null) FLAG_STAFF else 0) or (if (location != null) FLAG_LOCATION else 0) or
-            (if (replyKey != null) FLAG_REPLY else 0)
+            (if (replyKey != null) FLAG_REPLY else 0) or (if (extras.isEmpty) 0 else FLAG_EXTRAS)
         val w = WireWriter(70 + zoneBytes.size + descBytes.size)
         w.u8(category).u8(severity).u32(timestamp).u8(flags)
         w.u8(zoneBytes.size).bytes(zoneBytes)
@@ -493,6 +495,7 @@ class IncidentBody(
         if (staff != null) w.u8(staff.people).u8(if (staff.dangerContinues) STAFF_DANGER else 0)
         if (location != null) w.u8(location.accuracyM).u8(location.landmark)
         if (replyKey != null) w.bytes(replyKey)
+        if (!extras.isEmpty) w.bytes(extras.encode())
         return w.toByteArray()
     }
 
@@ -509,6 +512,7 @@ class IncidentBody(
         private const val FLAG_STAFF = 0x10
         private const val FLAG_LOCATION = 0x20
         private const val FLAG_REPLY = 0x40
+        private const val FLAG_EXTRAS = 0x80
         private const val STAFF_DANGER = 0x01
 
         fun decode(plain: ByteArray): IncidentBody? = parseOrNull {
@@ -531,7 +535,8 @@ class IncidentBody(
             val staff = if (flags and FLAG_STAFF != 0) StaffFields(r.u8(), r.u8() and STAFF_DANGER != 0) else null
             val location = if (flags and FLAG_LOCATION != 0) LocationFields(r.u8(), r.u8()) else null
             val replyKey = if (flags and FLAG_REPLY != 0) r.bytes(REPLY_KEY_SIZE) else null
-            IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash, triage, staff, location, replyKey)
+            val extras = if (flags and FLAG_EXTRAS != 0) ReportExtras.decode(r.rest()) else ReportExtras.NONE
+            IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash, triage, staff, location, replyKey, extras)
         }
     }
 }
@@ -848,9 +853,16 @@ object QuickCode {
 
 class GroupMemberWire(val nodeId: Long, val boxKey: ByteArray, val nickname: String)
 
+/** Where a phone last was, in micro-degrees: fixed at [fixedAt] (Unix seconds), [accuracy] an [AccuracyClass] code. */
+data class LastFix(val lat: Double, val lon: Double, val fixedAt: Long, val accuracy: Int) {
+    init {
+        require(fixedAt in 0..MeetingLimits.MAX_MEET_AT && accuracy in 0..AccuracyClass.UNKNOWN)
+    }
+}
+
 /**
  * The message inside a PRIVATE envelope. Most kinds carry a msgId that identifies them across retransmissions;
- * [Position] and [ShareSession] (1.1) are never retried or confirmed, so they have none.
+ * [Position], [ShareSession], [PingRequest] and [LastGasp] (1.1) are never retried or confirmed, so they have none.
  */
 sealed interface Inner {
     class Text(val msgId: Long, val groupId: Long?, val text: String) : Inner
@@ -946,6 +958,42 @@ sealed interface Inner {
     class MeetingReply(val msgId: Long, val groupId: Long?, val action: Int, val proposalId: Long) : Inner {
         init {
             require(action in MeetingAction.ACCEPT..MeetingAction.WITHDRAW)
+        }
+    }
+
+    /**
+     * "M-am pierdut de grup" (1.1): the sender lost their group and asks to meet at the landmark numbered [landmark]
+     * (0: none proposed), for [minutes]; [battery] is a percentage or [BatteryLevel.UNKNOWN]. [LostAction.FOUND] ends it.
+     */
+    class LostSession(
+        val msgId: Long,
+        val groupId: Long?,
+        val action: Int,
+        val seq: Int,
+        val minutes: Int,
+        val battery: Int,
+        val landmark: Int,
+    ) : Inner {
+        init {
+            require(action in LostAction.START..LostAction.FOUND && seq in 0..0xFF && minutes in 1..LostAction.MAX_MINUTES)
+            require(BatteryLevel.valid(battery) && landmark in 0..0xFF)
+        }
+    }
+
+    /** The sender's phone is about to switch off (1.1): its last position and battery, sent once. */
+    class LastGasp(val fix: LastFix, val battery: Int) : Inner {
+        init {
+            require(BatteryLevel.valid(battery))
+        }
+    }
+
+    /**
+     * The sender did not check in by [deadline] (Unix seconds) on the way to [label] (1.1), with where their phone
+     * last was, if it knew. Their phone sends it by itself when the time passes.
+     */
+    class CheckinMissed(val msgId: Long, val groupId: Long?, val deadline: Long, val lastFix: LastFix?, val label: String) : Inner {
+        init {
+            require(deadline in 0..MeetingLimits.MAX_MEET_AT)
         }
     }
 
@@ -1056,6 +1104,21 @@ object MeetingAction {
     const val WITHDRAW = 2
 }
 
+object LostAction {
+    const val START = 1
+    const val FOUND = 2
+
+    /** The longest a lost session lasts. */
+    const val MAX_MINUTES = 60
+}
+
+/** A battery percentage on the wire: 0..100, or [UNKNOWN]. */
+object BatteryLevel {
+    const val UNKNOWN = 0xFF
+
+    fun valid(level: Int): Boolean = level in 0..100 || level == UNKNOWN
+}
+
 object MeetingLimits {
     /** The latest time a meeting point can carry: Unix seconds in a `u32`, up to the year 2106. */
     const val MAX_MEET_AT = 0xFFFF_FFFFL
@@ -1087,6 +1150,9 @@ object InnerCodec {
     private const val PING_REQUEST = 14
     private const val MEETING_POINT = 15
     private const val MEETING_REPLY = 16
+    private const val LOST_SESSION = 17
+    private const val LAST_GASP = 18
+    private const val CHECKIN_MISSED = 19
 
     private const val FLAG_GROUP = 0x01
     private const val FLAG_COORDS = 0x02
@@ -1101,6 +1167,7 @@ object InnerCodec {
 
     // 0x02 is not used: a meeting point always carries its time, 0 for none
     private const val MEET_VENUE_POINT = 0x04
+    private const val CHECKIN_FIX = 0x02
 
     private const val POSITION_ABSOLUTE = 0x01
     private const val ACCURACY_SHIFT = 1
@@ -1167,6 +1234,16 @@ object InnerCodec {
             }
             is Inner.MeetingReply ->
                 w.u8(MEETING_REPLY).i64(inner.msgId).group(inner.groupId, 0).u8(inner.action).i64(inner.proposalId)
+            is Inner.LostSession -> w.u8(LOST_SESSION).i64(inner.msgId).group(inner.groupId, 0).u8(inner.action).u8(inner.seq)
+                .u8(inner.minutes).u8(inner.battery).u8(inner.landmark)
+            is Inner.LastGasp -> w.u8(LAST_GASP).u8(inner.battery).lastFix(inner.fix)
+            is Inner.CheckinMissed -> {
+                val label = inner.label.utf8()
+                require(label.size <= Limits.CHECKIN_LABEL_BYTES)
+                w.u8(CHECKIN_MISSED).i64(inner.msgId).group(inner.groupId, if (inner.lastFix != null) CHECKIN_FIX else 0).u32(inner.deadline)
+                inner.lastFix?.let { w.lastFix(it) }
+                w.u8(label.size).bytes(label)
+            }
             is Inner.Intro -> {
                 val nick = inner.nickname.utf8()
                 require(inner.boxKey.size == BOX_KEY_SIZE && inner.signKey.size == SIGN_KEY_SIZE)
@@ -1176,6 +1253,17 @@ object InnerCodec {
             }
         }
         return w.toByteArray()
+    }
+
+    private fun WireWriter.lastFix(fix: LastFix) = coord(fix.lat).coord(fix.lon).u32(fix.fixedAt).u8(fix.accuracy)
+
+    private fun WireReader.lastFix(): LastFix {
+        val lat = coord()
+        val lon = coord()
+        val fixedAt = u32()
+        val accuracy = u8()
+        if (accuracy > AccuracyClass.UNKNOWN) throw MalformedException("accuracy")
+        return LastFix(lat, lon, fixedAt, accuracy)
     }
 
     private fun WireWriter.group(groupId: Long?, extraFlags: Int) = apply {
@@ -1189,6 +1277,7 @@ object InnerCodec {
         if (type == POSITION) return@parseOrNull r.position()
         if (type == SHARE_SESSION) return@parseOrNull r.shareSession()
         if (type == PING_REQUEST) return@parseOrNull r.pingRequest()
+        if (type == LAST_GASP) return@parseOrNull r.lastGasp()
         val msgId = r.i64()
         when (type) {
             TEXT -> {
@@ -1264,6 +1353,15 @@ object InnerCodec {
                 if (action !in MeetingAction.ACCEPT..MeetingAction.WITHDRAW) throw MalformedException("meeting action")
                 Inner.MeetingReply(msgId, groupId, action, proposalId)
             }
+            LOST_SESSION -> r.lostSession(msgId)
+            CHECKIN_MISSED -> {
+                val (groupId, flags) = r.group(CHECKIN_FIX)
+                val deadline = r.u32()
+                val fix = if (flags and CHECKIN_FIX != 0) r.lastFix() else null
+                val label = r.string(r.u8(), Limits.CHECKIN_LABEL_BYTES)
+                r.expectEnd()
+                Inner.CheckinMissed(msgId, groupId, deadline, fix, label)
+            }
             INTRO -> {
                 val boxKey = r.bytes(BOX_KEY_SIZE)
                 val signKey = r.bytes(SIGN_KEY_SIZE)
@@ -1314,6 +1412,28 @@ object InnerCodec {
         if (action !in PingAction.ASK..PingAction.LIGHTING) throw MalformedException("ping action")
         if (seconds !in 1..PingAction.MAX_SECONDS) throw MalformedException("ping seconds")
         return Inner.PingRequest(action, seconds)
+    }
+
+    private fun WireReader.lostSession(msgId: Long): Inner.LostSession {
+        val (groupId, _) = group(0)
+        val action = u8()
+        val seq = u8()
+        val minutes = u8()
+        val battery = u8()
+        val landmark = u8()
+        expectEnd()
+        if (action !in LostAction.START..LostAction.FOUND) throw MalformedException("lost action")
+        if (minutes !in 1..LostAction.MAX_MINUTES) throw MalformedException("lost minutes")
+        if (!BatteryLevel.valid(battery)) throw MalformedException("battery")
+        return Inner.LostSession(msgId, groupId, action, seq, minutes, battery, landmark)
+    }
+
+    private fun WireReader.lastGasp(): Inner.LastGasp {
+        val battery = u8()
+        val fix = lastFix()
+        expectEnd()
+        if (!BatteryLevel.valid(battery)) throw MalformedException("battery")
+        return Inner.LastGasp(fix, battery)
     }
 
     private fun WireReader.meetingPoint(msgId: Long): Inner.MeetingPoint {

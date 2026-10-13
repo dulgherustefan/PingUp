@@ -7,16 +7,31 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
 import ro.safetyplease.core.TempDir
+import ro.safetyplease.core.announce.HeldNotice
+import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeBoard
+import ro.safetyplease.core.announce.NoticeExtras
+import ro.safetyplease.core.announce.NoticeTopic
+import ro.safetyplease.core.announce.ZoneState
+import ro.safetyplease.core.crypto.CertRole
+import ro.safetyplease.core.crypto.Certificate
+import ro.safetyplease.core.crypto.Credential
 import ro.safetyplease.core.crypto.StaffCard
 import ro.safetyplease.core.crypto.StaffRole
+import ro.safetyplease.core.crypto.testCrypto
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.event.EventPacks
 import ro.safetyplease.core.mesh.BatteryReading
 import ro.safetyplease.core.mesh.PowerProfile
+import ro.safetyplease.core.mkdirs
 import ro.safetyplease.core.readText
 import ro.safetyplease.core.repoFile
 import ro.safetyplease.core.util.hexToBytes
+import ro.safetyplease.core.util.toHex
+import ro.safetyplease.core.venue.StraightLine
+import ro.safetyplease.core.writeText
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -178,5 +193,26 @@ class PingUpSessionTest {
         run.cancelAndJoin()
         eventually { radio.calls().last() == "stop" }
         assertEquals("start", radio.calls().first())
+    }
+
+    @Test
+    fun theMapStateComesFromTheNoticesOnTheBoard() {
+        val platform = FakePlatform(tmp)
+        val now = platform.clock.wallMs() / 1000
+        val control = testCrypto.signKeyPair()
+        val credential = Credential(
+            Certificate.issue(testCrypto, CertRole.CONTROL, control.publicKey, 0, 0xFFFFFFFFL, "Control", testCrypto.signKeyPair()), control,
+        )
+        val states = List(8) { if (it == 1) ZoneState.CLOSED else ZoneState.OPEN }
+        val notice = Notice.sign(testCrypto, credential, NoticeTopic.MAP_STATE, 1, 1, now, now + 3600, 0, extras = NoticeExtras(states = states))
+        val board = NoticeBoard(listOf(HeldNotice(notice.topic, notice.seq, notice.encode().toHex(), 0)))
+        (platform.filesDir / "data").mkdirs()
+        (platform.filesDir / "data" / "notices.json").writeText(Json.encodeToString(NoticeBoard.serializer(), board))
+
+        val s = session(platform)
+        assertEquals(8, s.venue.zones.size)
+        assertEquals(mapOf(s.venue.zones[1].id to ZoneState.CLOSED), s.mapState.value.zones)
+        assertNull(s.mapState.value.evacuation)
+        assertEquals(StraightLine, s.walkDistance)
     }
 }

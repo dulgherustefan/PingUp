@@ -1,6 +1,9 @@
 package ro.safetyplease.core.protocol
 
 import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeExtras
+import ro.safetyplease.core.announce.ZoneSet
+import ro.safetyplease.core.announce.ZoneState
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.Credential
@@ -86,6 +89,8 @@ class DecoderFuzzTest {
         Codec("response body", { ResponseBody(nextInt(1, 256), nextInt(0, 256)) }, ResponseBody::encode, { ResponseBody.decode(it) }, tolerant = true),
         Codec("update body", { updateBody() }, UpdateBody::encode, { UpdateBody.decode(it) }, { listOfNotNull(it.zone) }, tolerant = true),
         Codec("notice", { notice() }, Notice::encode, { Notice.decode(it) }, { listOf(it.zone, it.certificate.name) + it.params }, tolerant = true),
+        Codec("notice extras", { noticeExtras() }, NoticeExtras::encode, { NoticeExtras.decode(it) }, tolerant = true),
+        Codec("report extras", { reportExtras() }, ReportExtras::encode, { ReportExtras.decode(it) }, tolerant = true),
     )
 
     @Test
@@ -406,8 +411,33 @@ private fun Random.body(): IncidentBody {
         staff = if (nextBoolean()) StaffFields(nextInt(0, 256), nextBoolean()) else null,
         location = if (nextBoolean()) LocationFields(nextInt(0, 256), nextInt(0, 256)) else null,
         replyKey = if (nextBoolean()) nextBytes(IncidentBody.REPLY_KEY_SIZE) else null,
+        extras = if (nextBoolean()) reportExtras() else ReportExtras.NONE,
     )
 }
+
+private fun Random.reportExtras() = ReportExtras(
+    lastSeen = if (nextBoolean()) LastSeen(coordinate(90), coordinate(180), nextInt(0x10000), nextInt(8)) else null,
+    happenedMinAgo = if (nextBoolean()) nextInt(1, ReportExtras.MAX_HAPPENED_MIN + 1) else 0,
+    anonymous = nextBoolean(),
+    witness = nextBoolean(),
+    density = nextInt(0, ReportExtras.MAX_DENSITY + 1),
+    cannotMove = nextBoolean(),
+    manDown = nextBoolean(),
+    unconscious = nextBoolean(),
+)
+
+private fun Random.noticeExtras(): NoticeExtras {
+    val count = nextInt(0, ZoneSet.MAX_ZONES + 1)
+    return NoticeExtras(
+        zones = if (nextBoolean()) ZoneSet(count, (0 until count).filter { nextBoolean() }.toSet()) else null,
+        plan = if (nextBoolean()) nextInt(1, 256) else null,
+        states = if (nextBoolean()) List(nextInt(0, ZoneSet.MAX_ZONES + 1)) { ZoneState.entries.random(this) } else null,
+    )
+}
+
+private fun Random.lastFix() = LastFix(coordinate(90), coordinate(180), nextLong(0, 1L shl 32), nextInt(8))
+
+private fun Random.battery() = if (nextInt(5) == 0) BatteryLevel.UNKNOWN else nextInt(0, 101)
 
 /** Known statuses and, now and then, a newer version's status and fields. */
 private fun Random.ack(): IncidentAck {
@@ -447,7 +477,7 @@ private fun Random.meetAt(): Long = nextLong(1, MeetingLimits.MAX_MEET_AT + 1)
 private fun Random.inner(): Inner {
     val msgId = nextLong()
     val group = if (nextBoolean()) nextLong() else null
-    return when (nextInt(15)) {
+    return when (nextInt(18)) {
         0 -> Inner.Text(msgId, group, text(Limits.TEXT_BYTES))
         1 -> Inner.Quick(msgId, group, QuickCode.all.random(this))
         2 -> if (nextBoolean()) Inner.Zone(msgId, group, text(Limits.ZONE_BYTES), coordinate(90), coordinate(180))
@@ -476,6 +506,11 @@ private fun Random.inner(): Inner {
             )
         }
         13 -> Inner.MeetingReply(msgId, group, nextInt(MeetingAction.ACCEPT, MeetingAction.WITHDRAW + 1), nextLong())
+        14 -> Inner.LostSession(
+            msgId, group, nextInt(LostAction.START, LostAction.FOUND + 1), nextInt(256), nextInt(1, LostAction.MAX_MINUTES + 1), battery(), nextInt(256),
+        )
+        15 -> Inner.LastGasp(lastFix(), battery())
+        16 -> Inner.CheckinMissed(msgId, group, nextLong(0, 1L shl 32), if (nextBoolean()) lastFix() else null, text(Limits.CHECKIN_LABEL_BYTES))
         else -> Inner.GroupInvite(
             msgId, nextLong(), text(Limits.GROUP_NAME_BYTES),
             List(nextInt(0, Limits.GROUP_MAX_MEMBERS - 1)) { GroupMemberWire(nextLong(), nextBytes(32), text(Limits.GROUP_NICK_BYTES)) },
@@ -501,6 +536,7 @@ private fun stringsOf(inner: Inner): List<String> = when (inner) {
     is Inner.Zone -> listOf(inner.zone)
     is Inner.ZoneUpdate -> listOf(inner.zone)
     is Inner.GroupInvite -> listOf(inner.name) + inner.members.map { it.nickname }
+    is Inner.CheckinMissed -> listOf(inner.label)
     else -> emptyList()
 }
 
