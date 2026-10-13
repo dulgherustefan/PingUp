@@ -15,6 +15,7 @@ import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MsgKind
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.event.ScheduleItem
 import ro.safetyplease.core.incidents.AlertLevel
 import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.incidents.AlertReason
@@ -25,6 +26,8 @@ import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.OpenTarget
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.exercise_title
+import ro.safetyplease.ui.resources.layers_reminder_title
+import ro.safetyplease.ui.resources.layers_reminder_walk
 import ro.safetyplease.ui.resources.msg_group_left
 import ro.safetyplease.ui.resources.msg_zone
 import ro.safetyplease.ui.resources.notif_assigned_title
@@ -57,6 +60,13 @@ class IosNotifications(private val venue: Venue, private val exercise: Boolean, 
     /** A location share without an end still runs: who sees the phone is a tap away. */
     override fun shareReminder(people: Int) = later {
         post(SHARING, getPluralString(Res.plurals.sharing_bar, people, people), "", OpenTarget.SHARING)
+    }
+
+    /** "Amintește-mi": the set starts soon, and with the walk it is time to leave. */
+    override fun setReminder(set: ScheduleItem, stage: String, walkMin: Int) = later {
+        val text = if (walkMin > 0) getString(Res.string.layers_reminder_walk, stage, walkMin) else stage
+        val title = getString(Res.string.layers_reminder_title, set.title, Labels.clock(set.start * 1000))
+        post("set-${set.stage}@${set.start}", title, text, OpenTarget.HOME)
     }
 
     /** A staff alert as the alert planner decided it: one that has to be heard breaks through Focus, unless it's a drill. */

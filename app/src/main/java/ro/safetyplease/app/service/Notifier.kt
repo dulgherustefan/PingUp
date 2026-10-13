@@ -24,6 +24,7 @@ import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MsgKind
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.event.ScheduleItem
 import ro.safetyplease.core.incidents.AlertLevel
 import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.incidents.AlertReason
@@ -71,6 +72,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
                 NotificationChannel(CHANNEL_STATUS, context.getString(R.string.channel_status), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_CHAT, context.getString(R.string.channel_chat), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_SHARING, context.getString(R.string.channel_sharing_reminder), NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(CHANNEL_PROGRAM, context.getString(R.string.layers_channel_program), NotificationManager.IMPORTANCE_DEFAULT),
                 // the organiser's notices, apart from the incident alarm: a pause and an evacuation sound and feel different
                 NotificationChannel(CHANNEL_NOTICE, context.getString(R.string.channel_notice), NotificationManager.IMPORTANCE_DEFAULT)
                     .apply {
@@ -164,6 +166,22 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             .setContentIntent(open(MainActivity.OPEN_SHARING, RequestCodes.SHARING_REMINDER))
             .build()
         manager.notify(SHARING_REMINDER_ID, notification)
+    }
+
+    /** "Amintește-mi": the set starts soon, and with the walk it is time to leave. */
+    override fun setReminder(set: ScheduleItem, stage: String, walkMin: Int) {
+        if (!canPost()) return
+        val id = "set:${set.stage}@${set.start}".hashCode()
+        val text = if (walkMin > 0) context.getString(R.string.layers_reminder_walk, stage, walkMin) else stage
+        val notification = NotificationCompat.Builder(context, CHANNEL_PROGRAM)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.layers_reminder_title, set.title, Labels.clock(set.start * 1000)))
+            .setContentText(text)
+            .setAutoCancel(true)
+            .setContentIntent(open(MainActivity.OPEN_HOME, id))
+            .setTimeoutAfter(maxOf(set.end * 1000 - System.currentTimeMillis(), 1))
+            .build()
+        manager.notify(id, notification)
     }
 
     /** The mesh couldn't come back on its own. Same id as the running notification, which replaces it on restart. */
@@ -343,6 +361,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         private const val CHANNEL_CHAT = "chat"
         private const val CHANNEL_SHARING = "sharing_reminder"
         private const val SHARING_REMINDER_ID = 3
+        private const val CHANNEL_PROGRAM = "program"
         private const val NOTICE_ID = 100
         private const val CHANNEL_NOTICE = "notice"
         private const val CHANNEL_NOTICE_PAUSE = "notice_pause"

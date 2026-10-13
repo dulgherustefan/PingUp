@@ -80,7 +80,9 @@ import ro.safetyplease.core.event.EventPack
 import ro.safetyplease.core.event.EventPacks
 import ro.safetyplease.core.event.EventShelf
 import ro.safetyplease.core.event.Loaded
+import ro.safetyplease.core.event.MyProgram
 import ro.safetyplease.core.event.PackStatus
+import ro.safetyplease.core.event.ProgramReminders
 import ro.safetyplease.core.event.StoredPack
 import ro.safetyplease.core.event.modeFileName
 import ro.safetyplease.core.incidents.AlertPlanner
@@ -396,6 +398,13 @@ open class PingUpSession(private val platform: AppPlatform) {
      * thread.
      */
     val walkDistance: WalkDistance = walkRouter.distance({ mapState.value }) { settings.value.role.hasStaffKeys }
+
+    /** "Planul meu" from the event's schedule; its reminders ring from here while the session runs. */
+    val program = ProgramReminders(
+        meshScope, JsonStore(dataDir / "program.json", MyProgram.serializer(), MyProgram(), ioScope), event?.id.orEmpty(),
+        event?.schedule.orEmpty(), venue, clock,
+        settings = { settings.value }, fix = { platform.location.value }, walk = { walkDistance },
+    ) { set, walkMin -> notifications.setReminder(set, venue.zoneName(set.stage), walkMin) }
 
     /**
      * The console logs every notice it sends or hears; a phone that shows them notifies, unless it signed the notice or

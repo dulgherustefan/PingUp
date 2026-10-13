@@ -107,6 +107,7 @@ import ro.safetyplease.ui.info.PagesScreen
 import ro.safetyplease.ui.map.MapScreen
 import ro.safetyplease.ui.map.PinScreen
 import ro.safetyplease.ui.map.RouteScreen
+import ro.safetyplease.ui.map.ProgramScreen
 import ro.safetyplease.ui.me.AnchorScreen
 import ro.safetyplease.ui.me.EventScreen
 import ro.safetyplease.ui.me.MeScreen
@@ -253,6 +254,7 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         Dest.ShareIntro -> ShareIntroScreen(vm)
         Dest.ShareChoose -> ShareChooseScreen(vm)
         Dest.Sharing -> SharingScreen(vm)
+        Dest.Program -> ProgramScreen(vm)
         null -> when (role) {
             AppRole.ANCHOR -> AnchorScreen(vm)
             AppRole.CONTROL -> ControlScreen(vm, onStartMesh)

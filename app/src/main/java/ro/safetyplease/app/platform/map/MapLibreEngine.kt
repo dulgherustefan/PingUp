@@ -79,6 +79,7 @@ class MapLibreEngine(
     private var venue: Venue? = null
     private var overlay = MapOverlay.EMPTY
     private var planBitmap: Pair<SitePlan, Bitmap>? = null
+    private var onLongPress: ((GeoPoint) -> Unit)? = null
 
     override var follow = FollowMode.NONE
         private set
@@ -91,6 +92,11 @@ class MapLibreEngine(
         map.setMaxZoomPreference(MAX_ZOOM)
         map.addOnCameraMoveStartedListener { reason ->
             if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) follow = FollowMode.NONE
+        }
+        map.addOnMapLongClickListener { latLng ->
+            val handler = onLongPress ?: return@addOnMapLongClickListener false
+            handler(GeoPoint(latLng.latitude, latLng.longitude))
+            true
         }
         map.addOnMapClickListener { latLng ->
             val key = map.queryRenderedFeatures(map.projection.toScreenLocation(latLng), MARKERS_LAYER, PINS_LAYER)
@@ -191,6 +197,10 @@ class MapLibreEngine(
     }
 
     override fun zoomBy(delta: Double, animated: Boolean) = move(CameraUpdateFactory.zoomBy(delta), animated)
+
+    override fun setOnLongPress(onLongPress: ((GeoPoint) -> Unit)?) {
+        this.onLongPress = onLongPress
+    }
 
     private fun move(update: CameraUpdate, animated: Boolean) {
         if (animated) map.animateCamera(update, ANIMATION_MS) else map.moveCamera(update)

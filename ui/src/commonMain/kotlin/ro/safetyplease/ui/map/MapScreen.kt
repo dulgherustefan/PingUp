@@ -221,6 +221,8 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val mapOverlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
     val fix by vm.c.locationFix.collectAsStateWithLifecycle()
     var aboutMap by rememberSaveable { mutableStateOf(false) }
+    var pressed by remember { mutableStateOf<GeoPoint?>(null) }
+    LayersOverlay(vm, dest.sendTo == null)
 
     val friends by vm.friends.collectAsStateWithLifecycle()
     val records by vm.friendPositions.collectAsStateWithLifecycle()
@@ -307,6 +309,15 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     LaunchedEffect(engine, mapOverlay) {
         engine?.setOverlay(mapOverlay)
     }
+    // A finger held on the map, on either kind of map: inside the site, and not while a zone is being chosen to send,
+    // it offers the point to a friend or keeps it as the saved place.
+    val choosingZone = dest.sendTo != null
+    fun onMapLongPress(point: GeoPoint) {
+        if (!choosingZone && vm.venue.bounds.contains(point.lat, point.lon)) pressed = point
+    }
+    LaunchedEffect(engine, choosingZone) {
+        engine?.setOnLongPress { onMapLongPress(it) }
+    }
 
     // a pin of a feature's layer goes to that feature, any other is an incident
     fun openPin(key: String) {
@@ -323,6 +334,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
         }
     }
 
+    pressed?.let { PlaceDialog(vm, it) { pressed = null } }
     if (aboutMap) {
         AppDialog(
             onDismiss = { aboutMap = false }, title = stringResource(Res.string.map_about),
@@ -404,6 +416,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             else if (zone != null) showZone(zone.id)
                         },
                         onPinTap = { openPin(it.key) },
+                        onLongPress = { onMapLongPress(it) },
                         camera = camera,
                         target = spot?.point,
                         targetColor = spotColor(colors, spotType),
@@ -432,6 +445,14 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             if (walks) walkMeters[type] else origin?.let { distanceMeters(it, near.point) },
                             spotColor(colors, type), focus == MapFocus.SPOT && spotType == type,
                         ) { if (walks) vm.navigate(NavTarget.Nearest(type)) else showSpot(type) }
+                    }
+                }
+            }
+            if (dest.sendTo == null) {
+                item(key = "layers") {
+                    LayersPanel(vm, origin) { point ->
+                        move(listOf(point), 2.6f)
+                        scope.launch { listState.animateScrollToItem(0) }
                     }
                 }
             }

@@ -3,6 +3,7 @@ package ro.safetyplease.core.data
 import kotlinx.serialization.Serializable
 import ro.safetyplease.core.position.SharePlan
 import ro.safetyplease.core.util.toHex
+import ro.safetyplease.core.venue.GeoPoint
 
 @Serializable
 enum class Role {
@@ -57,6 +58,8 @@ data class Settings(
     val meshEnabled: Boolean = true,
     /** The stored identity couldn't be read, so a new one was made; shown once, until dismissed. */
     val identityReplaced: Boolean = false,
+    /** A place the user saved from the map (a tent, the car), shown there until removed. */
+    val savedPlace: GeoPoint? = null,
 )
 
 @Serializable

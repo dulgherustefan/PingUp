@@ -14,6 +14,7 @@ import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.testCrypto
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.event.ScheduleItem
 import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.mesh.BatteryReading
 import ro.safetyplease.core.mesh.PowerMode
@@ -204,5 +205,9 @@ class FakeNotifications : Notifications {
 
     override fun shareReminder(people: Int) {
         posted += "sharing $people"
+    }
+
+    override fun setReminder(set: ScheduleItem, stage: String, walkMin: Int) {
+        posted += "set ${set.title} $stage $walkMin"
     }
 }

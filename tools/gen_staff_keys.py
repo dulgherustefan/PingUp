@@ -48,6 +48,7 @@ try:
 except ImportError:
     sys.exit('PyNaCl is missing: pip install pynacl "qrcode[pil]"')
 
+from check_pack import plan_problems, schedule_problems
 from check_venue import problems as venue_problems
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -289,15 +290,25 @@ def pack_body(args, state: dict) -> str:
     body["grid"] = {"cellMeters": args.grid}
     if args.firstaid:
         body["firstAid"] = {f.name: f.read_text(encoding="utf-8") for f in sorted(Path(args.firstaid).glob("*.md"))}
+    if args.schedule:
+        body["schedule"] = json.loads(Path(args.schedule).read_text(encoding="utf-8"))
+    if args.plan:
+        body["plan"] = json.loads(Path(args.plan).read_text(encoding="utf-8"))
     return json.dumps(body, ensure_ascii=False, separators=(",", ":"))
 
 
 def cmd_pack(args) -> None:
     """The organiser signs SP-PACK-v1 || the body; phones check that and the chain up to the root in the app."""
     # a signed pack can't be fixed on the phones, so a broken map stops here
-    found = venue_problems(json.loads(Path(args.venue).read_text(encoding="utf-8")))
+    venue = json.loads(Path(args.venue).read_text(encoding="utf-8"))
+    found = venue_problems(venue)
     if found:
         sys.exit(f"{args.venue}:\n" + "\n".join(found))
+    # the same for the schedule and the plan: phones drop a pack whose schedule or plan they can't read
+    for path, check in ((args.schedule, lambda data: schedule_problems(data, venue)), (args.plan, plan_problems)):
+        found = check(json.loads(Path(path).read_text(encoding="utf-8"))) if path else []
+        if found:
+            sys.exit(f"{path}:\n" + "\n".join(found))
     state = chain_state("organiser", event_step(args))
     body = pack_body(args, state)
     _, organiser_secret = sign_pair(bytes.fromhex(state["organiser"]["seed"]))
@@ -379,6 +390,8 @@ def main() -> None:
     p.add_argument("--version", type=int, required=True, help="a phone replaces a pack only with a higher version")
     p.add_argument("--venue", required=True, help="the venue JSON (as app/src/main/assets/venue.json)")
     p.add_argument("--firstaid", help="a folder of first-aid sheets (*.md), approved by the medical lead")
+    p.add_argument("--schedule", help='the sets on the stages, a JSON list of {"stage", "title", "start", "end"}')
+    p.add_argument("--plan", help="the site plan with its corners, as tools/plan_corners.py writes it")
     p.add_argument("--name", help="the name phones show; the event's by default")
     p.add_argument("--from", dest="from_date", help="first day phones may load it, YYYY-MM-DD; today by default")
     p.add_argument("--grid", type=int, default=50, help="site grid cell, meters")
