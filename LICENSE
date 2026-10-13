@@ -1,0 +1,38 @@
+Ping Up
+Copyright (c) 2026 Dulgheru Stefan Alexandru, Ilie-Goga Radu, Circiumaru Radu, Farkas Oliver. Toate drepturile rezervate.
+
+1. Codul sursă și compilat, documentația, textele, imaginile, logo-ul și mascota din acest depozit sunt
+   protejate de dreptul de autor (Legea nr. 8/1996) și aparțin autorilor de mai sus.
+2. Sunt publice doar pentru a putea fi citite. În afară de ce permit termenii GitHub pentru un depozit public
+   (vizualizarea și „fork”-ul pe GitHub), nu aveți voie, fără acordul nostru scris, să le reproduceți, să le
+   modificați, să le traduceți, să le distribuiți, să le închiriați sau să le folosiți, integral sau în parte.
+3. Aplicația publicată de noi (pe ping-up.org, în GitHub Releases și în magazinele de aplicații) o puteți
+   instala și folosi gratuit, pentru scopul ei.
+4. Numele „Ping Up” și logo-ul nu pot fi folosite fără acordul nostru scris.
+5. Componentele altora (bibliotecile, fontul Inter, iconițele Phosphor) rămân sub licențele lor
+   (vezi folderul licenses/).
+6. Ping Up nu este un serviciu de urgență și nu înlocuiește 112. Codul și aplicația sunt oferite „așa cum
+   sunt”, fără garanții; în măsura permisă de lege, autorii nu răspund pentru daunele rezultate din folosirea lor.
+7. Pentru orice altă folosire: stdulgh@gmail.com. Se aplică legea română. Dacă textul în română și cel în
+   engleză diferă, prevalează cel în română.
+
+---
+
+Ping Up
+Copyright (c) 2026 Dulgheru Stefan Alexandru, Ilie-Goga Radu, Circiumaru Radu, Farkas Oliver. All rights reserved.
+
+1. The source and compiled code, documentation, texts, images, logo and mascot in this repository are
+   protected by copyright and belong to the authors above.
+2. They are public for reading only. Apart from what GitHub's Terms of Service allow for a public repository
+   (viewing and forking on GitHub), you may not reproduce, modify, translate, distribute, rent or use them,
+   in whole or in part, without our written permission.
+3. You may install and use the app we publish (on ping-up.org, in GitHub Releases and in the app stores)
+   free of charge, for its purpose.
+4. The "Ping Up" name and logo may not be used without our written permission.
+5. Third-party components (the libraries, the Inter font, the Phosphor icons) keep their own licenses
+   (see the licenses/ folder).
+6. Ping Up is not an emergency service and does not replace 112. The code and the app are provided "as is",
+   without warranty; to the extent permitted by law, the authors are not liable for damages arising from
+   their use.
+7. For any other use: stdulgh@gmail.com. Romanian law applies. If the Romanian and English texts differ, the
+   Romanian text prevails.
