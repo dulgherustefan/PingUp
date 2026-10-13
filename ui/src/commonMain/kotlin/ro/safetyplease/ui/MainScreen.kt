@@ -70,6 +70,8 @@ import ro.safetyplease.ui.control.ControlScreen
 import ro.safetyplease.ui.report.MyReportsScreen
 import ro.safetyplease.ui.report.ReportScreen
 import ro.safetyplease.ui.report.ReportSentScreen
+import ro.safetyplease.core.announce.Evacuations
+import ro.safetyplease.core.announce.NoticeReach
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
@@ -112,8 +114,15 @@ import ro.safetyplease.ui.me.AnchorScreen
 import ro.safetyplease.ui.me.EventScreen
 import ro.safetyplease.ui.me.MeScreen
 import ro.safetyplease.ui.me.PrivacyScreen
+import ro.safetyplease.ui.notices.ControlMapLayer
+import ro.safetyplease.ui.notices.EvacuationBanner
+import ro.safetyplease.ui.notices.EvacuationMode
+import ro.safetyplease.ui.notices.EvacuationUi
 import ro.safetyplease.ui.notices.NoticeAlert
 import ro.safetyplease.ui.notices.NoticeBands
+import ro.safetyplease.ui.notices.myEvacuation
+import ro.safetyplease.ui.notices.rememberWhereabouts
+import ro.safetyplease.ui.notices.screenAlert
 import ro.safetyplease.ui.notices.shownNotices
 import ro.safetyplease.ui.onboarding.OnboardingScreen
 import ro.safetyplease.ui.people.AddFriendScreen
@@ -166,23 +175,36 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
     if (settings.role == AppRole.CONTROL) ConsoleWindow()
     val board by vm.c.notices.board.collectAsStateWithLifecycle()
     val now = rememberNow()
-    val shown = shownNotices(vm, if (vm.c.showsNotices(settings)) board.active(now / 1000) else emptyList())
-    val bands = shown.filter { !it.held.dismissed }
+    val showsNotices = vm.c.showsNotices(settings)
+    // an evacuation for this phone's zone shows whatever the person chose for the other notices
+    val showsEvacuation = vm.c.showsEvacuation(settings)
+    val active = board.active(now / 1000)
+    val shown = shownNotices(vm, if (showsNotices) active else emptyList())
+    val here = rememberWhereabouts(vm, now)
+    val evacuations = if (showsEvacuation && !showsNotices) shownNotices(vm, active.filter { NoticeReach.isEvacuation(it.second) }) else shown
+    val evacuation = myEvacuation(evacuations, vm.venue, here)
+    val mapState by vm.c.mapState.collectAsStateWithLifecycle()
+    val hereZone = Evacuations.zoneFor(mapState, here)
+    val evacuationUi = remember { EvacuationUi() }
+    val bands = shown.filter { !it.held.dismissed && it !== evacuation }
     val sharing by vm.sharing.collectAsStateWithLifecycle()
     // the foreground service may hold the location type only while asked from a visible screen
     LifecycleResumeEffect(sharing != null) {
         vm.phone.sharingLocation(sharing != null)
         onPauseOrDispose { }
     }
-    val alert = shown.firstOrNull { it.notice.urgent && !it.held.alerted }
+    val alert = screenAlert(shown, vm.venue, here)
+    ControlMapLayer(vm, hereZone)
     CompositionLocalProvider(LocalTextOnly provides textOnly, LocalReduceMotion provides reduce) {
         FullScreen {
             // the bands sit above every screen and take the status bar, so they cover no header
-            val topTaken = vm.c.exercise || bands.isNotEmpty() || sharing != null
+            val topTaken = vm.c.exercise || bands.isNotEmpty() || sharing != null || evacuation != null
+            val barFree = !vm.c.exercise && evacuation == null
             Column(Modifier.fillMaxSize()) {
                 if (vm.c.exercise) ExerciseBanner()
-                sharing?.let { SharingBar(it, statusBar = !vm.c.exercise) { vm.open(Dest.Sharing) } }
-                NoticeBands(vm, bands, statusBar = !vm.c.exercise && sharing == null)
+                evacuation?.let { EvacuationBanner(vm, it, hereZone, statusBar = !vm.c.exercise) { evacuationUi.reopened = true } }
+                sharing?.let { SharingBar(it, statusBar = barFree) { vm.open(Dest.Sharing) } }
+                NoticeBands(vm, bands, statusBar = barFree && sharing == null)
                 Box(Modifier.weight(1f).then(if (topTaken) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
                     CompositionLocalProvider(LocalStatusBarTop provides if (topTaken) 0.dp else null) {
                         Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce, demo)
@@ -193,6 +215,8 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
             MeetupRequests(vm)
             StaffChainLayer(vm)
             RegasireRequests(vm)
+            // above a friend's torch: nothing covers the way out
+            evacuation?.let { EvacuationMode(vm, it, hereZone, evacuationUi) }
         }
     }
 }

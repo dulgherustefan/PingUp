@@ -9,6 +9,7 @@ import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.control_map_title
 import ro.safetyplease.ui.resources.notice_evacuation
 import ro.safetyplease.ui.resources.notice_heat
 import ro.safetyplease.ui.resources.notice_in_zone
@@ -31,6 +32,7 @@ object NoticeText {
         NoticeTopic.HEAT -> Res.string.notice_heat
         NoticeTopic.SCHEDULE -> Res.string.notice_schedule
         NoticeTopic.TRANSPORT -> Res.string.notice_transport
+        NoticeTopic.MAP_STATE -> Res.string.control_map_title
         else -> Res.string.notice_other
     }
 
@@ -52,5 +54,6 @@ fun noticeTitle(topic: Int, level: Int): String = stringResource(NoticeText.titl
 @Composable
 fun noticeBody(templates: NoticeTemplates, venue: Venue, notice: Notice, language: String): String {
     val text = NoticeText.text(templates, notice, language) ?: stringResource(NoticeText.noText)
-    return if (notice.zone.isEmpty()) text else stringResource(NoticeText.inZone, venue.zoneName(notice.zone), text)
+    val inZone = if (notice.zone.isEmpty()) text else stringResource(NoticeText.inZone, venue.zoneName(notice.zone), text)
+    return ControlNoticeText.body(notice, venue, text, ControlNoticeText.formatter()) ?: inZone
 }

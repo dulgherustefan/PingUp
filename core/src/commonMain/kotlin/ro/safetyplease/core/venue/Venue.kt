@@ -167,6 +167,28 @@ fun distanceMeters(a: GeoPoint, b: GeoPoint): Int {
     return hypot(dLat, dLon).roundToInt()
 }
 
+/** Metres from [point] to the nearest edge of [polygon], 0 inside it; on a flat projection around the point. */
+fun metersToPolygon(point: GeoPoint, polygon: List<GeoPoint>): Double {
+    if (pointInPolygon(point.lat, point.lon, polygon)) return 0.0
+    val metersPerDegree = 111_320.0
+    val scale = cos(radians(point.lat))
+    fun x(p: GeoPoint) = (p.lon - point.lon) * metersPerDegree * scale
+    fun y(p: GeoPoint) = (p.lat - point.lat) * metersPerDegree
+    var best = Double.MAX_VALUE
+    for (i in polygon.indices) {
+        val a = polygon[i]
+        val b = polygon[(i + 1) % polygon.size]
+        val ax = x(a)
+        val ay = y(a)
+        val dx = x(b) - ax
+        val dy = y(b) - ay
+        val length = dx * dx + dy * dy
+        val t = if (length == 0.0) 0.0 else (-(ax * dx + ay * dy) / length).coerceIn(0.0, 1.0)
+        best = minOf(best, hypot(ax + t * dx, ay + t * dy))
+    }
+    return best
+}
+
 /** Direction from [from] to [to] in eight sectors: 0 north, 1 north-east, ... 7 north-west. */
 fun compassSector(from: GeoPoint, to: GeoPoint): Int {
     val dLat = to.lat - from.lat

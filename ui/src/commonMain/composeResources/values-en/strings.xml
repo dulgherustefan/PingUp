@@ -1006,7 +1006,7 @@
     <string name="map_about_subtitle">© OpenStreetMap and licences</string>
     <string name="map_about_text">Base map: © OpenStreetMap contributors, data under the Open Database License (ODbL 1.0), via Protomaps. Noto Sans fonts: SIL Open Font License 1.1. Map rendering: MapLibre Native, BSD-2-Clause licence. Zones, points and the grid come from the organiser.</string>
     <string name="me_notices">Notices from the organisers</string>
-    <string name="me_notices_text">Weather and heat alerts, schedule and transport changes, even without signal.</string>
+    <string name="me_notices_text">Weather and heat alerts, schedule and transport changes, even without signal. Evacuations for your area always show, even with this off.</string>
     <string name="notice_composer_title">Notice</string>
     <string name="notice_reach">It only reaches phones with Ping Up on the network. It doesn’t replace the stage, the screens or RO-ALERT.</string>
     <string name="notice_no_shift">Only a console with a valid control shift code signs notices.</string>
@@ -1017,7 +1017,6 @@
     <string name="notice_topic_heat">Heat</string>
     <string name="notice_topic_schedule">Schedule</string>
     <string name="notice_topic_transport">Transport</string>
-    <string name="notice_zone">Area</string>
     <string name="notice_zone_all">Whole festival</string>
     <string name="notice_duration">How long it stays in force</string>
     <string name="notice_preview">How phones show it</string>

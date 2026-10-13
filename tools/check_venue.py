@@ -34,7 +34,9 @@ gate, so a gate stands within 5 m of a fence; a gate's number names the useful p
 A blocked area is "staff" (backstage, VIP) or "none" (technical). The meeting landmarks are numbers
 of points. An evacuation plan has an id from 1 to 255 that no other plan has and gives every zone a
 main exit and, if it can, an alternative: numbers of points of type exit, two different ones, and
-the plan as a whole uses at least two exits. Exits with 1 and lists the problems if there are any.
+the plan as a whole uses at least two exits. Exits with 1 and lists the problems if there are any. It
+also warns, without failing, about an exit a plan uses that stands outside every zone: the console's
+closures can't reach it, so no phone is ever sent to its alternative.
 The same check runs before gen_staff_keys.py signs an event pack.
 """
 
@@ -341,6 +343,49 @@ def problems(venue):
     return found
 
 
+def _app_inside(point, points):
+    """Ray casting exactly as the app's pointInPolygon, border points included as it happens to count them."""
+    lat, lon = point
+    inside = False
+    j = len(points) - 1
+    for i in range(len(points)):
+        a, b = points[i], points[j]
+        if (a[0] > lat) != (b[0] > lat) and lon < (b[1] - a[1]) * (lat - a[0]) / (b[0] - a[0]) + a[1]:
+            inside = not inside
+        j = i
+    return inside
+
+
+def warnings(venue):
+    """What doesn't stop the map from loading but weakens it: exits of a plan outside every zone."""
+    found = []
+    shapes = []
+    for zone in venue.get("zones", []):
+        try:
+            shapes.append(_points(zone["polygon"]))
+        except (KeyError, TypeError):
+            continue
+    used = set()
+    for plan in venue.get("evacuation", []):
+        routes = plan.get("exits") if isinstance(plan, dict) else None
+        if not isinstance(routes, dict):
+            continue
+        for route in routes.values():
+            if isinstance(route, dict):
+                used.update(n for n in (route.get("main"), route.get("alternative", 0)) if n)
+    for poi in venue.get("pois", []):
+        if not isinstance(poi, dict) or poi.get("type") != "exit" or poi.get("number") not in used:
+            continue
+        try:
+            point = (poi["lat"], poi["lon"])
+        except KeyError:
+            continue
+        if not any(_app_inside(point, shape) for shape in shapes):
+            found.append(f"exit {poi['number']} ({poi.get('name') or 'no name'}) is outside every zone: "
+                         "closing a zone can't send its phones to the alternative")
+    return found
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -350,6 +395,10 @@ def main():
         except json.JSONDecodeError as e:
             sys.exit(f"not valid JSON: {e}")
     found = problems(venue)
+    # a Windows console can't print every zone name; a replaced letter beats a crash
+    sys.stdout.reconfigure(errors="replace")
+    for warning in warnings(venue):
+        print(f"warning: {warning}")
     for problem in found:
         print(problem)
     if found:

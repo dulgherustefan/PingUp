@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import okio.Path
 import ro.safetyplease.core.TempDir
 import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeAlarm
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.testCrypto
@@ -195,8 +196,8 @@ class FakeNotifications : Notifications {
         posted += "response ${report.incidentId}"
     }
 
-    override fun notice(notice: Notice, title: String, text: String) {
-        posted += "notice $title"
+    override fun notice(notice: Notice, title: String, text: String, alarm: NoticeAlarm) {
+        posted += "notice $title $alarm"
     }
 
     override fun shiftEnded() {

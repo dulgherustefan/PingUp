@@ -2,7 +2,6 @@ package ro.safetyplease.ui.control
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,14 +31,17 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import ro.safetyplease.core.announce.Evacuations
+import ro.safetyplease.core.announce.NoticeExtras
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.announce.NoticeTemplate
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.announce.NoticeTopic
+import ro.safetyplease.core.announce.ZoneSet
+import ro.safetyplease.core.announce.target
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppDialog
-import ro.safetyplease.ui.designsystem.AppMenu
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
 import ro.safetyplease.ui.designsystem.ConfirmDialog
@@ -47,7 +49,6 @@ import ro.safetyplease.ui.designsystem.GroupDivider
 import ro.safetyplease.ui.designsystem.GroupRow
 import ro.safetyplease.ui.designsystem.InputField
 import ro.safetyplease.ui.designsystem.InsetGroup
-import ro.safetyplease.ui.designsystem.MenuRow
 import ro.safetyplease.ui.designsystem.SegmentedControl
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.footnote
@@ -76,12 +77,11 @@ import ro.safetyplease.ui.resources.notice_topic_alert
 import ro.safetyplease.ui.resources.notice_topic_heat
 import ro.safetyplease.ui.resources.notice_topic_schedule
 import ro.safetyplease.ui.resources.notice_topic_transport
+import ro.safetyplease.ui.resources.control_map_before_evacuation
 import ro.safetyplease.ui.resources.notice_withdraw
 import ro.safetyplease.ui.resources.notice_withdraw_text
 import ro.safetyplease.ui.resources.notice_withdraw_title
 import ro.safetyplease.ui.resources.notice_withdrawn
-import ro.safetyplease.ui.resources.notice_zone
-import ro.safetyplease.ui.resources.notice_zone_all
 import ro.safetyplease.ui.text.NoticeText
 import ro.safetyplease.ui.text.noticeBody
 import ro.safetyplease.ui.text.noticeTitle
@@ -109,14 +109,18 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     // the parameters live with the template, so neither outlives the dialog
     var templateId by remember { mutableIntStateOf(0) }
     val params = remember { mutableStateListOf<String>() }
-    var zone by rememberSaveable { mutableStateOf("") }
-    var zoneMenu by remember { mutableStateOf(false) }
+    var zones by remember { mutableStateOf(emptySet<String>()) }
+    // no plan is preselected: the operator picks one, or "no plan", knowingly
+    var plan by remember { mutableStateOf<PlanChoice?>(null) }
     var minutes by rememberSaveable { mutableIntStateOf(60) }
     var confirm by remember { mutableStateOf(false) }
     var second by remember { mutableStateOf(false) }
     var withdraw by remember { mutableStateOf<Int?>(null) }
     val template = c.noticeTemplates.byId(templateId)?.takeIf { it.topic == topic }
-    val ready = template != null && params.size == template.params.size && params.all { it.isNotBlank() } && c.notices.canSign
+    val evacuation = template?.let { it.topic == NoticeTopic.ALERT && it.level == NoticeLevel.EVACUATION } == true
+    val ready = template != null && params.size == template.params.size && params.all { it.isNotBlank() } && c.notices.canSign &&
+        (!evacuation || plan != null)
+    val mapPending by c.mapEditor.edits.collectAsStateWithLifecycle()
 
     fun choose(t: NoticeTemplate) {
         templateId = t.id
@@ -126,7 +130,11 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
 
     fun send() {
         val t = template ?: return
-        val sent = c.notices.publish(t, params.map { it.trim() }, zone, minutes * 60L)
+        // one zone also goes in the zone field, which phones from before zone sets read
+        // the phones pick the exits from the zones as the console left them: the map state goes first
+        if (evacuation) c.mapEditor.sendNow()
+        val extras = if (evacuation) Evacuations.extras(vm.venue, plan?.id, zones) else NoticeExtras(zones = ZoneSet.target(vm.venue, zones))
+        val sent = extras?.let { c.notices.publish(t, params.map { it.trim() }, zones.singleOrNull().orEmpty(), minutes * 60L, it) }
         vm.phone.toast(if (sent != null) sentText else notSentText, long = true)
         if (sent != null) onDismiss()
     }
@@ -174,22 +182,11 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
                         params.getOrElse(i) { "" }, { if (NoticeTemplates.fits(it)) params[i] = it }, template.paramLabel(i, language),
                     )
                 }
-                Box {
-                    GroupRow(
-                        stringResource(Res.string.notice_zone), value = if (zone.isEmpty()) stringResource(Res.string.notice_zone_all) else vm.venue.zoneName(zone),
-                        chevron = true, onClick = { zoneMenu = true }, modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(colors.cell),
-                    )
-                    AppMenu(zoneMenu, { zoneMenu = false }) {
-                        MenuRow(stringResource(Res.string.notice_zone_all), {
-                            zone = ""
-                            zoneMenu = false
-                        })
-                        vm.venue.zones.forEach { z ->
-                            MenuRow(z.name, {
-                                zone = z.id
-                                zoneMenu = false
-                            })
-                        }
+                ZoneSetPicker(vm.venue, zones, evacuation) { zones = it }
+                if (evacuation) {
+                    EvacuationPlanPicker(vm.venue, plan) { plan = it }
+                    if (mapPending.isNotEmpty()) {
+                        Text(stringResource(Res.string.control_map_before_evacuation), style = MaterialTheme.typography.footnote, color = colors.orange)
                     }
                 }
                 Text(stringResource(Res.string.notice_duration), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
@@ -207,17 +204,17 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
                 AppButton(stringResource(Res.string.cancel), onDismiss, Modifier.weight(1f), kind = ButtonKind.Secondary)
                 AppButton(
                     stringResource(Res.string.notice_send), { confirm = true }, Modifier.weight(1f), enabled = ready,
-                    kind = if (template?.let { it.topic == NoticeTopic.ALERT && it.level == NoticeLevel.EVACUATION } == true) ButtonKind.Danger else ButtonKind.Primary,
+                    kind = if (evacuation) ButtonKind.Danger else ButtonKind.Primary,
                 )
             }
         }
     }
 
     if (confirm && template != null) {
-        val evacuation = template.topic == NoticeTopic.ALERT && template.level == NoticeLevel.EVACUATION
         ConfirmDialog(
             stringResource(Res.string.notice_confirm_title, noticeTitle(template.topic, template.level)),
-            NoticeTemplates.fill(template.text(language), params) + "\n\n" + stringResource(Res.string.notice_reach),
+            NoticeTemplates.fill(template.text(language), params) + "\n\n" + targetsSummary(vm.venue, zones, plan?.id.takeIf { evacuation }) +
+                "\n\n" + stringResource(Res.string.notice_reach),
             { confirm = false }, stringResource(Res.string.notice_send), destructive = evacuation,
         ) { if (evacuation) second = true else send() }
     }

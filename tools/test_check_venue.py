@@ -161,6 +161,19 @@ class CheckVenueTest(unittest.TestCase):
         self.assertTrue(any("single exit" in p for p in found), found)
         self.assertTrue(any("plan 300" in p and "1 to 255" in p for p in found), found)
 
+    def test_an_exit_of_a_plan_outside_every_zone_is_a_warning(self):
+        v = self.site()
+        found = check_venue.warnings(v)
+        self.assertEqual(2, len(found), found)
+        self.assertTrue(all("outside every zone" in w for w in found), found)
+        self.assertEqual([], check_venue.problems(v), "a warning doesn't fail the check")
+        v["pois"][0].update({"lat": 1.5, "lon": 1.5})
+        v["pois"][1].update({"lat": 1.5, "lon": 3.5})
+        self.assertEqual([], check_venue.warnings(v))
+        v["pois"][1].update({"lat": 9, "lon": 9})
+        v["evacuation"] = [{"id": 1, "name": "A", "exits": {"a": {"main": 1}, "b": {"main": 1}}}]
+        self.assertEqual([], check_venue.warnings(v), "an exit no plan uses is none of its business")
+
 
 if __name__ == "__main__":
     unittest.main()

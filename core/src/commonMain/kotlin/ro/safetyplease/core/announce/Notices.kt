@@ -100,16 +100,30 @@ class Notices(
         maxOf(store.value.notices.firstOrNull { it.topic == topic }?.seq ?: 0, engine.noticeSeq(topic)) + 1
 
     /**
-     * Signs and sends a notice of [template] for [validForS] seconds; it replaces the topic's last one. Null without a
-     * control shift or with a template that doesn't fit the wire.
+     * Signs and sends a notice of [template] for [validForS] seconds, with [extras]; it replaces the topic's last one. Null
+     * without a control shift or with a template that doesn't fit the wire.
      */
-    fun publish(template: NoticeTemplate, params: List<String>, zone: String, validForS: Long): Notice? {
+    fun publish(
+        template: NoticeTemplate, params: List<String>, zone: String, validForS: Long, extras: NoticeExtras = NoticeExtras.NONE,
+    ): Notice? {
         val credential = signer() ?: return null
         if (validForS !in 1..Notice.MAX_VALID_S || params.size != template.params.size || !params.all(NoticeTemplates::fits)) return null
         val now = nowSec()
         val notice = Notice.sign(
             crypto, credential, template.topic, template.level, nextSeq(template.topic), now, now + validForS, template.id, zone, params,
+            extras = extras,
         )
+        send(notice)
+        return notice
+    }
+
+    /** Signs and sends the map state [states], one per zone in the venue's order, for [validForS] seconds. */
+    fun publishMapState(states: List<ZoneState>, validForS: Long): Notice? {
+        val credential = signer() ?: return null
+        if (validForS !in 1..Notice.MAX_VALID_S) return null
+        val now = nowSec()
+        val topic = NoticeTopic.MAP_STATE
+        val notice = Notice.sign(crypto, credential, topic, 1, nextSeq(topic), now, now + validForS, 0, extras = NoticeExtras(states = states))
         send(notice)
         return notice
     }

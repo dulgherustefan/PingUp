@@ -13,8 +13,11 @@ import ro.safetyplease.core.announce.HeldNotice
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeBoard
 import ro.safetyplease.core.announce.NoticeExtras
+import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.announce.NoticeTopic
+import ro.safetyplease.core.announce.ZoneSet
 import ro.safetyplease.core.announce.ZoneState
+import ro.safetyplease.core.announce.target
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.Credential
@@ -32,6 +35,8 @@ import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.distanceMeters
+import ro.safetyplease.core.venue.GeoFix
+import ro.safetyplease.core.venue.StraightLine
 import ro.safetyplease.core.writeText
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -220,5 +225,77 @@ class PingUpSessionTest {
         assertTrue(s.walkDistance.meters(west, east)!! > distanceMeters(west, east) + 80)
         val home = GeoPoint(44.4, 26.1)
         assertEquals(distanceMeters(home, west), s.walkDistance.meters(home, west))
+    }
+
+    private val control = testCrypto.signKeyPair()
+    private val controlCredential = Credential(
+        Certificate.issue(testCrypto, CertRole.CONTROL, control.publicKey, 0, 0xFFFFFFFFL, "Control", testCrypto.signKeyPair()), control,
+    )
+
+    private fun evacuation(s: PingUpSession, now: Long, zone: String, seq: Long = 1) = Notice.sign(
+        testCrypto, controlCredential, NoticeTopic.ALERT, NoticeLevel.EVACUATION, seq, now, now + 3600, 8,
+        extras = NoticeExtras(zones = ZoneSet.target(s.venue, setOf(zone))),
+    )
+
+    /** A point inside each of the first two zones of the bundled venue. */
+    private fun inside(s: PingUpSession, index: Int): GeoFix {
+        val zone = s.venue.zones[index]
+        assertEquals(zone.id, s.venue.zoneAt(zone.center.lat, zone.center.lon)?.id)
+        return GeoFix(zone.center.lat, zone.center.lon, 5f, 0)
+    }
+
+    @Test
+    fun anEvacuationForItsZoneReachesAParticipantWithTheNoticesOff() {
+        val platform = FakePlatform(tmp)
+        val s = session(platform)
+        s.settings.update { it.copy(role = Role.PARTICIPANT, notices = false) }
+        val now = platform.clock.wallMs() / 1000
+        platform.location.value = inside(s, 0).copy(timeMs = platform.clock.wallMs())
+        val (a, b) = s.venue.zones.take(2).map { it.id }
+
+        s.onNotice(evacuation(s, now, b, seq = 1), own = false)
+        assertTrue(platform.shown.posted.none { it.startsWith("notice") }, "another zone's evacuation stays behind the opt-in")
+        s.onNotice(evacuation(s, now, a, seq = 2), own = false)
+        assertEquals(listOf("notice Anunț ${NoticeTopic.ALERT} LOUD"), platform.shown.posted.filter { it.startsWith("notice") })
+        val pause = Notice.sign(testCrypto, controlCredential, NoticeTopic.ALERT, NoticeLevel.PAUSE, 3, now, now + 3600, 3, params = listOf("16:00"))
+        s.onNotice(pause, own = false)
+        assertEquals(1, platform.shown.posted.count { it.startsWith("notice") }, "a pause stays behind the opt-in")
+        s.onNotice(Notice.sign(testCrypto, controlCredential, NoticeTopic.ALERT, NoticeLevel.EVACUATION, 4, now, now + 3600, 0, flags = Notice.CANCEL), own = false)
+        assertEquals("notice Anunț ${NoticeTopic.ALERT} NONE", platform.shown.posted.last(), "the withdrawal takes it away")
+    }
+
+    @Test
+    fun aPhoneThatWalksIntoAnEvacuatedZoneSoundsThen() = runBlocking {
+        val platform = FakePlatform(tmp)
+        val now = platform.clock.wallMs() / 1000
+        val probeDir = TempDir()
+        val probe = PingUpSession(FakePlatform(probeDir))
+        val venue = probe.venue
+        val (a, b) = venue.zones.take(2).map { it.id }
+        val inA = inside(probe, 0)
+        val inB = inside(probe, 1)
+        probe.close()
+        probeDir.delete()
+        val evac = Notice.sign(
+            testCrypto, controlCredential, NoticeTopic.ALERT, NoticeLevel.EVACUATION, 1, now, now + 3600, 8,
+            extras = NoticeExtras(zones = ZoneSet.target(venue, setOf(b))),
+        )
+        val board = NoticeBoard(listOf(HeldNotice(evac.topic, evac.seq, evac.encode().toHex(), 0)))
+        (platform.filesDir / "data").mkdirs()
+        (platform.filesDir / "data" / "notices.json").writeText(Json.encodeToString(NoticeBoard.serializer(), board))
+
+        val s = session(platform)
+        s.settings.update { it.copy(role = Role.PARTICIPANT, notices = false) }
+        platform.location.value = inA.copy(timeMs = platform.clock.wallMs())
+        delay(200)
+        assertTrue(platform.shown.posted.none { it.startsWith("notice") }, "zone $a isn't evacuated")
+        platform.location.value = inB.copy(timeMs = platform.clock.wallMs())
+        eventually { platform.shown.posted.any { it.startsWith("notice") } }
+        assertEquals(listOf("notice Anunț ${NoticeTopic.ALERT} LOUD"), platform.shown.posted.filter { it.startsWith("notice") })
+        platform.location.value = inA.copy(timeMs = platform.clock.wallMs())
+        delay(100)
+        platform.location.value = inB.copy(timeMs = platform.clock.wallMs() + 1)
+        delay(200)
+        assertEquals(1, platform.shown.posted.count { it.startsWith("notice") }, "once")
     }
 }

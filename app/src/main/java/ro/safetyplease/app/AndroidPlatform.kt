@@ -35,6 +35,7 @@ import ro.safetyplease.core.mesh.BatteryReading
 import ro.safetyplease.core.session.AppPlatform
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.text.ControlNoticeText
 import ro.safetyplease.ui.text.NoticeText
 import java.net.HttpURLConnection
 import java.net.URL
@@ -102,7 +103,8 @@ class AndroidPlatform(private val app: Application) : AppPlatform {
 
     override fun noticeBody(templates: NoticeTemplates, venue: Venue, notice: Notice): String =
         (NoticeText.text(templates, notice, language()) ?: app.text(NoticeText.noText)).let { text ->
-            if (notice.zone.isEmpty()) text else app.text(NoticeText.inZone, venue.zoneName(notice.zone), text)
+            ControlNoticeText.body(notice, venue, text) { res, args -> app.text(res, *args) }
+                ?: if (notice.zone.isEmpty()) text else app.text(NoticeText.inZone, venue.zoneName(notice.zone), text)
         }
 
     override suspend fun download(url: String, limit: Long): ByteArray? = withContext(Dispatchers.IO) {
