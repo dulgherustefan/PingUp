@@ -99,7 +99,6 @@ class IosRadio(
     private var running = false
     private var front = true
     private var flags = NodeFlags.ACCEPTS_CONNECTIONS
-    private var scanMode = PowerMode.BALANCED
     private var plan: PowerPlan? = null
     private val cycle = ScanCycle()
     private var scanning = false
@@ -107,7 +106,6 @@ class IosRadio(
     private var scanRenewedAt = 0L
     private var cycleJob: Job? = null
     private var cycleRound = 0
-    private var renewJob: Job? = null
     private var frontJob: Job? = null
     private var forgetJob: Job? = null
     private val sightings = Sightings()
@@ -205,14 +203,14 @@ class IosRadio(
         advertise()
     }
 
-    override fun setPowerMode(scan: PowerMode, advertise: PowerMode) = onQueue { applyScanMode(scan) }
+    // iOS chooses the scan and advertising intervals itself
+    override fun setPowerMode(scan: PowerMode, advertise: PowerMode) = Unit
 
     /** The duty cycle of [ro.safetyplease.core.mesh.PowerPolicy], as on Android: the scan pauses for the off part. */
     override fun setPower(plan: PowerPlan) = onQueue {
         if (plan == this.plan) return@onQueue
         this.plan = plan
-        log("power: ${plan.profile} scan=${plan.scan} duty=${plan.duty}")
-        applyScanMode(plan.scan)
+        log("power: ${plan.profile} duty=${plan.duty}")
         if (!cycle.set(plan.duty)) return@onQueue
         // the old duty's timer would otherwise end the new duty's first window early
         cancelCycle()
@@ -304,25 +302,17 @@ class IosRadio(
             cancelCycle()
             if (cycle.paused) startScan()
         } else if (scanning) {
-            // the duty cycle again, from a new window
-            scanStartedAt = IosClock.monoMs()
-            scheduleCycle()
+            // a scan started again brings back the repeats, and the duty cycle from a new window
+            stopScan()
+            startScan()
         }
     }
 
     // --- scanning ---
 
-    /** iOS chooses the advertising interval itself; the scan mode only decides whether repeats come. */
-    private fun applyScanMode(scan: PowerMode) {
-        if (scan == scanMode) return
-        scanMode = scan
-        if (scanning) startScan()
-    }
-
     private fun scanFor(central: CBCentralManager) {
-        // repeats keep the signal fresh; the low-power scan does with the sightings each renewal brings
-        val repeats = scanMode != PowerMode.LOW_POWER
-        central.scanForPeripheralsWithServices(listOf(service), mapOf<Any?, Any?>(CBCentralManagerScanOptionAllowDuplicatesKey to repeats))
+        // in front every repeat keeps the phones around fresh for the engine; in the background iOS ignores the option
+        central.scanForPeripheralsWithServices(listOf(service), mapOf<Any?, Any?>(CBCentralManagerScanOptionAllowDuplicatesKey to true))
         scanRenewedAt = IosClock.monoMs()
     }
 
@@ -334,40 +324,28 @@ class IosRadio(
         scanStartedAt = IosClock.monoMs()
         cycle.resume()
         scheduleCycle()
-        scheduleRenewal()
         publishStatus()
     }
 
     private fun stopScan() {
         if (!scanning) return
         scanning = false
-        renewJob?.cancel()
         // with Bluetooth off the scan has stopped already
         if (bluetoothOn()) central?.stopScan()
     }
 
     /**
-     * iOS reports a phone once per scan when repeats are off: with the low-power scan, and with any scan out of the
-     * front, where it ignores the option. A scan started again reports it once more, so the engine keeps the phones
-     * around fresh ([ro.safetyplease.core.mesh.ConnectionPolicy.FRESH_MS]). A timer renews the scan in front; out of the
-     * front the app runs only for Bluetooth's events, so each of them renews it, once [RENEW_MS] have gone by.
+     * In the background iOS reports a phone once per scan and runs the app only while it hands it a Bluetooth event,
+     * so the events renew the scan, which brings the phones around back to the engine: right after a link went down
+     * ([linkLost]), when another phone is wanted, and otherwise once every [RENEW_MS] at most. Apple counts tighter
+     * restarts as abuse, and a suspended app couldn't run a timer for them anyway.
      */
-    private fun renewScan() {
+    private fun renewScan(linkLost: Boolean = false) {
         val central = central ?: return
-        val repeats = front && scanMode != PowerMode.LOW_POWER
-        if (!running || !scanning || repeats || IosClock.monoMs() - scanRenewedAt < RENEW_MS) return
+        if (!running || !scanning || front) return
+        if (IosClock.monoMs() - scanRenewedAt < if (linkLost) RENEW_AFTER_LOSS_MS else RENEW_MS) return
         central.stopScan()
         scanFor(central)
-    }
-
-    private fun scheduleRenewal() {
-        renewJob?.cancel()
-        renewJob = scope.launch {
-            while (true) {
-                delay(RENEW_MS)
-                onQueue(::renewScan)
-            }
-        }
     }
 
     private fun cancelCycle() {
@@ -573,7 +551,7 @@ class IosRadio(
 
         @ObjCSignatureOverride
         override fun centralManager(central: CBCentralManager, didDisconnectPeripheral: CBPeripheral, error: NSError?) {
-            renewScan()
+            renewScan(linkLost = true)
             outLink(didDisconnectPeripheral)?.let { closeOut(it) }
         }
 
@@ -681,6 +659,7 @@ class IosRadio(
         @ObjCSignatureOverride
         override fun peripheralManager(peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFromCharacteristic: CBCharacteristic) {
             farewells.removeAll { it.identifier == central.identifier }
+            renewScan(linkLost = true)
             val link = incoming.remove(central.identifier.UUIDString) ?: return
             while (link.waiting.isNotEmpty()) link.waiting.removeFirst().done.resume(false)
             channel.trySend(RadioEvent.LinkDown(link.id))
@@ -713,8 +692,8 @@ class IosRadio(
         const val FORGET_EVERY_MS = 30_000L
         const val MAX_EARLY_FRAMES = 8
 
-        /** Under [ro.safetyplease.core.mesh.ConnectionPolicy.FRESH_MS], with room for a discovery that takes a while. */
-        const val RENEW_MS = 8_000L
+        const val RENEW_MS = 60_000L
+        const val RENEW_AFTER_LOSS_MS = 8_000L
 
         /** Android's `BleConstants.WRITE_TIMEOUT_MS`. */
         const val WRITE_TIMEOUT_MS = 3_000L
