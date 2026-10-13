@@ -451,7 +451,7 @@
     <string name="privacy_delete_title">Cât păstrăm datele și cum le ștergi</string>
     <string name="privacy_delete_text">Totul rămâne pe telefon până îl ștergi. Un mesaj care nu ajunge în 24 de ore nu mai e retrimis. Ca să ștergi tot, dezinstalează aplicația; pe Android poți și din Setări › Aplicații › Ping Up › Stocare › Șterge datele. Ce ai trimis deja rămâne pe telefoanele celor care l-au primit.</string>
     <string name="privacy_contact_title">Contact</string>
-    <string name="privacy_contact_text">Ping Up e făcut de Dulgheru Ștefan Alexandru, Ilie-Goga Radu, Cîrciumaru Radu și Farkas Oliver. Scrie-ne la stdulgh@gmail.com sau pe github.com/dulgherustefan/PingUp/issues.</string>
+    <string name="privacy_contact_text">Ping Up e făcut de Dulgheru Ștefan Alexandru, Ilie-Goga Radu, Cîrciumaru Radu și Farkaș Andrei-Oliver. Scrie-ne la stdulgh@gmail.com sau pe github.com/dulgherustefan/PingUp/issues.</string>
     <string name="privacy_updated">Actualizată pe 13 octombrie 2026.</string>
     <string name="me_node_id">ID tehnic</string>
     <string name="me_network_log">Jurnalul rețelei mobile</string>
