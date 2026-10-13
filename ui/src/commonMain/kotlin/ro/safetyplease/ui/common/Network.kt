@@ -40,7 +40,8 @@ class RadioGate(
     /** Access denied for good: [requestAccess] opens the app settings. */
     val accessBlocked: Boolean,
     val requestAccess: () -> Unit,
-    val enableBluetooth: () -> Unit,
+    /** Null where an app can't turn Bluetooth on or show where to: the iPhone, where it's in Control Center. */
+    val enableBluetooth: (() -> Unit)?,
     /** The user turned the network off; [turnOn] starts it again. */
     val meshOff: Boolean = false,
     val turnOn: () -> Unit = {},
@@ -80,7 +81,7 @@ fun RadioProblemBanner(gate: RadioGate, modifier: Modifier = Modifier, forReport
         RadioProblem.BLUETOOTH -> Banner(
             stringResource(Res.string.status_bt_off),
             stringResource(if (forReport) Res.string.report_wait_bluetooth else Res.string.problem_bt_text), modifier, warning = true,
-            action = stringResource(Res.string.status_bt_enable), onAction = gate.enableBluetooth,
+            action = gate.enableBluetooth?.let { stringResource(Res.string.status_bt_enable) }, onAction = gate.enableBluetooth ?: {},
         )
         RadioProblem.LOCATION -> Banner(
             stringResource(Res.string.problem_location_title),

@@ -143,7 +143,7 @@ private fun RadioProblem(gate: RadioGate) {
         )
         !gate.bluetoothOn -> Banner(
             stringResource(Res.string.status_bt_off), stringResource(Res.string.problem_bt_text), modifier, warning = true,
-            action = stringResource(Res.string.status_bt_enable), onAction = gate.enableBluetooth,
+            action = gate.enableBluetooth?.let { stringResource(Res.string.status_bt_enable) }, onAction = gate.enableBluetooth ?: {},
         )
     }
 }

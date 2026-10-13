@@ -55,6 +55,7 @@ import ro.safetyplease.core.data.MsgStatus
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.UnfindableIsAProblem
 import ro.safetyplease.ui.common.MeButton
 import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.common.RadioProblemBanner
@@ -252,7 +253,7 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate, batteryDismissed: Boolean, modifier: Modifier) {
     when {
         gate.problem() != null -> RadioProblemBanner(gate, modifier)
-        radio.bluetoothOn && !radio.canAdvertise -> Banner(
+        radio.bluetoothOn && !radio.canAdvertise && UnfindableIsAProblem -> Banner(
             stringResource(Res.string.problem_leaf_title), stringResource(Res.string.problem_leaf_text), modifier,
         )
         !batteryDismissed && vm.phone.batteryHintNeeded() -> Banner(

@@ -5,6 +5,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.jetbrains.compose.resources.StringResource
 import platform.CoreBluetooth.CBManager
 import platform.CoreBluetooth.CBManagerAuthorizationDenied
 import platform.CoreBluetooth.CBManagerAuthorizationRestricted
@@ -24,8 +25,8 @@ import platform.darwin.dispatch_get_main_queue
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.common.topViewController
-import org.jetbrains.compose.resources.StringResource
 import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.mesh_switch_on_kept
 import ro.safetyplease.ui.resources.perm_notifications_text_short
 
 /**
@@ -41,7 +42,8 @@ actual fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: 
         vm.phone.bluetoothAllowed(), radio.bluetoothOn, locationOff = false, accessBlocked = refused,
         // not asked yet: starting the radio is what asks
         requestAccess = if (refused) vm.phone::openAppSettings else onStartMesh,
-        enableBluetooth = vm.phone::openAppSettings,
+        // nothing an app can open turns Bluetooth on
+        enableBluetooth = null,
         meshOff = !settings.meshEnabled,
         turnOn = {
             vm.setMeshEnabled(true)
@@ -71,6 +73,10 @@ actual fun rememberStartPermissions(onDone: () -> Unit): () -> Unit {
 }
 
 actual val RadioNeedsLocation = false
+
+actual val UnfindableIsAProblem = false
+
+actual val MeshOnText: StringResource = Res.string.mesh_switch_on_kept
 
 // no notification has to stay: Bluetooth runs in the background by itself
 actual val NotificationsReason: StringResource = Res.string.perm_notifications_text_short

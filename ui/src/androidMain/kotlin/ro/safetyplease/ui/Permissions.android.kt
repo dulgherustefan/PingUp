@@ -27,12 +27,13 @@ import androidx.core.app.ActivityCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.location_precise_needed
-import org.jetbrains.compose.resources.StringResource
+import ro.safetyplease.ui.resources.mesh_switch_on
 import ro.safetyplease.ui.resources.perm_notifications_text
 
 /** The mesh can't start without these. */
@@ -45,6 +46,10 @@ fun radioPermissions(): List<String> =
     }
 
 actual val NotificationsReason: StringResource = Res.string.perm_notifications_text
+
+actual val UnfindableIsAProblem = true
+
+actual val MeshOnText: StringResource = Res.string.mesh_switch_on
 
 actual val RadioNeedsLocation = Build.VERSION.SDK_INT < Build.VERSION_CODES.S
 

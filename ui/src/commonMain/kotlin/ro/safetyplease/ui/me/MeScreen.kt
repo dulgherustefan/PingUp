@@ -40,12 +40,13 @@ import org.jetbrains.compose.resources.getPluralString
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.ui.common.BigCodeDialog
-import ro.safetyplease.ui.common.QrBadge
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.MeshOnText
+import ro.safetyplease.ui.common.BigCodeDialog
 import ro.safetyplease.ui.common.MAX_NAME
+import ro.safetyplease.ui.common.QrBadge
 import ro.safetyplease.ui.common.networkText
 import ro.safetyplease.ui.common.rememberFilePicker
 import ro.safetyplease.ui.designsystem.AppDialog
@@ -107,7 +108,6 @@ import ro.safetyplease.ui.resources.me_title
 import ro.safetyplease.ui.resources.me_version
 import ro.safetyplease.ui.resources.mesh_switch
 import ro.safetyplease.ui.resources.mesh_switch_off
-import ro.safetyplease.ui.resources.mesh_switch_on
 import ro.safetyplease.ui.resources.metrics_export_confirm
 import ro.safetyplease.ui.resources.metrics_export_join
 import ro.safetyplease.ui.resources.metrics_export_text
@@ -187,7 +187,7 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                             vm.setMeshEnabled(on)
                             if (on) onStartMesh()
                         },
-                        subtitle = stringResource(if (settings.meshEnabled) Res.string.mesh_switch_on else Res.string.mesh_switch_off),
+                        subtitle = stringResource(if (settings.meshEnabled) MeshOnText else Res.string.mesh_switch_off),
                         icon = Sym.Bluetooth,
                     )
                 }

@@ -66,8 +66,13 @@ import kotlin.math.roundToInt
  * position and the battery. [restart] and [wipe] go back to [IosApp], which makes a new session in the same process.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class, ExperimentalNativeApi::class)
-class IosPlatform(positions: IosLocation, private val appName: String, private val onRestart: () -> Unit, private val onWipe: () -> Unit) :
-    AppPlatform {
+class IosPlatform(
+    positions: IosLocation,
+    private val inFront: StateFlow<Boolean>,
+    private val appName: String,
+    private val onRestart: () -> Unit,
+    private val onWipe: () -> Unit,
+) : AppPlatform {
     private val fs = FileSystem.SYSTEM
     private val bundle = NSBundle.mainBundle.resourcePath!!.toPath()
 
@@ -96,7 +101,7 @@ class IosPlatform(positions: IosLocation, private val appName: String, private v
 
     override fun log(message: String) = println(message)
 
-    override fun radio(scope: CoroutineScope, nodeId: Long): MeshRadio = NoRadio()
+    override fun radio(scope: CoroutineScope, nodeId: Long): MeshRadio = IosRadio(scope, inFront, ::log)
 
     override fun notifications(venue: Venue, exercise: Boolean): Notifications = IosNotifications(venue, exercise, appName)
 

@@ -37,6 +37,8 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         # Compose draws at the screen's own rate (120 Hz on ProMotion) only with this
         CADisableMinimumFrameDurationOnPhone: true
+        # the mesh keeps going with the app in the background: scanning and connecting, and the server others connect to
+        UIBackgroundModes: [bluetooth-central, bluetooth-peripheral]
         # why each permission is asked, in Romanian here and in each language in <language>.lproj/InfoPlist.strings
         NSCameraUsageDescription: Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.
         NSBluetoothAlwaysUsageDescription: Ping Up trimite mesajele și rapoartele din telefon în telefon prin Bluetooth, fără semnal.

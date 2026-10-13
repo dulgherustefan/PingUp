@@ -23,6 +23,12 @@ struct SharedScreens: UIViewControllerRepresentable {
 }
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    // the session and the mesh start with the process, also when iOS starts it in the background for Bluetooth
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        _ = MainViewControllerKt.startApp()
+        return true
+    }
+
     // portrait, and landscape while the phone is the control console
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         UIInterfaceOrientationMask(rawValue: UInt(Orientations.shared.mask))

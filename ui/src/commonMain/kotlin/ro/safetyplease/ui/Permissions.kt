@@ -23,6 +23,18 @@ expect fun rememberStartPermissions(onDone: () -> Unit): () -> Unit
 /** Bluetooth needs the location permission too: Android below 12. */
 expect val RadioNeedsLocation: Boolean
 
+/**
+ * A phone the others can't find is worth a word: on Android its advertising failed, while no iPhone can advertise what
+ * the others need, and there it's simply how the network works.
+ */
+expect val UnfindableIsAProblem: Boolean
+
+/**
+ * What the network switch says when on. On an iPhone it also asks not to close the app in the app switcher: iOS
+ * doesn't start an app closed that way again for Bluetooth.
+ */
+expect val MeshOnText: StringResource
+
 /** Why the app asks for notifications; on Android one of them also stays while the mesh runs. */
 expect val NotificationsReason: StringResource
 

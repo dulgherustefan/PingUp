@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import okio.FileSystem
 import org.jetbrains.compose.resources.getString
 import platform.CoreBluetooth.CBManager
+import platform.CoreBluetooth.CBManagerAuthorizationAllowedAlways
 import platform.CoreBluetooth.CBManagerAuthorizationDenied
 import platform.CoreBluetooth.CBManagerAuthorizationRestricted
 import platform.Foundation.NSNotificationCenter
@@ -67,6 +68,9 @@ class IosApp {
         private set
 
     init {
+        // started again by iOS for Bluetooth, or by the person: the mesh comes back on if they left it on
+        val settings = model.c.settings.value
+        if (settings.onboarded && settings.meshEnabled && CBManager.authorization == CBManagerAuthorizationAllowedAlways) startMesh()
         for ((event, isActive) in listOf(UIApplicationDidBecomeActiveNotification to true, UIApplicationWillResignActiveNotification to false)) {
             NSNotificationCenter.defaultCenter.addObserverForName(event, null, NSOperationQueue.mainQueue) { _ ->
                 active.value = isActive
@@ -83,7 +87,7 @@ class IosApp {
     }
 
     private fun create(): AppViewModel {
-        platform = IosPlatform(location, phone.appName, onRestart = { onMain(::restart) }, onWipe = { onMain(::wipe) })
+        platform = IosPlatform(location, active, phone.appName, onRestart = { onMain(::restart) }, onWipe = { onMain(::wipe) })
         val session = PingUpSession(platform)
         session.foreground.value = active.value
         val factory = viewModelFactory { initializer { AppViewModel(session, phone) } }
@@ -133,6 +137,8 @@ class IosApp {
 
     /** Ends the session and its screens' state, does [between], then makes new ones. */
     private fun replace(between: () -> Unit = {}) {
+        // the mesh's own stop would come after close() ended the session's runs: the radio stops here, before the next starts
+        model.c.radio.stop()
         stopMesh()
         model.c.close()
         store.clear()

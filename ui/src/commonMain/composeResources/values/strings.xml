@@ -87,6 +87,7 @@
     <string name="report_wait_mesh_off">Raportul pleacă după ce pornești rețeaua.</string>
     <string name="mesh_switch">Rețeaua Ping Up</string>
     <string name="mesh_switch_on">Pornită. Primești mesaje și le duci mai departe pentru alții.</string>
+    <string name="mesh_switch_on_kept">Pornită. Primești mesaje și le duci mai departe pentru alții. Nu închide Ping Up din comutatorul de aplicații: rețeaua se oprește odată cu el.</string>
     <string name="mesh_switch_off">Oprită. Nu primești mesaje, iar rapoartele nu pleacă.</string>
     <string name="notif_mesh_stop">Oprește rețeaua</string>
     <string name="report_zone_with_age">%1$s, %2$s</string>

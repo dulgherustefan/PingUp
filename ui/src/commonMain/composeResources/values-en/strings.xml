@@ -81,6 +81,7 @@
     <string name="report_wait_mesh_off">The report leaves once you turn the network on.</string>
     <string name="mesh_switch">Ping Up network</string>
     <string name="mesh_switch_on">On. You get messages and pass them on for others.</string>
+    <string name="mesh_switch_on_kept">On. You get messages and pass them on for others. Don’t swipe Ping Up away in the app switcher: the network stops with it.</string>
     <string name="mesh_switch_off">Off. You don’t get messages, and reports don’t leave.</string>
     <string name="notif_mesh_stop">Turn off network</string>
     <string name="report_zone_with_age">%1$s, %2$s</string>
