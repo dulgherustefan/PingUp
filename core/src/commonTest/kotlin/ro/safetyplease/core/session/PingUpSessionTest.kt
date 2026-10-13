@@ -130,6 +130,17 @@ class PingUpSessionTest {
     }
 
     @Test
+    fun flushingWritesWhatWaitsAtOnceAndStaysInTheSession() {
+        val platform = FakePlatform(tmp)
+        val s = session(platform)
+        s.settings.update { it.copy(nickname = "Ana") }
+        // the iPhone app flushes as it goes to the background: iOS may end a suspended app without a word
+        s.flush()
+        assertTrue("\"Ana\"" in (platform.filesDir / "data" / "settings.json").readText())
+        assertEquals(0, platform.restarts)
+    }
+
+    @Test
     fun anEventPackComesOnlyOverHttpsAndUpToItsLimit() = runBlocking {
         val platform = FakePlatform(tmp)
         val s = session(platform)

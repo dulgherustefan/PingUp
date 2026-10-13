@@ -590,11 +590,19 @@ open class PingUpSession(private val platform: AppPlatform) {
     fun switchEvent(hash: String) {
         events.update { it.select(hash) }
         settings.update { it.copy(role = Role.PARTICIPANT, teamName = "", anchorZone = "", staffZone = "", roleLead = false) }
-        // writes wait 150 ms; what was reported or sent just before the switch must not go with the process
+        // what was reported or sent just before the switch must not go with the process
+        flush()
+        platform.restart()
+    }
+
+    /**
+     * Writes now what the stores keep for 150 ms, before the process may end: another event loading, or the iPhone app
+     * going to the background, where iOS may end it later without a word.
+     */
+    fun flush() {
         listOf(events, settings, friends, groups, incidentStore, consoleLog, metricsLog, networkLog, reporterMetrics, meshCache, revokedStore)
             .forEach { it.flush() }
         chatStore.flush()
-        platform.restart()
     }
 
     fun removeEventPack(hash: String) = events.update { it.without(hash) }

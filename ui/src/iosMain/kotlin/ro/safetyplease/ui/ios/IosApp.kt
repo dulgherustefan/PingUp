@@ -21,8 +21,10 @@ import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationDidBecomeActiveNotification
+import platform.UIKit.UIApplicationDidEnterBackgroundNotification
 import platform.UIKit.UIApplicationState
 import platform.UIKit.UIApplicationWillResignActiveNotification
+import platform.UIKit.UIApplicationWillTerminateNotification
 import platform.UserNotifications.UNNotification
 import platform.UserNotifications.UNNotificationAction
 import platform.UserNotifications.UNNotificationActionOptionForeground
@@ -76,6 +78,11 @@ class IosApp {
                 active.value = isActive
                 model.c.foreground.value = isActive
             }
+        }
+        // a suspended app may be ended without a word: what waits to be written goes before iOS suspends it.
+        // No queue, so that it runs before the notification returns
+        for (event in listOf(UIApplicationDidEnterBackgroundNotification, UIApplicationWillTerminateNotification)) {
+            NSNotificationCenter.defaultCenter.addObserverForName(event, null, null) { _ -> model.c.flush() }
         }
         notifications.delegate = taps
         scope.launch {
