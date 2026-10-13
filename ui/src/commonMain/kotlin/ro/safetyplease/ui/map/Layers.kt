@@ -232,6 +232,13 @@ fun LayersPanel(vm: AppViewModel, origin: GeoPoint?, onShow: (GeoPoint) -> Unit)
                 present.forEach { type ->
                     LayerChip(serviceGlyph(type), stringResource(typeLabel(type)), spotColor(colors, type), type in layers.types) {
                         layers.toggle(type)
+                        // switched on, it shows the nearest one not said to be closed, by the walk there
+                        if (type in layers.types && origin != null) {
+                            ServiceLayer.nearestOpen(vm.venue, type, board, now, origin, vm.c.walkDistance)?.let { near ->
+                                layers.picked = LayerPick.Service(near.key)
+                                onShow(near.point)
+                            }
+                        }
                     }
                 }
             }
