@@ -19,6 +19,7 @@
 		6D82221C73CA4EAE2D81B56D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		71B5785356A0F8914AB7DD5F /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = ../app/src/main/assets; sourceTree = SOURCE_ROOT; };
 		AD80B33C55B538CF3FD3A1DA /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		CBBE556015D106F2E073FB7F /* PingUp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PingUp.entitlements; sourceTree = "<group>"; };
 		F254425B1A6F3FAD5CBF58D2 /* PingUp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PingUp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingUpApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -71,6 +72,7 @@
 			children = (
 				11693A333C3375DEE8694C9A /* Assets.xcassets */,
 				6D82221C73CA4EAE2D81B56D /* Info.plist */,
+				CBBE556015D106F2E073FB7F /* PingUp.entitlements */,
 				FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */,
 				6398700908A499B5420D225D /* InfoPlist.strings */,
 			);
@@ -221,6 +223,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = PingUp/PingUp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;

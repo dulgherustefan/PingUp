@@ -57,6 +57,12 @@ targets:
         OTHER_LDFLAGS: [$(inherited), -framework, PingUpUi]
         # Gradle writes the framework outside the sandbox Xcode gives build scripts
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+      configs:
+        # urgent alerts break through Focus only with Time Sensitive Notifications, a capability of the paid Apple
+        # Developer Program, which a release needs anyway; Debug builds leave it out, so a free account can still run
+        # the app on a phone
+        Release:
+          CODE_SIGN_ENTITLEMENTS: PingUp/PingUp.entitlements
     postCompileScripts:
       - name: Add the debug assets
         basedOnDependencyAnalysis: false
