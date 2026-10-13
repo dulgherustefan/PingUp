@@ -225,6 +225,7 @@ class MapLibreEngine(
         val polygons = Expression.eq(Expression.geometryType(), "Polygon")
         val points = Expression.eq(Expression.geometryType(), "Point")
         val fade = Expression.toNumber(Expression.get("fade"))
+        val outline = Expression.toBool(Expression.get("outline"))
         val friendColor = Expression.switchCase(Expression.get("grey"), Expression.color(colors.stale.toColorInt()), Expression.color(colors.friend.toColorInt()))
         val dataColor = Expression.toColor(Expression.get("color"))
         val primary = Expression.eq(Expression.get("style"), RouteStyle.PRIMARY.name.lowercase())
@@ -262,7 +263,9 @@ class MapLibreEngine(
                 textField(Expression.get("label")), textFont(MEDIUM), textAnchor("top"), textOffset(arrayOf(0f, 0.9f)),
             ),
             FillLayer("friends-ring", FRIENDS).withProperties(fillColor(friendColor), fillOpacity(Expression.product(Expression.literal(0.16f), fade)))
-                .withFilter(polygons),
+                .withFilter(Expression.all(polygons, Expression.not(outline))),
+            LineLayer("friends-ring-outline", FRIENDS).withProperties(lineColor(friendColor), lineWidth(1f), lineOpacity(MapFriend.OUTLINE_OPACITY))
+                .withFilter(Expression.all(polygons, outline)),
             CircleLayer("friends-dot", FRIENDS).withProperties(
                 circleColor(friendColor), circleRadius(Expression.toNumber(Expression.get("size"))), circleStrokeColor(Color.WHITE), circleStrokeWidth(2f),
                 circleOpacity(fade), circleStrokeOpacity(fade),

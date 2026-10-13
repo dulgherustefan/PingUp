@@ -98,7 +98,10 @@ object MapGeoJson {
         },
     )
 
-    /** Each friend twice: the ring as a polygon and the dot, with how faded, how large and whether grey by age. */
+    /**
+     * Each friend twice: the ring as a polygon (an outline, capped, once the position is old) and the dot, with how
+     * faded, how large and whether grey by age.
+     */
     fun friends(friends: List<MapFriend>): String = collection(
         friends.flatMap { f ->
             val center = GeoPoint(f.lat, f.lon)
@@ -106,9 +109,10 @@ object MapGeoJson {
                 put("id", f.id)
                 put("fade", f.fade)
                 put("grey", f.grey)
+                put("outline", f.outline)
             }
             listOf(
-                feature(polygon(ring(center, f.ringM.toDouble())), look),
+                feature(polygon(ring(center, f.drawnRingM.toDouble())), look),
                 feature(point(center)) {
                     look()
                     put("size", f.dotRadius)

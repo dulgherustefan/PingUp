@@ -127,6 +127,10 @@ class MapGeoJsonTest {
         assertTrue(friends[1].prop("size").float > friends[3].prop("size").float)
         assertEquals("Ana", friends[1].prop("label").content)
         assertEquals(32.0, distanceMeters(GeoPoint(43.95, 28.635), friends[0].ring()[0]).toDouble(), 1.0)
+        // older than ten minutes: an outline, and a ring the map caps
+        assertEquals(listOf(false, false, true, true, true, true), friends.map { it.prop("outline").boolean })
+        assertEquals(8.0, distanceMeters(GeoPoint(43.949, 28.634), friends[2].ring()[0]).toDouble(), 1.0)
+        assertEquals(MapFriend.STALE_RING_MAX_M.toDouble(), distanceMeters(GeoPoint(43.948, 28.633), friends[4].ring()[0]).toDouble(), 1.0)
     }
 
     @Test

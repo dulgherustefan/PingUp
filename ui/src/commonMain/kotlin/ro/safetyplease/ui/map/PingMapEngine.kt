@@ -31,8 +31,21 @@ data class MapFriend(
 
     val grey: Boolean get() = age == FriendAge.STALE
 
-    private companion object {
-        const val STALE_FADE = 0.5f
+    /**
+     * Older than ten minutes: the ring is only a thin outline, at most [STALE_RING_MAX_M] across the map, so old rings
+     * don't cover it; the lists still say how large it really is.
+     */
+    val outline: Boolean get() = age == FriendAge.FADED || age == FriendAge.STALE
+
+    /** The radius the map draws: [ringM], capped for an [outline]. */
+    val drawnRingM: Float get() = if (outline) minOf(ringM, STALE_RING_MAX_M) else ringM
+
+    companion object {
+        private const val STALE_FADE = 0.5f
+        const val STALE_RING_MAX_M = 150f
+
+        /** How visible an [outline] ring is, whatever the dot's fade. */
+        const val OUTLINE_OPACITY = 0.35f
     }
 }
 

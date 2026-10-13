@@ -128,6 +128,9 @@ private val MapInset = 12.dp
 private val CompactInset = 8.dp
 private const val MaxZoom = 4f
 
+/** How many places under its pin a label tries before it gives up. */
+private const val PIN_LABEL_TRIES = 3
+
 /** Soft shadow under markers so the white ring stays visible on light zones. */
 private val MarkerShadow = Color(0x29000000)
 
@@ -288,6 +291,8 @@ fun VenueMap(
     aspect: Float = venueAspect(venue),
     reserved: List<MapReserve> = emptyList(),
     mapOverlay: MapOverlay = MapOverlay.EMPTY,
+    /** Only the places of these types, the meeting point among them as [Venue.MEETING]; null for all. */
+    poiTypes: Set<String>? = null,
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     if (LocalTextOnly.current) {
@@ -519,7 +524,7 @@ fun VenueMap(
                 drawLine(targetColor, marker, goal, strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round, pathEffect = dots)
             }
 
-            venue.pois.forEach { poi ->
+            venue.pois.filter { poiTypes == null || it.type in poiTypes }.forEach { poi ->
                 val o = at(poi.point)
                 val focused = goal != null && (goal - o).getDistance() < 1f
                 poiRings[poi.number]?.takeIf { poi.number > 0 }?.let { ring ->
@@ -528,7 +533,7 @@ fun VenueMap(
                 badge(o, (if (focused) 12.dp else 8.dp).toPx(), spotColor(colors, poi.type), glyphs[poi.type])
             }
 
-            val meeting = venue.meetingPoint?.let(::at)
+            val meeting = venue.meetingPoint?.takeIf { poiTypes == null || Venue.MEETING in poiTypes }?.let(::at)
             meeting?.let { o ->
                 val big = meetingFocused || (goal != null && (goal - o).getDistance() < 1f)
                 val r = (if (big) 12.dp else 9.dp).toPx()
@@ -538,13 +543,20 @@ fun VenueMap(
             }
 
             spots.forEachIndexed { i, o -> markerDot(o, 7.dp.toPx(), pins[i].color) }
+            // pins at the same spot (a zone's state and its crowd level, both at its middle) stack their labels; one
+            // that finds no room stays a dot. The zones' names then keep clear of the labels
+            val pinLabels = mutableListOf<Rect>()
             overlaySpots.forEachIndexed { i, o ->
                 markerDot(o, 7.dp.toPx(), overlayPins[i].color)
                 val label = mapOverlay.pins[i].label
-                if (label.isNotEmpty()) {
-                    val text = measurer.measure(label, smallStyle.copy(color = colors.label))
-                    haloText(text, Offset(o.x - text.size.width / 2f, o.y + 11.dp.toPx()), colors.label, paint.halo)
-                }
+                if (label.isEmpty()) return@forEachIndexed
+                val text = measurer.measure(label, smallStyle.copy(color = colors.label))
+                val step = text.size.height + 2.dp.toPx()
+                val spot = (0 until PIN_LABEL_TRIES).map { k ->
+                    Rect(Offset(o.x - text.size.width / 2f, o.y + 11.dp.toPx() + k * step), text.size.toSize())
+                }.firstOrNull { rect -> pinLabels.none { it.overlaps(rect) } } ?: return@forEachIndexed
+                pinLabels += spot
+                haloText(text, spot.topLeft, colors.label, paint.halo)
             }
 
             val compass = Offset(size.width - 22.dp.toPx(), 22.dp.toPx())
@@ -571,7 +583,8 @@ fun VenueMap(
             // move them, its ring goes around the zone's own icon
             val avoid = corners + bar.inflate(3.dp.toPx()) +
                 listOfNotNull(marker?.let { Rect(it.x - 22.dp.toPx(), it.y - 48.dp.toPx(), it.x + 22.dp.toPx(), it.y + 16.dp.toPx()) }) +
-                (listOfNotNull(meeting) + spots + overlaySpots).map { Rect(it.x - 12.dp.toPx(), it.y - 12.dp.toPx(), it.x + 12.dp.toPx(), it.y + 12.dp.toPx()) }
+                (listOfNotNull(meeting) + spots + overlaySpots).map { Rect(it.x - 12.dp.toPx(), it.y - 12.dp.toPx(), it.x + 12.dp.toPx(), it.y + 12.dp.toPx()) } +
+                pinLabels.map { it.inflate(2.dp.toPx()) }
             val screen = Rect(Offset.Zero, size)
             venue.zones.forEachIndexed { index, zone ->
                 val solid = colors.zoneSolid(zoneTone(venue, index), zone.id)
@@ -632,7 +645,11 @@ fun VenueMap(
             friends.forEach { f ->
                 val o = at(GeoPoint(f.lat, f.lon))
                 val tone = (if (f.grey) colors.secondaryLabel else colors.green).copy(alpha = f.fade)
-                drawCircle(tone.copy(alpha = 0.16f * f.fade), f.ringM * meter, o)
+                if (f.outline) {
+                    drawCircle(tone.copy(alpha = MapFriend.OUTLINE_OPACITY), f.drawnRingM * meter, o, style = Stroke(1.dp.toPx()))
+                } else {
+                    drawCircle(tone.copy(alpha = 0.16f * f.fade), f.drawnRingM * meter, o)
+                }
                 markerDot(o, f.dotRadius.dp.toPx(), tone)
                 if (f.label.isNotEmpty()) {
                     val text = measurer.measure(f.label, smallStyle.copy(color = colors.label))

@@ -223,7 +223,9 @@ fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: Evac
     if (shown.held.alerted && !ui.reopened) return
     val state by vm.c.mapState.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
-    val overlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
+    val all by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
+    // only what helps to get out: the way, the exits and the zones' states; no crowd levels, services or friends
+    val overlay = remember(all) { vm.mapOverlays.only(OverlayLayer.EVACUATION, OverlayLayer.CONTROL) }
     val here = onSite(position, vm.venue)
     val view = evacuationView(vm.venue, state, zone, here)
     val type = MaterialTheme.typography
@@ -263,6 +265,7 @@ fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: Evac
                 VenueMap(
                     vm.venue, Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(16.dp)), position = here,
                     myZone = zone.orEmpty(), target = target.point.takeIf { guiding == null }, mapOverlay = overlay,
+                    poiTypes = EVACUATION_POIS,
                 )
             } else {
                 Line(stringResource(caseText(view.case)), type.title3)
@@ -278,6 +281,9 @@ fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: Evac
 private val Ink = Color.White
 
 private const val EXIT_PIN = "evacuation:exit"
+
+/** The places the evacuation's map keeps: the exits and where to find first aid. */
+private val EVACUATION_POIS = setOf(Venue.EXIT, "medical", Venue.DEA)
 
 /**
  * The walk out of an evacuation for a phone in [zone], to the exit its plan gives it now, around the zones the console

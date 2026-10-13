@@ -113,6 +113,10 @@ class MapOverlays {
         merged.value = layers.values.fold(MapOverlay.EMPTY) { all, l -> all + l.overlay }
     }
 
+    /** Only [names] of the layers, merged as [overlay] merges them all; read it again when [overlay] changes. */
+    fun only(vararg names: String): MapOverlay =
+        layers.filterKeys { it in names }.values.fold(MapOverlay.EMPTY) { all, l -> all + l.overlay }
+
     /** Hands a tap on the pin with [key] to its layer; false when no layer has such a pin. */
     fun tap(key: String): Boolean {
         for (layer in layers.values.reversed()) {
