@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -286,6 +290,8 @@ fun RegasireReportRows(vm: AppViewModel, category: Int) {
     }
     val lost = category == IncidentCategory.LOST_FRIEND || category == IncidentCategory.LOST_CHILD
     LaunchedEffect(lost) { if (!lost) reg.setDraft(null) }
+    // the person picked belongs to this report only: leaving the screen unsent forgets them
+    DisposableEffect(Unit) { onDispose { reg.setDraft(null) } }
     InsetGroup(Modifier.padding(top = 12.dp)) { LandmarkRow(vm) }
     if (!lost) return
     val friends by vm.friends.collectAsStateWithLifecycle()
@@ -295,9 +301,9 @@ fun RegasireReportRows(vm: AppViewModel, category: Int) {
     val now = rememberNow()
     val colors = AppTheme.colors
     SectionTitle(stringResource(Res.string.lastseen_section), top = 20.dp)
-    InsetGroup {
+    InsetGroup(Modifier.selectableGroup()) {
         GroupRow(
-            stringResource(Res.string.lastseen_nobody), onClick = { reg.setDraft(null) },
+            stringResource(Res.string.lastseen_nobody), Modifier.semantics { selected = draft == null }, onClick = { reg.setDraft(null) },
             trailing = if (draft == null) {
                 { Icon(Sym.Check, null, Modifier.size(20.dp), tint = colors.accent) }
             } else null,
@@ -305,7 +311,7 @@ fun RegasireReportRows(vm: AppViewModel, category: Int) {
         for (friend in friends) {
             GroupDivider(start = 64.dp)
             GroupRow(
-                friend.nickname, leading = { Avatar(friend.nickname, 36.dp) },
+                friend.nickname, Modifier.semantics { selected = draft?.friend == friend.nodeId }, leading = { Avatar(friend.nickname, 36.dp) },
                 onClick = { reg.setDraft(SearchDraft(friend.nodeId, attach = false)) },
                 trailing = if (draft?.friend == friend.nodeId) {
                     { Icon(Sym.Check, null, Modifier.size(20.dp), tint = colors.accent) }
