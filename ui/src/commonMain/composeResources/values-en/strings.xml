@@ -99,6 +99,10 @@
     <string name="perm_notifications_title">Notifications</string>
     <string name="perm_notifications_text">For new messages and the status of your report. One notification always stays, so the network keeps working with the screen off.</string>
     <string name="perm_notifications_text_short">For new messages and the status of your report.</string>
+    <string name="notif_off_title">Notifications are off</string>
+    <string name="notif_off_report_text">With the screen off you won’t hear when the team answers, or when to look for help elsewhere.</string>
+    <string name="notif_off_staff_text">With the screen off, new reports won’t alert you.</string>
+    <string name="notif_off_action">Turn them on</string>
     <string name="perm_location_title">Location</string>
     <string name="perm_location_text">On this Android version, Bluetooth can’t search for phones without the location permission.</string>
     <string name="onboarding_permissions_text">The network is made of the phones of the people around you. For it to work, the app asks for:</string>

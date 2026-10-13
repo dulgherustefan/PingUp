@@ -48,6 +48,8 @@ class AndroidPhoneUi(private val app: Application, private val container: AppCon
 
     override fun openAppSettings() = open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", app.packageName, null)))
 
+    override fun openNotificationSettings() = open(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, app.packageName))
+
     override fun toast(text: String, long: Boolean) {
         Toast.makeText(app, text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
     }

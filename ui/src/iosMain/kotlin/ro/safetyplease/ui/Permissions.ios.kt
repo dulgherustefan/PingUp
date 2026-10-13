@@ -3,7 +3,11 @@ package ro.safetyplease.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.StringResource
 import platform.CoreBluetooth.CBManager
@@ -19,6 +23,7 @@ import platform.UIKit.setNeedsUpdateOfSupportedInterfaceOrientations
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
 import platform.UserNotifications.UNAuthorizationOptionSound
+import platform.UserNotifications.UNAuthorizationStatusDenied
 import platform.UserNotifications.UNUserNotificationCenter
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
@@ -80,6 +85,20 @@ actual val MeshOnText: StringResource = Res.string.mesh_switch_on_kept
 
 // no notification has to stay: Bluetooth runs in the background by itself
 actual val NotificationsReason: StringResource = Res.string.perm_notifications_text_short
+
+@Composable
+actual fun rememberNotificationsAllowed(): Boolean {
+    // until iOS answers, and when it has never asked, there is nothing to warn about
+    var allowed by remember { mutableStateOf(true) }
+    LifecycleResumeEffect(Unit) {
+        UNUserNotificationCenter.currentNotificationCenter().getNotificationSettingsWithCompletionHandler { settings ->
+            val denied = settings?.authorizationStatus == UNAuthorizationStatusDenied
+            dispatch_async(dispatch_get_main_queue()) { allowed = !denied }
+        }
+        onPauseOrDispose { }
+    }
+    return allowed
+}
 
 @Composable
 actual fun ConsoleWindow() {

@@ -105,6 +105,10 @@
     <string name="perm_notifications_title">Notificări</string>
     <string name="perm_notifications_text">Pentru mesaje noi și pentru starea raportului tău. O notificare rămâne mereu, ca rețeaua să meargă și cu ecranul stins.</string>
     <string name="perm_notifications_text_short">Pentru mesaje noi și pentru starea raportului tău.</string>
+    <string name="notif_off_title">Notificările sunt oprite</string>
+    <string name="notif_off_report_text">Cu ecranul stins nu afli când răspunde echipa sau când e cazul să cauți ajutor în altă parte.</string>
+    <string name="notif_off_staff_text">Cu ecranul stins, rapoartele noi nu te anunță.</string>
+    <string name="notif_off_action">Pornește-le</string>
     <string name="perm_location_title">Locație</string>
     <string name="perm_location_text">Pe acest Android, Bluetooth nu poate căuta telefoane fără permisiunea de locație.</string>
     <string name="onboarding_permissions_text">Rețeaua se face din telefoanele oamenilor din jur. Ca să meargă, aplicația îți cere:</string>

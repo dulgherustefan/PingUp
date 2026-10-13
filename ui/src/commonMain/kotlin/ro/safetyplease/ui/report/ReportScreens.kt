@@ -98,6 +98,7 @@ import ro.safetyplease.ui.common.CategoryCircle
 import ro.safetyplease.ui.common.IncidentHeader
 import ro.safetyplease.ui.common.MapGlyph
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.NotificationsOffBanner
 import ro.safetyplease.ui.common.RadioProblemBanner
 import ro.safetyplease.ui.common.categoryIcon
 import ro.safetyplease.ui.common.helpOrigin
@@ -158,6 +159,7 @@ import ro.safetyplease.ui.resources.map_meeting_point
 import ro.safetyplease.ui.resources.map_source_gps
 import ro.safetyplease.ui.resources.more_options
 import ro.safetyplease.ui.resources.nearest_dea
+import ro.safetyplease.ui.resources.notif_off_report_text
 import ro.safetyplease.ui.resources.place_accuracy
 import ro.safetyplease.ui.resources.place_near
 import ro.safetyplease.ui.resources.report_active
@@ -943,6 +945,10 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
                 )
                 // "it leaves on its own" holds only while the radio can send
                 if (waiting) RadioProblemBanner(gate, Modifier.padding(start = Gutter, end = Gutter, top = 20.dp), forReport = true)
+                // the answers and the escalation come as notifications while the screen is off
+                if (report.isOpen()) {
+                    NotificationsOffBanner(vm.phone, stringResource(Res.string.notif_off_report_text), Modifier.padding(start = Gutter, end = Gutter, top = 20.dp))
+                }
                 if (report.responses.isNotEmpty()) Responses(vm, report)
                 if (escalated) {
                     Banner(

@@ -9,6 +9,7 @@ import platform.Foundation.NSBundle
 import platform.Foundation.NSURL
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
+import platform.UIKit.UIApplicationOpenNotificationSettingsURLString
 import platform.UIKit.UIApplicationOpenSettingsURLString
 import platform.UIKit.UIPasteboard
 import platform.UIKit.popoverPresentationController
@@ -43,6 +44,9 @@ class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val
     override fun openLocationSettings() = openAppSettings()
 
     override fun openAppSettings() = open(UIApplicationOpenSettingsURLString)
+
+    // straight to the app's notifications page, from iOS 16 on
+    override fun openNotificationSettings() = open(UIApplicationOpenNotificationSettingsURLString)
 
     override fun toast(text: String, long: Boolean) = toasts.show(text, long)
 

@@ -39,6 +39,13 @@ expect val MeshOnText: StringResource
 expect val NotificationsReason: StringResource
 
 /**
+ * Whether the phone shows the app's notifications, asked again each time the app comes back to the front: turned off,
+ * they no longer tell a reporter that staff answered, or to look for help elsewhere.
+ */
+@Composable
+expect fun rememberNotificationsAllowed(): Boolean
+
+/**
  * A console is used in landscape and stays on, as long as the phone is the console, Me sheet included. A rotation keeps
  * it, and large screens may ignore the orientation.
  */

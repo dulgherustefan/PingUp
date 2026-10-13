@@ -64,6 +64,7 @@ import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.IncidentHeader
 import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.NotificationsOffBanner
 import ro.safetyplease.ui.common.UpdateTimeline
 import ro.safetyplease.ui.common.VenueMap
 import ro.safetyplease.ui.common.categoryIcon
@@ -136,6 +137,7 @@ import ro.safetyplease.ui.resources.incidents_filter_empty
 import ro.safetyplease.ui.resources.incidents_for_me_empty
 import ro.safetyplease.ui.resources.incidents_for_me_empty_text
 import ro.safetyplease.ui.resources.more_options
+import ro.safetyplease.ui.resources.notif_off_staff_text
 import ro.safetyplease.ui.resources.reports
 import ro.safetyplease.ui.resources.sev_urgent
 import ro.safetyplease.ui.resources.staff_codes_open
@@ -291,6 +293,9 @@ fun IncidentsScreen(vm: AppViewModel) {
         },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
+            item(key = "notifications") {
+                NotificationsOffBanner(vm.phone, stringResource(Res.string.notif_off_staff_text), Modifier.padding(start = Gutter, end = Gutter, top = 6.dp, bottom = 10.dp))
+            }
             if (staff.isNotEmpty()) {
                 item(key = "filters") {
                     SegmentedControl(options, list, { list = it }, Modifier.padding(start = Gutter, end = Gutter, top = 6.dp, bottom = 10.dp))

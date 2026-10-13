@@ -38,6 +38,9 @@ interface PhoneUi {
     /** This app's page in the phone's settings, for a permission refused for good. */
     fun openAppSettings()
 
+    /** This app's notification settings, to turn them back on. */
+    fun openNotificationSettings()
+
     /** A short note at the bottom of the screen, gone by itself; [long] keeps it a little longer. */
     fun toast(text: String, long: Boolean = false)
 

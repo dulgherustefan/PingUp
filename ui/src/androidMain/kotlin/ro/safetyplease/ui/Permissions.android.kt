@@ -19,11 +19,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,6 +48,19 @@ fun radioPermissions(): List<String> =
     }
 
 actual val NotificationsReason: StringResource = Res.string.perm_notifications_text
+
+@Composable
+actual fun rememberNotificationsAllowed(): Boolean {
+    val context = LocalContext.current
+    fun enabled() = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    var allowed by remember { mutableStateOf(enabled()) }
+    // turned on or off in Settings while the app was away
+    LifecycleResumeEffect(Unit) {
+        allowed = enabled()
+        onPauseOrDispose { }
+    }
+    return allowed
+}
 
 actual val UnfindableIsAProblem = true
 
