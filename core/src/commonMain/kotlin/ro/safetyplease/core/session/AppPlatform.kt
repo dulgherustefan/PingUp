@@ -13,6 +13,7 @@ import ro.safetyplease.core.mesh.BatteryReading
 import ro.safetyplease.core.mesh.PowerPlan
 import ro.safetyplease.core.mesh.Radio
 import ro.safetyplease.core.metrics.NetworkSample
+import ro.safetyplease.core.safety.SafetyNotice
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.Venue
@@ -117,6 +118,9 @@ interface Notifications {
 
     /** Every few hours of a location share without an end: it still runs, with [people] seeing this phone. */
     fun shareReminder(people: Int)
+
+    /** The check-in on the way, and a friend's missed one; [SafetyNotice.CheckinCleared] takes the check-in's notice away. */
+    fun safety(notice: SafetyNotice)
 }
 
 /** The Bluetooth radio as the session drives it: on while the mesh runs, at the power the plan asks for. */

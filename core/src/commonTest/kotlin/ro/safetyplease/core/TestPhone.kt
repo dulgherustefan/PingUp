@@ -37,6 +37,7 @@ import ro.safetyplease.core.mesh.PacketLog
 import ro.safetyplease.core.mesh.SimNet
 import ro.safetyplease.core.mesh.TestClock
 import ro.safetyplease.core.protocol.IncidentAck
+import ro.safetyplease.core.protocol.Inner
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.nodePrefix
 import ro.safetyplease.core.venue.PositionBox
@@ -122,6 +123,9 @@ class TestPhone(
     var staffSecret: StaffSecretKeys? = null
     var team = "Echipa $name"
     val incoming = mutableListOf<ChatMessage>()
+
+    /** Friends' missed check-ins this phone was told of: who, what, and by how many hops. */
+    val checkinAlerts = mutableListOf<Triple<Long, Inner.CheckinMissed, Int>>()
     val alerts = mutableListOf<StaffIncident>()
     val clearedAlerts = mutableListOf<String>()
     val reportUpdates = mutableListOf<MyReport>()
@@ -139,6 +143,7 @@ class TestPhone(
     val chat = ChatManager(
         bg, engine, testCrypto, identity, friends, groups, blocked, chatStore, clock, Random(seed + 1), { name },
         shareZone = { sharesZone }, positions = positions, positionFrame = { positionFrame },
+        onCheckinMissed = { sender, missed, hops -> checkinAlerts += Triple(sender, missed, hops) },
     ) { message, _ -> incoming += message }
 
     val incidents = IncidentManager(

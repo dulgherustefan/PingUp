@@ -164,7 +164,6 @@ class ChatExtrasTest {
         val kinds = listOf(
             Inner.LostSession(1, null, LostAction.START, 1, 15, 40, 3),
             Inner.LastGasp(fix, 4),
-            Inner.CheckinMissed(2, null, 1_760_000_600L, fix, "Gară"),
         )
         for (inner in kinds) {
             // what a phone up to MEETING_REPLY (16) can't decode at all

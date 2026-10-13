@@ -110,6 +110,8 @@ import ro.safetyplease.core.protocol.Heartbeat
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.PointStatus
 import ro.safetyplease.core.protocol.PositionMethod
+import ro.safetyplease.core.safety.CheckinData
+import ro.safetyplease.core.safety.CheckinManager
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.GeoFix
@@ -271,9 +273,22 @@ open class PingUpSession(private val platform: AppPlatform) {
         shareZone = { settings.value.shareZone },
         positions = positions,
         positionFrame = { positionFrame },
+        onCheckinMissed = { sender, missed, hops -> checkin.onFriendMissed(sender, missed, hops) },
     ) { message, sender ->
         if (!foreground.value || openConversation != message.conversation) notifications.chatMessage(message, sender)
     }
+
+    private val checkinStore = JsonStore(dataDir / "checkin.json", CheckinData.serializer(), CheckinData(), ioScope)
+
+    /** The check-in on the way, and the alerts of friends who missed theirs. */
+    val checkin: CheckinManager = CheckinManager(
+        meshScope, checkinStore, clock,
+        friends = { friends.value },
+        lastFix = { platform.location.value },
+        alert = chat::sendCheckinMissed,
+        tell = { to, text -> to.forEach { chat.sendText(Conversations.friend(it), text) } },
+        notify = notifications::safety,
+    )
 
     /** What this phone shares now and with how many people; null when nothing. */
     val sharing: StateFlow<SharingNow?> = combine(chat.activeShares, settings.state, friends.state, groups.state, minuteTicks()) { active, s, _, _, _ ->
@@ -409,6 +424,7 @@ open class PingUpSession(private val platform: AppPlatform) {
         meshScope.launch {
             engine.start()
             chat.start()
+            checkin.start()
             incidents.start()
             revocations.start()
             notices.start()
@@ -729,8 +745,10 @@ open class PingUpSession(private val platform: AppPlatform) {
      * going to the background, where iOS may end it later without a word.
      */
     fun flush() {
-        listOf(events, settings, friends, groups, incidentStore, consoleLog, metricsLog, networkLog, reporterMetrics, meshCache, revokedStore)
-            .forEach { it.flush() }
+        listOf(
+            events, settings, friends, groups, incidentStore, consoleLog, metricsLog, networkLog, reporterMetrics, meshCache, revokedStore,
+            checkinStore,
+        ).forEach { it.flush() }
         positions.flush()
         chatStore.flush()
     }

@@ -32,6 +32,7 @@ import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.LocationFields
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
+import ro.safetyplease.core.protocol.ReportExtras
 import ro.safetyplease.core.protocol.ResponseBody
 import ro.safetyplease.core.protocol.StaffFields
 import ro.safetyplease.core.protocol.Triage
@@ -55,6 +56,8 @@ class ReportDraft(
     /** "Cum te recunoaștem?", sent on the first line of the description ([Recognition]). */
     val recognition: String = "",
     val location: LocationFields? = null,
+    /** Reported later, anonymously or for someone else ([ReportExtras]); an anonymous report has no reply key. */
+    val extras: ReportExtras = ReportExtras.NONE,
 )
 
 /** What the reporter says after its report ([ro.safetyplease.core.protocol.UpdateKind]); a move says where to. */
@@ -138,14 +141,16 @@ class IncidentManager(
         val now = clock.wallMs()
         val incidentId = crypto.random(INCIDENT_ID_SIZE)
         val cancelToken = crypto.random(IncidentCancel.TOKEN_SIZE)
-        val reply = crypto.boxKeyPair()
+        // an anonymous report can't be answered, so it carries nothing to answer to
+        val anonymous = draft.extras.anonymous
+        val reply = if (anonymous) null else crypto.boxKeyPair()
         val zone = draft.zone.truncateUtf8(Limits.ZONE_BYTES)
         // until reports are signed (2.18), the team named in the staff QR stands for who wrote it
         val staff = draft.staff?.takeIf { staffSecret() != null }
-        val nickname = (if (staff != null) teamName() else draft.nickname)?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
+        val nickname = (if (staff != null) teamName() else draft.nickname.takeUnless { anonymous })?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
         fun body(description: String) = IncidentBody(
             draft.category, draft.severity, now / 1000, zone, draft.lat, draft.lon, description, nickname,
-            IncidentCancel.hash(cancelToken), draft.triage, staff, draft.location, reply.publicKey,
+            IncidentCancel.hash(cancelToken), draft.triage, staff, draft.location, reply?.publicKey, draft.extras,
         )
         // with every other field full, the reply key leaves the longest descriptions a few bytes short
         val room = minOf(Limits.DESCRIPTION_BYTES, IncidentBody.MAX_SIZE - body("").encode().size)
@@ -155,7 +160,7 @@ class IncidentManager(
             incidentId = incidentId.toHex(), category = draft.category, severity = draft.severity, zone = zone,
             lat = draft.lat, lon = draft.lon, description = description, anonymous = nickname == null,
             createdAt = now, updatedAt = now, cancelToken = cancelToken.toHex(), sealed = sealed.toHex(),
-            replyKey = reply.publicKey.toHex(), replySecret = reply.secretKey.toHex(),
+            replyKey = reply?.publicKey?.toHex().orEmpty(), replySecret = reply?.secretKey?.toHex().orEmpty(),
         )
         store.update { it.copy(mine = (it.mine.withoutStaleSeals(now) + report).takeLast(MAX_MINE)) }
         scope.launch {
@@ -395,6 +400,7 @@ class IncidentManager(
             fromStaff = body.staff != null, people = body.staff?.people ?: 0, dangerContinues = body.staff?.dangerContinues == true,
             accuracyM = body.location?.accuracyM ?: 0, landmark = body.location?.landmark ?: 0,
             replyKey = body.replyKey?.toHex().orEmpty(),
+            happenedMinAgo = body.extras.happenedMinAgo, witness = body.extras.witness, noReply = body.extras.anonymous,
         )
         store.update { it.copy(staff = (it.staff + incident).takeLast(staffCap())) }
         // an update that came before the report: relays keep the latest one, and so did this phone's cache

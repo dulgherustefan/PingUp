@@ -39,6 +39,7 @@ import ro.safetyplease.core.protocol.GroupMemberWire
 import ro.safetyplease.core.protocol.Heading
 import ro.safetyplease.core.protocol.Inner
 import ro.safetyplease.core.protocol.InnerCodec
+import ro.safetyplease.core.protocol.LastFix
 import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.protocol.MeetingAction
 import ro.safetyplease.core.protocol.MeetingLimits
@@ -77,6 +78,8 @@ class ChatManager(
     private val positions: PositionStore = PositionStore.inMemory(),
     /** The event's grid box and day start, read again at every position sent or received. */
     private val positionFrame: () -> PositionFrame = { PositionFrame.NONE },
+    /** A friend did not check in (1.1): who, what they sent and by how many hops it came. */
+    private val onCheckinMissed: (sender: Long, alert: Inner.CheckinMissed, hops: Int) -> Unit = { _, _, _ -> },
     private val onIncoming: (message: ChatMessage, senderName: String) -> Unit = { _, _ -> },
 ) {
     private val attempts = LinkedHashMap<Long, Pair<Long, Long>>()
@@ -581,6 +584,27 @@ class ChatManager(
         true
     }.await()
 
+    /**
+     * Tells each of [recipients] who is a friend that we did not check in by [deadlineSec] on the way to [label]
+     * (1.1), with the last position we had. It waits in the outbox, with the retries of a message, until a friend is in
+     * reach; one msgId for all, as for a group message. Returns how many friends it was queued for.
+     */
+    suspend fun sendCheckinMissed(recipients: List<Long>, deadlineSec: Long, lastFix: LastFix?, label: String): Int = scope.async {
+        val to = recipients.distinct().filter { isFriend(it) }
+        if (to.isEmpty()) return@async 0
+        val msgId = newId()
+        val bytes = InnerCodec.encode(Inner.CheckinMissed(msgId, null, deadlineSec, lastFix, label.truncateUtf8(Limits.CHECKIN_LABEL_BYTES)))
+        for (recipient in to) enqueue(msgId, recipient, bytes)
+        to.size
+    }.await()
+
+    private fun onCheckinMissedReceived(packet: Packet, alert: Inner.CheckinMissed) {
+        // only a friend is believed, and only a friend is told: the alert names no group
+        if (!isFriend(packet.sender)) return
+        confirm(packet.sender, alert.msgId)
+        onCheckinMissed(packet.sender, alert, packet.hops)
+    }
+
     /** Says yes to the meeting point of [conversation]: every member is told, with the retries of a message. */
     fun acceptMeeting(conversation: String) {
         scope.launch {
@@ -958,8 +982,9 @@ class ChatManager(
             is Inner.PingRequest -> onPingRequest(sender, inner)
             is Inner.MeetingPoint -> onMeetingPoint(packet, inner)
             is Inner.MeetingReply -> onMeetingReply(packet, inner)
+            is Inner.CheckinMissed -> onCheckinMissedReceived(packet, inner)
             // decoded for the features that will read them; until then dropped, unanswered, as an older phone does
-            is Inner.LostSession, is Inner.LastGasp, is Inner.CheckinMissed -> Unit
+            is Inner.LostSession, is Inner.LastGasp -> Unit
             // an intro only ever comes sealed
             is Inner.Intro -> Unit
         }

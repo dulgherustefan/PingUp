@@ -22,6 +22,7 @@ import ro.safetyplease.core.mesh.RadioEvent
 import ro.safetyplease.core.metrics.NetworkSample
 import ro.safetyplease.core.readText
 import ro.safetyplease.core.repoFile
+import ro.safetyplease.core.safety.SafetyNotice
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.Venue
@@ -204,5 +205,9 @@ class FakeNotifications : Notifications {
 
     override fun shareReminder(people: Int) {
         posted += "sharing $people"
+    }
+
+    override fun safety(notice: SafetyNotice) {
+        posted += "safety $notice"
     }
 }

@@ -247,6 +247,12 @@ data class StaffIncident(
     val updates: List<IncidentUpdate> = emptyList(),
     /** Responses this phone sent the reporter, oldest first. */
     val responses: List<ReportResponse> = emptyList(),
+    /** The reporter says it happened this many minutes before the report; 0 when it is happening now. */
+    val happenedMinAgo: Int = 0,
+    /** The reporter saw it happen to someone else. */
+    val witness: Boolean = false,
+    /** The reporter sent it with no nickname and no reply key: nothing can be answered. */
+    val noReply: Boolean = false,
 )
 
 @Serializable
