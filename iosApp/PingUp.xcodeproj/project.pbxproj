@@ -9,10 +9,12 @@
 /* Begin PBXBuildFile section */
 		0106B4EACA1ACFE79E68FB0E /* PingUpApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */; };
 		3017ECA219C868B35D27E8E6 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 71B5785356A0F8914AB7DD5F /* assets */; };
+		465DE5A687FB6D976F42F31E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 11693A333C3375DEE8694C9A /* Assets.xcassets */; };
 		B40911DAB3835CF043AA3473 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6398700908A499B5420D225D /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		11693A333C3375DEE8694C9A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2BF05116436C360A237D2D81 /* ro */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ro; path = ro.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		6D82221C73CA4EAE2D81B56D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		71B5785356A0F8914AB7DD5F /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = ../app/src/main/assets; sourceTree = SOURCE_ROOT; };
@@ -67,6 +69,7 @@
 		83BA925686D6F095C4193006 /* PingUp */ = {
 			isa = PBXGroup;
 			children = (
+				11693A333C3375DEE8694C9A /* Assets.xcassets */,
 				6D82221C73CA4EAE2D81B56D /* Info.plist */,
 				FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */,
 				6398700908A499B5420D225D /* InfoPlist.strings */,
@@ -141,6 +144,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				465DE5A687FB6D976F42F31E /* Assets.xcassets in Resources */,
 				B40911DAB3835CF043AA3473 /* InfoPlist.strings in Resources */,
 				3017ECA219C868B35D27E8E6 /* assets in Resources */,
 			);
