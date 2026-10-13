@@ -84,9 +84,15 @@ class StaffChain(
     /** Health data kept 72 hours at most: no backup file keeps it longer. */
     val handOver = HandOverBook(JsonStore(handOverFile, HandOverNotes.serializer(), HandOverNotes(), ioScope, keepsBackup = false), exportDir)
 
-    /** Where this phone is, moving only by [MOVE_M] at a time, so a walk doesn't re-route every alert. */
-    val position: StateFlow<GeoPoint?> = platform.location.scan(null as GeoPoint?) { last, fix ->
-        val here = fix?.let { GeoPoint(it.lat, it.lon) }
+    /**
+     * Where this phone is, moving only by [MOVE_M] at a time, so a walk doesn't re-route every alert. The demo's simulated
+     * position wins, as on the screens, so the alert and the route it opens start from the same place.
+     */
+    val position: StateFlow<GeoPoint?> = combine(platform.location, settings.state) { fix, s ->
+        val simLat = s.simLat
+        val simLon = s.simLon
+        if (simLat != null && simLon != null) GeoPoint(simLat, simLon) else fix?.let { GeoPoint(it.lat, it.lon) }
+    }.scan(null as GeoPoint?) { last, here ->
         if (here == null || last == null || distanceMeters(last, here) >= MOVE_M) here else last
     }.distinctUntilChanged().stateIn(ioScope, SharingStarted.Eagerly, null)
 

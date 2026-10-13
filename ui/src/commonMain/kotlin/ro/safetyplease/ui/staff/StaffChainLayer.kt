@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,10 +25,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.control.StaffDensity
 import ro.safetyplease.core.incidents.ResponderTarget
+import ro.safetyplease.core.incidents.Responders
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.ModalAsk
@@ -145,9 +149,16 @@ private fun ManDownQuestion(vm: AppViewModel, untilMs: Long) {
 
 /** Someone doesn't breathe nearby: how far, the walk by the defibrillator on the way, the incident and the sheet. */
 @Composable
-private fun ResponderAlert(vm: AppViewModel, target: ResponderTarget, onClose: (walks: Boolean) -> Unit) {
+private fun ResponderAlert(vm: AppViewModel, alerted: ResponderTarget, onClose: (walks: Boolean) -> Unit) {
     val colors = AppTheme.colors
-    val incident = vm.c.incidentStore.value.staff.firstOrNull { it.incidentId == target.incidentId }
+    val incident = vm.c.incidentStore.value.staff.firstOrNull { it.incidentId == alerted.incidentId }
+    // the metres the route will say: the same walk, planned from the point the route screen starts from
+    val here by vm.position.collectAsStateWithLifecycle()
+    val target by produceState(alerted, alerted, incident, here) {
+        val from = here ?: return@produceState
+        val sure = incident ?: return@produceState
+        value = withContext(Dispatchers.Default) { Responders.target(sure, from, vm.venue, vm.c.walkDistance) } ?: alerted
+    }
     val where = target.direct?.let { stringResource(Res.string.responder_distance, it) }
         ?: incident?.zone?.takeIf { it.isNotEmpty() }?.let { stringResource(Res.string.responder_zone, vm.venue.zoneName(it)) }
     val deaName = target.dea?.name?.ifEmpty { null } ?: stringResource(Res.string.responder_dea_name)
