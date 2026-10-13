@@ -52,6 +52,7 @@ import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 import ro.safetyplease.ui.common.Nearby
 import ro.safetyplease.ui.map.MapOverlays
+import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.ask_wait
 
@@ -98,6 +99,9 @@ sealed interface Dest {
      * shared position.
      */
     data class Map(val spot: String = "", val sendTo: String? = null, val friend: Long? = null) : Dest
+
+    /** The walk to [target], step by step ([AppViewModel.navigate]). */
+    data class Walk(val target: NavTarget) : Dest
 
     /** Offline first-aid sheets, then one of them by [id]. */
     data object FirstAid : Dest
@@ -300,6 +304,9 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
     var demoUnlocked by mutableStateOf(false)
 
     fun open(dest: Dest) = stack.push(dest)
+
+    /** "Du-mă acolo": the walking route to [target], on its own screen. */
+    fun navigate(target: NavTarget) = open(Dest.Walk(target))
 
     fun back(): Boolean {
         if (stack.isEmpty()) return false

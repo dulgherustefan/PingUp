@@ -120,6 +120,7 @@ import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title1
+import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.add_friend_allow_camera
 import ro.safetyplease.ui.resources.add_friend_done
@@ -177,6 +178,7 @@ import ro.safetyplease.ui.resources.profile_where_asked
 import ro.safetyplease.ui.resources.remove
 import ro.safetyplease.ui.resources.report_contact_friend
 import ro.safetyplease.ui.resources.report_contact_group
+import ro.safetyplease.ui.resources.route_go_to
 import ro.safetyplease.ui.resources.scan_anchor_on
 import ro.safetyplease.ui.resources.scan_control_on
 import ro.safetyplease.ui.resources.scan_event_in_use
@@ -772,6 +774,11 @@ private fun FriendLocation(vm: AppViewModel, friend: Friend) {
             GroupRow(
                 stringResource(Res.string.pos_on_map), icon = Sym.MapFill, tint = colors.accent, chevron = true,
                 onClick = { vm.open(Dest.Map(friend = friend.nodeId)) },
+            )
+            GroupDivider(start = Gutter)
+            GroupRow(
+                stringResource(Res.string.route_go_to, friend.nickname), icon = Sym.Walk, tint = colors.accent, chevron = true,
+                onClick = { vm.navigate(NavTarget.Friend(friend.nodeId)) },
             )
         } else {
             Text(

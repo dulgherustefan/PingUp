@@ -30,7 +30,8 @@ import ro.safetyplease.core.readText
 import ro.safetyplease.core.repoFile
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.toHex
-import ro.safetyplease.core.venue.StraightLine
+import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.distanceMeters
 import ro.safetyplease.core.writeText
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -213,6 +214,11 @@ class PingUpSessionTest {
         assertEquals(8, s.venue.zones.size)
         assertEquals(mapOf(s.venue.zones[1].id to ZoneState.CLOSED), s.mapState.value.zones)
         assertNull(s.mapState.value.evacuation)
-        assertEquals(StraightLine, s.walkDistance)
+        // across the closed second stage the walk goes around it; off the site, a straight line
+        val west = GeoPoint(43.9494, 28.6364)
+        val east = GeoPoint(43.9494, 28.63807)
+        assertTrue(s.walkDistance.meters(west, east)!! > distanceMeters(west, east) + 80)
+        val home = GeoPoint(44.4, 26.1)
+        assertEquals(distanceMeters(home, west), s.walkDistance.meters(home, west))
     }
 }

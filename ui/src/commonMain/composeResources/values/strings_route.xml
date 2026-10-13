@@ -1,3 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="route_title">Drum pe jos</string>
+    <string name="route_go">Du-mă acolo</string>
+    <string name="route_go_to">Du-mă la %1$s</string>
+    <string name="route_incident">Incident</string>
+    <string name="route_landmark">Reperul %1$d</string>
+    <string name="route_gate">Poarta</string>
+    <string name="route_toward">Spre %1$s, apoi %2$s</string>
+    <string name="route_ahead">Înainte, apoi %1$s</string>
+    <string name="route_last">Spre %1$s</string>
+    <string name="route_arrive_at">Ajungi la %1$s</string>
+    <string name="route_turn_left">la stânga</string>
+    <string name="route_turn_right">la dreapta</string>
+    <string name="route_turn_straight">înainte</string>
+    <string name="route_turn_back">întoarce-te</string>
+    <string name="route_left">%1$d m · ~%2$d–%3$d min</string>
+    <string name="route_arrived">Ai ajuns</string>
+    <string name="route_near">Ești aproape. Uită-te în jur.</string>
+    <string name="route_off">Ai ieșit de pe traseu. Dacă mai mergi așa, căutăm alt drum.</string>
+    <string name="route_steps">Pașii</string>
+    <string name="route_no_position">Pornește locația ca să vezi drumul.</string>
+    <string name="route_turn_on">Pornește locația</string>
+    <string name="route_outside">Ești în afara hărții festivalului</string>
+    <string name="route_outside_text">Drumurile pe jos merg doar pe harta festivalului. Când ajungi acolo, drumul apare singur.</string>
+    <string name="route_no_goal">Nu știm acum unde e. Drumul apare când primim o poziție.</string>
+    <string name="route_unreachable">Nu găsim un drum pe jos până acolo</string>
+    <string name="route_unreachable_text">Apa, gardurile sau o zonă închisă de organizator îl blochează. Întreabă pe cineva din staff.</string>
 </resources>
