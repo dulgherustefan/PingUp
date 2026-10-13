@@ -1030,6 +1030,7 @@
     <plurals name="me_sharing_people">
         <item quantity="one">with %d friend</item>
         <item quantity="other">with %d friends</item>
+    </plurals>
     <string name="seen_ask">Be seen: ask them to flash their torch</string>
     <string name="seen_sent">Request sent. Look out for a flashing torch.</string>
     <string name="seen_lighting">Flashing their torch now</string>

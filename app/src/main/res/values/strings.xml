@@ -1056,6 +1056,7 @@
         <item quantity="one">cu %d prieten</item>
         <item quantity="few">cu %d prieteni</item>
         <item quantity="other">cu %d de prieteni</item>
+    </plurals>
     <string name="seen_ask">Fă-te văzut: cere-i să aprindă lanterna</string>
     <string name="seen_sent">Cerere trimisă. Uită-te după o lanternă care clipește.</string>
     <string name="seen_lighting">Își aprinde lanterna acum</string>
