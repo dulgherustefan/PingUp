@@ -114,10 +114,10 @@ import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.SiteGrid
-import ro.safetyplease.core.venue.StraightLine
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.WalkDistance
 import ro.safetyplease.core.venue.parse
+import ro.safetyplease.core.venue.route.WalkRouter
 import kotlin.concurrent.Volatile
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
@@ -387,8 +387,14 @@ open class PingUpSession(private val platform: AppPlatform) {
     val mapState: StateFlow<MapState> = combine(notices.board, minuteTicks()) { board, _ -> MapState.of(board, venue, clock.wallMs() / 1000) }
         .stateIn(ioScope, SharingStarted.Eagerly, MapState.of(notices.board.value, venue, clock.wallMs() / 1000))
 
-    /** Metres of walking between two points of the site; in a straight line until the walking routes take over. */
-    val walkDistance: WalkDistance = StraightLine
+    /** The walking routes over the venue, built on first use. */
+    val walkRouter = WalkRouter(venue)
+
+    /**
+     * Metres of walking between two points of the site, around water, fences and the zones the console closed, with
+     * staff access on a staff phone; in a straight line off the site's map.
+     */
+    val walkDistance: WalkDistance = walkRouter.distance({ mapState.value }) { settings.value.role.hasStaffKeys }
 
     /**
      * The console logs every notice it sends or hears; a phone that shows them notifies, unless it signed the notice or
