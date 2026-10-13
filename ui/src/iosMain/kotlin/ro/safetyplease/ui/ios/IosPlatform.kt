@@ -57,6 +57,7 @@ import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.appLanguage
+import ro.safetyplease.ui.text.ControlNoticeText
 import ro.safetyplease.ui.text.NoticeText
 import kotlin.coroutines.resume
 import kotlin.experimental.ExperimentalNativeApi
@@ -137,7 +138,9 @@ class IosPlatform(
 
     override fun noticeBody(templates: NoticeTemplates, venue: Venue, notice: Notice): String = runBlocking {
         val text = NoticeText.text(templates, notice, language()) ?: getString(NoticeText.noText)
-        if (notice.zone.isEmpty()) text else getString(NoticeText.inZone, venue.zoneName(notice.zone), text)
+        val raw = ControlNoticeText.RESOURCES.associateWith { getString(it) }
+        ControlNoticeText.body(notice, venue, text) { res, args -> ControlNoticeText.fill(raw.getValue(res), args) }
+            ?: if (notice.zone.isEmpty()) text else getString(NoticeText.inZone, venue.zoneName(notice.zone), text)
     }
 
     /** At most [limit] bytes over https; what follows them isn't fetched. */

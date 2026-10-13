@@ -1,3 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="control_map_open">Zone</string>
+    <string name="control_map_title">Starea zonelor</string>
+    <string name="control_map_hint">Atinge o zonă pe hartă sau alege-i starea din listă. Schimbările pleacă împreună, într-un singur anunț, cel mult unul la 30 de secunde.</string>
+    <string name="control_map_pending">Pleacă în %1$d s</string>
+    <string name="control_map_since">În vigoare de la %1$s</string>
+    <string name="control_map_all_open">Toate zonele sunt deschise.</string>
+    <string name="control_map_open_all">Deschide tot</string>
+    <string name="control_map_closed_list">Închise: %1$s</string>
+    <string name="control_map_crowded_list">Aglomerate: %1$s</string>
+    <string name="control_map_exit_list">Doar ieșire: %1$s</string>
+    <string name="zone_state_open">Deschis</string>
+    <string name="zone_state_crowded">Aglomerat</string>
+    <string name="zone_state_closed">Închis</string>
+    <string name="zone_state_exit_only">Doar ieșire</string>
+    <string name="zone_state_evacuate">Evacuare</string>
+    <string name="control_zones_label">Zonele</string>
+    <string name="control_zones_title">Cui îi e adresat</string>
+    <string name="control_zones_note">Telefoanele din zonele alese primesc alarma. Celelalte văd anunțul în listă, fără alarmă.</string>
+    <string name="control_zones_evacuation_note">Fără o zonă aleasă, evacuarea e pentru tot festivalul.</string>
+    <string name="control_plan_label">Planul de evacuare</string>
+    <string name="control_plan_none">Fără plan, doar textul</string>
+    <string name="control_plan_exits">Ieșiri: %1$s</string>
+    <string name="control_plan_rejected">Nu trec verificarea și nu pot fi pornite: %1$s</string>
+    <string name="control_confirm_zones">Zonele: %1$s</string>
+    <string name="control_confirm_plan">Planul: %1$s</string>
+    <string name="control_body_zones">În %1$s: %2$s</string>
+    <string name="control_body_plan">%1$s Planul: %2$s.</string>
+    <string name="evac_your_zone">Zona ta: %1$s</string>
+    <string name="evac_go">Ieși pe %1$s</string>
+    <string name="evac_switched">Ieșirea principală a zonei e închisă. Aceasta e alternativa.</string>
+    <string name="evac_fallback">Dacă e blocată: %1$s</string>
+    <string name="evac_follow">Urmează staff-ul și nu alerga.</string>
+    <string name="evac_exits">Ieșirile planului</string>
+    <string name="evac_meeting">Punctul de întâlnire de pe hartă</string>
+    <string name="evac_unknown">Telefonul nu știe în ce zonă ești. Mergi spre o ieșire și urmează staff-ul.</string>
+    <string name="evac_outside">Ești în afara zonelor festivalului. Ieșirile și punctul de întâlnire:</string>
+    <string name="evac_minimise">Micșorează</string>
+    <string name="evac_banner">Evacuare: ieși pe %1$s</string>
+    <string name="evac_banner_plain">Evacuare în curs. Atinge pentru ce ai de făcut.</string>
+    <string name="evac_pin_exit">Ieșirea ta</string>
+    <string name="evac_exit_number">Ieșirea %1$d</string>
 </resources>
