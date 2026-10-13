@@ -45,6 +45,12 @@ data class Settings(
     val locationIntro: Boolean = false,
     /** How long each running location share lasts, as the user chose it. */
     val sharePlans: List<SharePlan> = emptyList(),
+    /** A friend's "Fă-te văzut" lights the torch without asking first; off unless the user turns it on. */
+    val pingAutoAccept: Boolean = false,
+    /** While the torch flashes for a friend, the screen turns white too. */
+    val pingWhiteScreen: Boolean = true,
+    /** And a beep sounds; off by default, since in a festival crowd sound carries least. */
+    val pingSound: Boolean = false,
 )
 
 @Serializable

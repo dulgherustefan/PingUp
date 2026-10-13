@@ -900,11 +900,52 @@ sealed interface Inner {
         }
     }
 
-    /** The sender starts, stops or renews sharing their position with the recipient (1.1); see [ShareAction]. */
+    /**
+     * The sender starts, stops or renews sharing their position with the recipient (1.1), or asks for and agrees to
+     * "Vin la tine", a short share both ways; see [ShareAction].
+     */
     class ShareSession(val action: Int, val durationMin: Int, val precision: Int, val seq: Int) : Inner {
         init {
-            require(action in ShareAction.START..ShareAction.ACCEPT && precision in SharePrecision.EXACT..SharePrecision.ZONE)
+            require(action in ShareAction.START..ShareAction.COME_AGREE && precision in SharePrecision.EXACT..SharePrecision.ZONE)
             require(durationMin in 0..0xFFFF && seq in 0..0xFF)
+        }
+    }
+
+    /** "Fă-te văzut" (1.1): a friend asks the recipient to light their torch for [seconds], or the answer that it is lit. */
+    class PingRequest(val action: Int, val seconds: Int) : Inner {
+        init {
+            require(action in PingAction.ASK..PingAction.LIGHTING && seconds in 1..PingAction.MAX_SECONDS)
+        }
+    }
+
+    /**
+     * A meeting point proposed in a friend's or a group's chat (1.1): the landmark numbered [landmark] (1..255), or, with
+     * [landmark] 0, the point [lat], [lon] ([venuePoint]: the venue's meeting point). [minuteOfDay] is the time on the
+     * sender's clock, null for none; the proposal ends [expiryMin] after it arrives. A later [seq] from the same sender
+     * replaces it.
+     */
+    class MeetingPoint(
+        val msgId: Long,
+        val groupId: Long?,
+        val seq: Int,
+        val landmark: Int,
+        val lat: Double?,
+        val lon: Double?,
+        val venuePoint: Boolean,
+        val minuteOfDay: Int?,
+        val expiryMin: Int,
+    ) : Inner {
+        init {
+            require(seq in 0..0xFF && landmark in 0..0xFF && expiryMin in 1..MeetingLimits.MAX_EXPIRY_MIN)
+            require(if (landmark == 0) lat != null && lon != null else lat == null && lon == null && !venuePoint)
+            require(minuteOfDay == null || minuteOfDay in 0 until MeetingLimits.MINUTES_PER_DAY)
+        }
+    }
+
+    /** Accepts, or (from its proposer) withdraws, the meeting point whose msgId is [proposalId] (1.1); see [MeetingAction]. */
+    class MeetingReply(val msgId: Long, val groupId: Long?, val action: Int, val proposalId: Long) : Inner {
+        init {
+            require(action in MeetingAction.ACCEPT..MeetingAction.WITHDRAW)
         }
     }
 }
@@ -984,6 +1025,30 @@ object ShareAction {
 
     /** The recipient's answer to START: its phone reads positions, so the sharer sends them instead of the zone. */
     const val ACCEPT = 4
+
+    /** "Vin la tine": the sender asks for a share both ways; theirs will be at the precision given. */
+    const val COME_ASK = 5
+
+    /** The answer to COME_ASK, with its seq: the recipient now shares with the sender, so the sender starts too. */
+    const val COME_AGREE = 6
+}
+
+object PingAction {
+    const val ASK = 1
+    const val LIGHTING = 2
+    const val MAX_SECONDS = 60
+}
+
+object MeetingAction {
+    const val ACCEPT = 1
+    const val WITHDRAW = 2
+}
+
+object MeetingLimits {
+    const val MINUTES_PER_DAY = 24 * 60
+
+    /** Twelve hours: a meeting point is for tonight, not for the festival. */
+    const val MAX_EXPIRY_MIN = 720
 }
 
 object SharePrecision {
@@ -1005,10 +1070,16 @@ object InnerCodec {
     private const val ZONE_UPDATE = 10
     private const val POSITION = 11
     private const val SHARE_SESSION = 12
+    private const val PING_REQUEST = 13
+    private const val MEETING_POINT = 14
+    private const val MEETING_REPLY = 15
 
     private const val FLAG_GROUP = 0x01
     private const val FLAG_COORDS = 0x02
     const val BOX_KEY_SIZE = 32
+
+    private const val MEET_TIME = 0x02
+    private const val MEET_VENUE_POINT = 0x04
 
     private const val POSITION_ABSOLUTE = 0x01
     private const val ACCURACY_SHIFT = 1
@@ -1066,6 +1137,17 @@ object InnerCodec {
             }
             is Inner.ShareSession ->
                 w.u8(SHARE_SESSION).u8(inner.action).u16(inner.durationMin).u8(inner.precision).u8(inner.seq)
+            is Inner.PingRequest -> w.u8(PING_REQUEST).u8(inner.action).u8(inner.seconds)
+            is Inner.MeetingPoint -> {
+                val time = if (inner.minuteOfDay != null) MEET_TIME else 0
+                val venue = if (inner.venuePoint) MEET_VENUE_POINT else 0
+                w.u8(MEETING_POINT).i64(inner.msgId).group(inner.groupId, time or venue).u8(inner.seq).u8(inner.landmark)
+                if (inner.landmark == 0) w.coord(inner.lat!!).coord(inner.lon!!)
+                inner.minuteOfDay?.let { w.u16(it) }
+                w.u16(inner.expiryMin)
+            }
+            is Inner.MeetingReply ->
+                w.u8(MEETING_REPLY).i64(inner.msgId).group(inner.groupId, 0).u8(inner.action).i64(inner.proposalId)
         }
         return w.toByteArray()
     }
@@ -1080,6 +1162,7 @@ object InnerCodec {
         val type = r.u8()
         if (type == POSITION) return@parseOrNull r.position()
         if (type == SHARE_SESSION) return@parseOrNull r.shareSession()
+        if (type == PING_REQUEST) return@parseOrNull r.pingRequest()
         val msgId = r.i64()
         when (type) {
             TEXT -> {
@@ -1146,6 +1229,15 @@ object InnerCodec {
                 if (zone.isEmpty()) throw MalformedException("empty zone")
                 Inner.ZoneUpdate(msgId, zone)
             }
+            MEETING_POINT -> r.meetingPoint(msgId)
+            MEETING_REPLY -> {
+                val (groupId, _) = r.group(0)
+                val action = r.u8()
+                val proposalId = r.i64()
+                r.expectEnd()
+                if (action !in MeetingAction.ACCEPT..MeetingAction.WITHDRAW) throw MalformedException("meeting action")
+                Inner.MeetingReply(msgId, groupId, action, proposalId)
+            }
             else -> throw MalformedException("inner type")
         }
     }
@@ -1176,9 +1268,34 @@ object InnerCodec {
         val precision = u8()
         val seq = u8()
         expectEnd()
-        if (action !in ShareAction.START..ShareAction.ACCEPT) throw MalformedException("share action")
+        if (action !in ShareAction.START..ShareAction.COME_AGREE) throw MalformedException("share action")
         if (precision > SharePrecision.ZONE) throw MalformedException("share precision")
         return Inner.ShareSession(action, duration, precision, seq)
+    }
+
+    private fun WireReader.pingRequest(): Inner.PingRequest {
+        val action = u8()
+        val seconds = u8()
+        expectEnd()
+        if (action !in PingAction.ASK..PingAction.LIGHTING) throw MalformedException("ping action")
+        if (seconds !in 1..PingAction.MAX_SECONDS) throw MalformedException("ping seconds")
+        return Inner.PingRequest(action, seconds)
+    }
+
+    private fun WireReader.meetingPoint(msgId: Long): Inner.MeetingPoint {
+        val (groupId, flags) = group(MEET_TIME or MEET_VENUE_POINT)
+        val seq = u8()
+        val landmark = u8()
+        val venuePoint = flags and MEET_VENUE_POINT != 0
+        if (landmark != 0 && venuePoint) throw MalformedException("meeting place")
+        val lat = if (landmark == 0) coord() else null
+        val lon = if (landmark == 0) coord() else null
+        val minute = if (flags and MEET_TIME != 0) u16() else null
+        val expiry = u16()
+        expectEnd()
+        if (minute != null && minute >= MeetingLimits.MINUTES_PER_DAY) throw MalformedException("meeting time")
+        if (expiry !in 1..MeetingLimits.MAX_EXPIRY_MIN) throw MalformedException("meeting expiry")
+        return Inner.MeetingPoint(msgId, groupId, seq, landmark, lat, lon, venuePoint, minute, expiry)
     }
 
     private fun WireReader.group(allowedExtra: Int): Pair<Long?, Int> {

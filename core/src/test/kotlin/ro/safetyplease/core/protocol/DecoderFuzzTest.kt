@@ -437,7 +437,7 @@ private fun Random.pointStatus() = PointStatus(
 private fun Random.inner(): Inner {
     val msgId = nextLong()
     val group = if (nextBoolean()) nextLong() else null
-    return when (nextInt(12)) {
+    return when (nextInt(15)) {
         0 -> Inner.Text(msgId, group, text(Limits.TEXT_BYTES))
         1 -> Inner.Quick(msgId, group, QuickCode.all.random(this))
         2 -> if (nextBoolean()) Inner.Zone(msgId, group, text(Limits.ZONE_BYTES), coordinate(90), coordinate(180))
@@ -452,7 +452,17 @@ private fun Random.inner(): Inner {
             if (nextBoolean()) PositionPoint.Grid(nextInt(4096), nextInt(4096)) else PositionPoint.Absolute(coordinate(90), coordinate(180)),
             nextInt(8), nextInt(4), nextInt(0x10000), nextInt(256), nextInt(256), nextInt(256),
         )
-        10 -> Inner.ShareSession(nextInt(ShareAction.START, ShareAction.ACCEPT + 1), nextInt(0x10000), nextInt(3), nextInt(256))
+        10 -> Inner.ShareSession(nextInt(ShareAction.START, ShareAction.COME_AGREE + 1), nextInt(0x10000), nextInt(3), nextInt(256))
+        11 -> Inner.PingRequest(nextInt(PingAction.ASK, PingAction.LIGHTING + 1), nextInt(1, PingAction.MAX_SECONDS + 1))
+        12 -> if (nextBoolean()) {
+            Inner.MeetingPoint(msgId, group, nextInt(256), nextInt(1, 256), null, null, false, null, nextInt(1, MeetingLimits.MAX_EXPIRY_MIN + 1))
+        } else {
+            Inner.MeetingPoint(
+                msgId, group, nextInt(256), 0, coordinate(90), coordinate(180), nextBoolean(), nextInt(MeetingLimits.MINUTES_PER_DAY),
+                nextInt(1, MeetingLimits.MAX_EXPIRY_MIN + 1),
+            )
+        }
+        13 -> Inner.MeetingReply(msgId, group, nextInt(MeetingAction.ACCEPT, MeetingAction.WITHDRAW + 1), nextLong())
         else -> Inner.GroupInvite(
             msgId, nextLong(), text(Limits.GROUP_NAME_BYTES),
             List(nextInt(0, Limits.GROUP_MAX_MEMBERS - 1)) { GroupMemberWire(nextLong(), nextBytes(32), text(Limits.GROUP_NICK_BYTES)) },

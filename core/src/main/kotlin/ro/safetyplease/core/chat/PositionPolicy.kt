@@ -130,13 +130,17 @@ class PositionPolicy {
     }
 }
 
-/** At most one per [intervalMs] for each id: "Unde ești?" asked of a friend, or answered to one. */
+/**
+ * At most one per [intervalMs] for each id: "Unde ești?" asked of a friend or answered to one, a "Fă-te văzut", a
+ * meeting point proposed to a group.
+ */
 class PerFriendLimit(private val intervalMs: Long) {
     private val last = HashMap<Long, Long>()
 
+    fun ready(id: Long, nowMs: Long): Boolean = last[id]?.let { nowMs - it >= intervalMs } ?: true
+
     fun tryTake(id: Long, nowMs: Long): Boolean {
-        val at = last[id]
-        if (at != null && nowMs - at < intervalMs) return false
+        if (!ready(id, nowMs)) return false
         last[id] = nowMs
         if (last.size > MAX_IDS) last.entries.removeAll { nowMs - it.value >= intervalMs }
         return true

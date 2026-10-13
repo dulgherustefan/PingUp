@@ -3,8 +3,10 @@ package ro.safetyplease.core.chat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
@@ -36,9 +38,12 @@ import ro.safetyplease.core.protocol.Heading
 import ro.safetyplease.core.protocol.Inner
 import ro.safetyplease.core.protocol.InnerCodec
 import ro.safetyplease.core.protocol.Limits
+import ro.safetyplease.core.protocol.MeetingAction
+import ro.safetyplease.core.protocol.MeetingLimits
 import ro.safetyplease.core.protocol.NextUpdate
 import ro.safetyplease.core.protocol.Packet
 import ro.safetyplease.core.protocol.PacketType
+import ro.safetyplease.core.protocol.PingAction
 import ro.safetyplease.core.protocol.PositionMethod
 import ro.safetyplease.core.protocol.ShareAction
 import ro.safetyplease.core.protocol.SharePrecision
@@ -46,6 +51,7 @@ import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.truncateUtf8
+import ro.safetyplease.core.venue.GeoPoint
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -103,6 +109,36 @@ class ChatManager(
     val activeShares: StateFlow<List<OutgoingShare>> =
         positions.state.map { it.shares }.stateIn(scope, SharingStarted.Eagerly, positions.value.shares)
 
+    private val pingsSent = PerFriendLimit(PING_INTERVAL_MS)
+    private val pingsHeard = PerFriendLimit(PING_INTERVAL_MS)
+    private val comesSent = PerFriendLimit(PING_INTERVAL_MS)
+    private val comesHeard = PerFriendLimit(PING_INTERVAL_MS)
+    private val proposed = PerFriendLimit(MEETING_INTERVAL_MS)
+
+    /** Our "Vin la tine" waiting for an answer, by friend: its seq, the precision we will share at, when it went. */
+    private val comeOut = HashMap<Long, FriendAsk>()
+    private var meetingSeq = 0
+
+    /** The meeting points' msgIds already seen, so a retried copy of one that was replaced doesn't come back. */
+    private val meetingsSeen = LinkedHashSet<Pair<Long, Long>>()
+
+    private val _pingAsks = MutableStateFlow<List<FriendAsk>>(emptyList())
+    private val _comeAsks = MutableStateFlow<List<FriendAsk>>(emptyList())
+    private val _lighting = MutableStateFlow<List<Lighting>>(emptyList())
+    private val _meetings = MutableStateFlow<List<MeetingProposal>>(emptyList())
+
+    /** "Fă-te văzut" from friends, waiting for the user's answer; each is dropped after [PING_ASK_MS]. */
+    val pingAsks: StateFlow<List<FriendAsk>> = _pingAsks
+
+    /** "Vin la tine" from friends, waiting for the user's answer; each is dropped after [COME_ASK_MS]. */
+    val comeAsks: StateFlow<List<FriendAsk>> = _comeAsks
+
+    /** Friends who answered our "Fă-te văzut": their torch is lit now. */
+    val lighting: StateFlow<List<Lighting>> = _lighting
+
+    /** The meeting point of each conversation, the latest proposed, until it expires. Kept in memory only. */
+    val meetings: StateFlow<List<MeetingProposal>> = _meetings
+
     fun start() {
         scope.launch { engine.events.collect(::onEvent) }
         scope.launch {
@@ -110,6 +146,7 @@ class ChatManager(
                 delay(RETRY_TICK_MS)
                 retryOutbox(linkTrigger = false)
                 positionTick()
+                pruneAsks()
             }
         }
     }
@@ -218,16 +255,18 @@ class ChatManager(
      * others only the zone. A new share with the same conversation replaces the old one.
      */
     fun startShare(conversation: String, durationMin: Int, precision: Int) {
-        scope.launch {
-            val recipients = recipientsOf(conversation)?.second ?: return@launch
-            if (recipients.isEmpty() || precision !in SharePrecision.EXACT..SharePrecision.ZONE) return@launch
-            val minutes = durationMin.coerceIn(1, PositionData.MAX_SHARE_MIN)
-            val share = OutgoingShare(conversation, precision, clock.wallMs() + minutes * 60_000L, nextSeq())
-            positions.update { data -> data.copy(shares = data.shares.filterNot { it.conversation == conversation } + share) }
-            startSent.keys.removeAll { it.first == conversation }
-            policy.reset()
-            sharePosition()
-        }
+        scope.launch { beginShare(conversation, durationMin, precision) }
+    }
+
+    private fun beginShare(conversation: String, durationMin: Int, precision: Int) {
+        val recipients = recipientsOf(conversation)?.second ?: return
+        if (recipients.isEmpty() || precision !in SharePrecision.EXACT..SharePrecision.ZONE) return
+        val minutes = durationMin.coerceIn(1, PositionData.MAX_SHARE_MIN)
+        val share = OutgoingShare(conversation, precision, clock.wallMs() + minutes * 60_000L, nextSeq())
+        positions.update { data -> data.copy(shares = data.shares.filterNot { it.conversation == conversation } + share) }
+        startSent.keys.removeAll { it.first == conversation }
+        policy.reset()
+        sharePosition()
     }
 
     /** Stops at once. Recipients that no other share still reaches get a STOP; the others' phones end it at expiry anyway. */
@@ -408,7 +447,209 @@ class ChatManager(
             // silent: the friend's position just ends, as at expiry
             ShareAction.STOP -> positions.update { it.stoppedBy(sender) }
             ShareAction.ACCEPT -> onAccepted(sender, session.seq)
+            ShareAction.COME_ASK -> onComeAsk(sender, session)
+            ShareAction.COME_AGREE -> onComeAgree(sender, session.seq)
         }
+    }
+
+    // --- "Fă-te văzut", meeting points and "Vin la tine" (PROTOCOL.md, section 6.6.1) ---
+
+    /**
+     * "Fă-te văzut": asks a friend to light their torch, at most once every 2 minutes per friend. Their phone asks
+     * them first unless they chose to accept it from friends; if they do, [lighting] says so.
+     */
+    fun pingFriend(friendId: Long) {
+        scope.launch {
+            val now = clock.monoMs()
+            if (!isFriend(friendId) || !pingsSent.ready(friendId, now)) return@launch
+            if (sendDirect(friendId, Inner.PingRequest(PingAction.ASK, TorchPulse.SECONDS))) pingsSent.tryTake(friendId, now)
+        }
+    }
+
+    /** The user's answer to a friend's "Fă-te văzut": yes tells them the torch is lit; no is silent. */
+    fun answerPing(friendId: Long, accept: Boolean) {
+        scope.launch {
+            val ask = _pingAsks.value.firstOrNull { it.sender == friendId } ?: return@launch
+            _pingAsks.update { asks -> asks - ask }
+            if (accept) sendDirect(friendId, Inner.PingRequest(PingAction.LIGHTING, ask.seconds))
+        }
+    }
+
+    private fun onPingRequest(sender: Long, request: Inner.PingRequest) {
+        if (!isFriend(sender)) return
+        val now = clock.wallMs()
+        when (request.action) {
+            PingAction.ASK -> {
+                if (!pingsHeard.tryTake(sender, clock.monoMs())) return
+                _pingAsks.update { asks -> asks.filterNot { it.sender == sender } + FriendAsk(sender, now, seconds = request.seconds) }
+            }
+            PingAction.LIGHTING -> {
+                // only an answer to a question we asked lately
+                if (pingsSent.ready(sender, clock.monoMs())) return
+                _lighting.update { list -> list.filterNot { it.friend == sender } + Lighting(sender, now + request.seconds * 1000L) }
+            }
+        }
+    }
+
+    /**
+     * "Vin la tine": asks a friend to share positions both ways for [COME_MIN] minutes. If they accept, their phone
+     * starts sharing with us and ours starts with them, at [precision]. At most once every 2 minutes per friend.
+     */
+    fun requestComing(friendId: Long, precision: Int = SharePrecision.EXACT) {
+        scope.launch {
+            val now = clock.monoMs()
+            if (!isFriend(friendId) || !comesSent.ready(friendId, now) || precision !in SharePrecision.EXACT..SharePrecision.ZONE) {
+                return@launch
+            }
+            val seq = nextSeq()
+            if (!sendDirect(friendId, Inner.ShareSession(ShareAction.COME_ASK, COME_MIN, precision, seq))) return@launch
+            comesSent.tryTake(friendId, now)
+            comeOut[friendId] = FriendAsk(friendId, clock.wallMs(), seq, precision)
+        }
+    }
+
+    /** The user's answer to a friend's "Vin la tine": yes starts our share with them at [precision]; no is silent. */
+    fun answerComing(friendId: Long, accept: Boolean, precision: Int = SharePrecision.EXACT) {
+        scope.launch {
+            val ask = _comeAsks.value.firstOrNull { it.sender == friendId } ?: return@launch
+            _comeAsks.update { asks -> asks - ask }
+            if (!accept || precision !in SharePrecision.EXACT..SharePrecision.ZONE) return@launch
+            shareForComing(friendId, precision)
+            sendDirect(friendId, Inner.ShareSession(ShareAction.COME_AGREE, COME_MIN, precision, ask.seq))
+        }
+    }
+
+    private fun onComeAsk(sender: Long, session: Inner.ShareSession) {
+        if (!isFriend(sender) || !comesHeard.tryTake(sender, clock.monoMs())) return
+        val ask = FriendAsk(sender, clock.wallMs(), session.seq, session.precision)
+        _comeAsks.update { asks -> asks.filterNot { it.sender == sender } + ask }
+    }
+
+    private fun onComeAgree(sender: Long, seq: Int) {
+        val out = comeOut[sender]?.takeIf { it.seq == seq && clock.wallMs() - it.atMs < COME_ASK_MS } ?: return
+        comeOut.remove(sender)
+        shareForComing(sender, out.precision)
+    }
+
+    /** A longer share already running with that friend is left as it is. */
+    private fun shareForComing(friendId: Long, precision: Int) {
+        val conversation = Conversations.friend(friendId)
+        val until = clock.wallMs() + COME_MIN * 60_000L
+        val running = positions.value.shares.firstOrNull { it.conversation == conversation }
+        if (running != null && running.expiresAtMs >= until && running.precision <= precision) return
+        beginShare(conversation, COME_MIN, precision)
+    }
+
+    /**
+     * Proposes [place] as the meeting point of [conversation], a friend or a group, at [minuteOfDay] (null: no time),
+     * shown for [expiryMin] minutes (1 to 720). It replaces the conversation's meeting point. At most one a minute per
+     * conversation; it goes with the retries of a message.
+     */
+    fun proposeMeeting(conversation: String, place: MeetingPlace, minuteOfDay: Int?, expiryMin: Int) {
+        scope.launch {
+            val (groupId, recipients) = recipientsOf(conversation) ?: return@launch
+            if (recipients.isEmpty()) return@launch
+            if (!proposed.tryTake(groupId ?: recipients.single(), clock.monoMs())) return@launch
+            val minutes = expiryMin.coerceIn(1, MeetingLimits.MAX_EXPIRY_MIN)
+            val minute = minuteOfDay?.takeIf { it in 0 until MeetingLimits.MINUTES_PER_DAY }
+            meetingSeq = (meetingSeq + 1) and 0xFF
+            val inner = Inner.MeetingPoint(
+                newId(), groupId, meetingSeq, place.landmark, place.point?.lat, place.point?.lon, place.venuePoint, minute, minutes,
+            )
+            val proposal = MeetingProposal(
+                conversation, identity.nodeId, inner.msgId, inner.seq, place, minute, clock.wallMs() + minutes * 60_000L,
+            )
+            seenMeeting(identity.nodeId, inner.msgId)
+            _meetings.update { list -> list.filterNot { it.conversation == conversation } + proposal }
+            val bytes = InnerCodec.encode(inner)
+            for (recipient in recipients) enqueue(inner.msgId, recipient, bytes)
+        }
+    }
+
+    /** Says yes to the meeting point of [conversation]: every member is told, with the retries of a message. */
+    fun acceptMeeting(conversation: String) {
+        scope.launch {
+            val proposal = _meetings.value.firstOrNull { it.conversation == conversation } ?: return@launch
+            if (proposal.proposer == identity.nodeId || identity.nodeId in proposal.accepted) return@launch
+            val (groupId, recipients) = recipientsOf(conversation) ?: return@launch
+            _meetings.update { list -> list.map { if (it == proposal) it.copy(accepted = it.accepted + identity.nodeId) else it } }
+            val reply = Inner.MeetingReply(newId(), groupId, MeetingAction.ACCEPT, proposal.msgId)
+            val bytes = InnerCodec.encode(reply)
+            for (recipient in recipients) enqueue(reply.msgId, recipient, bytes)
+        }
+    }
+
+    /** Takes back our own meeting point of [conversation]. */
+    fun withdrawMeeting(conversation: String) {
+        scope.launch {
+            val proposal = _meetings.value.firstOrNull { it.conversation == conversation && it.proposer == identity.nodeId } ?: return@launch
+            val (groupId, recipients) = recipientsOf(conversation) ?: return@launch
+            _meetings.update { list -> list - proposal }
+            val reply = Inner.MeetingReply(newId(), groupId, MeetingAction.WITHDRAW, proposal.msgId)
+            val bytes = InnerCodec.encode(reply)
+            for (recipient in recipients) enqueue(reply.msgId, recipient, bytes)
+        }
+    }
+
+    /** The middle of where the members of [conversation] are known to be, us included; null under two points. */
+    fun meetingCentroid(conversation: String): GeoPoint? {
+        val members = recipientsOf(conversation)?.second?.toSet() ?: return null
+        val points = friendPositions.value.filter { it.sender in members }.map { GeoPoint(it.lat, it.lon) }
+        return centroid(points + listOfNotNull(lastFix?.let { GeoPoint(it.lat, it.lon) }))
+    }
+
+    private fun onMeetingPoint(packet: Packet, inner: Inner.MeetingPoint) {
+        val sender = packet.sender
+        val conversation = conversationOf(sender, inner.groupId) ?: return
+        confirm(sender, inner.msgId)
+        if (!seenMeeting(sender, inner.msgId)) return
+        val current = _meetings.value.firstOrNull { it.conversation == conversation }
+        // of two from the same proposer the later seq wins, whichever arrives last
+        if (current != null && current.proposer == sender && ((inner.seq - current.seq) and 0xFF) !in 1..127) return
+        val place = if (inner.landmark != 0) MeetingPlace.landmark(inner.landmark)
+        else MeetingPlace(point = GeoPoint(inner.lat!!, inner.lon!!), venuePoint = inner.venuePoint)
+        val proposal = MeetingProposal(
+            conversation, sender, inner.msgId, inner.seq, place, inner.minuteOfDay, clock.wallMs() + inner.expiryMin * 60_000L,
+        )
+        _meetings.update { list -> list.filterNot { it.conversation == conversation } + proposal }
+    }
+
+    private fun onMeetingReply(packet: Packet, reply: Inner.MeetingReply) {
+        val sender = packet.sender
+        val conversation = conversationOf(sender, reply.groupId) ?: return
+        confirm(sender, reply.msgId)
+        val proposal = _meetings.value.firstOrNull { it.conversation == conversation && it.msgId == reply.proposalId } ?: return
+        when (reply.action) {
+            MeetingAction.ACCEPT -> if (sender != proposal.proposer && sender !in proposal.accepted) {
+                _meetings.update { list -> list.map { if (it == proposal) it.copy(accepted = it.accepted + sender) else it } }
+            }
+            MeetingAction.WITHDRAW -> if (sender == proposal.proposer) _meetings.update { list -> list - proposal }
+        }
+    }
+
+    /** False if this meeting point was seen before. */
+    private fun seenMeeting(sender: Long, msgId: Long): Boolean {
+        if (!meetingsSeen.add(sender to msgId)) return false
+        while (meetingsSeen.size > 256) meetingsSeen.remove(meetingsSeen.first())
+        return true
+    }
+
+    /** A group message from one of its members, or a direct one from a friend; null for anyone else. */
+    private fun conversationOf(sender: Long, groupId: Long?): String? {
+        if (groupId == null) return if (isFriend(sender)) Conversations.friend(sender) else null
+        val group = groups.value.firstOrNull { it.id == groupId } ?: return null
+        return if (group.members.any { it.nodeId == sender }) Conversations.group(groupId) else null
+    }
+
+    /** What was not answered in time is dropped, as are meeting points past their time and torches gone dark. */
+    private fun pruneAsks() {
+        val now = clock.wallMs()
+        val friendIds = friends.value.map { it.nodeId }.toSet()
+        _pingAsks.update { asks -> asks.filter { it.sender in friendIds && now - it.atMs < PING_ASK_MS } }
+        _comeAsks.update { asks -> asks.filter { it.sender in friendIds && now - it.atMs < COME_ASK_MS } }
+        _lighting.update { list -> list.filter { it.untilMs > now } }
+        _meetings.update { list -> list.filter { it.expiresAtMs > now && recipientsOf(it.conversation) != null } }
+        comeOut.entries.removeAll { now - it.value.atMs >= COME_ASK_MS }
     }
 
     /** The recipient reads positions: it gets ours now, without waiting for the next move. */
@@ -529,6 +770,8 @@ class ChatManager(
         is Inner.Zone -> inner.groupId
         is Inner.GroupInvite -> inner.groupId
         is Inner.LeftGroup -> inner.groupId
+        is Inner.MeetingPoint -> inner.groupId
+        is Inner.MeetingReply -> inner.groupId
         else -> null
     }
 
@@ -681,6 +924,9 @@ class ChatManager(
             is Inner.ZoneUpdate -> setLastZone(sender, inner.zone)
             is Inner.Position -> onPosition(packet, inner)
             is Inner.ShareSession -> onShareSession(sender, inner)
+            is Inner.PingRequest -> onPingRequest(sender, inner)
+            is Inner.MeetingPoint -> onMeetingPoint(packet, inner)
+            is Inner.MeetingReply -> onMeetingReply(packet, inner)
         }
     }
 
@@ -816,7 +1062,8 @@ class ChatManager(
 
     /** A kind added in 1.1: whoever sends one gets positions from now on, instead of only the zone. */
     private fun isOneOne(inner: Inner): Boolean = inner is Inner.LeftGroup || inner is Inner.ZoneRequest ||
-        inner is Inner.ZoneUpdate || inner is Inner.Position || inner is Inner.ShareSession
+        inner is Inner.ZoneUpdate || inner is Inner.Position || inner is Inner.ShareSession || inner is Inner.PingRequest ||
+        inner is Inner.MeetingPoint || inner is Inner.MeetingReply
 
     fun isBlocked(nodeId: Long) = blocked.value.any { it.nodeId == nodeId }
 
@@ -878,6 +1125,19 @@ class ChatManager(
 
         const val START_RETRY_MS = 60_000L
         const val MAX_START_TRIES = 5
+
+        /** "Fă-te văzut" and "Vin la tine": one every 2 minutes per friend, asked and heard. */
+        const val PING_INTERVAL_MS = 2 * 60_000L
+
+        /** A meeting point: one a minute per conversation. */
+        const val MEETING_INTERVAL_MS = 60_000L
+
+        /** A request not answered by then is stale: the friend has moved on. */
+        const val PING_ASK_MS = 2 * 60_000L
+        const val COME_ASK_MS = 5 * 60_000L
+
+        /** "Vin la tine" shares both ways for this long. */
+        const val COME_MIN = 15
 
         fun backoffMs(attempts: Int): Long = when {
             attempts <= 0 -> 0

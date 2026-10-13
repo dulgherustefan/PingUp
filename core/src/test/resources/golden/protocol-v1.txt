@@ -87,6 +87,16 @@ inner.position 0b0202580701404d2237
 inner.position.absolute 0b19ffffff05fffea1c814fd6ca909
 # ShareSession: START, 90 minutes, approximate, seq 3
 inner.share_session 0c01005a0103
+# ShareSession: COME_ASK ("Vin la tine"), 15 minutes, exact, seq 9
+inner.share_session.come 0c05000f0009
+# PingRequest ("Fă-te văzut", no msgId): ASK, 10 seconds
+inner.ping_request 0d010a
+# MeetingPoint: MSG, GROUP, time set, seq 3, landmark 14, 22:30 (minute 1350), expires after 90 minutes
+inner.meeting_point 0e0102030405060708031112131415161718030e0546005a
+# MeetingPoint: MSG, no group, the venue's meeting point at -22.951916, -43.210487, no time, seq 4, expires after 60 minutes
+inner.meeting_point.venue 0e0102030405060708040400fea1c814fd6ca909003c
+# MeetingReply: MSG, GROUP, ACCEPT, proposal OTHER
+inner.meeting_reply 0f0102030405060708011112131415161718012122232425262728
 # PRIVATE payload: nonce e0 e1 ... f7 || crypto_box(inner.text) from alice's box key to bob's.
 private.box e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7bcc50159847f3c091d324a3c6dbd75d6137db72ae9d85fcef99d38bbe145743426c021490c4e822f631249d007
 

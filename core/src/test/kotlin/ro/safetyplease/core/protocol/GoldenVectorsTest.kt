@@ -91,6 +91,11 @@ class GoldenVectorsTest {
         "inner.position" to { InnerCodec.encode(Golden.position).toHex() },
         "inner.position.absolute" to { InnerCodec.encode(Golden.absolutePosition).toHex() },
         "inner.share_session" to { InnerCodec.encode(Golden.shareSession).toHex() },
+        "inner.share_session.come" to { InnerCodec.encode(Golden.comeSession).toHex() },
+        "inner.ping_request" to { InnerCodec.encode(Golden.pingRequest).toHex() },
+        "inner.meeting_point" to { InnerCodec.encode(Golden.meetingPoint).toHex() },
+        "inner.meeting_point.venue" to { InnerCodec.encode(Golden.venueMeetingPoint).toHex() },
+        "inner.meeting_reply" to { InnerCodec.encode(Golden.meetingReply).toHex() },
         "private.box" to { Golden.boxed().toHex() },
         "qr.friend" to { QrCodes.encodeFriend(Golden.friendCard) },
         "qr.staff" to { QrCodes.encodeStaff(Golden.staffCard) },
@@ -265,7 +270,9 @@ class GoldenVectorsTest {
             "inner.pong" to Golden.pong, "inner.delivered" to Golden.delivered, "inner.invite" to Golden.invite,
             "inner.left_group" to Golden.leftGroup, "inner.zone_request" to Golden.zoneRequest, "inner.zone_update" to Golden.zoneUpdate,
             "inner.position" to Golden.position, "inner.position.absolute" to Golden.absolutePosition,
-            "inner.share_session" to Golden.shareSession,
+            "inner.share_session" to Golden.shareSession, "inner.share_session.come" to Golden.comeSession,
+            "inner.ping_request" to Golden.pingRequest, "inner.meeting_point" to Golden.meetingPoint,
+            "inner.meeting_point.venue" to Golden.venueMeetingPoint, "inner.meeting_reply" to Golden.meetingReply,
         )
         for ((name, inner) in inners) assertEquals(name, inner.fields(), InnerCodec.decode(bytes(name))!!.fields())
 
@@ -706,6 +713,11 @@ private object Golden {
         PositionPoint.Absolute(-22.951916, -43.210487), 4, PositionMethod.MANUAL_PIN, 0xFFFF, 0xFF, NextUpdate.ON_REQUEST, Heading.UNKNOWN,
     )
     val shareSession = Inner.ShareSession(ShareAction.START, 90, SharePrecision.APPROXIMATE, 3)
+    val comeSession = Inner.ShareSession(ShareAction.COME_ASK, 15, SharePrecision.EXACT, 9)
+    val pingRequest = Inner.PingRequest(PingAction.ASK, 10)
+    val meetingPoint = Inner.MeetingPoint(msgId, groupId, 3, 14, null, null, false, 22 * 60 + 30, 90)
+    val venueMeetingPoint = Inner.MeetingPoint(msgId, null, 4, 0, -22.951916, -43.210487, true, null, 60)
+    val meetingReply = Inner.MeetingReply(msgId, groupId, MeetingAction.ACCEPT, otherId)
     val invite = Inner.GroupInvite(
         msgId, groupId, "Prietenii",
         listOf(
@@ -877,6 +889,9 @@ private fun Inner.fields(): List<Any?> = when (this) {
     is Inner.ZoneUpdate -> listOf("zone_update", msgId, zone)
     is Inner.Position -> listOf("position", point, accuracy, method, fixMinute, seq, nextUpdate, heading)
     is Inner.ShareSession -> listOf("share_session", action, durationMin, precision, seq)
+    is Inner.PingRequest -> listOf("ping_request", action, seconds)
+    is Inner.MeetingPoint -> listOf("meeting_point", msgId, groupId, seq, landmark, lat, lon, venuePoint, minuteOfDay, expiryMin)
+    is Inner.MeetingReply -> listOf("meeting_reply", msgId, groupId, action, proposalId)
     is Inner.GroupInvite ->
         listOf("invite", msgId, groupId, name, members.map { listOf(it.nodeId, it.boxKey.toHex(), it.nickname) })
 }

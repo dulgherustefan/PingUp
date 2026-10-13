@@ -41,7 +41,7 @@ class PositionCodecTest {
 
         assertNull("a byte too many", InnerCodec.decode(bytes + 0))
         assertNull("a grid position cut short", InnerCodec.decode(bytes.copyOf(9)))
-        assertNull("unknown action", InnerCodec.decode(byteArrayOf(12, 5, 0, 10, 0, 1)))
+        assertNull("unknown action", InnerCodec.decode(byteArrayOf(12, 7, 0, 10, 0, 1)))
         assertNull("unknown precision", InnerCodec.decode(byteArrayOf(12, 1, 0, 10, 3, 1)))
         assertNull("a session cut short", InnerCodec.decode(byteArrayOf(12, 1, 0, 10, 0)))
     }
@@ -54,7 +54,7 @@ class PositionCodecTest {
         assertEquals(11, position[0].toInt())
         assertEquals(12, session[0].toInt())
         assertTrue("both are shorter than the msgId every older kind starts with", position.size < 1 + 8 + 2 && session.size < 9)
-        assertNull("a kind after these is still dropped", InnerCodec.decode(byteArrayOf(13, 0, 0, 0, 0, 0, 0, 0, 0)))
+        assertNull("a kind after these is still dropped", InnerCodec.decode(byteArrayOf(16, 0, 0, 0, 0, 0, 0, 0, 0)))
     }
 
     @Test
