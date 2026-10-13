@@ -9,6 +9,15 @@ object BleConstants {
     val CHARACTERISTIC: UUID = UUID.fromString(BleLayout.CHARACTERISTIC)
     val CCCD: UUID = UUID.fromString(BleLayout.CCCD)
 
+    /**
+     * The legacy set's intervals, in 0.625 ms units, from the list Apple gives accessories (Accessory Design Guidelines):
+     * iOS scans in windows these fall into, so an iPhone finds the phone sooner. 1022.5, 211.25 and 152.5 ms, next to
+     * Android's own 1000, 250 and 100; the Coded set, which no iPhone hears, keeps those.
+     */
+    const val ADVERTISE_LOW_POWER = 1636
+    const val ADVERTISE_BALANCED = 338
+    const val ADVERTISE_LOW_LATENCY = 244
+
     const val REQUESTED_MTU = 517
     const val DEFAULT_MTU = 23
 

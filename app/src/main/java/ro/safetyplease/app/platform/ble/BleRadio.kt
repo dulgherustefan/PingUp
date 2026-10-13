@@ -1094,10 +1094,10 @@ class BleRadio(
     }
 
     private fun AdvSet.interval(): Int = when (advertiseMode) {
-        PowerMode.LOW_POWER -> AdvertisingSetParameters.INTERVAL_HIGH
-        PowerMode.BALANCED -> AdvertisingSetParameters.INTERVAL_MEDIUM
+        PowerMode.LOW_POWER -> if (coded) AdvertisingSetParameters.INTERVAL_HIGH else BleConstants.ADVERTISE_LOW_POWER
+        PowerMode.BALANCED -> if (coded) AdvertisingSetParameters.INTERVAL_MEDIUM else BleConstants.ADVERTISE_BALANCED
         // a Coded packet stays ~8x longer on air; don't go below 250 ms
-        PowerMode.LOW_LATENCY -> if (coded) AdvertisingSetParameters.INTERVAL_MEDIUM else AdvertisingSetParameters.INTERVAL_LOW
+        PowerMode.LOW_LATENCY -> if (coded) AdvertisingSetParameters.INTERVAL_MEDIUM else BleConstants.ADVERTISE_LOW_LATENCY
     }
 
     private fun AdvSet.parameters(interval: Int): AdvertisingSetParameters {
