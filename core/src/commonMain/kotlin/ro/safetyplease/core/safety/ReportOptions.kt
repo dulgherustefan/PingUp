@@ -13,9 +13,6 @@ object ReportOptions {
     /** [minutes] if a report can say it happened that long before it; null for now or for longer than a day. */
     fun later(minutes: Int): Int? = minutes.takeIf { it in 1..ReportExtras.MAX_HAPPENED_MIN }
 
-    /** Minutes between [happenedAtMs] and [nowMs], if that is something a report can say. */
-    fun minutesSince(happenedAtMs: Long, nowMs: Long): Int? = later(((nowMs - happenedAtMs) / 60_000L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
-
     /** The extension block for what the person chose; a time out of bounds is left out, as if not chosen. */
     fun extras(laterMin: Int? = null, anonymous: Boolean = false, witness: Boolean = false): ReportExtras =
         ReportExtras(happenedMinAgo = laterMin?.let(::later) ?: 0, anonymous = anonymous, witness = witness)

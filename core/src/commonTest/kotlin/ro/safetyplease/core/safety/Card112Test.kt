@@ -11,6 +11,7 @@ import ro.safetyplease.core.venue.Zone
 import ro.safetyplease.core.venue.distanceMeters
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -31,8 +32,8 @@ class Card112Test {
         ),
         pois = listOf(
             Poi("exit", 44.12346, 28.56795, "Poarta 1", number = 3),
-            Poi(Card112.LANDLINE, 44.1240, 28.5680, "Telefon la intrare"),
-            Poi(Card112.LANDLINE, 44.1270, 28.5720, "Telefon departe"),
+            Poi(Venue.PHONE, 44.1240, 28.5680, "Telefon la intrare"),
+            Poi(Venue.PHONE, 44.1270, 28.5720, "Telefon departe"),
         ),
     )
     private val grid = SiteGrid.of(venue.bounds)
@@ -64,11 +65,40 @@ class Card112Test {
         val card = Card112.of(venue, grid, here, 12, 0, StraightLine)
         assertEquals("Sunt la Beach, Please!, Plaja mare, lângă Reperul 3", card.spoken("Sunt la Beach, Please!", "lângă Reperul 3"))
 
-        val outside = Card112.of(venue, grid, GeoPoint(44.1295, 28.5790), 0, 0, StraightLine)
-        assertNull(outside.zoneName)
-        assertNull(outside.landmark)
-        assertNull(outside.accuracyM, "no accuracy given is no accuracy claimed")
-        assertEquals("Sunt la Beach, Please!", outside.spoken("Sunt la Beach, Please!", "lângă Reperul 3"), "no zone, no landmark near: no words about them")
+        val corner = GeoPoint(44.1295, 28.5790)
+        assertTrue(venue.bounds.contains(corner.lat, corner.lon), "a corner of the site, in no zone")
+        val inNoZone = Card112.of(venue, grid, corner, 0, 0, StraightLine)
+        assertNull(inNoZone.zoneName)
+        assertNull(inNoZone.landmark)
+        assertNull(inNoZone.accuracyM, "no accuracy given is no accuracy claimed")
+        assertEquals("Sunt la Beach, Please!", inNoZone.spoken("Sunt la Beach, Please!", "lângă Reperul 3"), "no zone, no landmark near: no words about them")
+    }
+
+    @Test
+    fun outsideTheSiteTheCardNamesNoVenueAndNoFarAwayHelp() {
+        val away = GeoPoint(44.2000, 28.7000)
+        assertFalse(venue.bounds.contains(away.lat, away.lon))
+        val card = Card112.of(venue, grid, away, 15, 0, StraightLine)
+        assertNull(card.venueName)
+        assertNull(card.spoken("Sunt la Beach, Please!", null), "not \"Sunt la\" a festival the person isn't at")
+        assertNull(card.gridCell)
+        assertNull(card.landline, "a phone kilometres away is no help")
+        assertNull(card.medical)
+        assertEquals("44.20000, 28.70000", card.coordinates, "the coordinates still say where the person is")
+        assertEquals(OpenLocationCode.encode(44.2, 28.7), card.plusCode)
+
+        // just outside the fence, help a few hundred metres away is still offered
+        val nearGate = GeoPoint(44.1190, 28.5650)
+        assertFalse(venue.bounds.contains(nearGate.lat, nearGate.lon))
+        val close = Card112.of(venue, grid, nearGate, 15, 0, StraightLine)
+        assertNull(close.venueName)
+        assertEquals("Telefon la intrare", close.landline?.name)
+        assertTrue(close.landline!!.meters <= Card112.HELP_MAX_M)
+    }
+
+    @Test
+    fun theAccuracyIsTheFixsOwnHoweverLarge() {
+        assertEquals(800, Card112.of(venue, grid, here, 800, 0, StraightLine).accuracyM, "not capped at what a report's byte holds")
     }
 
     @Test

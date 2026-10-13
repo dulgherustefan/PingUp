@@ -78,8 +78,8 @@ class ChatManager(
     private val positions: PositionStore = PositionStore.inMemory(),
     /** The event's grid box and day start, read again at every position sent or received. */
     private val positionFrame: () -> PositionFrame = { PositionFrame.NONE },
-    /** A friend did not check in (1.1): who, what they sent and by how many hops it came. */
-    private val onCheckinMissed: (sender: Long, alert: Inner.CheckinMissed, hops: Int) -> Unit = { _, _, _ -> },
+    /** A friend did not check in (1.1): who and what they sent. */
+    private val onCheckinMissed: (sender: Long, alert: Inner.CheckinMissed) -> Unit = { _, _ -> },
     private val onIncoming: (message: ChatMessage, senderName: String) -> Unit = { _, _ -> },
 ) {
     private val attempts = LinkedHashMap<Long, Pair<Long, Long>>()
@@ -587,22 +587,32 @@ class ChatManager(
     /**
      * Tells each of [recipients] who is a friend that we did not check in by [deadlineSec] on the way to [label]
      * (1.1), with the last position we had. It waits in the outbox, with the retries of a message, until a friend is in
-     * reach; one msgId for all, as for a group message. Returns how many friends it was queued for.
+     * reach; one [msgId] for all, as for a group message, and the caller's, so that queueing it again after a crash
+     * adds nobody twice. Returns the friends it was queued for.
      */
-    suspend fun sendCheckinMissed(recipients: List<Long>, deadlineSec: Long, lastFix: LastFix?, label: String): Int = scope.async {
+    suspend fun sendCheckinMissed(msgId: Long, recipients: List<Long>, deadlineSec: Long, lastFix: LastFix?, label: String): List<Long> = scope.async {
         val to = recipients.distinct().filter { isFriend(it) }
-        if (to.isEmpty()) return@async 0
-        val msgId = newId()
         val bytes = InnerCodec.encode(Inner.CheckinMissed(msgId, null, deadlineSec, lastFix, label.truncateUtf8(Limits.CHECKIN_LABEL_BYTES)))
-        for (recipient in to) enqueue(msgId, recipient, bytes)
-        to.size
+        val waiting = chat.value.outbox.filter { it.msgId == msgId }.map { it.recipient }.toSet()
+        for (recipient in to) if (recipient !in waiting) enqueue(msgId, recipient, bytes)
+        to
     }.await()
+
+    /** Takes the missed check-in [msgId] out of the outbox; returns the friends it had not reached. */
+    fun withdrawCheckinMissed(msgId: Long): List<Long> {
+        var waiting = emptyList<Long>()
+        chat.update { data ->
+            waiting = data.outbox.filter { it.msgId == msgId }.map { it.recipient }
+            data.copy(outbox = data.outbox.filterNot { it.msgId == msgId })
+        }
+        return waiting
+    }
 
     private fun onCheckinMissedReceived(packet: Packet, alert: Inner.CheckinMissed) {
         // only a friend is believed, and only a friend is told: the alert names no group
         if (!isFriend(packet.sender)) return
         confirm(packet.sender, alert.msgId)
-        onCheckinMissed(packet.sender, alert, packet.hops)
+        onCheckinMissed(packet.sender, alert)
     }
 
     /** Says yes to the meeting point of [conversation]: every member is told, with the retries of a message. */

@@ -26,6 +26,8 @@ import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.OpenTarget
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.checkin_alert_silent
+import ro.safetyplease.ui.resources.checkin_alerted_none
+import ro.safetyplease.ui.resources.checkin_alerted_none_title
 import ro.safetyplease.ui.resources.checkin_alerted_text
 import ro.safetyplease.ui.resources.checkin_alerted_title
 import ro.safetyplease.ui.resources.exercise_title
@@ -35,6 +37,7 @@ import ro.safetyplease.ui.resources.notif_assigned_title
 import ro.safetyplease.ui.resources.notif_checkin_text
 import ro.safetyplease.ui.resources.notif_checkin_title
 import ro.safetyplease.ui.resources.notif_friend_silent_text
+import ro.safetyplease.ui.resources.notif_friend_silent_text_no_fix
 import ro.safetyplease.ui.resources.notif_incident_title
 import ro.safetyplease.ui.resources.notif_report_title
 import ro.safetyplease.ui.resources.notif_response_title
@@ -46,8 +49,11 @@ import ro.safetyplease.ui.resources.report_escalate_text
 import ro.safetyplease.ui.resources.report_escalate_title
 import ro.safetyplease.ui.resources.sharing_bar
 import ro.safetyplease.ui.resources.zone_unknown
+import ro.safetyplease.ui.safety.deadlineText
+import ro.safetyplease.ui.safety.shortDuration
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.Replies
+import ro.safetyplease.ui.text.wallNowMs
 
 /**
  * The app's notifications on an iPhone, saying what the Android ones say. In an [exercise] every title says so and
@@ -80,15 +86,30 @@ class IosNotifications(private val venue: Venue, private val exercise: Boolean, 
                 )
             }
             is SafetyNotice.CheckinAlerted -> later {
-                post(
-                    CHECKIN, getString(Res.string.checkin_alerted_title),
-                    getPluralString(Res.plurals.checkin_alerted_text, notice.friends, notice.friends, notice.label), OpenTarget.CHECKIN,
-                )
+                if (notice.friends == 0) {
+                    post(
+                        CHECKIN, getString(Res.string.checkin_alerted_none_title), getString(Res.string.checkin_alerted_none, notice.label),
+                        OpenTarget.CHECKIN,
+                    )
+                } else {
+                    post(
+                        CHECKIN, getString(Res.string.checkin_alerted_title),
+                        getPluralString(Res.plurals.checkin_alerted_text, notice.friends, notice.friends, notice.label), OpenTarget.CHECKIN,
+                    )
+                }
             }
             is SafetyNotice.FriendSilent -> later {
+                val now = wallNowMs()
+                val due = deadlineText(notice.deadlineMs, now)
+                val late = shortDuration(now - notice.deadlineMs)
+                val text = if (notice.fixedAtMs > 0) {
+                    getString(Res.string.notif_friend_silent_text, due, late, shortDuration(now - notice.fixedAtMs))
+                } else {
+                    getString(Res.string.notif_friend_silent_text_no_fix, due, late)
+                }
                 post(
                     "friend-silent-${notice.name}-${notice.label}", getString(Res.string.checkin_alert_silent, notice.name, notice.label),
-                    getString(Res.string.notif_friend_silent_text), OpenTarget.CHECKIN_ALERTS, Level.TIME_SENSITIVE,
+                    text, OpenTarget.CHECKIN_ALERTS, Level.TIME_SENSITIVE,
                 )
             }
         }

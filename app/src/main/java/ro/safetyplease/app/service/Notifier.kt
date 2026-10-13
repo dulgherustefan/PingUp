@@ -34,6 +34,8 @@ import ro.safetyplease.core.safety.SafetyNotice
 import ro.safetyplease.core.session.Notifications
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.OpenTarget
+import ro.safetyplease.ui.safety.deadlineText
+import ro.safetyplease.ui.safety.shortDuration
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.Replies
 
@@ -185,8 +187,9 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         if (!canPost()) return
         when (notice) {
             is SafetyNotice.CheckinDue -> {
-                fun answer(minutes: Int, code: Int) = PendingIntent.getService(
-                    context, code, MeshService.checkinIntent(context, minutes), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                // a receiver, not the mesh service: it works with the mesh off and doesn't start it
+                fun answer(minutes: Int, code: Int) = PendingIntent.getBroadcast(
+                    context, code, CheckinReceiver.intent(context, minutes), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
                 )
                 val text = context.getString(R.string.notif_checkin_text, notice.label)
                 val built = NotificationCompat.Builder(context, CHANNEL_CHECKIN)
@@ -203,10 +206,15 @@ class Notifier(private val context: Context, private val venue: Venue, private v
                 manager.notify(CHECKIN_ID, built)
             }
             is SafetyNotice.CheckinAlerted -> {
-                val text = context.resources.getQuantityString(R.plurals.checkin_alerted_text, notice.friends, notice.friends, notice.label)
+                val none = notice.friends == 0
+                val text = if (none) {
+                    context.getString(R.string.checkin_alerted_none, notice.label)
+                } else {
+                    context.resources.getQuantityString(R.plurals.checkin_alerted_text, notice.friends, notice.friends, notice.label)
+                }
                 val built = NotificationCompat.Builder(context, CHANNEL_CHECKIN)
                     .setSmallIcon(R.drawable.ic_notification)
-                    .setContentTitle(context.getString(R.string.checkin_alerted_title))
+                    .setContentTitle(context.getString(if (none) R.string.checkin_alerted_none_title else R.string.checkin_alerted_title))
                     .setContentText(text)
                     .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                     .setAutoCancel(true)
@@ -216,10 +224,22 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             }
             is SafetyNotice.FriendSilent -> {
                 val id = FRIEND_ALERT_ID + (notice.name + notice.label).hashCode()
+                val now = System.currentTimeMillis()
+                val due = deadlineText(notice.deadlineMs, now)
+                val late = shortDuration(now - notice.deadlineMs)
+                val text = if (notice.fixedAtMs > 0) {
+                    context.getString(R.string.notif_friend_silent_text, due, late, shortDuration(now - notice.fixedAtMs))
+                } else {
+                    context.getString(R.string.notif_friend_silent_text_no_fix, due, late)
+                }
                 val built = NotificationCompat.Builder(context, CHANNEL_FRIENDS)
                     .setSmallIcon(R.drawable.ic_notification)
                     .setContentTitle(context.getString(R.string.checkin_alert_silent, notice.name, notice.label))
-                    .setContentText(context.getString(R.string.notif_friend_silent_text))
+                    .setContentText(text)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                    // the shade shows how long ago the deadline was, and keeps counting
+                    .setWhen(notice.deadlineMs)
+                    .setShowWhen(true)
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setAutoCancel(true)
                     .setContentIntent(open(OpenTarget.CHECKIN_ALERTS, id))

@@ -23,6 +23,12 @@ class OpenLocationCodeTest {
         Vector("22222222+22", -89.9999375, -179.9999375, 10),
         Vector("6VGX0000+", 0.5, 179.5, 4),
         Vector("6FH32222+222", 1.0, 1.0, 11),
+        // past eleven digits, down to the finest grid
+        Vector("7FG49QCJ+2VXGJ", 20.3701135, 2.78223535156, 13),
+        Vector("849VGJQF+VX7QR3J", 37.539669125, -122.375069724, 15),
+        // decimals a double can't hold exactly, which a plain floor puts in the cell below
+        Vector("6FH56C22+22", 1.2, 3.4, 10),
+        Vector("8F75J22M+26", 35.6, 3.033, 10),
         // the north pole is clipped into the last row, and the date line wraps
         Vector("CFX30000+", 90.0, 1.0, 4),
         Vector("62H20000+", 1.0, 180.0, 4),
@@ -51,8 +57,15 @@ class OpenLocationCodeTest {
 
     @Test
     fun aLengthTheSpecificationDoesNotKnowIsRefused() {
-        for (length in listOf(0, 1, 3, 7, 9, 16)) assertFailsWith<IllegalArgumentException> { OpenLocationCode.encode(1.0, 1.0, length) }
+        for (length in listOf(0, 1, 3, 7, 9)) assertFailsWith<IllegalArgumentException> { OpenLocationCode.encode(1.0, 1.0, length) }
         assertFailsWith<IllegalArgumentException> { OpenLocationCode.encode(Double.NaN, 1.0) }
+    }
+
+    @Test
+    fun aLengthPastFifteenGivesTheFifteenDigitCode() {
+        for (length in listOf(16, 20, 100)) {
+            assertEquals("849VGJQF+VX7QR3J", OpenLocationCode.encode(37.539669125, -122.375069724, length), "length $length")
+        }
     }
 
     @Test

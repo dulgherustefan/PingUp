@@ -69,6 +69,7 @@ import ro.safetyplease.ui.resources.unwell_breathe_2
 import ro.safetyplease.ui.resources.unwell_breathe_3
 import ro.safetyplease.ui.resources.unwell_breathe_4
 import ro.safetyplease.ui.resources.unwell_breathe_5
+import ro.safetyplease.ui.resources.unwell_breathe_draft
 import ro.safetyplease.ui.resources.unwell_breathe_physical
 import ro.safetyplease.ui.resources.unwell_breathe_title
 import ro.safetyplease.ui.resources.unwell_exhale
@@ -172,12 +173,15 @@ private fun AppViewModel.reportWelfare(text: String): String? = report(
     anonymous = true,
 )
 
+/** True once the medical lead has signed the breathing guide's texts; it takes the "text provizoriu" note away. */
+const val BREATHING_GUIDE_APPROVED = false
+
 private const val INHALE_MS = 4_000
 private const val EXHALE_MS = 6_000
 
 /**
  * A slow circle to breathe with, four seconds in and six out, and the steps in words. The texts are a draft until the
- * medical lead approves them (strings_safety.xml).
+ * medical lead approves them (strings_safety.xml); until [BREATHING_GUIDE_APPROVED] says so, the screen says it is provisional.
  */
 @Composable
 private fun BreathingGuide() {
@@ -196,6 +200,7 @@ private fun BreathingGuide() {
     val turn = INHALE_MS.toFloat() / (INHALE_MS + EXHALE_MS)
     val scale = if (inhaling) 0.6f + 0.4f * phase / turn else 1f - 0.4f * (phase - turn) / (1f - turn)
     Text(stringResource(Res.string.unwell_breathe_title), style = MaterialTheme.typography.headline)
+    if (!BREATHING_GUIDE_APPROVED) Text(stringResource(Res.string.unwell_breathe_draft), style = MaterialTheme.typography.footnote, color = colors.orangeInk)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(140.dp), contentAlignment = Alignment.Center) {
             Box(

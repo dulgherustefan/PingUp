@@ -41,6 +41,7 @@ import ro.safetyplease.ui.designsystem.NavScreen
 import ro.safetyplease.ui.designsystem.SectionTitle
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
+import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.resources.Res
@@ -52,11 +53,11 @@ import ro.safetyplease.ui.resources.checkin_alert_map
 import ro.safetyplease.ui.resources.checkin_alert_message
 import ro.safetyplease.ui.resources.checkin_alert_no_fix
 import ro.safetyplease.ui.resources.checkin_alert_position
+import ro.safetyplease.ui.resources.checkin_alert_received
 import ro.safetyplease.ui.resources.checkin_alert_silent
 import ro.safetyplease.ui.resources.checkin_alert_time
 import ro.safetyplease.ui.resources.checkin_alerts_empty
 import ro.safetyplease.ui.resources.checkin_alerts_title
-import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.ui.text.rememberNow
 
@@ -113,9 +114,14 @@ private fun FriendAlertCard(vm: AppViewModel, alert: FriendAlert, now: Long) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(stringResource(Res.string.checkin_alert_silent, name, alert.label), style = MaterialTheme.typography.headline)
+        val deadline = alert.deadlineAt * 1000
         Text(
-            stringResource(Res.string.checkin_alert_time, Labels.clock(alert.deadlineAt * 1000)) + " · " + position,
+            stringResource(Res.string.checkin_alert_time, deadlineText(deadline, now), agoText(deadline, now)) + " · " + position,
             style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+        )
+        Text(
+            stringResource(Res.string.checkin_alert_received, agoText(alert.receivedAt, now)), style = MaterialTheme.typography.footnote,
+            color = colors.secondaryLabel,
         )
         AppButton(
             stringResource(Res.string.checkin_alert_message), { vm.open(Dest.Conversation(Conversations.friend(alert.sender))) },

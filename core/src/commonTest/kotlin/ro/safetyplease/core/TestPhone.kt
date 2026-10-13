@@ -124,8 +124,8 @@ class TestPhone(
     var team = "Echipa $name"
     val incoming = mutableListOf<ChatMessage>()
 
-    /** Friends' missed check-ins this phone was told of: who, what, and by how many hops. */
-    val checkinAlerts = mutableListOf<Triple<Long, Inner.CheckinMissed, Int>>()
+    /** Friends' missed check-ins this phone was told of: who and what. */
+    val checkinAlerts = mutableListOf<Pair<Long, Inner.CheckinMissed>>()
     val alerts = mutableListOf<StaffIncident>()
     val clearedAlerts = mutableListOf<String>()
     val reportUpdates = mutableListOf<MyReport>()
@@ -143,7 +143,7 @@ class TestPhone(
     val chat = ChatManager(
         bg, engine, testCrypto, identity, friends, groups, blocked, chatStore, clock, Random(seed + 1), { name },
         shareZone = { sharesZone }, positions = positions, positionFrame = { positionFrame },
-        onCheckinMissed = { sender, missed, hops -> checkinAlerts += Triple(sender, missed, hops) },
+        onCheckinMissed = { sender, missed -> checkinAlerts += sender to missed },
     ) { message, _ -> incoming += message }
 
     val incidents = IncidentManager(

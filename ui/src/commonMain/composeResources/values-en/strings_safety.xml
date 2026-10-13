@@ -6,6 +6,7 @@
     <string name="checkin_row_running">Arriving at %1$s by %2$s</string>
     <string name="checkin_alerts_row">A friend hasn’t confirmed they arrived</string>
     <string name="checkin_intro">Tell your friends where you are going. If you don’t confirm you arrived, they get an alert with your last position. As long as you answer, nothing is sent.</string>
+    <string name="checkin_notif_off">Without notifications you won’t see “Did you arrive?”, and your friends could be told without you being asked.</string>
     <string name="checkin_where">Where you are going</string>
     <string name="checkin_place_parking">Parking</string>
     <string name="checkin_place_station">Station</string>
@@ -13,12 +14,14 @@
     <string name="checkin_place_hint">Another place</string>
     <string name="checkin_when">How long</string>
     <string name="checkin_until">By %1$s</string>
+    <string name="checkin_minus_5">5 minutes less</string>
+    <string name="checkin_plus_5">5 minutes more</string>
     <string name="checkin_who">Who to tell (up to 5)</string>
     <string name="checkin_no_friends_title">No friends in the app yet</string>
     <string name="checkin_no_friends_text">The check-in tells friends in the app. Add one by scanning their code.</string>
     <string name="checkin_no_friends_add">Add a friend</string>
     <string name="checkin_start">Start the check-in</string>
-    <string name="checkin_note">At the time you chose, the phone asks “Did you arrive?”. If you don’t answer within 10 minutes, the friends you chose get the alert, with your last position. Keep the phone on and the app allowed in the background.</string>
+    <string name="checkin_note">At the time you chose, the phone asks “Did you arrive?”. If you don’t answer within 10 minutes of the question, the friends you chose get the alert, with your last position. If the phone is off at that time, it asks when it’s back on and still gives you 10 minutes. Keep the app allowed in the background.</string>
     <string name="checkin_waiting_title">Arriving at %1$s in</string>
     <string name="checkin_waiting_who">By %1$s · telling: %2$s</string>
     <string name="checkin_asked_title">Did you arrive at %1$s?</string>
@@ -27,6 +30,8 @@
     <string name="checkin_extend">+%1$d min</string>
     <string name="checkin_cancel">Cancel the check-in</string>
     <string name="checkin_alerted_title">Your friends were told</string>
+    <string name="checkin_alerted_none_title">The alert couldn’t go</string>
+    <string name="checkin_alerted_none">None of the friends you chose for %1$s is in your list any more, so nobody was told.</string>
     <plurals name="checkin_alerted_text">
         <item quantity="one">The alert for %2$s went to a friend, with your last position. They get it when they are in range.</item>
         <item quantity="other">The alert for %2$s went to %1$d friends, with your last position. They get it when they are in range.</item>
@@ -37,7 +42,8 @@
     <string name="checkin_alerts_title">Friends who didn’t arrive</string>
     <string name="checkin_alerts_empty">No alerts from friends</string>
     <string name="checkin_alert_silent">%1$s hasn’t confirmed they arrived at %2$s</string>
-    <string name="checkin_alert_time">Due at %1$s</string>
+    <string name="checkin_alert_time">Due by %1$s (%2$s)</string>
+    <string name="checkin_alert_received">Alert arrived %1$s</string>
     <string name="checkin_alert_position">Last position: %1$s, %2$s</string>
     <string name="checkin_alert_no_fix">no position</string>
     <string name="checkin_alert_message">Message them</string>
@@ -48,28 +54,34 @@
     <string name="safety_channel_checkin">Check-in on the way</string>
     <string name="safety_channel_friends">Friends who didn’t arrive</string>
     <string name="notif_checkin_title">Did you arrive?</string>
-    <string name="notif_checkin_text">%1$s: confirm. Otherwise your friends are told in 10 minutes.</string>
-    <string name="notif_friend_silent_text">See their last position and message them.</string>
+    <string name="notif_checkin_text">%1$s: confirm you arrived. If you don’t answer within 10 minutes of this question, the friends you chose get the alert.</string>
+    <string name="notif_friend_silent_text">Due by %1$s (%2$s ago). Last position from %3$s ago. Message them or see it on the map.</string>
+    <string name="notif_friend_silent_text_no_fix">Due by %1$s (%2$s ago). The alert has no position. Message them.</string>
     <string name="safety_hours_short">%1$d h</string>
     <string name="safety_hours_minutes_short">%1$d h %2$d min</string>
 
     <!-- Report options -->
     <string name="report_options_title">More about what happened</string>
     <string name="report_options_later">It happened earlier</string>
-    <string name="report_options_later_text">You can report what happened up to 24 hours ago</string>
+    <string name="report_options_later_text">You can also report what happened in the last 24 hours</string>
     <string name="report_options_later_at">Around %1$s</string>
     <string name="report_options_witness">I am reporting for someone else</string>
     <string name="report_options_witness_text">I saw what happened to another person</string>
+    <string name="report_identity_title">Who the report is from</string>
+    <string name="report_identity_named">With your nickname</string>
+    <string name="report_identity_named_text">The team sees your nickname and can answer you.</string>
+    <string name="report_identity_anonymous">Anonymous</string>
+    <string name="report_identity_anonymous_text">No nickname. The team can answer you in the app without learning who you are.</string>
     <string name="report_options_no_reply">Anonymous, no reply</string>
     <string name="report_options_no_reply_text">No nickname and no way to answer</string>
     <string name="report_options_no_reply_note">The report has no nickname and no way to answer: the team can’t write back and doesn’t know who you are. If you need help now, call 112 or go to a Safe Zone point.</string>
-    <string name="incident_note_later">Reported later: it happened %1$s ago</string>
+    <string name="incident_note_later">Reported later: it happened %1$s before the report</string>
     <string name="incident_note_witness">Reported by a witness, for someone else</string>
     <string name="incident_note_no_reply">Anonymous: no reply is possible</string>
 
     <!-- Hotspots, on the console -->
     <string name="hotspots_open">Hotspots</string>
-    <string name="hotspots_title">Hotspots, last 24 h</string>
+    <string name="hotspots_title">Hotspots in the last 24 hours</string>
     <string name="hotspots_note">Reports of harassment and “I feel unsafe”, by square of the site plan and by hour, the most first. For patrols only; the map is not shown to the public.</string>
     <string name="hotspots_counts">%1$d reports (%2$d harassment, %3$d unsafe)</string>
     <string name="hotspots_empty">No reports in the last 24 hours</string>
@@ -93,6 +105,7 @@
     <string name="unwell_off_text">The organiser hasn’t set up a team here that answers through the app. Go to the nearest medical point or the Safe Zone and say how you feel.</string>
     <!-- DRAFT, waiting for the medical lead's approval (co-signed with Caravana cu Medici or ANPCDDA): the breathing guide below, until then not final -->
     <string name="unwell_breathe_title">Until someone comes</string>
+    <string name="unwell_breathe_draft">Provisional text, not yet reviewed by the medical team.</string>
     <string name="unwell_inhale">Breathe in</string>
     <string name="unwell_exhale">Breathe out</string>
     <string name="unwell_breathe_1">Sit somewhere safe if you can, and lean your back on something.</string>
@@ -118,6 +131,8 @@
     <string name="card112_stale_text">The phone’s last position: %1$s. Walk to a numbered landmark and tell the operator what you see around you.</string>
     <string name="card112_no_position_title">The phone has no position for you</string>
     <string name="card112_no_position_text">Tell the operator the zone, the number of the landmark you can see and what is around you.</string>
+    <string name="card112_outside_title">You are outside the festival</string>
+    <string name="card112_outside_text">Read the coordinates below to the operator and say what you see around you.</string>
     <string name="card112_help_title">Help nearby</string>
     <string name="card112_landline">Landline phone</string>
     <string name="card112_medical">Medical point</string>

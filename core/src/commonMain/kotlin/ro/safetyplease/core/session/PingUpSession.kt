@@ -273,7 +273,7 @@ open class PingUpSession(private val platform: AppPlatform) {
         shareZone = { settings.value.shareZone },
         positions = positions,
         positionFrame = { positionFrame },
-        onCheckinMissed = { sender, missed, hops -> checkin.onFriendMissed(sender, missed, hops) },
+        onCheckinMissed = { sender, missed -> checkin.onFriendMissed(sender, missed) },
     ) { message, sender ->
         if (!foreground.value || openConversation != message.conversation) notifications.chatMessage(message, sender)
     }
@@ -286,6 +286,7 @@ open class PingUpSession(private val platform: AppPlatform) {
         friends = { friends.value },
         lastFix = { platform.location.value },
         alert = chat::sendCheckinMissed,
+        withdraw = chat::withdrawCheckinMissed,
         tell = { to, text -> to.forEach { chat.sendText(Conversations.friend(it), text) } },
         notify = notifications::safety,
     )

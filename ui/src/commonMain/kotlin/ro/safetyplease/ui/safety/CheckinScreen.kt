@@ -21,6 +21,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,6 +35,7 @@ import ro.safetyplease.core.safety.CheckinManager
 import ro.safetyplease.core.safety.CheckinPhase
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.common.NotificationsOffBanner
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
@@ -54,6 +57,8 @@ import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.checkin_alerted_none
+import ro.safetyplease.ui.resources.checkin_alerted_none_title
 import ro.safetyplease.ui.resources.checkin_alerted_text
 import ro.safetyplease.ui.resources.checkin_alerted_title
 import ro.safetyplease.ui.resources.checkin_arrived
@@ -64,14 +69,17 @@ import ro.safetyplease.ui.resources.checkin_cancel
 import ro.safetyplease.ui.resources.checkin_close_silent
 import ro.safetyplease.ui.resources.checkin_extend
 import ro.safetyplease.ui.resources.checkin_intro
+import ro.safetyplease.ui.resources.checkin_minus_5
 import ro.safetyplease.ui.resources.checkin_no_friends_add
 import ro.safetyplease.ui.resources.checkin_no_friends_text
 import ro.safetyplease.ui.resources.checkin_no_friends_title
 import ro.safetyplease.ui.resources.checkin_note
+import ro.safetyplease.ui.resources.checkin_notif_off
 import ro.safetyplease.ui.resources.checkin_place_hint
 import ro.safetyplease.ui.resources.checkin_place_lodging
 import ro.safetyplease.ui.resources.checkin_place_parking
 import ro.safetyplease.ui.resources.checkin_place_station
+import ro.safetyplease.ui.resources.checkin_plus_5
 import ro.safetyplease.ui.resources.checkin_reassure
 import ro.safetyplease.ui.resources.checkin_start
 import ro.safetyplease.ui.resources.checkin_title
@@ -125,10 +133,14 @@ private fun CheckinSetup(vm: AppViewModel, places: List<String>, friends: List<F
     val defaults = listOf(
         stringResource(Res.string.checkin_place_parking), stringResource(Res.string.checkin_place_station), stringResource(Res.string.checkin_place_lodging),
     )
+    val less = stringResource(Res.string.checkin_minus_5)
+    val more = stringResource(Res.string.checkin_plus_5)
     Text(
         stringResource(Res.string.checkin_intro), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
         modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp),
     )
+    // the question comes as a notification: without them the friends could be told before the person is asked
+    NotificationsOffBanner(vm.phone, stringResource(Res.string.checkin_notif_off), Modifier.padding(horizontal = Gutter, vertical = 8.dp))
 
     SectionTitle(stringResource(Res.string.checkin_where), top = 12.dp)
     Pills(Modifier.padding(horizontal = Gutter)) { (defaults + places.filterNot { it in defaults }).forEach { place -> Pill(place, label == place, { label = place }) } }
@@ -143,12 +155,17 @@ private fun CheckinSetup(vm: AppViewModel, places: List<String>, friends: List<F
         Modifier.padding(horizontal = Gutter, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AppButton("−5", { minutes = (minutes - 5).coerceAtLeast(5) }, kind = ButtonKind.Secondary, compact = true)
+        AppButton(
+            "−5", { minutes = (minutes - 5).coerceAtLeast(5) }, Modifier.semantics { contentDescription = less }, kind = ButtonKind.Secondary, compact = true,
+        )
         Text(
             stringResource(Res.string.checkin_until, Labels.clock(now + minutes * CheckinManager.MINUTE_MS)) + " · " + durationText(minutes),
             style = MaterialTheme.typography.subheadline, modifier = Modifier.weight(1f), textAlign = TextAlign.Center,
         )
-        AppButton("+5", { minutes = (minutes + 5).coerceAtMost(CheckinManager.MAX_MINUTES) }, kind = ButtonKind.Secondary, compact = true)
+        AppButton(
+            "+5", { minutes = (minutes + 5).coerceAtMost(CheckinManager.MAX_MINUTES) }, Modifier.semantics { contentDescription = more },
+            kind = ButtonKind.Secondary, compact = true,
+        )
     }
 
     SectionTitle(stringResource(Res.string.checkin_who), top = 12.dp)
@@ -202,13 +219,17 @@ private fun CheckinProgress(vm: AppViewModel, current: Checkin) {
         }
         CheckinPhase.ASKED -> {
             title = stringResource(Res.string.checkin_asked_title, current.label)
-            big = countdownText(current.deadlineAt + CheckinManager.GRACE_MS - now)
+            big = countdownText(current.askedAt + CheckinManager.GRACE_MS - now)
             sub = stringResource(Res.string.checkin_asked_wait, names)
         }
         CheckinPhase.ALERTED -> {
-            title = stringResource(Res.string.checkin_alerted_title)
+            title = stringResource(if (current.told == 0) Res.string.checkin_alerted_none_title else Res.string.checkin_alerted_title)
             big = ""
-            sub = pluralStringResource(Res.plurals.checkin_alerted_text, current.told, current.told, current.label)
+            sub = if (current.told == 0) {
+                stringResource(Res.string.checkin_alerted_none, current.label)
+            } else {
+                pluralStringResource(Res.plurals.checkin_alerted_text, current.told, current.told, current.label)
+            }
         }
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {

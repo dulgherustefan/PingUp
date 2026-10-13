@@ -25,6 +25,7 @@ import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.incidents.Discreet
 import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.safety.Welfare
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppButton
@@ -81,7 +82,7 @@ fun DiscreetScreen(vm: AppViewModel) {
     val safety = rememberReportOptions()
     val requestLocation = rememberLocationRequest(vm)
     // found again by its mark, so it is still the one in progress after the screen or the app was left
-    val report = incidents.mine.filter { Discreet.isDiscreet(it.description) && it.isOpen() && now - it.createdAt < ACTIVE_MS }.maxByOrNull { it.createdAt }
+    val report = incidents.mine.filter { isUnsafeReport(it.description) && it.isOpen() && now - it.createdAt < ACTIVE_MS }.maxByOrNull { it.createdAt }
 
     LifecycleResumeEffect(Unit) {
         vm.phone.startLocation()
@@ -145,3 +146,6 @@ fun DiscreetScreen(vm: AppViewModel) {
         }
     }
 }
+
+/** A "mă simt în nesiguranță" report; "Nu sunt bine" carries the same first mark but has its own screen. */
+fun isUnsafeReport(description: String): Boolean = Discreet.isDiscreet(description) && !Welfare.isWelfare(description)

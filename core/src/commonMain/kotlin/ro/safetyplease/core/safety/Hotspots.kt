@@ -24,9 +24,7 @@ data class Hotspot(
 }
 
 /** [cells] busiest first; [unplaced] counts the reports with neither a position nor a zone to put them on the plan. */
-data class HotspotMap(val cells: List<Hotspot>, val unplaced: Int) {
-    val total: Int get() = cells.sumOf { it.total } + unplaced
-}
+data class HotspotMap(val cells: List<Hotspot>, val unplaced: Int)
 
 /**
  * Where patrols should walk (roadmap 3.17): harassment and unsafe reports of the last 24 hours by square of the site

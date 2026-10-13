@@ -135,11 +135,6 @@ class SafetyScenarioTest {
         assertNull(ReportOptions.later(limit + 1), "more than a day back")
         assertTrue(ReportOptions.laterChoices.all { it in 1..limit }, "every choice the screen offers can be sent")
         assertEquals(limit, ReportOptions.laterChoices.max(), "up to a whole day")
-
-        val now = 1_760_000_000_000L
-        assertEquals(90, ReportOptions.minutesSince(now - 90 * 60_000L - 5_000L, now))
-        assertNull(ReportOptions.minutesSince(now + 60_000L, now), "not in the future")
-        assertNull(ReportOptions.minutesSince(now - 25 * 3_600_000L, now), "not yesterday")
     }
 
     @Test
@@ -167,10 +162,10 @@ class SafetyScenarioTest {
         advanceTimeBy(30_000)
 
         val fix = LastFix(44.4271, 26.1031, 1_760_000_000L, 2)
-        assertEquals(1, a.chat.sendCheckinMissed(listOf(b.nodeId, stranger.nodeId), 1_760_000_600L, fix, "Gară"), "only the friend is told")
+        assertEquals(listOf(b.nodeId), a.chat.sendCheckinMissed(7, listOf(b.nodeId, stranger.nodeId), 1_760_000_600L, fix, "Gară"), "only the friend is told")
         advanceTimeBy(10_000)
 
-        val (sender, alert, _) = b.checkinAlerts.single()
+        val (sender, alert) = b.checkinAlerts.single()
         assertEquals(a.nodeId, sender)
         assertEquals("Gară", alert.label)
         assertEquals(1_760_000_600L, alert.deadline)
@@ -192,7 +187,7 @@ class SafetyScenarioTest {
         net.start()
         advanceTimeBy(30_000)
 
-        a.chat.sendCheckinMissed(listOf(b.nodeId), 1_760_000_600L, null, "Cazare")
+        a.chat.sendCheckinMissed(7, listOf(b.nodeId), 1_760_000_600L, null, "Cazare")
         advanceTimeBy(120_000)
         assertEquals(1, a.alertsInOutbox(), "queued")
         assertTrue(b.checkinAlerts.isEmpty())
@@ -200,7 +195,7 @@ class SafetyScenarioTest {
         a.ignore()
         b.ignore()
         advanceTimeBy(120_000)
-        val (_, alert, _) = b.checkinAlerts.single()
+        val (_, alert) = b.checkinAlerts.single()
         assertNull(alert.lastFix)
         assertEquals("Cazare", alert.label)
         assertEquals(0, a.alertsInOutbox())
@@ -221,11 +216,12 @@ class SafetyScenarioTest {
         val mine = CheckinManager(
             backgroundScope, JsonStore(tmp.root / "a-checkin.json", CheckinData.serializer(), CheckinData(), backgroundScope), clock,
             friends = { a.friends.value }, lastFix = { GeoFix(44.4271, 26.1031, 6f, clock.wallMs() - 60_000L) },
-            alert = a.chat::sendCheckinMissed, tell = { _, _ -> }, notify = { notices += it },
+            alert = a.chat::sendCheckinMissed, withdraw = a.chat::withdrawCheckinMissed, tell = { _, _ -> }, notify = { notices += it },
         ).also { it.start() }
         val theirs = CheckinManager(
             backgroundScope, JsonStore(tmp.root / "b-checkin.json", CheckinData.serializer(), CheckinData(), backgroundScope), clock,
-            friends = { b.friends.value }, lastFix = { null }, alert = { _, _, _, _ -> 0 }, tell = { _, _ -> }, notify = { notices += it },
+            friends = { b.friends.value }, lastFix = { null }, alert = { _, _, _, _, _ -> emptyList() }, withdraw = { emptyList() },
+            tell = { _, _ -> }, notify = { notices += it },
         )
 
         assertTrue(mine.begin("Gară", 20, listOf(b.nodeId)))
@@ -233,13 +229,13 @@ class SafetyScenarioTest {
         assertTrue(a.chatStore.value.outbox.isEmpty(), "nothing queued while the person has time to answer")
         assertTrue(b.checkinAlerts.isEmpty())
         advanceTimeBy(2 * 60_000L)
-        for ((sender, alert, hops) in b.checkinAlerts) theirs.onFriendMissed(sender, alert, hops)
+        for ((sender, alert) in b.checkinAlerts) theirs.onFriendMissed(sender, alert)
 
         val shown = theirs.state.value.alerts.single()
         assertEquals(a.nodeId, shown.sender)
         assertEquals("Gară", shown.label)
         assertEquals(44.4271, shown.lat)
-        assertTrue(notices.contains(SafetyNotice.FriendSilent(b.chat.nameOf(a.nodeId), "Gară")))
+        assertTrue(notices.any { it is SafetyNotice.FriendSilent && it.name == b.chat.nameOf(a.nodeId) && it.label == "Gară" })
         assertEquals(1, b.checkinAlerts.size, "one alert, not one per retry")
     }
 
@@ -255,7 +251,7 @@ class SafetyScenarioTest {
         net.start()
         advanceTimeBy(30_000)
 
-        a.chat.sendCheckinMissed(listOf(b.nodeId), 1_760_000_600L, null, "Gară")
+        a.chat.sendCheckinMissed(7, listOf(b.nodeId), 1_760_000_600L, null, "Gară")
         advanceTimeBy(60_000)
 
         assertTrue(b.checkinAlerts.isEmpty())

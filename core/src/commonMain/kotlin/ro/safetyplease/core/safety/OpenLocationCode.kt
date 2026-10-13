@@ -24,10 +24,12 @@ object OpenLocationCode {
     const val DEFAULT_LENGTH = 10
     const val MAX_LENGTH = 15
 
-    /** The code of the cell holding the point, [length] digits long: 2, 4, 6 or 8, or 10 to 15. */
+    /** The code of the cell holding the point, [length] digits long: 2, 4, 6 or 8, or 10 and more, where 15 is the most there is. */
     fun encode(latitude: Double, longitude: Double, length: Int = DEFAULT_LENGTH): String {
         require(latitude.isFinite() && longitude.isFinite())
-        require(length in 2..MAX_LENGTH && (length >= DEFAULT_LENGTH || length % 2 == 0)) { "length $length" }
+        require(length >= 2 && (length >= DEFAULT_LENGTH || length % 2 == 0)) { "length $length" }
+        // as the reference implementations do, a longer request gets the finest code there is
+        val digitCount = minOf(length, MAX_LENGTH)
         var lat = cells((latitude.coerceIn(-90.0, 90.0) + 90.0) * LATITUDE_STEPS).coerceAtMost(180 * LATITUDE_STEPS - 1)
         val shifted = ((longitude + 180.0) % 360.0 + 360.0) % 360.0
         var lon = cells(shifted * LONGITUDE_STEPS).coerceAtMost(360 * LONGITUDE_STEPS - 1)
@@ -44,8 +46,8 @@ object OpenLocationCode {
             lat /= PAIR_BASE
             lon /= PAIR_BASE
         }
-        val kept = digits.concatToString(0, length)
-        return if (length >= SEPARATOR_AT) {
+        val kept = digits.concatToString(0, digitCount)
+        return if (digitCount >= SEPARATOR_AT) {
             kept.take(SEPARATOR_AT) + SEPARATOR + kept.drop(SEPARATOR_AT)
         } else {
             kept.padEnd(SEPARATOR_AT, '0') + SEPARATOR

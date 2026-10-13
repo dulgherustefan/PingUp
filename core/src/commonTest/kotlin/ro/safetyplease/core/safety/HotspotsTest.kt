@@ -92,7 +92,7 @@ class HotspotsTest {
             report("baseless", minute, status = AckStatus.UNFOUNDED),
             report("counted", minute),
         )
-        assertEquals(1, map.total)
+        assertEquals(1, map.cells.sumOf { it.total } + map.unplaced)
         assertEquals(1, map.cells.single().perHour[23])
     }
 
@@ -115,7 +115,7 @@ class HotspotsTest {
         val middle = venue.zone("camping")!!.center
         assertEquals(grid.cellAt(middle.lat, middle.lon), map.cells.single().cell, "the middle of the camping zone")
         assertEquals(1, map.unplaced)
-        assertEquals(2, map.total)
+        assertEquals(2, map.cells.sumOf { it.total } + map.unplaced)
     }
 
     @Test
@@ -133,7 +133,7 @@ class HotspotsTest {
     fun noReportsIsAnEmptyMap() {
         val map = of()
         assertTrue(map.cells.isEmpty())
-        assertEquals(0, map.total)
+        assertEquals(0, map.unplaced)
     }
 
     @Test

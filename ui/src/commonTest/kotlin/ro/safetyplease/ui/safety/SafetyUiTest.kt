@@ -1,15 +1,24 @@
 package ro.safetyplease.ui.safety
 
 import androidx.compose.runtime.saveable.SaverScope
+import ro.safetyplease.core.incidents.Discreet
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.ReportExtras
+import ro.safetyplease.core.safety.Welfare
+import ro.safetyplease.core.venue.GeoFix
+import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.OpenTarget
+import ro.safetyplease.ui.ReportSpot
 import ro.safetyplease.ui.Tab
 import ro.safetyplease.ui.landing
+import ro.safetyplease.ui.spotFor
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.wallNowMs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SafetyUiTest {
@@ -67,6 +76,52 @@ class SafetyUiTest {
         assertEquals(360, back.laterMin)
         assertFalse(back.noReply)
         assertTrue(back.witness)
+    }
+
+    @Test
+    fun aReportWrittenLaterCarriesNoPresentPosition() {
+        val here = ReportSpot(GeoPoint(44.4271, 26.1031), 12, null)
+        assertEquals(here, spotFor(here, ReportExtras.NONE), "happening now: where the phone is")
+        assertEquals(here, spotFor(here, ReportExtras(witness = true, anonymous = true)))
+        // the person has walked off since: the phone's position now is not where it happened
+        val elsewhere = ReportSpot(GeoPoint(44.4300, 26.1100), 8, null)
+        assertNull(spotFor(elsewhere, ReportExtras(happenedMinAgo = 180)), "only the zone the person picks goes")
+        assertNull(spotFor(null, ReportExtras.NONE))
+    }
+
+    @Test
+    fun theCardTakesTheFixsAccuracyUncapped() {
+        assertEquals(800, cardAccuracyM(GeoFix(44.0, 26.0, 800f, 0), simulated = false), "not \"±255 m\"")
+        assertEquals(12, cardAccuracyM(GeoFix(44.0, 26.0, 11.6f, 0), simulated = false))
+        assertEquals(0, cardAccuracyM(GeoFix(44.0, 26.0, 800f, 0), simulated = true), "a simulated position claims none")
+        assertEquals(0, cardAccuracyM(null, simulated = false))
+    }
+
+    @Test
+    fun anAlertSaysHowLateItIsInWordsBothLanguagesRead() {
+        assertEquals("0 min", shortDuration(-5_000))
+        assertEquals("45 min", shortDuration(45 * 60_000L + 59_000L))
+        assertEquals("2 h", shortDuration(2 * 3_600_000L))
+        assertEquals("2 h 5 min", shortDuration(2 * 3_600_000L + 5 * 60_000L))
+        val now = wallNowMs()
+        assertEquals(Labels.clock(now), deadlineText(now, now), "today: the time alone")
+        val twoDaysAgo = now - 2 * 24 * 3_600_000L
+        assertTrue(deadlineText(twoDaysAgo, now).endsWith(" " + Labels.clock(twoDaysAgo)), "another day: the date first")
+        assertTrue(deadlineText(twoDaysAgo, now).length > Labels.clock(twoDaysAgo).length)
+    }
+
+    @Test
+    fun nuSuntBineIsNotTheDiscreetReportInProgress() {
+        assertTrue(isUnsafeReport(Discreet.describe("Mă simt în nesiguranță.")))
+        assertFalse(isUnsafeReport(Welfare.describe("Nu mă simt bine: anxietate.")))
+        assertFalse(isUnsafeReport("Cineva m-a urmărit"))
+    }
+
+    @Test
+    fun anonymousWithoutAReplyIsOnlyWhereItIsOffered() {
+        val state = ReportOptionsState(noReply = true)
+        assertTrue(state.noReplyFor(IncidentCategory.HARASSMENT))
+        assertFalse(state.noReplyFor(IncidentCategory.MEDICAL), "left over from harassment, a medical report can still be answered")
     }
 
     @Test

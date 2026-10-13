@@ -6,6 +6,7 @@
     <string name="checkin_row_running">Ajungi la %1$s până la %2$s</string>
     <string name="checkin_alerts_row">Un prieten n-a confirmat că a ajuns</string>
     <string name="checkin_intro">Spune-le prietenilor unde mergi. Dacă nu confirmi că ai ajuns, ei primesc o alertă cu ultima ta poziție. Cât timp răspunzi, nu pleacă nimic.</string>
+    <string name="checkin_notif_off">Fără notificări nu vezi întrebarea „Ai ajuns?”, iar prietenii pot fi anunțați fără să fi fost întrebat.</string>
     <string name="checkin_where">Unde ajungi</string>
     <string name="checkin_place_parking">Parcare</string>
     <string name="checkin_place_station">Gară</string>
@@ -13,12 +14,14 @@
     <string name="checkin_place_hint">Alt loc</string>
     <string name="checkin_when">În cât timp</string>
     <string name="checkin_until">Până la %1$s</string>
+    <string name="checkin_minus_5">Cu 5 minute mai puțin</string>
+    <string name="checkin_plus_5">Cu 5 minute mai mult</string>
     <string name="checkin_who">Cui spui (cel mult 5)</string>
     <string name="checkin_no_friends_title">Încă n-ai prieteni în aplicație</string>
     <string name="checkin_no_friends_text">Check-in-ul anunță prieteni din aplicație. Adaugă unul scanând codul lui.</string>
     <string name="checkin_no_friends_add">Adaugă un prieten</string>
     <string name="checkin_start">Pornește check-in-ul</string>
-    <string name="checkin_note">La ora aleasă telefonul te întreabă „Ai ajuns?”. Dacă nu răspunzi în 10 minute, prietenii aleși primesc alerta, cu ultima ta poziție. Ține telefonul pornit și aplicația permisă în fundal.</string>
+    <string name="checkin_note">La ora aleasă telefonul te întreabă „Ai ajuns?”. Dacă nu răspunzi în 10 minute de la întrebare, prietenii aleși primesc alerta, cu ultima ta poziție. Dacă telefonul e oprit la ora aleasă, te întreabă când pornește din nou și îți dă tot 10 minute. Ține aplicația permisă în fundal.</string>
     <string name="checkin_waiting_title">Ajungi la %1$s în</string>
     <string name="checkin_waiting_who">Până la %1$s · anunți: %2$s</string>
     <string name="checkin_asked_title">Ai ajuns la %1$s?</string>
@@ -27,6 +30,8 @@
     <string name="checkin_extend">+%1$d min</string>
     <string name="checkin_cancel">Anulează check-in-ul</string>
     <string name="checkin_alerted_title">Prietenii tăi au fost anunțați</string>
+    <string name="checkin_alerted_none_title">Alerta n-a putut pleca</string>
+    <string name="checkin_alerted_none">Niciunul dintre prietenii aleși pentru %1$s nu mai e în lista ta, așa că nimeni n-a fost anunțat.</string>
     <plurals name="checkin_alerted_text">
         <item quantity="one">Alerta pentru %2$s a plecat către un prieten, cu ultima ta poziție. O primește când e în raza ta.</item>
         <item quantity="few">Alerta pentru %2$s a plecat către %1$d prieteni, cu ultima ta poziție. O primesc când sunt în raza ta.</item>
@@ -38,7 +43,8 @@
     <string name="checkin_alerts_title">Prieteni care n-au ajuns</string>
     <string name="checkin_alerts_empty">Nicio alertă de la prieteni</string>
     <string name="checkin_alert_silent">%1$s n-a confirmat că a ajuns la %2$s</string>
-    <string name="checkin_alert_time">Trebuia să ajungă la %1$s</string>
+    <string name="checkin_alert_time">Trebuia să ajungă la %1$s (%2$s)</string>
+    <string name="checkin_alert_received">Alerta a sosit %1$s</string>
     <string name="checkin_alert_position">Ultima poziție: %1$s, %2$s</string>
     <string name="checkin_alert_no_fix">fără poziție</string>
     <string name="checkin_alert_message">Scrie-i</string>
@@ -49,28 +55,34 @@
     <string name="safety_channel_checkin">Check-in pe drum</string>
     <string name="safety_channel_friends">Prieteni care n-au ajuns</string>
     <string name="notif_checkin_title">Ai ajuns?</string>
-    <string name="notif_checkin_text">%1$s: confirmă. Altfel, în 10 minute sunt anunțați prietenii tăi.</string>
-    <string name="notif_friend_silent_text">Vezi ultima poziție și scrie-i.</string>
+    <string name="notif_checkin_text">%1$s: confirmă că ai ajuns. Dacă nu răspunzi în 10 minute de la această întrebare, prietenii aleși primesc alerta.</string>
+    <string name="notif_friend_silent_text">Trebuia să ajungă la %1$s (acum %2$s). Ultima poziție e de acum %3$s. Scrie-i sau vezi-o pe hartă.</string>
+    <string name="notif_friend_silent_text_no_fix">Trebuia să ajungă la %1$s (acum %2$s). Alerta nu are poziție. Scrie-i.</string>
     <string name="safety_hours_short">%1$d h</string>
     <string name="safety_hours_minutes_short">%1$d h %2$d min</string>
 
     <!-- Opțiuni la raport -->
     <string name="report_options_title">Mai multe despre ce s-a întâmplat</string>
     <string name="report_options_later">S-a întâmplat mai devreme</string>
-    <string name="report_options_later_text">Poți raporta și ce s-a întâmplat acum până la 24 de ore</string>
+    <string name="report_options_later_text">Poți raporta și ce s-a întâmplat în ultimele 24 de ore</string>
     <string name="report_options_later_at">Aproximativ la %1$s</string>
     <string name="report_options_witness">Raportez pentru altcineva</string>
     <string name="report_options_witness_text">Am văzut ce i s-a întâmplat altei persoane</string>
+    <string name="report_identity_title">Cine trimite raportul</string>
+    <string name="report_identity_named">Cu porecla ta</string>
+    <string name="report_identity_named_text">Echipa îți vede porecla și îți poate răspunde.</string>
+    <string name="report_identity_anonymous">Anonim</string>
+    <string name="report_identity_anonymous_text">Fără poreclă. Echipa îți poate răspunde în aplicație, fără să afle cine ești.</string>
     <string name="report_options_no_reply">Anonim, fără răspuns</string>
     <string name="report_options_no_reply_text">Fără poreclă și fără cale de răspuns</string>
     <string name="report_options_no_reply_note">Raportul nu are poreclă și nici cale de răspuns: echipa nu îți poate scrie înapoi și nu știe cine ești. Dacă ai nevoie de ajutor acum, sună la 112 sau mergi la un punct Safe Zone.</string>
-    <string name="incident_note_later">Raportat mai târziu: s-a întâmplat acum %1$s</string>
+    <string name="incident_note_later">Raportat mai târziu: s-a întâmplat cu %1$s înainte de raport</string>
     <string name="incident_note_witness">Raportat de un martor, pentru altcineva</string>
     <string name="incident_note_no_reply">Anonim: nu i se poate răspunde</string>
 
     <!-- Zone sensibile, pe consolă -->
     <string name="hotspots_open">Zone sensibile</string>
-    <string name="hotspots_title">Zone sensibile, ultimele 24 h</string>
+    <string name="hotspots_title">Zone sensibile în ultimele 24 de ore</string>
     <string name="hotspots_note">Raportări de hărțuire și „mă simt în nesiguranță”, pe pătratul din plan și pe oră, cele mai multe primele. Doar pentru patrule; harta nu se arată publicului.</string>
     <string name="hotspots_counts">%1$d raportări (%2$d hărțuire, %3$d nesiguranță)</string>
     <string name="hotspots_empty">Nicio raportare în ultimele 24 de ore</string>
@@ -94,6 +106,7 @@
     <string name="unwell_off_text">Organizatorul n-a pus aici o echipă care să răspundă prin aplicație. Mergi la cel mai apropiat punct medical sau la Safe Zone și spune cum te simți.</string>
     <!-- DRAFT, waiting for the medical lead's approval (co-signed with Caravana cu Medici or ANPCDDA): the breathing guide below, until then not final -->
     <string name="unwell_breathe_title">Până vine cineva</string>
+    <string name="unwell_breathe_draft">Text provizoriu, încă neverificat de echipa medicală.</string>
     <string name="unwell_inhale">Inspiră</string>
     <string name="unwell_exhale">Expiră</string>
     <string name="unwell_breathe_1">Așază-te undeva sigur, dacă poți, și sprijină-ți spatele.</string>
@@ -119,6 +132,8 @@
     <string name="card112_stale_text">Ultima poziție a telefonului: %1$s. Mergi lângă un reper numerotat și spune operatorului ce vezi în jur.</string>
     <string name="card112_no_position_title">Telefonul nu are poziția ta</string>
     <string name="card112_no_position_text">Spune operatorului zona, numărul reperului pe care îl vezi și ce e în jurul tău.</string>
+    <string name="card112_outside_title">Ești în afara festivalului</string>
+    <string name="card112_outside_text">Spune operatorului coordonatele de mai jos și ce vezi în jurul tău.</string>
     <string name="card112_help_title">Ajutor aproape</string>
     <string name="card112_landline">Telefon fix</string>
     <string name="card112_medical">Punct medical</string>

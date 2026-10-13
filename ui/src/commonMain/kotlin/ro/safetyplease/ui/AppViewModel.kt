@@ -240,6 +240,12 @@ fun reportSpot(settings: Settings, fix: GeoFix?, nowMs: Long, venue: Venue): Rep
     return ReportSpot(point, accuracy, venue.nearestLandmark(point))
 }
 
+/**
+ * Where a report says it happened: here and now, from [spot]; for one written later, nowhere, since the phone is no
+ * longer where it happened and its pin would send a team to the wrong place. The zone picked still goes.
+ */
+fun spotFor(spot: ReportSpot?, extras: ReportExtras): ReportSpot? = spot.takeIf { extras.happenedMinAgo == 0 }
+
 /** The report still needs help: neither closed nor cancelled by you. */
 fun MyReport.isOpen() = !AckStatus.isClosed(status) && !cancelled
 
@@ -547,7 +553,7 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
         recognition: String = "",
         extras: ReportExtras = ReportExtras.NONE,
     ): String? {
-        val spot = spotNow()
+        val spot = spotFor(spotNow(), extras)
         val nickname = if (anonymous) null else c.settings.value.nickname
         val draft = ReportDraft(
             category, severity, zone, spot?.point?.lat, spot?.point?.lon, description, nickname, triage, staff, recognition, spot?.fields,

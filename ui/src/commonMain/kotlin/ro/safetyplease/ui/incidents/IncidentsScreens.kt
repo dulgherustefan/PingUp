@@ -147,8 +147,8 @@ import ro.safetyplease.ui.resources.status_cancelled
 import ro.safetyplease.ui.resources.status_resolved
 import ro.safetyplease.ui.resources.tab_incidents
 import ro.safetyplease.ui.resources.zone_unknown
-import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.safety.ReportOptionNotes
+import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.ui.text.hopsText
 import ro.safetyplease.ui.text.rememberNow

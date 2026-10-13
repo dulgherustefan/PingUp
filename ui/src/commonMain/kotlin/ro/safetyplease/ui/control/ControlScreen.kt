@@ -110,6 +110,7 @@ import ro.safetyplease.ui.resources.crowd_signal
 import ro.safetyplease.ui.resources.edition_open
 import ro.safetyplease.ui.resources.filter_active
 import ro.safetyplease.ui.resources.filter_resolved
+import ro.safetyplease.ui.resources.hotspots_open
 import ro.safetyplease.ui.resources.incident_informational
 import ro.safetyplease.ui.resources.incident_state_closed
 import ro.safetyplease.ui.resources.incidents_empty_text
@@ -122,7 +123,6 @@ import ro.safetyplease.ui.resources.sev_urgent
 import ro.safetyplease.ui.resources.status_cancelled
 import ro.safetyplease.ui.resources.status_resolved
 import ro.safetyplease.ui.resources.zone_unknown
-import ro.safetyplease.ui.resources.hotspots_open
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.ui.text.rememberNow

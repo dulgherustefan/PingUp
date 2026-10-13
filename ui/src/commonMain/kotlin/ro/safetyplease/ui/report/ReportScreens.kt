@@ -216,6 +216,7 @@ import ro.safetyplease.ui.resources.report_named
 import ro.safetyplease.ui.resources.report_next_text
 import ro.safetyplease.ui.resources.report_next_title
 import ro.safetyplease.ui.resources.report_not_112
+import ro.safetyplease.ui.resources.report_options_no_reply
 import ro.safetyplease.ui.resources.report_rate_limited
 import ro.safetyplease.ui.resources.report_recognition
 import ro.safetyplease.ui.resources.report_recognition_hint
@@ -265,6 +266,7 @@ import ro.safetyplease.ui.resources.torch_on
 import ro.safetyplease.ui.safety.Card112Row
 import ro.safetyplease.ui.safety.ReportOptionsSection
 import ro.safetyplease.ui.safety.SafetyEntries
+import ro.safetyplease.ui.safety.offersLaterAndNoReply
 import ro.safetyplease.ui.safety.rememberReportOptions
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.Replies
@@ -434,7 +436,8 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         }
     }
     val requestLocation = rememberLocationRequest(vm) { locationCheck++ }
-    val recognisable = !staff && category != 0 && category != IncidentCategory.LOST_FRIEND
+    // a report nobody can answer asks nothing that tells the person apart
+    val recognisable = !staff && category != 0 && category != IncidentCategory.LOST_FRIEND && !safety.noReplyFor(category)
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     val more by remember { derivedStateOf { scroll.canScrollForward } }
@@ -579,6 +582,8 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
                     )
                 }
+                // harassment shows its options at once: "later" and "anonymous" are what such a report most often needs
+                if (!staff && category == IncidentCategory.HARASSMENT) ReportOptionsSection(safety, category, named = !anonymous, onNamed = { anonymous = !it })
                 if (recognisable) {
                     InputField(
                         recognition, { recognition = it.take(Recognition.MAX_CHARS) }, stringResource(Res.string.report_recognition),
@@ -590,7 +595,13 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 if (category != 0 && !showDetails && !staff) {
                     val summary = listOf(
                         stringResource(Labels.urgency(severity)),
-                        stringResource(if (anonymous) Res.string.report_anonymous else Res.string.report_named),
+                        stringResource(
+                            when {
+                                safety.noReplyFor(category) -> Res.string.report_options_no_reply
+                                anonymous -> Res.string.report_anonymous
+                                else -> Res.string.report_named
+                            },
+                        ),
                         when {
                             zone.isEmpty() -> stringResource(Res.string.report_zone_none)
                             zoneAge != null -> stringResource(Res.string.report_zone_with_age, vm.venue.zoneName(zone), zoneAge)
@@ -642,8 +653,8 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                             value = if (zone.isNotEmpty()) vm.venue.zoneName(zone) else null,
                             icon = Sym.Place, chevron = true, onClick = { pickZone = true },
                         )
-                        // staff reports go in the team's name
-                        if (!staff) {
+                        // staff reports go in the team's name; where the options offer it, who the report is from is chosen there
+                        if (!staff && !offersLaterAndNoReply(category)) {
                             GroupDivider()
                             SwitchRow(
                                 stringResource(Res.string.report_anonymous), anonymous, { anonymous = it },
@@ -651,7 +662,9 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                             )
                         }
                     }
-                    if (!staff) ReportOptionsSection(safety, category)
+                    if (!staff && category != IncidentCategory.HARASSMENT) {
+                        ReportOptionsSection(safety, category, named = !anonymous, onNamed = { anonymous = !it })
+                    }
                     InputField(
                         description, { description = it.take(Limits.DESCRIPTION_CHARS) },
                         stringResource(if (staff) Res.string.report_description_staff else Res.string.report_description),
@@ -688,7 +701,8 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 {
                     val fields = if (staff) StaffFields(people, danger) else null
                     val id = vm.report(
-                        category, severity, zone, description, anonymous, triage, fields, if (recognisable) recognition else "", safety.extras(category),
+                        category, severity, zone, description, anonymous || safety.noReplyFor(category), triage, fields, if (recognisable) recognition else "",
+                        safety.extras(category),
                     )
                     if (id != null) {
                         if (autoZone == null) vm.setManualZone(zone)

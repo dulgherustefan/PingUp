@@ -20,7 +20,7 @@ E oprită până o pornești tu. Alegi fiecare prieten sau grup cu care o împar
 
 ## Check-in pe drum
 
-E oprit până îl pornești tu. Alegi locul unde ajungi, ora și 1–5 prieteni. La ora aleasă telefonul te întreabă „Ai ajuns?”; dacă nu răspunzi în 10 minute, prietenii aleși primesc o singură alertă, criptată cap-coadă ca un mesaj, cu numele locului, ora și ultima poziție pe care o avea telefonul. Cât timp răspunzi, nu pleacă nimic. Alertele primite de la prieteni rămân pe telefon, cel mult zece. Un raport poate spune și că s-a întâmplat mai devreme (până la 24 de ore în urmă), că e despre altcineva sau că e anonim, fără răspuns: un raport anonim nu are nici poreclă, nici cheie de răspuns, deci echipa nu poate să-ți răspundă.
+E oprit până îl pornești tu. Alegi locul unde ajungi, ora și 1–5 prieteni. La ora aleasă telefonul te întreabă „Ai ajuns?”; dacă nu răspunzi în 10 minute de la întrebare, prietenii aleși primesc o singură alertă, criptată cap-coadă ca un mesaj, cu numele locului, ora și ultima poziție pe care o avea telefonul. Cât timp răspunzi, nu pleacă nimic. Alertele primite de la prieteni rămân pe telefon, cel mult zece. Un raport poate spune și că s-a întâmplat mai devreme (până la 24 de ore în urmă; atunci pleacă fără coordonatele telefonului, doar cu zona aleasă), că e despre altcineva sau că e anonim, fără răspuns: un raport anonim nu are nici poreclă, nici cheie de răspuns, deci echipa nu poate să-ți răspundă.
 
 ## Camera
 
@@ -76,7 +76,7 @@ It’s off until you turn it on. You pick each friend or group you share it with
 
 ## Check-in on the way
 
-It’s off until you turn it on. You pick where you are going, the time and 1 to 5 friends. At that time the phone asks “Did you arrive?”; if you don’t answer within 10 minutes, the friends you picked get one alert, end-to-end encrypted like a message, with the name of the place, the time and the last position the phone had. As long as you answer, nothing is sent. The alerts you get from friends stay on your phone, at most ten. A report can also say that it happened earlier (up to 24 hours ago), that it is about someone else, or that it is anonymous with no reply: an anonymous report has neither a nickname nor a reply key, so the team can’t answer you.
+It’s off until you turn it on. You pick where you are going, the time and 1 to 5 friends. At that time the phone asks “Did you arrive?”; if you don’t answer within 10 minutes of the question, the friends you picked get one alert, end-to-end encrypted like a message, with the name of the place, the time and the last position the phone had. As long as you answer, nothing is sent. The alerts you get from friends stay on your phone, at most ten. A report can also say that it happened earlier (up to 24 hours ago; it then goes without the phone’s coordinates, only with the zone you pick), that it is about someone else, or that it is anonymous with no reply: an anonymous report has neither a nickname nor a reply key, so the team can’t answer you.
 
 ## Camera
 
