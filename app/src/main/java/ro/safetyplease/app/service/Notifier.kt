@@ -205,6 +205,8 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             AlertReason.ASSIGNED -> context.getString(R.string.notif_assigned_title, category)
             AlertReason.UNACCEPTED -> context.getString(R.string.notif_unaccepted_title, incident.teamName, category)
             AlertReason.ROLE, AlertReason.EVERYONE -> context.getString(R.string.notif_widened_title, category)
+            AlertReason.ESCALATED -> context.getString(R.string.notif_escalated_title, category)
+            AlertReason.RESPONDER -> context.getString(R.string.notif_responder_title, zone)
             else -> context.getString(R.string.notif_incident_title, category, context.text(Labels.urgency(incident.severity)))
         }
         val level = post.route.level
@@ -261,22 +263,25 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         manager.notify(id, builder.build())
     }
 
-    /** "Ești OK?": the alarm sound again and again until an answer or [untilMs]; tapping it opens the question. */
-    override fun manDownCheck(untilMs: Long) {
-        if (!canPost()) return
+    /**
+     * "Ești OK?": the alarm sound again and again until an answer or [untilMs]; tapping it opens the question. In an
+     * exercise it neither takes over the screen nor rings as an alarm. False when notifications aren't allowed.
+     */
+    override fun manDownCheck(untilMs: Long): Boolean {
+        if (!canPost() || !manager.areNotificationsEnabled()) return false
         val open = open(MainActivity.OPEN_HOME, RequestCodes.MAN_DOWN)
         val builder = NotificationCompat.Builder(context, if (exercise) CHANNEL_VIBRATE else CHANNEL_ALARM)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(marked(context.getString(R.string.mandown_title)))
             .setContentText(context.getString(R.string.mandown_notification))
             .setContentIntent(open)
-            .setFullScreenIntent(open, true)
             .setOngoing(true)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setTimeoutAfter((untilMs - System.currentTimeMillis()).coerceAtLeast(1_000))
-        val notification = builder.build().apply { flags = flags or Notification.FLAG_INSISTENT }
+        if (!exercise) builder.setCategory(NotificationCompat.CATEGORY_ALARM).setFullScreenIntent(open, true)
+        val notification = builder.build().apply { if (!exercise) flags = flags or Notification.FLAG_INSISTENT }
         manager.notify(MAN_DOWN_ID, notification)
+        return true
     }
 
     override fun cancelManDownCheck() = manager.cancel(MAN_DOWN_ID)

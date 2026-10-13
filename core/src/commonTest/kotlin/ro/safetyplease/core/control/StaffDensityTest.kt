@@ -29,11 +29,11 @@ class StaffDensityTest {
     @Test
     fun theWholeNetworkStaysUnderATenthOfAPacketASecond() {
         for (count in listOf(1, 3, 6, 12, 40)) {
-            val perSecond = count * 2 * 1000.0 / StaffDensity.zoneGapMs(count)
+            val perSecond = count * StaffDensity.PER_WINDOW * 1000.0 / StaffDensity.zoneGapMs(count)
             assertTrue(perSecond <= StaffDensity.BUDGET_PER_S + 1e-9, "$count zones: $perSecond/s")
         }
         assertEquals(StaffDensity.MIN_ZONE_GAP_MS, StaffDensity.zoneGapMs(1), "a small venue still waits a minute")
-        assertEquals(120_000L, gap, "six zones: one report and one rise per zone every two minutes")
+        assertEquals(180_000L, gap, "six zones: one report and two rises per zone every three minutes")
     }
 
     @Test
@@ -48,18 +48,36 @@ class StaffDensityTest {
     fun aZoneTakesOneReportPerGapWhoeverSendsIt() {
         val log = DensityLog(listOf(heard("a", 2, t0)))
         assertEquals(DensityVerdict.ZONE_RECENT, StaffDensity.check(log, "a", 3, t0 + gap - 1, zones))
+        assertEquals(DensityVerdict.KNOWN, StaffDensity.check(log, "a", 2, t0 + gap - 1, zones), "only the same level is known")
         assertEquals(DensityVerdict.SEND, StaffDensity.check(log, "b", 3, t0 + 1, zones), "another zone is free")
         assertEquals(DensityVerdict.SEND, StaffDensity.check(log, "a", 3, t0 + gap, zones))
     }
 
     @Test
-    fun aRiseToAnIncidentPassesOncePerGap() {
-        val log = DensityLog(listOf(heard("a", 3, t0)))
+    fun aZoneGoesFromFourToFiveAtOnce() {
+        val log = DensityLog(listOf(heard("a", 3, t0)), sentAt = t0)
         assertEquals(DensityVerdict.SEND, StaffDensity.check(log, "a", 4, t0 + 1_000, zones), "packed: the console must know now")
         assertEquals(DensityVerdict.SEND, StaffDensity.check(log, "a", 5, t0 + 1_000, zones))
-        val risen = DensityLog(log.readings + heard("a", 5, t0 + 1_000))
-        assertEquals(DensityVerdict.ZONE_RECENT, StaffDensity.check(risen, "a", 5, t0 + 2_000, zones), "the zone is an incident already")
-        assertEquals(DensityVerdict.ZONE_RECENT, StaffDensity.check(risen, "a", 4, t0 + 2_000, zones))
+        val packed = DensityLog(log.readings + heard("a", 4, t0 + 1_000), sentAt = t0 + 1_000)
+        assertEquals(DensityVerdict.SEND, StaffDensity.check(packed, "a", 5, t0 + 2_000, zones), "4 to 5, even from the phone that sent the 4")
+        assertEquals(DensityVerdict.PHONE_WAIT, StaffDensity.check(packed, "a", 4, t0 + 2_000, zones), "the same 4 again is no rise")
+        assertEquals(DensityVerdict.KNOWN, StaffDensity.check(DensityLog(packed.readings), "a", 4, t0 + 2_000, zones), "from another phone")
+        val dangerous = DensityLog(packed.readings + heard("a", 5, t0 + 2_000))
+        assertEquals(DensityVerdict.KNOWN, StaffDensity.check(dangerous, "a", 5, t0 + 3_000, zones), "the zone is urgent already")
+        assertEquals(DensityVerdict.ZONE_RECENT, StaffDensity.check(dangerous, "a", 4, t0 + 3_000, zones))
+        // a 4 heard lately holds back a 4 from another phone, but not the 5 above it
+        assertEquals(DensityVerdict.ZONE_RECENT, StaffDensity.check(DensityLog(listOf(heard("a", 5, t0), heard("a", 4, t0 + 1))), "a", 3, t0 + 2, zones))
+        assertEquals(DensityVerdict.ZONE_RECENT, StaffDensity.check(dangerous, "a", 3, t0 + 3_000, zones))
+    }
+
+    @Test
+    fun aReadingIsAsOldAsItsReportersTimeNeverYoungerThanItsArrival() {
+        val late = DensityReading("a", 2, t0 - gap, t0, "Steward", "late")
+        assertEquals(t0 - gap, StaffDensity.seenAt(late))
+        assertEquals(DensityVerdict.SEND, StaffDensity.check(DensityLog(listOf(late)), "a", 3, t0 + 1, zones), "it travelled too long to count")
+        val ahead = DensityReading("a", 2, t0 + 3_600_000, t0, "Steward", "ahead")
+        assertEquals(t0, StaffDensity.seenAt(ahead), "a clock ahead doesn't make it newer than its arrival")
+        assertEquals("late", StaffDensity.latest(listOf(late, DensityReading("a", 3, t0 - 2 * gap, t0 + 5, "S", "older"))).getValue("a").incidentId)
     }
 
     @Test

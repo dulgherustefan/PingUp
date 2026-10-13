@@ -132,8 +132,11 @@ interface Notifications {
     /** Someone doesn't breathe nearby: the alert names the defibrillator to fetch on the way. */
     fun responderAlert(post: AlertPost, target: ResponderTarget?) = staffAlert(post)
 
-    /** "Ești OK?" after a suspected fall, with sound and vibration until [untilMs] (wall time) or an answer. */
-    fun manDownCheck(untilMs: Long) = Unit
+    /**
+     * "Ești OK?" after a suspected fall, with sound and vibration until [untilMs] (wall time) or an answer. False when
+     * it couldn't be posted (notifications not allowed, or a phone without man-down): then only the open app asks.
+     */
+    fun manDownCheck(untilMs: Long): Boolean = false
 
     fun cancelManDownCheck() = Unit
 }

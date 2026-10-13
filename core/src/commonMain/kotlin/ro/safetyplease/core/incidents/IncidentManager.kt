@@ -140,7 +140,7 @@ class IncidentManager(
         return recent[recent.size - max] + RATE_WINDOW_MS - now
     }
 
-    /** [bypassRateLimit] is only used by the demo's test incidents. */
+    /** [bypassRateLimit]: the demo's test incidents, and man-down, which nobody chose to send and must not be held back. */
     fun report(draft: ReportDraft, bypassRateLimit: Boolean = false): Boolean {
         if (!bypassRateLimit && rateLimitWaitMs() > 0) return false
         val now = clock.wallMs()
@@ -152,7 +152,7 @@ class IncidentManager(
         val staff = draft.staff?.takeIf { staffSecret() != null }
         val nickname = (if (staff != null) teamName() else draft.nickname)?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
         // a routine density level is no incident: nothing to cancel or answer, and nothing to follow here
-        val routine = StaffDensity.isRoutine(draft.category, draft.extras)
+        val routine = staff != null && StaffDensity.isRoutine(draft.category, draft.extras)
         fun body(description: String) = IncidentBody(
             draft.category, draft.severity, now / 1000, zone, draft.lat, draft.lon, description, nickname,
             IncidentCancel.hash(cancelToken).takeUnless { routine }, draft.triage, staff, draft.location, reply.publicKey.takeUnless { routine },
@@ -170,7 +170,7 @@ class IncidentManager(
         )
         if (!routine) store.update { it.copy(mine = (it.mine.withoutStaleSeals(now) + report).takeLast(MAX_MINE)) }
         scope.launch {
-            val packet = engine.publishReport(incidentId, sealed)
+            val packet = engine.publishReport(incidentId, sealed, routine)
             if (!routine) packetToIncident[packet.id] = report.incidentId
             // a staff phone never receives its own report from the network, so it opens it directly
             onReport(packet, hops = 0, alert = false)
@@ -406,10 +406,15 @@ class IncidentManager(
             fromStaff = body.staff != null, people = body.staff?.people ?: 0, dangerContinues = body.staff?.dangerContinues == true,
             accuracyM = body.location?.accuracyM ?: 0, landmark = body.location?.landmark ?: 0,
             replyKey = body.replyKey?.toHex().orEmpty(),
-            density = body.extras.density, cannotMove = body.extras.cannotMove, manDown = body.extras.manDown,
+            // a crowd level counts only from staff: a participant's report with one is an ordinary report
+            density = if (body.staff != null) body.extras.density else 0, cannotMove = body.extras.cannotMove, manDown = body.extras.manDown,
             unconscious = body.extras.unconscious,
         )
-        if (divert(opened)) return
+        if (divert(opened)) {
+            // nobody acknowledges it, so the cache must not keep it as a report still waiting for staff
+            engine.settleReport(incidentId)
+            return
+        }
         val incident = priority().match(Signs.of(opened))?.let { opened.copy(severity = Severity.URGENT, topRule = it.id) } ?: opened
         store.update { it.copy(staff = (it.staff + incident).takeLast(staffCap())) }
         // an update that came before the report: relays keep the latest one, and so did this phone's cache

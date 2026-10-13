@@ -1,5 +1,6 @@
 package ro.safetyplease.ui.control
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +26,7 @@ import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.control.Case
 import ro.safetyplease.core.control.CaseState
+import ro.safetyplease.core.control.DensityReading
 import ro.safetyplease.core.control.DensityStep
 import ro.safetyplease.core.control.HandOver
 import ro.safetyplease.core.control.LogEntry
@@ -52,6 +54,8 @@ import ro.safetyplease.ui.resources.chain_overdue
 import ro.safetyplease.ui.resources.chain_top_priority
 import ro.safetyplease.ui.resources.chain_unconscious
 import ro.safetyplease.ui.resources.chain_waiting
+import ro.safetyplease.ui.resources.density_fewer
+import ro.safetyplease.ui.resources.density_more
 import ro.safetyplease.ui.resources.density_row
 import ro.safetyplease.ui.resources.density_section
 import ro.safetyplease.ui.resources.density_section_empty
@@ -122,11 +126,12 @@ fun UrgentTimer(case: Case, incident: StaffIncident?) {
 @Composable
 fun MedicalPanel(vm: AppViewModel, case: Case, incident: StaffIncident?, history: List<LogEntry>) {
     val colors = AppTheme.colors
-    val notes by vm.c.staffChain.handOver.state.collectAsStateWithLifecycle()
+    val stored by vm.c.staffChain.handOver.state.collectAsStateWithLifecycle()
+    val now = rememberNow(60_000)
     var card by remember { mutableStateOf(false) }
     val r = case.report
-    val noted = remember(notes, history, incident) {
-        HandOver.card(incident, history, notes.notes, case.incidentId)
+    val noted = remember(stored, now, history, incident) {
+        HandOver.card(incident, history, vm.c.staffChain.handOver.read(vm.c.clock.wallMs()), case.incidentId)
     }
     val rule = r.topRule.ifEmpty {
         incident?.let { vm.c.staffChain.priority.match(Signs.of(it, noted.temperatureC))?.id }.orEmpty()
@@ -160,19 +165,25 @@ fun MedicalPanel(vm: AppViewModel, case: Case, incident: StaffIncident?, history
     if (card) HandOverDialog(vm, case.incidentId) { card = false }
 }
 
-/** The latest level of each zone staff reported, with its age: a quiet line each, above the queue. */
+/**
+ * The latest level of each zone staff reported, with its age: a quiet line each, above the queue. The most crowded
+ * [DENSITY_ROWS] show; the others fold into one line that opens them, so the incidents stay in view.
+ */
 @Composable
 fun DensityRows(vm: AppViewModel, now: Long) {
     val log by vm.c.staffChain.density.state.collectAsStateWithLifecycle()
+    var open by remember { mutableStateOf(false) }
     val latest = remember(log, now) {
-        StaffDensity.latest(log.readings).values.filter { now - it.receivedAt < SHOWN_MS }.sortedByDescending { it.level }
+        StaffDensity.latest(log.readings).values.filter { now - StaffDensity.seenAt(it) < SHOWN_MS }
+            .sortedWith(compareByDescending<DensityReading> { it.level }.thenByDescending(StaffDensity::seenAt))
     }
     val colors = AppTheme.colors
-    for (reading in latest) {
+    val shown = if (open || latest.size <= DENSITY_ROWS + 1) latest else latest.take(DENSITY_ROWS)
+    for (reading in shown) {
         Text(
             stringResource(
                 Res.string.density_row, vm.venue.zoneName(reading.zone), stringResource(densityWord(reading.level)), reading.level,
-                agoText(reading.receivedAt, now),
+                agoText(StaffDensity.seenAt(reading), now),
             ),
             style = MaterialTheme.typography.footnote,
             color = if (reading.level >= StaffDensity.INCIDENT_LEVEL) colors.orangeInk else colors.label,
@@ -180,10 +191,21 @@ fun DensityRows(vm: AppViewModel, now: Long) {
         )
         GroupDivider(start = 0.dp)
     }
+    if (latest.size > DENSITY_ROWS + 1) {
+        Text(
+            if (open) stringResource(Res.string.density_fewer) else stringResource(Res.string.density_more, latest.size - DENSITY_ROWS),
+            style = MaterialTheme.typography.footnote, color = colors.accent,
+            modifier = Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+        GroupDivider(start = 0.dp)
+    }
 }
 
 /** A level older than this no longer says how the zone is now. */
 const val SHOWN_MS = 60 * 60_000L
+
+/** Zones listed above the queue before the rest fold into one line. */
+const val DENSITY_ROWS = 3
 
 /** The edition report's density timeline: a line per change, zone by zone. */
 suspend fun densitySection(steps: List<DensityStep>, venue: Venue, time: (Long) -> String): DocSection = DocSection(

@@ -17,8 +17,8 @@
     <string name="density_latest">Ultimul raport aici: %1$s (%2$d/5) · %3$s</string>
     <string name="density_sent">Trimis: %1$s (%2$d/5)</string>
     <string name="density_phone_wait">Poți trimite din nou la 2 minute după ultimul raport.</string>
-    <string name="density_zone_recent">Zona tocmai a fost raportată; consola are nivelul ei.</string>
-    <string name="density_known">Consola are deja nivelul acesta pentru zonă.</string>
+    <string name="density_zone_recent">Zona tocmai a primit alt nivel. Poți trimite peste câteva minute.</string>
+    <string name="density_known">Nivelul acesta tocmai a fost raportat pentru zonă.</string>
     <string name="density_rate_limited">Prea multe rapoarte de pe telefonul ăsta. Încearcă mai târziu.</string>
     <string name="density_value">%1$s (%2$d/5)</string>
     <string name="density_row">%1$s: %2$s (%3$d/5) · %4$s</string>
@@ -67,12 +67,11 @@
     <string name="handover_prealert">Pre-alertă, de citit la telefon sau stație</string>
     <string name="handover_timeline">Cronologie</string>
     <string name="handover_add">Notează acum</string>
-    <string name="handover_local">Rămâne doar pe telefonul ăsta și nu pleacă prin rețea.</string>
+    <string name="handover_local">Fișa rămâne pe telefonul ăsta și nu pleacă prin rețea. „Trimite” face din ea un PDF pe care îl dai tu echipajului.</string>
     <string name="handover_case">Incident %1$s</string>
     <string name="handover_place">Loc</string>
     <string name="handover_coords">Coordonate</string>
     <string name="handover_zone">Zonă</string>
-    <string name="handover_kind">Tip</string>
     <string name="handover_value">Valoare</string>
     <string name="handover_to">Echipaj sau spital</string>
     <string name="handover_note_hint">Text scurt</string>
@@ -117,7 +116,7 @@
     <string name="mandown_ok">Sunt OK</string>
     <string name="mandown_notification">Atinge ca să răspunzi. Fără răspuns, consola primește alerta.</string>
     <string name="mandown_setting">Om la pământ</string>
-    <string name="mandown_setting_text">După o cădere urmată de nemișcare, telefonul te întreabă 30 de secunde „Ești OK?”. Fără răspuns, trimite „Staff în pericol” cu ultima poziție.</string>
+    <string name="mandown_setting_text">După o cădere urmată de nemișcare, telefonul te întreabă 30 de secunde „Ești OK?”. Fără răspuns, trimite „Staff în pericol” cu ultima poziție. Cu notificările oprite întreabă doar cu aplicația deschisă; altfel nu trimite nimic.</string>
     <string name="responder_title">Inconștient sau nu respiră</string>
     <string name="responder_distance">La %1$d m de tine</string>
     <string name="responder_zone">În %1$s</string>
@@ -127,4 +126,12 @@
     <string name="responder_dea_name">DEA</string>
     <string name="responder_open">Deschide incidentul</string>
     <string name="responder_sheet">Fișa „Nu respiră”</string>
+
+    <!-- Titles, rows and the QR code -->
+    <string name="density_age">%1$d min</string>
+    <string name="density_more">Alte zone: %1$d</string>
+    <string name="density_fewer">Mai puține zone</string>
+    <string name="handover_qr_cut">Codul are doar începutul fișei; restul e în PDF.</string>
+    <string name="notif_escalated_title">Neconfirmat de 2 minute · %1$s</string>
+    <string name="notif_responder_title">Inconștient sau nu respiră · %1$s</string>
 </resources>

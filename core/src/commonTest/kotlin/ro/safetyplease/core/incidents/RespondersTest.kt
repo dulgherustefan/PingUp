@@ -97,6 +97,14 @@ class RespondersTest {
         )
     }
 
+    @Test
+    fun aResponderInRangeLeavesItOnlyPastTheMargin() {
+        val edge = north(Responders.RANGE_M + Responders.LEAVE_MARGIN_M / 2)
+        assertFalse(Responders.alerts(medic(edge), incident()), "a new incident: 300 m")
+        assertTrue(Responders.alerts(medic(edge).copy(near = setOf("a")), incident()), "already in range: a few steps out don't end it")
+        assertFalse(Responders.alerts(medic(north(Responders.RANGE_M + Responders.LEAVE_MARGIN_M + 20)).copy(near = setOf("a")), incident()))
+    }
+
     private fun venue(pois: List<Poi>) = Venue(
         "Test", Bounds(43.99, 27.99, 44.01, 28.02),
         listOf(Zone("main-stage", "Scena", "#000000", listOf(GeoPoint(43.999, 27.999), GeoPoint(44.001, 27.999), GeoPoint(44.001, 28.001)))),

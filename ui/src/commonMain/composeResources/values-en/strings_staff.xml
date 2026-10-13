@@ -17,8 +17,8 @@
     <string name="density_latest">Latest report here: %1$s (%2$d/5) · %3$s</string>
     <string name="density_sent">Sent: %1$s (%2$d/5)</string>
     <string name="density_phone_wait">You can send again 2 minutes after your last report.</string>
-    <string name="density_zone_recent">The zone was just reported; the console has its level.</string>
-    <string name="density_known">The console already has this level for the zone.</string>
+    <string name="density_zone_recent">The zone just got another level. You can send in a few minutes.</string>
+    <string name="density_known">This level was just reported for the zone.</string>
     <string name="density_rate_limited">Too many reports from this phone. Try again later.</string>
     <string name="density_value">%1$s (%2$d/5)</string>
     <string name="density_row">%1$s: %2$s (%3$d/5) · %4$s</string>
@@ -67,12 +67,11 @@
     <string name="handover_prealert">Pre-alert, to read on the phone or radio</string>
     <string name="handover_timeline">Timeline</string>
     <string name="handover_add">Note now</string>
-    <string name="handover_local">Stays on this phone only and never goes over the network.</string>
+    <string name="handover_local">The card stays on this phone and never goes over the network. “Share” makes a PDF of it that you hand to the crew.</string>
     <string name="handover_case">Incident %1$s</string>
     <string name="handover_place">Place</string>
     <string name="handover_coords">Coordinates</string>
     <string name="handover_zone">Zone</string>
-    <string name="handover_kind">Type</string>
     <string name="handover_value">Value</string>
     <string name="handover_to">Crew or hospital</string>
     <string name="handover_note_hint">Short text</string>
@@ -117,7 +116,7 @@
     <string name="mandown_ok">I’m OK</string>
     <string name="mandown_notification">Tap to answer. With no answer, the console gets the alert.</string>
     <string name="mandown_setting">Man down</string>
-    <string name="mandown_setting_text">After a fall followed by no movement, the phone asks “Are you OK?” for 30 seconds. With no answer, it sends “Staff in danger” with the last position.</string>
+    <string name="mandown_setting_text">After a fall followed by no movement, the phone asks “Are you OK?” for 30 seconds. With no answer, it sends “Staff in danger” with the last position. With notifications off it asks only while the app is open; otherwise it sends nothing.</string>
     <string name="responder_title">Unconscious or not breathing</string>
     <string name="responder_distance">%1$d m from you</string>
     <string name="responder_zone">In %1$s</string>
@@ -127,4 +126,12 @@
     <string name="responder_dea_name">AED</string>
     <string name="responder_open">Open the incident</string>
     <string name="responder_sheet">“Not breathing” sheet</string>
+
+    <!-- Titles, rows and the QR code -->
+    <string name="density_age">%1$d min</string>
+    <string name="density_more">Other zones: %1$d</string>
+    <string name="density_fewer">Fewer zones</string>
+    <string name="handover_qr_cut">The code holds only the start of the card; the rest is in the PDF.</string>
+    <string name="notif_escalated_title">Unconfirmed for 2 minutes · %1$s</string>
+    <string name="notif_responder_title">Unconscious or not breathing · %1$s</string>
 </resources>

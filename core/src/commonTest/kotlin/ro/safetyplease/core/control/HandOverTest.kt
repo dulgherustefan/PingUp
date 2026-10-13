@@ -1,6 +1,10 @@
 package ro.safetyplease.core.control
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import okio.FileSystem
+import okio.SYSTEM
 import ro.safetyplease.core.TempDir
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.StaffIncident
@@ -10,9 +14,11 @@ import ro.safetyplease.core.protocol.Severity
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class HandOverTest {
     private val tmp = TempDir()
 
@@ -82,17 +88,61 @@ class HandOverTest {
 
     @Test
     fun notesStayOnThePhoneForThreeDaysAtMostAndCanBeTakenBack() = runTest {
-        val store = JsonStore(tmp.root / "handover.json", HandOverNotes.serializer(), HandOverNotes(), backgroundScope)
+        val store = JsonStore(tmp.root / "handover.json", HandOverNotes.serializer(), HandOverNotes(), backgroundScope, keepsBackup = false)
         val book = HandOverBook(store)
         book.note("case", HandOverMark.TEMPERATURE, min(0), "  40.6  ")
         book.note("case", HandOverMark.NOTE, min(1), "x".repeat(200))
-        assertEquals("40.6", book.notes("case").first().value)
-        assertEquals(HandOver.MAX_VALUE_CHARS, book.notes("case").last().value.length)
-        book.remove(book.notes("case").last())
-        assertEquals(1, book.notes("case").size)
+        assertEquals("40.6", book.read(min(2)).first().value)
+        assertEquals(HandOver.MAX_VALUE_CHARS, book.read(min(2)).last().value.length)
+        book.remove(book.read(min(2)).last())
+        assertEquals(1, book.read(min(2)).size)
+        assertEquals(1, book.read(min(0) + HandOver.KEEP_MS - 1).size)
+        assertTrue(book.read(min(0) + HandOver.KEEP_MS).isEmpty(), "never shown past 72 hours, pruned or not")
+        assertTrue(store.value.notes.isEmpty(), "and reading drops it")
+    }
+
+    @Test
+    fun aPrunedNoteLeavesNoTraceOnTheDiskNorInAnExportedCard() = runTest {
+        val fs = FileSystem.SYSTEM
+        val file = tmp.root / "handover.json"
+        val export = tmp.root / "export"
+        fs.createDirectories(export)
+        val pdf = export / "${HandOver.PDF_PREFIX}2026-07-10-2104.pdf"
+        val other = export / "jurnal.csv"
+        fs.write(pdf) { writeUtf8("40.6") }
+        fs.write(other) { writeUtf8("log") }
+        // what a version that kept a backup left behind
+        fs.write(tmp.root / "handover.json.bak") { writeUtf8("""{"notes":[{"incidentId":"old","at":1,"mark":"NOTE","value":"Ion"}]}""") }
+        val book = HandOverBook(JsonStore(file, HandOverNotes.serializer(), HandOverNotes(), backgroundScope, keepsBackup = false), export)
+        book.note("case", HandOverMark.TEMPERATURE, min(0), "40.6")
+        advanceTimeBy(1_000)
+        book.note("case", HandOverMark.PULSE, min(60), "120")
+        advanceTimeBy(1_000)
+        assertTrue("40.6" in fs.read(file) { readUtf8() })
+        assertFalse(fs.exists(tmp.root / "handover.json.bak"), "no backup holds the notes")
+
         book.prune(min(0) + HandOver.KEEP_MS - 1)
-        assertEquals(1, book.notes("case").size)
+        assertTrue(fs.exists(pdf), "nothing expired yet")
         book.prune(min(0) + HandOver.KEEP_MS)
-        assertTrue(book.notes("case").isEmpty())
+        val onDisk = fs.read(file) { readUtf8() }
+        assertFalse("40.6" in onDisk, "the expired note is off the disk at once")
+        assertTrue("120" in onDisk)
+        assertFalse(fs.exists(tmp.root / "handover.json.bak"))
+        assertFalse(fs.exists(pdf), "a card exported earlier may hold it")
+        assertTrue(fs.exists(other), "other exports stay")
+        advanceTimeBy(1_000)
+        assertFalse("40.6" in fs.read(file) { readUtf8() })
+        assertFalse(fs.exists(tmp.root / "handover.json.bak"))
+    }
+
+    @Test
+    fun otherStoresStillKeepABackup() = runTest {
+        val file = tmp.root / "other.json"
+        val store = JsonStore(file, HandOverNotes.serializer(), HandOverNotes(), backgroundScope)
+        store.update { HandOverNotes(listOf(HandOverNote("a", 1, HandOverMark.NOTE))) }
+        advanceTimeBy(1_000)
+        store.update { HandOverNotes() }
+        advanceTimeBy(1_000)
+        assertTrue(FileSystem.SYSTEM.exists(tmp.root / "other.json.bak"))
     }
 }

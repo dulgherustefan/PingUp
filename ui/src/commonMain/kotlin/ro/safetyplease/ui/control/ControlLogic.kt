@@ -51,7 +51,7 @@ fun queue(cases: Collection<Case>, state: CaseState): List<Case> {
 /** The crowd signal for the queue: crowd reports of cases still open or taken, by zone. Closed ones no longer count. */
 fun crowdSignals(cases: Collection<Case>, nowMs: Long): List<CrowdSignal> = CrowdWatch.signals(
     cases.filter { it.state != CaseState.CLOSED && it.report.category == IncidentCategory.CROWD }
-        .map { CrowdReport(it.report.zone, it.report.reportedAt, if (it.report.cannotMove) CrowdWatch.CANNOT_MOVE_WEIGHT else 1) },
+        .map { CrowdReport(it.report.zone, it.report.reportedAt, it.report.cannotMove) },
     nowMs,
 )
 

@@ -59,7 +59,13 @@ class IncidentCache(
         /** This phone wrote the report. */
         var own = false
 
-        val ownPending: Boolean get() = own && ackStatus < AckStatus.RECEIVED
+        /** A routine report ([settle]): nobody acknowledges it, so it counts as confirmed and stays [ROUTINE_MS]. */
+        var routine = false
+
+        /** Staff has it, or nobody waits for staff to have it. */
+        val settled: Boolean get() = routine || ackStatus >= AckStatus.RECEIVED
+
+        val ownPending: Boolean get() = own && !settled
 
         val empty: Boolean get() = report == null && ack == null && response.stored == null && update.stored == null
 
@@ -98,8 +104,17 @@ class IncidentCache(
     private fun evictReport() {
         entries.values
             .filter { it.report != null && !it.ownPending }
-            .minWithOrNull(compareBy<Entry> { it.ackStatus < AckStatus.RECEIVED }.thenBy { it.report!!.atMs })
+            .minWithOrNull(compareBy<Entry> { !it.settled }.thenBy { it.report!!.atMs })
             ?.report = null
+    }
+
+    /**
+     * Marks a report as routine, as a staff phone that opened it (or wrote it) knows: a crowd level nobody acknowledges.
+     * It goes first when the cache is full and after [ROUTINE_MS]. A relay that can't open it keeps it as any other.
+     */
+    fun settle(incidentId: ByteArray, nowMs: Long) {
+        purge(nowMs)
+        entry(incidentId.toLong(), nowMs).routine = true
     }
 
     fun hasSeenReport(incidentId: ByteArray, nowMs: Long): Boolean {
@@ -266,7 +281,7 @@ class IncidentCache(
             CachedIncident(
                 e.id8, e.reportSeen, e.own, saved(e.report), saved(e.ack),
                 e.ackStatus, e.ackEpoch, e.ackTimestamp, e.ackTeam, e.ackAssigned, wall(e.touchedMs),
-                saved(e.response.stored), e.response.version, saved(e.update.stored), e.update.version,
+                saved(e.response.stored), e.response.version, saved(e.update.stored), e.update.version, e.routine,
             )
         }, notices.map { (topic, k) -> CachedNotice(topic, saved(k.stored), k.version, if (k.stored != null) wall(k.untilMs) else 0) })
     }
@@ -294,6 +309,7 @@ class IncidentCache(
             if (e.empty && wallMs - c.touchedAt > traceMs) continue
             e.reportSeen = c.reportSeen
             e.own = c.own
+            e.routine = c.routine
             e.ackStatus = c.ackStatus
             e.ackEpoch = c.ackEpoch
             e.ackTimestamp = c.ackTimestamp
@@ -320,7 +336,8 @@ class IncidentCache(
         val it = entries.values.iterator()
         while (it.hasNext()) {
             val e = it.next()
-            e.report?.let { s -> if (nowMs - s.atMs > retentionMs) e.report = null }
+            val keep = if (e.routine) minOf(retentionMs, ROUTINE_MS) else retentionMs
+            e.report?.let { s -> if (nowMs - s.atMs > keep) e.report = null }
             e.ack?.let { s -> if (nowMs - s.atMs > retentionMs) e.ack = null }
             for (k in listOf(e.response, e.update)) k.stored?.let { s -> if (nowMs - s.atMs > retentionMs) k.stored = null }
             if (e.empty && nowMs - e.touchedMs > traceMs) it.remove()
@@ -331,5 +348,10 @@ class IncidentCache(
             val victims = entries.values.filter { it.empty }.sortedBy { it.touchedMs }.take(excess)
             for (v in victims) entries.remove(v.id8)
         }
+    }
+
+    companion object {
+        /** How long a routine report is served: the zone's next level replaces it within minutes. */
+        const val ROUTINE_MS = 5 * 60_000L
     }
 }

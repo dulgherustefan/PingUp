@@ -396,7 +396,7 @@ open class PingUpSession(private val platform: AppPlatform) {
     val staffChain: StaffChain = StaffChain(
         meshScope, ioScope, platform, notifications, clock, settings, incidentStore.state, venue, { walkDistance },
         { draft, bypass -> incidents.report(draft, bypass) },
-        modeFile("density.json"), modeFile("handover.json"), dataDir / "staff_chain.json",
+        modeFile("density.json"), modeFile("handover.json"), dataDir / "staff_chain.json", exportDir, foreground,
     )
 
     /**
@@ -605,8 +605,8 @@ open class PingUpSession(private val platform: AppPlatform) {
      */
     private suspend fun routeAlerts() {
         val planner = AlertPlanner(clock.wallMs())
-        combine(incidentStore.state, settings.state, mutedUntil, staffChain.position) { data, s, muted, here ->
-            Triple(data, Routing.profile(s).copy(position = here).takeIf { s.role.hasStaffKeys }, muted)
+        combine(incidentStore.state, settings.state, mutedUntil, staffChain.position, staffChain.nearIncidents) { data, s, muted, here, near ->
+            Triple(data, Routing.profile(s).copy(position = here, near = near).takeIf { s.role.hasStaffKeys }, muted)
         }.collectLatest { (data, me, muted) ->
             if (me == null) return@collectLatest
             val own = data.mine.mapTo(HashSet()) { it.incidentId }
@@ -744,6 +744,7 @@ open class PingUpSession(private val platform: AppPlatform) {
             .forEach { it.flush() }
         positions.flush()
         chatStore.flush()
+        staffChain.flush()
     }
 
     fun removeEventPack(hash: String) = events.update { it.without(hash) }

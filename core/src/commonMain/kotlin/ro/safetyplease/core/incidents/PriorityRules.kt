@@ -20,7 +20,11 @@ data class PriorityRule(
     val breathes: Int? = null,
     val flags: List<String> = emptyList(),
     val words: List<String> = emptyList(),
-    /** The hand-over card's latest temperature at least this, in °C. */
+    /**
+     * The hand-over card's latest temperature at least this, in °C. A report carries no temperature, so such a rule
+     * never holds when a phone opens one: it only labels the console's panel from a temperature noted on the card,
+     * until triage carries a temperature.
+     */
     val minTemperatureC: Double? = null,
 ) {
     val empty: Boolean get() = responds == null && breathes == null && flags.isEmpty() && words.isEmpty() && minTemperatureC == null

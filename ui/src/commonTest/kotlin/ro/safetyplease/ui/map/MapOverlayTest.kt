@@ -48,18 +48,24 @@ class MapOverlayTest {
     }
 
     @Test
-    fun layersMergeInTheOrderTheyCameAndALaterOneWins() {
+    fun layersMergeInTheOrderTheyCameAndTheStricterZoneStyleWins() {
         val overlays = MapOverlays()
         val plan = PlanImage(SitePlan(ByteArray(8), here, here, here, here))
-        overlays.set(OverlayLayer.CONTROL, MapOverlay(zones = mapOf("a" to ZoneStyle.CLOSED), plan = plan))
-        overlays.set(OverlayLayer.ROUTE, MapOverlay(routes = listOf(MapRoute(listOf(here, here))), zones = mapOf("a" to ZoneStyle.CROWDED)))
+        overlays.set(OverlayLayer.CONTROL, MapOverlay(zones = mapOf("a" to ZoneStyle.CLOSED, "b" to ZoneStyle.EVACUATE), plan = plan))
+        overlays.set(OverlayLayer.STAFF, MapOverlay(zones = mapOf("a" to ZoneStyle.CROWDED, "b" to ZoneStyle.CROWDED, "c" to ZoneStyle.CROWDED)))
+        assertEquals(
+            mapOf("a" to ZoneStyle.CLOSED, "b" to ZoneStyle.EVACUATE, "c" to ZoneStyle.CROWDED), overlays.overlay.value.zones,
+            "a crowded zone from staff never hides a closed or evacuated one",
+        )
+        overlays.clear(OverlayLayer.STAFF)
+        overlays.set(OverlayLayer.ROUTE, MapOverlay(routes = listOf(MapRoute(listOf(here, here))), zones = mapOf("a" to ZoneStyle.EVACUATE)))
         val merged = overlays.overlay.value
         assertEquals(1, merged.routes.size)
-        assertEquals(mapOf("a" to ZoneStyle.CROWDED), merged.zones)
+        assertEquals(mapOf("a" to ZoneStyle.EVACUATE, "b" to ZoneStyle.EVACUATE), merged.zones)
         assertEquals(plan, merged.plan, "kept from the layer that has one")
 
         overlays.set(OverlayLayer.CONTROL, MapOverlay())
-        assertEquals(MapOverlay(routes = merged.routes, zones = mapOf("a" to ZoneStyle.CROWDED)), overlays.overlay.value)
+        assertEquals(MapOverlay(routes = merged.routes, zones = mapOf("a" to ZoneStyle.EVACUATE)), overlays.overlay.value)
         overlays.clear(OverlayLayer.ROUTE)
         assertEquals(MapOverlay.EMPTY, overlays.overlay.value)
     }

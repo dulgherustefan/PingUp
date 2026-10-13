@@ -31,6 +31,9 @@ data class ResponderTarget(
 object Responders {
     const val RANGE_M = 300
 
+    /** Once in range, a responder leaves it only this much further out, so a walk along the edge doesn't flicker. */
+    const val LEAVE_MARGIN_M = 50
+
     /** Teams sent to an arrest besides the medical role; the medical lead fixes the list. */
     val ROLES = listOf("Medical", "Prim ajutor", "First aid", "Responder")
 
@@ -38,11 +41,12 @@ object Responders {
 
     fun isResponder(team: String): Boolean = team.isNotBlank() && ROLES.any { Routing.inRole(it, team) }
 
-    /** By the two positions; without either of them, by the zone. */
+    /** By the two positions; without either of them, by the zone. One already [StaffProfile.near] has the margin too. */
     fun inRange(me: StaffProfile, incident: StaffIncident): Boolean {
         val here = me.position
         val patient = patientPoint(incident)
-        if (here != null && patient != null) return distanceMeters(here, patient) <= RANGE_M
+        val range = if (incident.incidentId in me.near) RANGE_M + LEAVE_MARGIN_M else RANGE_M
+        if (here != null && patient != null) return distanceMeters(here, patient) <= range
         return me.zone.isNotBlank() && incident.zone.trim().equals(me.zone.trim(), ignoreCase = true)
     }
 

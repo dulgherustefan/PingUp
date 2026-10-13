@@ -27,7 +27,8 @@ import kotlin.concurrent.Volatile
  * (synced temp file + rename), so a process killed mid-write can't corrupt the data.
  *
  * The file holds `{"schemaVersion": n, "data": ...}`; a file from before versioning holds the bare data and counts
- * as version 1. Every write first copies the previous file to `.bak`. A file that can't be read is never written
+ * as version 1. Every write first copies the previous file to `.bak`, unless [keepsBackup] is false: then no `.bak` is
+ * kept, and one a past version left goes at the next write. A file that can't be read is never written
  * over: the store starts from [default], keeps changes in memory only and reports it through [unreadable].
  */
 class JsonStore<T>(
@@ -38,6 +39,8 @@ class JsonStore<T>(
     private val schemaVersion: Int = 1,
     /** Brings data saved under an older [schemaVersion] up to date; gets the version it was saved with. */
     private val migrate: (fromVersion: Int, data: JsonElement) -> JsonElement = { _, data -> data },
+    /** False for data that must be gone once it is taken out, which a backup would keep. */
+    private val keepsBackup: Boolean = true,
 ) {
     private val backup = file.withSuffix(".bak")
     private val lock = SynchronizedObject()
@@ -110,7 +113,7 @@ class JsonStore<T>(
             }
             // on disk before the rename, like Android's AtomicFile; otherwise a power cut can leave an empty file
             writeSynced(tmp, stored.toString().encodeToByteArray())
-            if (fs.exists(file)) fs.copy(file, backup)
+            if (!keepsBackup) fs.delete(backup) else if (fs.exists(file)) fs.copy(file, backup)
             fs.atomicMove(tmp, file)
         }
     }

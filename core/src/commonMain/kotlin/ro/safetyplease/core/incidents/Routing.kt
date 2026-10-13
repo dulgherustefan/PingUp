@@ -20,6 +20,8 @@ data class StaffProfile(
     val lead: Boolean = false,
     /** The phone's position, for [Responders]; null without a fix. */
     val position: GeoPoint? = null,
+    /** The incidents [Responders] already had this phone in range of: it leaves their range only past the margin. */
+    val near: Set<String> = emptySet(),
 )
 
 /** How a phone tells its holder, weakest first. */

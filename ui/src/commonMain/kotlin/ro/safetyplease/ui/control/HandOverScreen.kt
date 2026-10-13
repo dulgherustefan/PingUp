@@ -53,6 +53,7 @@ import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.protocol.Answer
 import ro.safetyplease.core.session.PingUpSession
 import ro.safetyplease.core.util.formatDecimal
+import ro.safetyplease.core.util.truncateUtf8
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.PhoneUi
 import ro.safetyplease.ui.common.QrCode
@@ -82,12 +83,12 @@ import ro.safetyplease.ui.resources.edition_generated
 import ro.safetyplease.ui.resources.handover_add
 import ro.safetyplease.ui.resources.handover_case
 import ro.safetyplease.ui.resources.handover_coords
-import ro.safetyplease.ui.resources.handover_kind
 import ro.safetyplease.ui.resources.handover_local
 import ro.safetyplease.ui.resources.handover_note_hint
 import ro.safetyplease.ui.resources.handover_place
 import ro.safetyplease.ui.resources.handover_prealert
 import ro.safetyplease.ui.resources.handover_qr
+import ro.safetyplease.ui.resources.handover_qr_cut
 import ro.safetyplease.ui.resources.handover_qr_description
 import ro.safetyplease.ui.resources.handover_qr_hide
 import ro.safetyplease.ui.resources.handover_remove
@@ -136,6 +137,7 @@ import ro.safetyplease.ui.resources.unit_celsius
 import ro.safetyplease.ui.resources.unit_pulse
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.fill
+import ro.safetyplease.ui.text.rememberNow
 
 fun markLabel(mark: HandOverMark): StringResource = when (mark) {
     HandOverMark.FOUND -> Res.string.mark_found
@@ -169,6 +171,15 @@ private fun valueKeyboard(mark: HandOverMark): KeyboardType? = when (mark) {
     HandOverMark.PULSE, HandOverMark.SCORE -> KeyboardType.Number
     HandOverMark.HANDED_TO, HandOverMark.NOTE -> KeyboardType.Text
     else -> null
+}
+
+/** A hand-over QR code holds this many bytes at most: a denser one is hard to read off a screen, and past 2953 none fits. */
+const val QR_MAX_BYTES = 1_200
+
+/** The card's text for the QR code, cut to [QR_MAX_BYTES]; true when it was cut. */
+fun handOverQr(plain: String): Pair<String, Boolean> {
+    val text = plain.truncateUtf8(QR_MAX_BYTES)
+    return text to (text.length < plain.length)
 }
 
 /** The card in the app's language: the facts, the timeline and the pre-alert, as the screen, the QR and the PDF give them. */
@@ -248,7 +259,7 @@ private suspend fun shareHandOver(phone: PhoneUi, c: PingUpSession, text: HandOv
     val appName = phone.appName
     val file = withContext(Dispatchers.IO) {
         val dir = freshExportDir(c.exportDir)
-        (dir / "predare-${exportStamp(now)}.pdf").also { writeReportPdf(doc, { page -> footer.fill(appName, c.venue.name, page) }, it) }
+        (dir / "${HandOver.PDF_PREFIX}${exportStamp(now)}.pdf").also { writeReportPdf(doc, { page -> footer.fill(appName, c.venue.name, page) }, it) }
     }
     phone.shareFiles(listOf(file))
 }
@@ -264,11 +275,14 @@ fun HandOverDialog(vm: AppViewModel, incidentId: String, onDismiss: () -> Unit) 
     val haptics = rememberHaptics()
     val incidents by vm.incidents.collectAsStateWithLifecycle()
     val log by c.consoleLog.state.collectAsStateWithLifecycle()
-    val notes by c.staffChain.handOver.state.collectAsStateWithLifecycle()
+    val stored by c.staffChain.handOver.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val now = rememberNow(60_000)
+    // read through the book, so a note past 72 hours is never shown
+    val notes = remember(stored, now) { c.staffChain.handOver.read(c.clock.wallMs()) }
     val incident = incidents.staff.firstOrNull { it.incidentId == incidentId }
     val entries = if (settings.role == Role.CONTROL) log.entries.filter { it.incidentId == incidentId } else emptyList()
-    val card = remember(incident, entries, notes) { HandOver.card(incident, entries, notes.notes, incidentId) }
+    val card = remember(incident, entries, notes) { HandOver.card(incident, entries, notes, incidentId) }
     val text by produceState<HandOverText?>(null, card, incident) { value = handOverText(card, incident, c) }
     var adding by remember { mutableStateOf<HandOverMark?>(null) }
     var removing by remember { mutableStateOf<CardLine?>(null) }
@@ -324,8 +338,15 @@ fun HandOverDialog(vm: AppViewModel, incidentId: String, onDismiss: () -> Unit) 
                     }
                 }
                 if (qr) {
+                    val (code, cut) = remember(t.plain) { handOverQr(t.plain) }
+                    if (cut) {
+                        Text(
+                            stringResource(Res.string.handover_qr_cut), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
                     QrCode(
-                        t.plain, colors.label, stringResource(Res.string.handover_qr_description),
+                        code, colors.label, stringResource(Res.string.handover_qr_description),
                         Modifier.padding(top = 12.dp).widthIn(max = 360.dp).fillMaxWidth().aspectRatio(1f)
                             .clip(RoundedCornerShape(12.dp)).background(Color.White).padding(12.dp)
                             .align(Alignment.CenterHorizontally),

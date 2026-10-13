@@ -110,7 +110,7 @@ fun DensityCodes(vm: AppViewModel) {
     val latest = remember(log, zone) { StaffDensity.latest(log.readings)[zone] }
     if (latest != null) {
         Text(
-            stringResource(Res.string.density_latest, stringResource(densityWord(latest.level)), latest.level, agoText(latest.receivedAt, now)),
+            stringResource(Res.string.density_latest, stringResource(densityWord(latest.level)), latest.level, agoText(StaffDensity.seenAt(latest), now)),
             style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, modifier = Modifier.padding(horizontal = Gutter),
         )
     }

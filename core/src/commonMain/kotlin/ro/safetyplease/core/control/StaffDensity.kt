@@ -22,7 +22,7 @@ data class DensityReading(
 @Serializable
 data class DensityLog(val readings: List<DensityReading> = emptyList(), val sentAt: Long = 0)
 
-/** Why a density report may not leave now. */
+/** Why a density report may not leave now; [ZONE_RECENT] is another level heard for the zone, [KNOWN] the same one. */
 enum class DensityVerdict { SEND, PHONE_WAIT, ZONE_RECENT, KNOWN, RATE_LIMITED }
 
 /** One step of a zone's timeline: from [at] (this phone's clock) the zone was at [level]. */
@@ -34,8 +34,9 @@ data class DensityStep(val zone: String, val at: Long, val level: Int)
  * every staff phone keeps the zone's latest level instead. Level 4 opens a crowd incident and 5 an urgent one, through
  * the usual flow.
  *
- * The network's share stays under [BUDGET_PER_S] by design: a zone takes at most one report per [zoneGapMs], plus one
- * that raises it to an incident, wherever they come from, and a phone sends at most one per [PHONE_GAP_MS].
+ * The network's share stays at most [BUDGET_PER_S] by design: in each [zoneGapMs] a zone takes one report, plus the
+ * rises above the highest level heard in that window that reach an incident (to 4 or 5, then 4 to 5), wherever they
+ * come from: [PER_WINDOW] at most. Besides a rise, a phone sends at most one per [PHONE_GAP_MS].
  */
 object StaffDensity {
     const val LEVELS = ReportExtras.MAX_DENSITY
@@ -48,11 +49,14 @@ object StaffDensity {
     const val MIN_ZONE_GAP_MS = 60_000L
     const val BUDGET_PER_S = 0.1
 
+    /** A zone's reports in one window at most: one, a rise to 4 or 5, and a rise from 4 to 5. */
+    const val PER_WINDOW = 3
+
     /** Readings kept; a whole event at the budget is far fewer. */
     const val MAX_READINGS = 10_000
 
-    /** Two reports a zone per gap at most, over every zone, within the budget. */
-    fun zoneGapMs(zones: Int): Long = maxOf(MIN_ZONE_GAP_MS, (2_000 * zones.coerceAtLeast(1) / BUDGET_PER_S).toLong())
+    /** [PER_WINDOW] reports a zone per window at most, over every zone, within the budget: 30 s × zones. */
+    fun zoneGapMs(zones: Int): Long = maxOf(MIN_ZONE_GAP_MS, (PER_WINDOW * 1_000 * zones.coerceAtLeast(1) / BUDGET_PER_S).toLong())
 
     fun severity(level: Int): Int = when {
         level >= URGENT_LEVEL -> Severity.URGENT
@@ -71,30 +75,35 @@ object StaffDensity {
         incident.zone, incident.density, incident.reportedAt, incident.receivedAt, incident.nickname.orEmpty(), incident.incidentId,
     )
 
+    /** When the level was seen: its reporter's time, so a reading that travelled long isn't fresh, but never after it arrived. */
+    fun seenAt(r: DensityReading): Long = if (r.at > 0) minOf(r.at, r.receivedAt) else r.receivedAt
+
     /** Whether this phone may report [level] for [zone] now, from what it knows; [zones] is how many the venue has. */
     fun check(log: DensityLog, zone: String, level: Int, nowMs: Long, zones: Int): DensityVerdict {
-        if (log.sentAt > 0 && nowMs - log.sentAt < PHONE_GAP_MS) return DensityVerdict.PHONE_WAIT
-        val heard = log.readings.filter { it.zone == zone && nowMs - it.receivedAt < zoneGapMs(zones) }
+        val heard = log.readings.filter { it.zone == zone && nowMs - seenAt(it) < zoneGapMs(zones) }
         val latest = latest(log.readings)[zone]
-        val rises = level >= INCIDENT_LEVEL && (latest == null || latest.level < INCIDENT_LEVEL)
-        if (heard.isNotEmpty() && !(rises && heard.none { it.level >= INCIDENT_LEVEL })) return DensityVerdict.ZONE_RECENT
-        if (latest != null && latest.level == level && nowMs - latest.receivedAt < REFRESH_MS) return DensityVerdict.KNOWN
+        // a zone getting worse reaches the console at once: above all it heard lately and above its latest level
+        val rises = level >= INCIDENT_LEVEL && heard.all { it.level < level } && (latest == null || latest.level < level)
+        if (rises) return DensityVerdict.SEND
+        if (log.sentAt > 0 && nowMs - log.sentAt < PHONE_GAP_MS) return DensityVerdict.PHONE_WAIT
+        if (heard.isNotEmpty()) return if (heard.maxBy(::seenAt).level == level) DensityVerdict.KNOWN else DensityVerdict.ZONE_RECENT
+        if (latest != null && latest.level == level && nowMs - seenAt(latest) < REFRESH_MS) return DensityVerdict.KNOWN
         return DensityVerdict.SEND
     }
 
-    /** The latest reading of each zone, by when it reached this phone. */
+    /** The latest reading of each zone, by when it was seen. */
     fun latest(readings: List<DensityReading>): Map<String, DensityReading> =
-        readings.filter { it.zone.isNotEmpty() }.groupBy { it.zone }.mapValues { (_, list) -> list.maxBy { it.receivedAt } }
+        readings.filter { it.zone.isNotEmpty() }.groupBy { it.zone }.mapValues { (_, list) -> list.maxBy(::seenAt) }
 
     /** Each zone's changes of level within [from]..[until], zone by zone, oldest first. */
     fun timeline(readings: List<DensityReading>, from: Long, until: Long): List<DensityStep> =
-        readings.filter { it.zone.isNotEmpty() && it.receivedAt in from..until }
-            .sortedBy { it.receivedAt }
+        readings.filter { it.zone.isNotEmpty() && seenAt(it) in from..until }
+            .sortedBy(::seenAt)
             .groupBy { it.zone }
             .entries.sortedBy { it.key }
             .flatMap { (zone, list) ->
                 list.fold(emptyList<DensityStep>()) { steps, r ->
-                    if (steps.lastOrNull()?.level == r.level) steps else steps + DensityStep(zone, r.receivedAt, r.level)
+                    if (steps.lastOrNull()?.level == r.level) steps else steps + DensityStep(zone, seenAt(r), r.level)
                 }
             }
 }
@@ -113,4 +122,6 @@ class DensityBoard(private val store: JsonStore<DensityLog>) {
     }
 
     fun sent(atMs: Long) = store.update { it.copy(sentAt = atMs) }
+
+    fun flush() = store.flush()
 }

@@ -79,8 +79,8 @@ class Revocations(
 
         /** Version 1 held only the payloads, as a bare list. */
         fun store(file: Path, scope: CoroutineScope): JsonStore<RevokedList> =
-            JsonStore(file, RevokedList.serializer(), RevokedList(), scope, SCHEMA_VERSION) { _, data ->
+            JsonStore(file, RevokedList.serializer(), RevokedList(), scope, SCHEMA_VERSION, migrate = { _, data ->
                 buildJsonObject { put("payloads", data) }
-            }
+            })
     }
 }

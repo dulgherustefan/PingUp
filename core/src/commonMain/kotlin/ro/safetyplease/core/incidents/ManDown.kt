@@ -142,6 +142,12 @@ class ManDownWatch {
         return true
     }
 
+    /** Man-down turned off: nothing stands, and the next fall is asked at once. */
+    fun reset() {
+        askingUntil = null
+        restUntil = 0
+    }
+
     /** True once, when the question ran out unanswered: the report goes now. */
     fun silent(nowMs: Long): Boolean {
         val until = askingUntil ?: return false

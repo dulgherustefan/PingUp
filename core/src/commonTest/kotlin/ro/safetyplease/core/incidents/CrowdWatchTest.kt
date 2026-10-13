@@ -56,4 +56,13 @@ class CrowdWatchTest {
         val same = List(MIN_REPORTS) { CrowdReport("bar", now - 2 * minute) }
         assertEquals(1, CrowdWatch.signals(same, now).single().minutes)
     }
+
+    @Test
+    fun cannotMoveCountsOneMoreAtMostSoOnePhoneNeverRaisesTheSignalAlone() {
+        val onePhone = List(IncidentManager.RATE_MAX) { CrowdReport("pit", now - it * minute, cannotMove = true) }
+        assertTrue(CrowdWatch.signals(onePhone, now).isEmpty(), "a phone at its limit stays short of the signal")
+        val withOthers = onePhone + CrowdReport("pit", now - 4 * minute)
+        assertEquals(4, CrowdWatch.signals(withOthers, now).single().count, "four reports, one of them stuck, are enough")
+        assertTrue(CrowdWatch.signals(List(4) { CrowdReport("pit", now - it * minute) }, now).isEmpty(), "four without it are not")
+    }
 }

@@ -54,6 +54,7 @@ import ro.safetyplease.core.incidents.Clustering
 import ro.safetyplease.core.incidents.DuplicateHint
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.incidents.Recognition
+import ro.safetyplease.core.incidents.Responders
 import ro.safetyplease.core.incidents.Routing
 import ro.safetyplease.core.incidents.StaffProfile
 import ro.safetyplease.core.incidents.StatusFilter
@@ -71,7 +72,9 @@ import ro.safetyplease.ui.common.categoryIcon
 import ro.safetyplease.ui.common.incidentPoint
 import ro.safetyplease.ui.common.placeText
 import ro.safetyplease.ui.common.reportFacts
+import ro.safetyplease.ui.control.HandOverDialog
 import ro.safetyplease.ui.designsystem.AppButton
+import ro.safetyplease.ui.designsystem.ButtonKind
 import ro.safetyplease.ui.designsystem.AppMenu
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Banner
@@ -98,6 +101,7 @@ import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.chain_handover
 import ro.safetyplease.ui.resources.control_state_reopened
 import ro.safetyplease.ui.resources.control_word_unfounded
 import ro.safetyplease.ui.resources.delete
@@ -512,6 +516,8 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
     val place = if (incident.zone.isEmpty()) stringResource(Res.string.zone_unknown) else vm.venue.zoneName(incident.zone)
     var menu by remember { mutableStateOf(false) }
     var confirmDismiss by remember { mutableStateOf(false) }
+    var handOver by remember { mutableStateOf(false) }
+    if (handOver) HandOverDialog(vm, incident.incidentId) { handOver = false }
     if (confirmDismiss) {
         ConfirmDialog(
             stringResource(Res.string.incident_dismiss_title), stringResource(Res.string.incident_dismiss_text),
@@ -600,6 +606,13 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 highlightZone = incident.zone,
             )
             InsetGroup(Modifier.padding(top = 20.dp)) { StaffReportBlock(incident, settings.teamName, incidentPlace(vm, incident)) }
+            // the medical team that has the incident keeps its hand-over card here, from what this phone holds
+            if (isAssignedTo(incident.teamName, settings.teamName) && Responders.isResponder(settings.teamName)) {
+                AppButton(
+                    stringResource(Res.string.chain_handover), { handOver = true },
+                    Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 16.dp), kind = ButtonKind.Secondary, icon = Sym.Notes,
+                )
+            }
             if (incident.updates.isNotEmpty()) {
                 SectionTitle(stringResource(Res.string.incident_updates_title))
                 InsetGroup { UpdateTimeline(incident.updates, vm.venue, vm.c.grid, Modifier.padding(horizontal = Gutter, vertical = 10.dp)) }

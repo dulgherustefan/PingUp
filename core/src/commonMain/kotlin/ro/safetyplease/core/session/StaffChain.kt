@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import okio.Path
@@ -59,7 +61,7 @@ data class StaffChainPrefs(val manDown: Boolean = true)
  */
 class StaffChain(
     private val scope: CoroutineScope,
-    ioScope: CoroutineScope,
+    private val ioScope: CoroutineScope,
     private val platform: AppPlatform,
     private val notifications: Notifications,
     private val clock: Clock,
@@ -71,11 +73,16 @@ class StaffChain(
     densityFile: Path,
     handOverFile: Path,
     prefsFile: Path,
+    /** Where the hand-over PDFs are written, so they go with the notes. */
+    exportDir: Path,
+    /** The app is on screen: its own "Ești OK?" can be seen without a notification. */
+    private val foreground: StateFlow<Boolean>,
 ) {
     val prefs = JsonStore(prefsFile, StaffChainPrefs.serializer(), StaffChainPrefs(), ioScope)
     val priority: PriorityRules = PriorityRules.parse(runCatching { platform.asset(PRIORITY_ASSET) }.getOrNull())
     val density = DensityBoard(JsonStore(densityFile, DensityLog.serializer(), DensityLog(), ioScope))
-    val handOver = HandOverBook(JsonStore(handOverFile, HandOverNotes.serializer(), HandOverNotes(), ioScope))
+    /** Health data kept 72 hours at most: no backup file keeps it longer. */
+    val handOver = HandOverBook(JsonStore(handOverFile, HandOverNotes.serializer(), HandOverNotes(), ioScope, keepsBackup = false), exportDir)
 
     /** Where this phone is, moving only by [MOVE_M] at a time, so a walk doesn't re-route every alert. */
     val position: StateFlow<GeoPoint?> = platform.location.scan(null as GeoPoint?) { last, fix ->
@@ -83,14 +90,37 @@ class StaffChain(
         if (here == null || last == null || distanceMeters(last, here) >= MOVE_M) here else last
     }.distinctUntilChanged().stateIn(ioScope, SharingStarted.Eagerly, null)
 
-    /** The unconscious or not-breathing incidents this phone should run to, newest first: what the walking routes draw. */
-    val responderTargets: StateFlow<List<ResponderTarget>> = combine(incidents, settings.state, position) { data, s, here ->
-        if (!s.role.hasStaffKeys) return@combine emptyList()
-        val me = Routing.profile(s).copy(position = here)
-        data.staff.filter { !Routing.handled(it) && Responders.alerts(me, it) }
+    private val near = MutableStateFlow(emptySet<String>())
+    private val dismissed = MutableStateFlow(emptySet<String>())
+
+    /** The responders' incidents in range of this phone, for the alert planner ([ro.safetyplease.core.incidents.StaffProfile.near]). */
+    val nearIncidents: StateFlow<Set<String>> = near
+
+    /** Responders' incidents shown to this phone, until it dismisses them; only [responderTargets] touches it. */
+    private val held = LinkedHashSet<String>()
+
+    /**
+     * The unconscious or not-breathing incidents this phone should run to, newest first, with the defibrillator on the
+     * way. One stays after a team takes the incident, until the responder dismisses it ([dismissResponder]).
+     */
+    val responderTargets: StateFlow<List<ResponderTarget>> = combine(incidents, settings.state, position, dismissed) { data, s, here, gone ->
+        if (!s.role.hasStaffKeys) {
+            near.value = emptySet()
+            held.clear()
+            return@combine emptyList()
+        }
+        val me = Routing.profile(s).copy(position = here, near = near.value)
+        val inRange = data.staff.filter { Responders.alerts(me, it) }.mapTo(HashSet()) { it.incidentId }
+        near.value = inRange
+        data.staff.filter { it.incidentId in inRange && it.incidentId !in gone && !Routing.handled(it) }.forEach { held += it.incidentId }
+        val known = data.staff.mapTo(HashSet()) { it.incidentId }
+        held.retainAll { it in known && it !in gone }
+        data.staff.filter { it.incidentId in held }
             .sortedByDescending { it.receivedAt }
             .mapNotNull { Responders.target(it, here, venue, walk()) }
     }.stateIn(ioScope, SharingStarted.Eagerly, emptyList())
+
+    fun dismissResponder(incidentId: String) = dismissed.update { it + incidentId }
 
     /** Man-down runs on this phone: Android, not the iPhone. */
     val manDownAvailable: Boolean get() = platform.watchesMotion
@@ -104,14 +134,29 @@ class StaffChain(
     private var askJob: Job? = null
 
     fun start() {
-        handOver.prune(clock.wallMs())
+        ioScope.launch {
+            while (isActive) {
+                handOver.prune(clock.wallMs())
+                delay(PRUNE_EVERY_MS)
+            }
+        }
         scope.launch {
             combine(settings.state, prefs.state) { s, p -> s.role == Role.STAFF && p.manDown }.distinctUntilChanged().collect { on ->
                 synchronized(lock) { detector.reset() }
                 platform.watchMotion(if (on) ::onMotion else null)
-                if (!on) endQuestion()
+                if (!on) {
+                    watch.reset()
+                    endQuestion()
+                }
             }
         }
+    }
+
+    /** Writes the three stores now, with the session's own. */
+    fun flush() {
+        prefs.flush()
+        density.flush()
+        handOver.flush()
     }
 
     /** For IncidentManager: a routine crowd level is kept here instead of opening an incident; levels 4 and 5 do both. */
@@ -158,8 +203,12 @@ class StaffChain(
     private fun ask() {
         if (!watch.suspected(clock.monoMs())) return
         val until = clock.wallMs() + ManDownWatch.ASK_MS
+        // a question nobody can see must not end in a report: without the notification only the open app asks
+        if (!notifications.manDownCheck(until) && !foreground.value) {
+            watch.reset()
+            return
+        }
         manDownAsk.value = until
-        notifications.manDownCheck(until)
         askJob = scope.launch {
             delay(ManDownWatch.ASK_MS)
             if (watch.silent(clock.monoMs())) {
@@ -194,5 +243,6 @@ class StaffChain(
     companion object {
         const val PRIORITY_ASSET = "priority_rules.json"
         const val MOVE_M = 25
+        const val PRUNE_EVERY_MS = 60_000L
     }
 }

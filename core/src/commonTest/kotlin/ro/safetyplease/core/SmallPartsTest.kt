@@ -269,11 +269,11 @@ class SmallPartsTest {
         // a made-up version 2 that renamed "nick" to "nickname"; the file predates versioning
         val file = (tmp.root / "settings.json").apply { writeText("""{"nick":"Ana"}""") }
         val migratedFrom = mutableListOf<Int>()
-        val store = JsonStore(file, Settings.serializer(), Settings(), backgroundScope, schemaVersion = 2) { version, data ->
+        val store = JsonStore(file, Settings.serializer(), Settings(), backgroundScope, schemaVersion = 2, migrate = { version, data ->
             migratedFrom += version
             val old = data.jsonObject
             JsonObject(old - "nick" + ("nickname" to old.getValue("nick")))
-        }
+        })
         assertEquals(listOf(1), migratedFrom)
         assertEquals("Ana", store.value.nickname)
         store.flush()

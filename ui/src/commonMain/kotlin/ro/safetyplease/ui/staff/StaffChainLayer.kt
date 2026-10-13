@@ -15,9 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +44,7 @@ import ro.safetyplease.ui.map.ZoneStyle
 import ro.safetyplease.ui.report.NOT_BREATHING_SHEET
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.close
+import ro.safetyplease.ui.resources.density_age
 import ro.safetyplease.ui.resources.density_pin
 import ro.safetyplease.ui.resources.mandown_countdown
 import ro.safetyplease.ui.resources.mandown_ok
@@ -71,9 +69,9 @@ fun StaffChainLayer(vm: AppViewModel) {
     val ask by vm.c.staffChain.manDownAsk.collectAsStateWithLifecycle()
     ask?.let { ManDownQuestion(vm, it) }
     val targets by vm.c.staffChain.responderTargets.collectAsStateWithLifecycle()
-    var seen by rememberSaveable { mutableStateOf(emptyList<String>()) }
-    targets.firstOrNull { it.incidentId !in seen }?.let { target ->
-        ResponderAlert(vm, target) { seen = seen + target.incidentId }
+    // it stays, with the defibrillator, after a team takes the incident: the responder closes it
+    targets.firstOrNull()?.let { target ->
+        ResponderAlert(vm, target) { vm.c.staffChain.dismissResponder(target.incidentId) }
     }
 }
 
@@ -91,11 +89,12 @@ private fun DensityLayer(vm: AppViewModel) {
             vm.mapOverlays.clear(OverlayLayer.STAFF)
             return@LaunchedEffect
         }
-        val latest = StaffDensity.latest(log.readings).values.filter { now - it.receivedAt < LAYER_MS }
+        val latest = StaffDensity.latest(log.readings).values.filter { now - StaffDensity.seenAt(it) < LAYER_MS }
         val template = getString(Res.string.density_pin)
         val pins = latest.mapNotNull { r ->
             vm.venue.zone(r.zone)?.center?.let { center ->
-                OverlayPin("density:${r.zone}", center, PinKind.SERVICE, template.fill(r.level, "${(now - r.receivedAt) / 60_000} min"))
+                val age = getString(Res.string.density_age, ((now - StaffDensity.seenAt(r)) / 60_000).toInt())
+                OverlayPin("density:${r.zone}", center, PinKind.SERVICE, template.fill(r.level, age))
             }
         }
         val zones = latest.filter { it.level >= StaffDensity.INCIDENT_LEVEL }.associate { it.zone to ZoneStyle.CROWDED }

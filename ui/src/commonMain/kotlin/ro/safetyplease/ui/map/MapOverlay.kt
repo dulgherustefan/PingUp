@@ -18,8 +18,11 @@ enum class RouteStyle { PRIMARY, ALTERNATIVE }
 /** A walking route along [points]; an alternative is drawn thinner and dashed. */
 data class MapRoute(val points: List<GeoPoint>, val style: RouteStyle = RouteStyle.PRIMARY)
 
-/** How a zone is drawn over its own colors: crowded, closed (hatched), exit only, or being evacuated. */
-enum class ZoneStyle { CROWDED, CLOSED, EXIT_ONLY, EVACUATE }
+/**
+ * How a zone is drawn over its own colors: crowded, closed (hatched), exit only, or being evacuated. [rank] says which
+ * of two layers' styles a zone keeps: the one that restricts more.
+ */
+enum class ZoneStyle(val rank: Int) { CROWDED(0), CLOSED(2), EXIT_ONLY(1), EVACUATE(3) }
 
 enum class PinKind { MEETING, LAST_SEEN, SERVICE, SEARCH_RESULT, SHARED_PLACE, INCIDENT }
 
@@ -43,9 +46,18 @@ data class MapOverlay(
     val pins: List<OverlayPin> = emptyList(),
     val plan: PlanImage? = null,
 ) {
-    /** [other] goes on top: its zone styles and plan win. */
-    operator fun plus(other: MapOverlay): MapOverlay =
-        MapOverlay(routes + other.routes, zones + other.zones, pins + other.pins, other.plan ?: plan)
+    /**
+     * [other] goes on top: its plan wins, and its zone styles unless this one restricts the zone more, so a crowded
+     * zone from the staff layer never hides the console's closed or evacuated one.
+     */
+    operator fun plus(other: MapOverlay): MapOverlay {
+        val merged = zones.toMutableMap()
+        for ((zone, style) in other.zones) {
+            val below = merged[zone]
+            if (below == null || style.rank >= below.rank) merged[zone] = style
+        }
+        return MapOverlay(routes + other.routes, merged, pins + other.pins, other.plan ?: plan)
+    }
 
     companion object {
         val EMPTY = MapOverlay()

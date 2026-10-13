@@ -1,6 +1,9 @@
 package ro.safetyplease.core.control
 
 import kotlinx.serialization.Serializable
+import okio.FileSystem
+import okio.Path
+import okio.SYSTEM
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.protocol.AckStatus
@@ -37,6 +40,11 @@ object HandOver {
     /** Notes older than this go: they serve a hand-over, not a record. */
     const val KEEP_MS = 72 * 3_600_000L
     const val MAX_VALUE_CHARS = 60
+
+    /** The name of every hand-over PDF in the export folder starts so; [HandOverBook.prune] finds them by it. */
+    const val PDF_PREFIX = "predare-"
+
+    fun fresh(note: HandOverNote, nowMs: Long): Boolean = nowMs - note.at < KEEP_MS
 
     /**
      * The card from what this phone holds: the report, the console's log of the incident if it is the console, the
@@ -87,21 +95,48 @@ object HandOver {
     }
 }
 
-/** The team's notes, on this phone only. */
-class HandOverBook(private val store: JsonStore<HandOverNotes>) {
+/**
+ * The team's notes, on this phone only, for [HandOver.KEEP_MS] at most. [read] never returns an older note and drops
+ * it; [prune], which the session runs every minute, also takes it off the disk (the file keeps no backup) and deletes
+ * the hand-over PDFs left in [exportDir], which may hold it.
+ */
+class HandOverBook(private val store: JsonStore<HandOverNotes>, private val exportDir: Path? = null) {
     val state get() = store.state
 
     fun note(incidentId: String, mark: HandOverMark, atMs: Long, value: String = "") {
         val note = HandOverNote(incidentId, atMs, mark, value.trim().take(HandOver.MAX_VALUE_CHARS))
-        store.update { HandOverNotes((it.notes.filter { n -> atMs - n.at < HandOver.KEEP_MS } + note)) }
+        store.update { HandOverNotes(it.notes.filter { n -> HandOver.fresh(n, atMs) } + note) }
     }
 
     /** Takes back a note added by mistake. */
     fun remove(note: HandOverNote) = store.update { HandOverNotes(it.notes - note) }
 
-    fun notes(incidentId: String): List<HandOverNote> = store.value.notes.filter { it.incidentId == incidentId }
-
-    fun prune(nowMs: Long) {
-        if (store.value.notes.any { nowMs - it.at >= HandOver.KEEP_MS }) store.update { HandOverNotes(it.notes.filter { n -> nowMs - n.at < HandOver.KEEP_MS }) }
+    /** The notes still kept at [nowMs]; an older one goes from the store at once. */
+    fun read(nowMs: Long): List<HandOverNote> {
+        val notes = store.value.notes
+        if (notes.all { HandOver.fresh(it, nowMs) }) return notes
+        store.update { HandOverNotes(it.notes.filter { n -> HandOver.fresh(n, nowMs) }) }
+        return notes.filter { HandOver.fresh(it, nowMs) }
     }
+
+    /**
+     * Drops the notes older than [HandOver.KEEP_MS] and writes the file now. Once a note went, every hand-over PDF
+     * goes too, since it may hold it; otherwise those older than [HandOver.KEEP_MS]. Does file I/O.
+     */
+    fun prune(nowMs: Long) {
+        val expired = store.value.notes.any { !HandOver.fresh(it, nowMs) }
+        if (expired) {
+            store.update { HandOverNotes(it.notes.filter { n -> HandOver.fresh(n, nowMs) }) }
+            store.flush()
+        }
+        val dir = exportDir ?: return
+        val fs = FileSystem.SYSTEM
+        for (file in fs.listOrNull(dir).orEmpty()) {
+            if (!file.name.startsWith(HandOver.PDF_PREFIX) || !file.name.endsWith(".pdf")) continue
+            val madeAt = fs.metadataOrNull(file)?.lastModifiedAtMillis ?: 0L
+            if (expired || nowMs - madeAt >= HandOver.KEEP_MS) fs.delete(file)
+        }
+    }
+
+    fun flush() = store.flush()
 }

@@ -68,6 +68,27 @@ class StaffChainScenarioTest {
     }
 
     @Test
+    fun aParticipantsCrowdLevelIsAnOrdinaryReport() = runTest {
+        val clock = TestClock(testScheduler)
+        val net = SimNet(backgroundScope)
+        val event = TestEvent()
+        val reporter = TestPhone("P", this, net, clock, tmp.root, event, 650)
+        val console = TestPhone("C", this, net, clock, tmp.root, event, 651)
+        console.staffSecret = event.secret
+        console.engine.setRole(staff = true, anchor = false)
+        net.start()
+        advanceTimeBy(30_000)
+
+        assertTrue(reporter.incidents.report(density(2)), "a participant can't send staff fields: they are left out")
+        advanceTimeBy(30_000)
+        assertEquals(1, reporter.myReports.size, "the reporter follows it like any report")
+        val crowd = console.staffIncidents.single()
+        assertEquals(0, crowd.density, "only staff report crowd levels")
+        assertTrue(console.densityReports.isEmpty())
+        assertTrue(console.acks.any { it.first.status == AckStatus.RECEIVED })
+    }
+
+    @Test
     fun thePhoneThatOpensAReportRaisesItByTheTable() = runTest {
         val clock = TestClock(testScheduler)
         val net = SimNet(backgroundScope)
