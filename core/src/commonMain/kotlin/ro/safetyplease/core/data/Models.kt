@@ -125,7 +125,13 @@ data class OutboxItem(
     val boxKey: String = "",
     /** Our intro: sealed to the recipient's key instead of boxed, since they don't have ours yet. */
     val sealed: Boolean = false,
-)
+    /** Retried until this long after [createdAt]. */
+    val ttlMs: Long = DEFAULT_TTL_MS,
+) {
+    companion object {
+        const val DEFAULT_TTL_MS = 24 * 60 * 60_000L
+    }
+}
 
 @Serializable
 data class ChatData(

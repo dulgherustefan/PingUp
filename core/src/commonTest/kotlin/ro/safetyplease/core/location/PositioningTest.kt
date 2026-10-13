@@ -118,12 +118,35 @@ class PositioningTest {
     }
 
     @Test
-    fun walkingOffTheLandmarkOnStepsEndsIt() {
+    fun stepsAloneLeaveTheLandmarkInPlace() {
         val clock = FakeClock()
         val p = Positioning(clock)
         p.nearLandmark(7, landmark)
         repeat(50) { p.onStep(Step(clock.now + it * 500L, 0.7, 0.0)) }
-        assertNull(p.landmark.value)
+        assertEquals(7, p.landmark.value?.number, "only a good fix or its time ends it")
+        assertEquals(landmark, p.shownAt())
+    }
+
+    @Test
+    fun aClockSetBackDoesNotFreezeThePosition() {
+        val clock = FakeClock()
+        val p = Positioning(clock)
+        p.onRaw(fix(clock, origin, 5f))
+        p.nearLandmark(7, landmark)
+        clock.now -= 60 * 60_000L
+        p.tick()
+        assertNull(p.landmark.value, "a landmark said in the future has no time left")
+        val moved = at(30.0, 0.0)
+        p.onRaw(fix(clock, moved, 5f))
+        assertEquals(moved, p.shownAt(), "the first fix after the step starts the filter over")
+        clock.now += 1_000
+        p.onRaw(fix(clock, at(31.0, 0.0), 5f))
+        assertTrue(distanceMeters(p.shownAt(), at(31.0, 0.0)) <= 5)
+
+        // a repeat of the last fix, or one a few seconds out of order, changes nothing
+        val shown = p.shownAt()
+        p.onRaw(fix(FakeClock(clock.now - 3_000), at(80.0, 0.0), 5f))
+        assertEquals(shown, p.shownAt())
     }
 
     @Test

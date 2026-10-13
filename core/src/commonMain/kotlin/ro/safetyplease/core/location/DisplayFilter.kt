@@ -89,12 +89,6 @@ class DisplayFilter(private val accelerationNoise: Double = ACCELERATION_NOISE) 
         return shown(accuracyM, timeMs, last?.courseDeg).also { last = it }
     }
 
-    fun reset() {
-        east = null
-        north = null
-        last = null
-    }
-
     private fun shown(accuracyM: Float, timeMs: Long, course: Float?): GeoFix {
         val (lat, lon) = geo(east!!.x, north!!.x)
         return GeoFix(lat, lon, accuracyM, timeMs, course)

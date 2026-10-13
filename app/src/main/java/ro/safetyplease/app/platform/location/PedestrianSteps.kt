@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import ro.safetyplease.core.location.Positioning
 import ro.safetyplease.core.location.Step
+import ro.safetyplease.core.location.StepDetector
 import kotlin.math.sqrt
 
 /**
@@ -72,44 +73,5 @@ class PedestrianSteps(context: Context) {
         sensors?.unregisterListener(listener)
         yawDeg = null
         detector.reset()
-    }
-}
-
-/**
- * A step is a peak of the acceleration's magnitude: smoothed, it rises past [RISE] above gravity, at least [MIN_GAP_MS]
- * after the last step, and must fall below [FALL] before the next one counts.
- */
-internal class StepDetector {
-    private var smooth = SensorManager.GRAVITY_EARTH
-    private var armed = true
-    private var lastStepMs = Long.MIN_VALUE / 2
-
-    /** True when the sample at [atMs] completes a step. */
-    fun onSample(magnitude: Float, atMs: Long): Boolean {
-        smooth += SMOOTHING * (magnitude - smooth)
-        val above = smooth - SensorManager.GRAVITY_EARTH
-        if (!armed) {
-            if (above < FALL) armed = true
-            return false
-        }
-        if (above < RISE || atMs - lastStepMs < MIN_GAP_MS) return false
-        armed = false
-        lastStepMs = atMs
-        return true
-    }
-
-    fun reset() {
-        smooth = SensorManager.GRAVITY_EARTH
-        armed = true
-        lastStepMs = Long.MIN_VALUE / 2
-    }
-
-    companion object {
-        /** An average adult stride; the field campaign measures how far it drifts at 10 and 30 s. */
-        const val STEP_M = 0.7
-        private const val SMOOTHING = 0.25f
-        private const val RISE = 1.2f
-        private const val FALL = 0.2f
-        private const val MIN_GAP_MS = 300L
     }
 }

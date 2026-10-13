@@ -1,29 +1,45 @@
 package ro.safetyplease.core
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.builtins.ListSerializer
 import okio.Path
 import ro.safetyplease.core.announce.MapState
+import ro.safetyplease.core.chat.ChatManager
+import ro.safetyplease.core.chat.MeetingPlace
+import ro.safetyplease.core.crypto.FriendCard
+import ro.safetyplease.core.crypto.Identity
+import ro.safetyplease.core.crypto.testCrypto
 import ro.safetyplease.core.data.Conversations
+import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.incidents.ReportDraft
 import ro.safetyplease.core.incidents.UpdateDraft
 import ro.safetyplease.core.mesh.SimNet
 import ro.safetyplease.core.mesh.TestClock
+import ro.safetyplease.core.mesh.V10Node
 import ro.safetyplease.core.position.Regasire
 import ro.safetyplease.core.position.Search
 import ro.safetyplease.core.position.SearchDraft
-import ro.safetyplease.core.protocol.Inner
+import ro.safetyplease.core.protocol.BatteryLevel
 import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.Inner
+import ro.safetyplease.core.protocol.InnerCodec
+import ro.safetyplease.core.protocol.LastFix
 import ro.safetyplease.core.protocol.LostAction
+import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.PositionMethod
 import ro.safetyplease.core.protocol.ReportExtras
 import ro.safetyplease.core.protocol.Severity
+import ro.safetyplease.core.protocol.ShareAction
 import ro.safetyplease.core.protocol.SharePrecision
 import ro.safetyplease.core.protocol.UpdateKind
+import ro.safetyplease.core.util.hexToBytes
+import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.GeoPoint
@@ -135,12 +151,186 @@ class RegasireTest {
         assertEquals(SharePrecision.EXACT, a.phone.chat.activeShares.value.single { it.conversation == conversation }.precision)
         assertEquals(1, a.reg.target.value?.landmark)
 
+        val bShares = b.phone.chat.activeShares.value
         b.reg.comeThere(b.reg.alerts.value.single())
+        runCurrent()
+        val replies = b.phone.chatStore.value.outbox.filter { InnerCodec.decode(it.innerHex.hexToBytes()) is Inner.MeetingReply }
+        assertEquals(listOf(a.phone.nodeId), replies.map { it.recipient }, "the yes goes only to the one who is lost")
         advanceTimeBy(10_000)
         assertTrue(b.reg.alerts.value.isEmpty())
         assertEquals(1, b.reg.target.value?.landmark)
         assertEquals(listOf(b.phone.nodeId), a.phone.chat.meetings.value.single().accepted, "B's yes reached the lost one")
-        assertTrue(b.phone.chat.activeShares.value.any { it.conversation == conversation && it.precision == SharePrecision.EXACT })
+        assertEquals(bShares, b.phone.chat.activeShares.value, "Vin acolo shares nothing")
+    }
+
+    @Test
+    fun vinAcoloStartsNoShare() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, _) = group(w)
+        val conversation = a.groupConversation()
+        a.moveTo(w, spot(0, 100))
+        b.moveTo(w, spot(100, 100))
+        assertTrue(a.reg.imLost(conversation))
+        advanceTimeBy(10_000)
+        b.reg.comeThere(b.reg.alerts.value.single())
+        advanceTimeBy(2 * 60_000L)
+        assertTrue(b.phone.chat.activeShares.value.isEmpty())
+        assertNull(a.phone.positions.value.sessionOf(b.phone.nodeId, w.clock.wallMs()), "A holds nothing of B's")
+    }
+
+    @Test
+    fun aProposalAfterALostSessionIsAcceptedByTheGroup() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, c) = group(w)
+        val conversation = a.groupConversation()
+        a.moveTo(w, spot(0, 100))
+        assertTrue(a.reg.imLost(conversation))
+        advanceTimeBy(10_000)
+        b.reg.comeThere(b.reg.alerts.value.single())
+        advanceTimeBy(10_000)
+        assertEquals(1, b.phone.chat.meetings.value.single().place.landmark)
+
+        assertTrue(a.phone.chat.proposeMeeting(conversation, MeetingPlace.landmark(2), null, 30))
+        advanceTimeBy(10_000)
+        for (other in listOf(b, c)) {
+            val meeting = other.phone.chat.meetings.value.single()
+            assertEquals(2, meeting.place.landmark, "the later seq wins on ${other.phone.name}")
+            assertEquals(a.phone.nodeId, meeting.proposer)
+        }
+    }
+
+    @Test
+    fun theLostSessionImpliesTheShareForPhonesThatReadIt() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, c) = group(w)
+        val conversation = a.groupConversation()
+        a.moveTo(w, spot(0, 100))
+        assertTrue(a.reg.imLost(conversation))
+        advanceTimeBy(10_000)
+        val share = a.phone.chat.activeShares.value.single { it.conversation == conversation }
+        assertEquals(setOf(b.phone.nodeId, c.phone.nodeId), share.accepted.toSet(), "their DELIVERED stands for the ACCEPT")
+        for (other in listOf(b, c)) {
+            val held = assertNotNull(other.phone.positions.value.sessionOf(a.phone.nodeId, w.clock.wallMs()))
+            assertEquals(SharePrecision.EXACT, held.precision)
+            assertTrue(other.phone.positions.value.records.any { it.sender == a.phone.nodeId }, "and the position came at once")
+        }
+    }
+
+    @Test
+    fun anOlderPhoneThatNeverConfirmsGetsTheStartAfterAMinute() = runTest {
+        val w = World(this, tmp.root, venue)
+        val a = w.finder("A")
+        val b = w.finder("B")
+        val oldIdentity = Identity.generate(testCrypto)
+        val old = V10Node(backgroundScope, w.net, "V", oldIdentity.nodeId, w.clock, { true }, connects = true)
+        a.phone.befriend(b.phone)
+        a.phone.chat.addFriend(FriendCard("Vechi", oldIdentity.box.publicKey, oldIdentity.sign.publicKey))
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.phone.chat.createGroup("Gașca", listOf(b.phone.nodeId, old.nodeId))
+        advanceTimeBy(5_000)
+        val conversation = a.groupConversation()
+        a.moveTo(w, spot(0, 100))
+        fun startsToOld() = old.received.filter { it.type == PacketType.PRIVATE && it.sender == a.phone.nodeId }.count { packet ->
+            val inner = testCrypto.boxOpen(packet.payload, a.phone.identity.box.publicKey, oldIdentity.box.secretKey)?.let(InnerCodec::decode)
+            inner is Inner.ShareSession && inner.action == ShareAction.START
+        }
+
+        assertTrue(a.reg.imLost(conversation))
+        advanceTimeBy(30_000)
+        assertEquals(0, startsToOld(), "nothing but the lost session yet")
+        assertEquals(listOf(b.phone.nodeId), a.phone.chat.activeShares.value.single().accepted)
+        advanceTimeBy(40_000)
+        assertEquals(1, startsToOld(), "the START of before, a minute late")
+        assertEquals(0, old.malformed)
+    }
+
+    @Test
+    fun aDoubleTapSendsOneSession() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, _) = group(w)
+        val conversation = a.groupConversation()
+        a.moveTo(w, spot(0, 100))
+        val first = async { a.reg.imLost(conversation) }
+        val second = async { a.reg.imLost(conversation) }
+        assertEquals(listOf(true, false), listOf(first.await(), second.await()).sortedDescending())
+        val sessions = a.phone.chatStore.value.outbox.filter { InnerCodec.decode(it.innerHex.hexToBytes()) is Inner.LostSession }
+        assertEquals(1, sessions.map { it.msgId }.distinct().size)
+        advanceTimeBy(10_000)
+        assertEquals(1, b.reg.alerts.value.size)
+    }
+
+    @Test
+    fun aLostSessionIsRetriedForFifteenMinutesOnly() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, _, c) = group(w)
+        val conversation = a.groupConversation()
+        c.phone.radio.powerOff()
+        a.moveTo(w, spot(0, 100))
+        assertTrue(a.reg.imLost(conversation))
+        fun toC() = a.phone.chatStore.value.outbox.filter {
+            it.recipient == c.phone.nodeId && InnerCodec.decode(it.innerHex.hexToBytes()) is Inner.LostSession
+        }
+        advanceTimeBy(ChatManager.LOST_TTL_MS - 30_000)
+        assertEquals(7, toC().single().attempts, "7 attempts instead of 20")
+        advanceTimeBy(60_000)
+        assertTrue(toC().isEmpty(), "and then it is dropped")
+    }
+
+    @Test
+    fun aStartAfterTheFoundOfItsSessionOpensNothing() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, _) = group(w)
+        val conversation = a.groupConversation()
+        a.phone.chat.sendLost(conversation) { id, group -> Inner.LostSession(id, group, LostAction.FOUND, 5, 1, 50, 1) }
+        advanceTimeBy(10_000)
+        a.phone.chat.sendLost(conversation) { id, group -> Inner.LostSession(id, group, LostAction.START, 5, 15, 50, 1) }
+        advanceTimeBy(10_000)
+        assertTrue(b.reg.alerts.value.isEmpty(), "a late copy of the session that ended")
+        assertNull(b.phone.positions.value.sessionOf(a.phone.nodeId, w.clock.wallMs()), "and no share from it")
+
+        a.phone.chat.sendLost(conversation) { id, group -> Inner.LostSession(id, group, LostAction.START, 6, 15, 50, 1) }
+        advanceTimeBy(10_000)
+        assertEquals(6, b.reg.alerts.value.single().seq, "a new session opens it")
+    }
+
+    @Test
+    fun neMamGasitEndsTheExactShareAndGivesBackTheOneItReplaced() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, _) = group(w)
+        val conversation = a.groupConversation()
+        a.moveTo(w, spot(0, 100))
+        a.phone.chat.startShare(conversation, 60, SharePrecision.APPROXIMATE)
+        advanceTimeBy(10_000)
+        assertTrue(a.reg.imLost(conversation))
+        advanceTimeBy(10_000)
+        assertEquals(SharePrecision.EXACT, a.phone.chat.activeShares.value.single().precision)
+
+        a.reg.foundGroup(conversation)
+        advanceTimeBy(10_000)
+        val back = a.phone.chat.activeShares.value.single()
+        assertEquals(SharePrecision.APPROXIMATE, back.precision, "the share from before")
+        val left = back.expiresAtMs - w.clock.wallMs()
+        assertTrue(left in 58 * 60_000L..60 * 60_000L, "for the time it had left: $left")
+        assertNull(a.reg.target.value)
+        assertTrue(b.reg.alerts.value.isEmpty())
+        assertEquals(SharePrecision.APPROXIMATE, b.phone.positions.value.sessionOf(a.phone.nodeId, w.clock.wallMs())?.precision)
+    }
+
+    @Test
+    fun neMamGasitWithNoShareBeforeStopsIt() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, _) = group(w)
+        val conversation = a.groupConversation()
+        a.moveTo(w, spot(0, 100))
+        assertTrue(a.reg.imLost(conversation))
+        advanceTimeBy(10_000)
+        assertNotNull(b.phone.positions.value.sessionOf(a.phone.nodeId, w.clock.wallMs()))
+        a.reg.foundGroup(conversation)
+        advanceTimeBy(10_000)
+        assertTrue(a.phone.chat.activeShares.value.isEmpty())
+        assertNull(b.phone.positions.value.sessionOf(a.phone.nodeId, w.clock.wallMs()), "B was told it stopped")
+        assertTrue(a.phone.chat.meetings.value.isEmpty(), "the session's meeting point goes with it")
     }
 
     @Test
@@ -171,7 +361,8 @@ class RegasireTest {
         val first = b.reg.alerts.value.single()
 
         // a phone that sends more often is not heard more often
-        a.phone.chat.sendLost(conversation) { id, group -> Inner.LostSession(id, group, LostAction.START, 9, 15, 50, 2) }
+        val seq = a.phone.chat.nextMeetingSeq()
+        a.phone.chat.sendLost(conversation) { id, group -> Inner.LostSession(id, group, LostAction.START, seq, 15, 50, 2) }
         advanceTimeBy(10_000)
         assertEquals(first, b.reg.alerts.value.single())
 
@@ -250,6 +441,81 @@ class RegasireTest {
     }
 
     @Test
+    fun theLastGaspGoesWithTheShare() = runTest {
+        val w = World(this, tmp.root, venue)
+        val a = w.finder("A")
+        val b = w.finder("B")
+        a.phone.befriend(b.phone)
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.moveTo(w, spot(200, 200))
+        a.phone.chat.startShare(Conversations.friend(b.phone.nodeId), 60, SharePrecision.EXACT)
+        advanceTimeBy(10_000)
+        a.reg.onBattery(5, charging = false)
+        advanceTimeBy(5_000)
+        val gasp = b.reg.gasps.value.single()
+        assertNotNull(b.reg.lastSeenOf(a.phone.nodeId))
+
+        a.phone.chat.stopShare(Conversations.friend(b.phone.nodeId))
+        advanceTimeBy(5_000)
+        assertTrue(b.reg.gasps.value.isEmpty(), "the gasp ends with the share")
+        assertNull(b.reg.lastSeenOf(a.phone.nodeId), "and a report can't offer it any more")
+
+        // nor does it outlive the friendship
+        a.phone.chat.startShare(Conversations.friend(b.phone.nodeId), 60, SharePrecision.EXACT)
+        advanceTimeBy(10_000)
+        a.reg.onBattery(6, charging = false)
+        a.moveTo(w, spot(200, 210))
+        a.reg.onBattery(5, charging = false)
+        advanceTimeBy(5_000)
+        assertNotEquals(gasp, b.reg.gasps.value.single())
+        b.phone.chat.removeFriend(a.phone.nodeId)
+        advanceTimeBy(1_000)
+        assertTrue(b.reg.gasps.value.isEmpty())
+        assertNull(b.reg.lastSeenOf(a.phone.nodeId))
+    }
+
+    @Test
+    fun aGaspFromTheFutureCountsAsNow() = runTest {
+        val w = World(this, tmp.root, venue)
+        val a = w.finder("A")
+        val b = w.finder("B")
+        a.phone.befriend(b.phone)
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.moveTo(w, spot(200, 200))
+        a.phone.chat.startShare(Conversations.friend(b.phone.nodeId), 60, SharePrecision.EXACT)
+        advanceTimeBy(10_000)
+        val ahead = LastFix(BOX_LAT, BOX_LON, w.clock.wallMs() / 1000 + 3600, 2)
+        a.phone.chat.sendLastGasp(b.phone.nodeId, Inner.LastGasp(ahead, 5))
+        advanceTimeBy(5_000)
+        val gasp = b.reg.gasps.value.single()
+        assertTrue(gasp.fixAtMs <= gasp.receivedAtMs, "clamped to its arrival")
+        assertEquals(0, b.reg.lastSeenOf(a.phone.nodeId)?.ageMin)
+    }
+
+    @Test
+    fun theLastGaspStaysArmedUntilOneGoes() = runTest {
+        val w = World(this, tmp.root, venue)
+        val a = w.finder("A")
+        val b = w.finder("B")
+        a.phone.befriend(b.phone)
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.moveTo(w, spot(200, 200))
+        a.phone.chat.startShare(Conversations.friend(b.phone.nodeId), 60, SharePrecision.EXACT)
+        advanceTimeBy(3 * 60_000L)
+        a.reg.onBattery(5, charging = false)
+        advanceTimeBy(5_000)
+        assertTrue(b.reg.gasps.value.isEmpty(), "no fresh fix, nothing went")
+
+        a.moveTo(w, spot(200, 220))
+        a.reg.onBattery(4, charging = false)
+        advanceTimeBy(5_000)
+        assertEquals(4, b.reg.gasps.value.single().battery, "the next reading sends it")
+    }
+
+    @Test
     fun aLastGaspFromSomeoneWhoDoesNotShareWithUsIsDropped() = runTest {
         val w = World(this, tmp.root, venue)
         val a = w.finder("A")
@@ -257,7 +523,7 @@ class RegasireTest {
         a.phone.befriend(b.phone)
         w.net.start()
         advanceTimeBy(30_000)
-        val fix = ro.safetyplease.core.protocol.LastFix(BOX_LAT, BOX_LON, w.clock.wallMs() / 1000, 2)
+        val fix = LastFix(BOX_LAT, BOX_LON, w.clock.wallMs() / 1000, 2)
         a.phone.chat.sendLastGasp(b.phone.nodeId, Inner.LastGasp(fix, 5))
         advanceTimeBy(5_000)
         assertTrue(b.reg.gasps.value.isEmpty())
@@ -356,6 +622,58 @@ class RegasireTest {
         assertEquals(UpdateKind.RESOLVED_ITSELF, staff.phone.staffIncidents.single().updates.single().kind)
         assertTrue(a.reg.found.value.isEmpty())
         assertTrue(a.searches.value.isEmpty())
+    }
+
+    @Test
+    fun suntBineSaysNothingAboutTheBattery() = runTest {
+        val w = World(this, tmp.root, venue)
+        val a = w.finder("A")
+        val b = w.finder("B")
+        a.phone.befriend(b.phone)
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.reg.setDraft(SearchDraft(b.phone.nodeId, attach = false))
+        a.reg.reportSent("id", IncidentCategory.LOST_FRIEND)
+        advanceTimeBy(10_000)
+        b.reg.imOk(b.reg.searchedBy.value.single())
+        runCurrent()
+        val ok = b.phone.chatStore.value.outbox.map { InnerCodec.decode(it.innerHex.hexToBytes()) }.filterIsInstance<Inner.LostSession>().single()
+        assertEquals(BatteryLevel.UNKNOWN, ok.battery)
+        assertNull(ok.groupId)
+    }
+
+    @Test
+    fun aSearchOlderThanADayGetsNoReply() = runTest {
+        val w = World(this, tmp.root, venue)
+        val a = w.finder("A")
+        val b = w.finder("B")
+        a.phone.befriend(b.phone)
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.searches.update { listOf(Search("old", b.phone.nodeId, w.clock.wallMs() - Regasire.SEARCH_KEPT_MS - 1)) }
+        b.phone.chat.sendLost(Conversations.friend(a.phone.nodeId)) { id, _ ->
+            Inner.LostSession(id, null, LostAction.FOUND, 0, 1, BatteryLevel.UNKNOWN, 0)
+        }
+        advanceTimeBy(10_000)
+        assertTrue(a.reg.found.value.isEmpty())
+    }
+
+    @Test
+    fun aSearchOrSuntBineFromSomeoneWhoIsNotAFriendIsDropped() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, c) = group(w)
+        // C knows B only from the group; B's phone takes C for a friend, C's doesn't
+        val card = Friend(c.phone.nodeId, "C", c.phone.identity.box.publicKey.toHex(), c.phone.identity.sign.publicKey.toHex(), 0)
+        b.phone.friends.update { it + card }
+        c.searches.update { listOf(Search("id", b.phone.nodeId, w.clock.wallMs())) }
+        b.phone.chat.sendLost(Conversations.friend(c.phone.nodeId)) { id, _ -> Inner.LostSession(id, null, LostAction.START, 0, 60, 50, 0) }
+        b.phone.chat.sendLost(Conversations.friend(c.phone.nodeId)) { id, _ ->
+            Inner.LostSession(id, null, LostAction.FOUND, 0, 1, BatteryLevel.UNKNOWN, 0)
+        }
+        advanceTimeBy(10_000)
+        assertTrue(c.reg.searchedBy.value.isEmpty())
+        assertTrue(c.reg.found.value.isEmpty())
+        assertTrue(a.reg.alerts.value.isEmpty())
     }
 
     @Test

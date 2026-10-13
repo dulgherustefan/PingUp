@@ -20,7 +20,8 @@ import kotlin.math.sin
 
 /** "Sunt lângă Reperul [number]", said at [setAtMs] (wall clock): the position is the landmark's [point] for a while. */
 data class LandmarkFix(val number: Int, val point: GeoPoint, val setAtMs: Long) {
-    fun expired(nowMs: Long): Boolean = nowMs - setAtMs >= KEPT_MS
+    /** Past its time, or the wall clock was set back past when it was said, so its time is unknown. */
+    fun expired(nowMs: Long): Boolean = nowMs - setAtMs !in 0 until KEPT_MS
 
     /** A good GNSS fix far from the landmark: the person has walked off, or picked the wrong number. */
     fun overruledBy(fix: GeoFix): Boolean =
@@ -79,7 +80,6 @@ class Positioning(private val clock: Clock) {
     private var lastShown: GeoFix? = null
     private var lastYaw: Pair<Long, Double>? = null
     private var walked = 0.0
-    private var walkedOnLandmark = 0.0
 
     private val _fused = MutableStateFlow<Fused?>(null)
     private val _position = MutableStateFlow<GeoFix?>(null)
@@ -101,7 +101,8 @@ class Positioning(private val clock: Clock) {
 
     fun onRaw(fix: GeoFix) = synchronized(lock) {
         val previous = lastGnss
-        if (previous != null && fix.timeMs <= previous.timeMs) return@synchronized
+        // no newer than the last: a repeat; far older: the wall clock was set back, and the filter starts over
+        if (previous != null && fix.timeMs <= previous.timeMs && previous.timeMs - fix.timeMs < CLOCK_STEP_MS) return@synchronized
         lastGnss = fix
         walked = 0.0
         val yaw = lastYaw
@@ -115,12 +116,6 @@ class Positioning(private val clock: Clock) {
 
     fun onStep(step: Step) = synchronized(lock) {
         lastYaw = step.timeMs to step.yawDeg
-        if (_landmark.value != null) {
-            walkedOnLandmark += step.lengthM
-            if (walkedOnLandmark <= LandmarkFix.DISAGREE_M) return@synchronized
-            _landmark.value = null
-            publish(lastShown)
-        }
         val gnss = lastGnss ?: return@synchronized
         if (step.timeMs - gnss.timeMs > PDR_GAP_MS || step.timeMs - gnss.timeMs < PDR_AFTER_MS) return@synchronized
         val bearing = heading.bearing(step.yawDeg) ?: return@synchronized
@@ -134,7 +129,6 @@ class Positioning(private val clock: Clock) {
 
     /** "Sunt lângă Reperul [number]", standing at [point]: the position for the next minutes, unless GNSS disagrees. */
     fun nearLandmark(number: Int, point: GeoPoint) = synchronized(lock) {
-        walkedOnLandmark = 0.0
         _landmark.value = LandmarkFix(number, point, clock.wallMs())
         publish(lastShown)
     }
@@ -155,7 +149,10 @@ class Positioning(private val clock: Clock) {
     /** A report screen opens ([open]) or closes; calls nest. */
     fun reportOpen(open: Boolean) = need { it.copy(reports = (it.reports + if (open) 1 else -1).coerceAtLeast(0)) }
 
-    /** The walking route guides the person now. */
+    /**
+     * For the walking route (`route/`): it calls this while it guides the person, so the steps can bridge a GNSS gap
+     * on the way. Nothing else calls it.
+     */
     fun navigating(on: Boolean) = need { it.copy(navigating = on) }
 
     /** The steps setting, and whether an exact share runs now. */
@@ -199,5 +196,8 @@ class Positioning(private val clock: Clock) {
         const val PDR_DRIFT = 0.2
         const val TICK_MS = 15_000L
         private const val YAW_FRESH_MS = 3_000L
+
+        /** A fix this much older than the last one means the wall clock was set back. */
+        const val CLOCK_STEP_MS = 60_000L
     }
 }

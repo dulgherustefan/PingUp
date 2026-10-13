@@ -298,6 +298,9 @@ announcement.notice.evacuation 020103020000000368e778b468e786c405000001034fd099c
 # LOST_SESSION (17): msgId 0102030405060708, flags 01, group 1112131415161718, action 1 (start), seq 4, 15 minutes,
 # battery 37 %, landmark 11.
 inner.lost_session 11010203040506070801111213141516171801040f250b
+# LOST_SESSION (17) without a group, as a "Sunt bine": msgId 0102030405060708, flags 00, action 2 (found), seq 0,
+# 1 minute, battery 255 (unknown), landmark 0.
+inner.lost_session.direct 11010203040506070800020001ff00
 # LAST_GASP (18): battery 5 %, 44.426765, 26.102538, fixed at TIME + 600, accuracy class 2.
 inner.last_gasp 120502a5e60d018e4b0a68e77a5802
 # CHECKIN_MISSED (19): msgId 0102030405060708, flags 02 (a last fix), deadline TIME + 7200, 44.4271, 26.1031 fixed at
