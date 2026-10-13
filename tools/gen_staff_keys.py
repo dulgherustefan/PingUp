@@ -289,6 +289,10 @@ def pack_body(args, state: dict) -> str:
     body["grid"] = {"cellMeters": args.grid}
     if args.firstaid:
         body["firstAid"] = {f.name: f.read_text(encoding="utf-8") for f in sorted(Path(args.firstaid).glob("*.md"))}
+    if args.schedule:
+        body["schedule"] = json.loads(Path(args.schedule).read_text(encoding="utf-8"))
+    if args.plan:
+        body["plan"] = json.loads(Path(args.plan).read_text(encoding="utf-8"))
     return json.dumps(body, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -379,6 +383,8 @@ def main() -> None:
     p.add_argument("--version", type=int, required=True, help="a phone replaces a pack only with a higher version")
     p.add_argument("--venue", required=True, help="the venue JSON (as app/src/main/assets/venue.json)")
     p.add_argument("--firstaid", help="a folder of first-aid sheets (*.md), approved by the medical lead")
+    p.add_argument("--schedule", help='the sets on the stages, a JSON list of {"stage", "title", "start", "end"}')
+    p.add_argument("--plan", help="the site plan with its corners, as tools/plan_corners.py writes it")
     p.add_argument("--name", help="the name phones show; the event's by default")
     p.add_argument("--from", dest="from_date", help="first day phones may load it, YYYY-MM-DD; today by default")
     p.add_argument("--grid", type=int, default=50, help="site grid cell, meters")
