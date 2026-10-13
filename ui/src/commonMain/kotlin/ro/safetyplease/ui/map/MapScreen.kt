@@ -207,6 +207,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     // in text-only mode the drawn map stands in, with its battery note
     val mapKind = if (LocalTextOnly.current) MapKind.FALLBACK else offlineKind
     var engine by remember { mutableStateOf<PingMapEngine?>(null) }
+    val mapOverlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
     val fix by vm.c.locationFix.collectAsStateWithLifecycle()
     var aboutMap by rememberSaveable { mutableStateOf(false) }
 
@@ -292,6 +293,14 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     LaunchedEffect(engine, mapFriends) {
         engine?.setFriends(mapFriends)
     }
+    LaunchedEffect(engine, mapOverlay) {
+        engine?.setOverlay(mapOverlay)
+    }
+
+    // a pin of a feature's layer goes to that feature, any other is an incident
+    fun openPin(key: String) {
+        if (!vm.mapOverlays.tap(key)) vm.open(Dest.Incident(key))
+    }
 
     val haptics = rememberHaptics()
     fun setMine(id: String) {
@@ -353,11 +362,14 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                         DisposableEffect(Unit) { onDispose { engine = null } }
                         offline?.Show(
                             dark = colors.dark,
-                            palette = MapPalette(hex(colors.label), hex(colors.cell), hex(colors.accent), hex(colors.green), hex(colors.secondaryLabel)),
+                            palette = MapPalette(
+                                hex(colors.label), hex(colors.cell), hex(colors.accent), hex(colors.green), hex(colors.secondaryLabel),
+                                OverlayColors.of(colors),
+                            ),
                             modifier = Modifier.fillMaxSize(),
                             onTap = { point, key ->
                                 when {
-                                    key != null -> vm.open(Dest.Incident(key))
+                                    key != null -> openPin(key)
                                     simulate -> vm.setSimulatedLocation(point)
                                     else -> vm.venue.zoneAt(point.lat, point.lon)?.let { showZone(it.id) }
                                 }
@@ -380,7 +392,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             if (simulate) vm.setSimulatedLocation(point)
                             else if (zone != null) showZone(zone.id)
                         },
-                        onPinTap = { vm.open(Dest.Incident(it.key)) },
+                        onPinTap = { openPin(it.key) },
                         camera = camera,
                         target = spot?.point,
                         targetColor = spotColor(colors, spotType),
@@ -389,6 +401,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             MapReserve(MapCorner.BottomEnd, ControlsReserveWidth, ControlsReserveHeight),
                             heat?.let { MapReserve(MapCorner.BottomStart, HeatReserveWidth, HeatReserveHeight) },
                         ),
+                        mapOverlay = mapOverlay,
                         overlay = overlay,
                     )
                 }

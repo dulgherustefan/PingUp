@@ -59,6 +59,9 @@ interface PingMapEngine {
 
     fun setFriends(friends: List<MapFriend>)
 
+    /** The features' routes, zone styles, pins and site plan ([MapOverlays]), over the organiser's layer. */
+    fun setOverlay(overlay: MapOverlay)
+
     fun setMe(me: MapMe?)
 
     /** Following keeps "me" in the middle, north or heading up; a drag on the map turns it off. */
@@ -74,8 +77,11 @@ interface PingMapEngine {
     fun zoomBy(delta: Double, animated: Boolean)
 }
 
-/** #RRGGBB colors from the app theme: text and its halo, "me", friends, and friends seen over 30 minutes ago. */
-data class MapPalette(val ink: String, val halo: String, val me: String, val friend: String, val stale: String)
+/**
+ * #RRGGBB colors from the app theme: text and its halo, "me", friends, and friends seen over 30 minutes ago; [overlay]
+ * colors the features' layer.
+ */
+data class MapPalette(val ink: String, val halo: String, val me: String, val friend: String, val stale: String, val overlay: OverlayColors)
 
 /** The map a screen shows: the offline base map, nothing yet while its data is being installed, or the drawn venue map. */
 enum class MapKind { PENDING, REAL, FALLBACK }

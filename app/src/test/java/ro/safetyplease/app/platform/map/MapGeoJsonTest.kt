@@ -22,6 +22,12 @@ import ro.safetyplease.core.venue.distanceMeters
 import ro.safetyplease.ui.map.MapFriend
 import ro.safetyplease.ui.map.MapMarker
 import ro.safetyplease.ui.map.MapMe
+import ro.safetyplease.ui.map.MapRoute
+import ro.safetyplease.ui.map.OverlayColors
+import ro.safetyplease.ui.map.OverlayPin
+import ro.safetyplease.ui.map.PinKind
+import ro.safetyplease.ui.map.RouteStyle
+import ro.safetyplease.ui.map.ZoneStyle
 
 class MapGeoJsonTest {
     private val venue = Venue(
@@ -129,5 +135,35 @@ class MapGeoJsonTest {
         assertEquals("inc-1", markers.single().prop("key").content)
         assertEquals(1, features(MapGeoJson.target(GeoPoint(43.95, 28.635))).size)
         assertTrue(features(MapGeoJson.target(null)).isEmpty())
+    }
+
+    @Test
+    fun routesAreLinesWithTheirStyle() {
+        val a = GeoPoint(43.949, 28.634)
+        val b = GeoPoint(43.950, 28.636)
+        val routes = features(MapGeoJson.routes(listOf(MapRoute(listOf(a, b)), MapRoute(listOf(b, a), RouteStyle.ALTERNATIVE), MapRoute(listOf(a)))))
+        assertEquals(listOf("LineString", "LineString"), routes.map { it.type() })
+        assertEquals(listOf("primary", "alternative"), routes.map { it.prop("style").content })
+        val first = routes[0]["geometry"]!!.jsonObject["coordinates"]!!.jsonArray[0].jsonArray.map { it.jsonPrimitive.double }
+        assertEquals(listOf(28.634, 43.949), first)
+    }
+
+    @Test
+    fun onlyStyledZonesAreDrawnWithTheirColorAndCover() {
+        val styled = features(MapGeoJson.zoneStyles(venue, mapOf("stage" to ZoneStyle.CLOSED, "broken" to ZoneStyle.CROWDED, "nowhere" to ZoneStyle.EVACUATE)) { "#${it.name}" })
+        val stage = styled.single()
+        assertEquals("stage", stage.prop("id").content)
+        assertEquals("closed", stage.prop("style").content)
+        assertEquals("#CLOSED", stage.prop("color").content)
+        assertEquals(OverlayColors.fillAlpha(ZoneStyle.CLOSED), stage.prop("opacity").float)
+        assertEquals(stage.ring().first(), stage.ring().last())
+    }
+
+    @Test
+    fun overlayPinsCarryTheKeyATapReports() {
+        val pins = features(MapGeoJson.overlayPins(listOf(OverlayPin("ana", GeoPoint(43.95, 28.635), PinKind.LAST_SEEN, "Ana · 22:10"))) { it.name })
+        val pin = pins.single()
+        assertEquals("Point", pin.type())
+        assertEquals(listOf("ana", "last_seen", "LAST_SEEN", "Ana · 22:10"), listOf("key", "kind", "color", "label").map { pin.prop(it).content })
     }
 }

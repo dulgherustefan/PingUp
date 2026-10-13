@@ -13,6 +13,12 @@ import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.map.MapFriend
 import ro.safetyplease.ui.map.MapMarker
 import ro.safetyplease.ui.map.MapMe
+import ro.safetyplease.ui.map.MapRoute
+import ro.safetyplease.ui.map.OverlayColors
+import ro.safetyplease.ui.map.OverlayPin
+import ro.safetyplease.ui.map.PinKind
+import ro.safetyplease.ui.map.RouteStyle
+import ro.safetyplease.ui.map.ZoneStyle
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -111,6 +117,44 @@ object MapGeoJson {
             )
         },
     )
+
+    /** The features' routes as lines, each with its style: `primary` or `alternative`. */
+    fun routes(routes: List<MapRoute>): String = collection(
+        routes.filter { it.points.size >= 2 }.map { route ->
+            feature(line(route.points)) { put("style", route.style.code) }
+        },
+    )
+
+    /** The styled zones as polygons, with the style, its color and how much of the zone it covers. */
+    fun zoneStyles(venue: Venue, styles: Map<String, ZoneStyle>, color: (ZoneStyle) -> String): String = collection(
+        venue.zones.filter { it.polygon.size >= 3 }.mapNotNull { zone ->
+            val style = styles[zone.id] ?: return@mapNotNull null
+            feature(polygon(zone.polygon + zone.polygon.first())) {
+                put("id", zone.id)
+                put("style", style.code)
+                put("color", color(style))
+                put("opacity", OverlayColors.fillAlpha(style))
+            }
+        },
+    )
+
+    /** The features' pins, with the key a tap reports, the kind, its color and the label. */
+    fun overlayPins(pins: List<OverlayPin>, color: (PinKind) -> String): String = collection(
+        pins.map { pin ->
+            feature(point(pin.point)) {
+                put("key", pin.key)
+                put("kind", pin.kind.code)
+                put("color", color(pin.kind))
+                put("label", pin.label)
+            }
+        },
+    )
+
+    private val RouteStyle.code: String get() = name.lowercase()
+
+    private val ZoneStyle.code: String get() = name.lowercase()
+
+    private val PinKind.code: String get() = name.lowercase()
 
     fun me(me: MapMe?): String = collection(
         if (me == null) emptyList()

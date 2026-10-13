@@ -51,6 +51,7 @@ import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 import ro.safetyplease.ui.common.Nearby
+import ro.safetyplease.ui.map.MapOverlays
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.ask_wait
 
@@ -248,6 +249,9 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
     val blocked = c.blocked.state
     val chat = c.chatStore.state
     val incidents = c.incidentStore.state
+
+    /** What the features draw on the maps, each in its own layer. */
+    val mapOverlays = MapOverlays()
 
     val nearby: StateFlow<Nearby> = c.engine.state.map(Nearby::of).distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Nearby.of(c.engine.state.value))

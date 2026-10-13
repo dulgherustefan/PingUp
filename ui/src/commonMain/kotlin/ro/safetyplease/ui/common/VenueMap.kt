@@ -24,6 +24,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -37,6 +38,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shadow
@@ -47,6 +49,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
@@ -66,8 +69,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.decodeToImageBitmap
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.data.StaffIncident
@@ -99,6 +105,11 @@ import ro.safetyplease.ui.designsystem.caption1
 import ro.safetyplease.ui.designsystem.caption2
 import ro.safetyplease.ui.designsystem.rememberLoop
 import ro.safetyplease.ui.map.MapFriend
+import ro.safetyplease.ui.map.MapOverlay
+import ro.safetyplease.ui.map.OverlayColors
+import ro.safetyplease.ui.map.RouteStyle
+import ro.safetyplease.ui.map.ZoneStyle
+import ro.safetyplease.ui.map.imageMatrix
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.map_a11y_summary
 import ro.safetyplease.ui.resources.map_meters
@@ -250,6 +261,8 @@ private fun rememberGlyphs(): Map<String, Painter> = GlyphTypes.associateWith { 
  * [reserved] are the corners the overlay's controls cover: no name or scale bar is drawn under them.
  * [grid] draws the site plan's squares, lettered along the top and numbered down the left side; [squareShades] fill
  * some of them, by 0-based column and row. [poiRings] ring numbered points in a color, by their number.
+ * [mapOverlay] is what the features draw (the site plan, zone styles, routes and their pins); a tap on one of its pins
+ * goes to [onPinTap] with the pin's key.
  */
 @Composable
 fun VenueMap(
@@ -272,6 +285,7 @@ fun VenueMap(
     poiRings: Map<Int, Color> = emptyMap(),
     aspect: Float = venueAspect(venue),
     reserved: List<MapReserve> = emptyList(),
+    mapOverlay: MapOverlay = MapOverlay.EMPTY,
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     if (LocalTextOnly.current) {
@@ -290,7 +304,13 @@ fun VenueMap(
     val density = LocalDensity.current
     val youLabel = stringResource(Res.string.map_you)
     val north = stringResource(Res.string.map_north)
-    val currentPins by rememberUpdatedState(pins)
+    val overlayColors = remember(colors) { OverlayColors.of(colors) }
+    val overlayPins = mapOverlay.pins.map { MapPin(it.point, overlayColors.pin(it.kind), it.key) }
+    val currentPins by rememberUpdatedState(pins + overlayPins)
+    val plan = mapOverlay.plan
+    val planBitmap by produceState<ImageBitmap?>(null, plan?.plan) {
+        value = plan?.plan?.let { p -> withContext(Dispatchers.Default) { runCatching { p.png.decodeToImageBitmap() }.getOrNull() } }
+    }
     val currentTap by rememberUpdatedState(onTap)
     val currentPinTap by rememberUpdatedState(onPinTap)
     val animateMoves by rememberUpdatedState(!LocalReduceMotion.current)
@@ -369,6 +389,7 @@ fun VenueMap(
             val meter = projection.pxPerMeter * zoom
             val marker = position?.let(::at)
             val spots = pins.map { at(it.point) }
+            val overlaySpots = overlayPins.map { at(it.point) }
             val corner = 7.dp.toPx() * min(zoom, 2f)
             val zonePaths = venue.zones.map { zone -> roundedShape(zone.polygon.map(::at), corner) }
 
@@ -434,6 +455,23 @@ fun VenueMap(
                 drawPath(zonePaths[mine], colors.accent, style = Stroke(3.dp.toPx(), join = StrokeJoin.Round))
             }
 
+            // the organiser's plan over the zones, then the console's states over both
+            val bitmap = planBitmap
+            if (plan != null && bitmap != null) {
+                val placed = imageMatrix(at(plan.plan.topLeft), at(plan.plan.topRight), at(plan.plan.bottomLeft), bitmap.width, bitmap.height)
+                withTransform({ transform(placed) }) { drawImage(bitmap, alpha = plan.opacity) }
+            }
+            venue.zones.forEachIndexed { index, zone ->
+                val style = mapOverlay.zones[zone.id] ?: return@forEachIndexed
+                val tint = overlayColors.zone(style)
+                val path = zonePaths[index]
+                drawPath(path, tint.copy(alpha = OverlayColors.fillAlpha(style)))
+                val closed = style == ZoneStyle.CLOSED
+                if (closed) clipPath(path) { hatch(path.getBounds(), tint.copy(alpha = 0.55f), 7.dp.toPx()) }
+                val dash = if (closed) PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())) else null
+                drawPath(path, tint, style = Stroke(2.5.dp.toPx(), join = StrokeJoin.Round, pathEffect = dash))
+            }
+
             grid?.let { g ->
                 for ((square, shade) in squareShades) {
                     val (column, row) = square
@@ -451,6 +489,16 @@ fun VenueMap(
                     val y = at(GeoPoint(g.rowLat(row), b.minLon)).y
                     drawLine(line, Offset(nw.x, y), Offset(se.x, y), 1.dp.toPx())
                 }
+            }
+
+            // the features' routes, the alternatives under the main one
+            mapOverlay.routes.filter { it.points.size >= 2 }.sortedByDescending { it.style }.forEach { route ->
+                val path = openShape(route.points.map(::at))
+                val main = route.style == RouteStyle.PRIMARY
+                val width = (if (main) 5.dp else 3.5.dp).toPx()
+                val dash = if (main) null else PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()))
+                drawPath(path, Color.White, style = Stroke(width + 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round, pathEffect = dash))
+                drawPath(path, overlayColors.route(route.style), style = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round, pathEffect = dash))
             }
 
             // the route to the target, as a dotted walking line
@@ -480,6 +528,14 @@ fun VenueMap(
             }
 
             spots.forEachIndexed { i, o -> markerDot(o, 7.dp.toPx(), pins[i].color) }
+            overlaySpots.forEachIndexed { i, o ->
+                markerDot(o, 7.dp.toPx(), overlayPins[i].color)
+                val label = mapOverlay.pins[i].label
+                if (label.isNotEmpty()) {
+                    val text = measurer.measure(label, smallStyle.copy(color = colors.label))
+                    haloText(text, Offset(o.x - text.size.width / 2f, o.y + 11.dp.toPx()), colors.label, paint.halo)
+                }
+            }
 
             val compass = Offset(size.width - 22.dp.toPx(), 22.dp.toPx())
             val compassRadius = 13.dp.toPx()
@@ -505,7 +561,7 @@ fun VenueMap(
             // move them, its ring goes around the zone's own icon
             val avoid = corners + bar.inflate(3.dp.toPx()) +
                 listOfNotNull(marker?.let { Rect(it.x - 22.dp.toPx(), it.y - 48.dp.toPx(), it.x + 22.dp.toPx(), it.y + 16.dp.toPx()) }) +
-                (listOfNotNull(meeting) + spots).map { Rect(it.x - 12.dp.toPx(), it.y - 12.dp.toPx(), it.x + 12.dp.toPx(), it.y + 12.dp.toPx()) }
+                (listOfNotNull(meeting) + spots + overlaySpots).map { Rect(it.x - 12.dp.toPx(), it.y - 12.dp.toPx(), it.x + 12.dp.toPx(), it.y + 12.dp.toPx()) }
             val screen = Rect(Offset.Zero, size)
             venue.zones.forEachIndexed { index, zone ->
                 val solid = colors.zoneSolid(zoneTone(venue, index), zone.id)
@@ -749,6 +805,15 @@ private fun DrawScope.zoneDetails(type: String, box: Rect, ink: Color, meter: Fl
                 x += step
             }
         }
+    }
+}
+
+/** Diagonal lines [step] apart across [box]: a closed zone. */
+private fun DrawScope.hatch(box: Rect, color: Color, step: Float) {
+    var x = box.left - box.height
+    while (x < box.right) {
+        drawLine(color, Offset(x, box.bottom), Offset(x + box.height, box.top), 1.5.dp.toPx())
+        x += step
     }
 }
 
