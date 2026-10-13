@@ -191,6 +191,11 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
     val evacuationUi = remember { EvacuationUi() }
     val bands = shown.filter { !it.held.dismissed && it !== evacuation }
     val sharing by vm.sharing.collectAsStateWithLifecycle()
+    // back from the dialer after "Sună la 112": the card, to read from
+    LifecycleResumeEffect(Unit) {
+        vm.resumed()
+        onPauseOrDispose { }
+    }
     // the foreground service may hold the location type only while asked from a visible screen
     LifecycleResumeEffect(sharing != null) {
         vm.phone.sharingLocation(sharing != null)

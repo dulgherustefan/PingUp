@@ -22,12 +22,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.safety.Card112
 import ro.safetyplease.core.safety.NearbyPlace
 import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.core.venue.StraightLine
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.core.venue.WalkDistance
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -93,14 +96,8 @@ fun Card112Screen(vm: AppViewModel) {
     }
     vm.phone.KeepScreenOn()
 
-    // a fresh position, else the last one the phone had, marked old
     val last = fix
-    val fresh = position
-    val card = when {
-        fresh != null -> Card112.of(vm.venue, vm.c.grid, fresh, cardAccuracyM(last, settings.simLat != null), 0, vm.c.walkDistance)
-        last != null -> Card112.of(vm.venue, vm.c.grid, GeoPoint(last.lat, last.lon), cardAccuracyM(last, false), wallNowMs() - last.timeMs, vm.c.walkDistance)
-        else -> null
-    }
+    val card = card112Of(vm, position, last, settings.simLat != null, vm.c.walkDistance)
 
     NavScreen(
         title = stringResource(Res.string.card112_title),
@@ -144,10 +141,37 @@ fun Card112Screen(vm: AppViewModel) {
                     card.medical?.let { Help(stringResource(Res.string.card112_medical), it) { vm.navigate(NavTarget.Nearest(MEDICAL)) } }
                 }
             }
-            AppButton(stringResource(Res.string.emergency_call), { vm.phone.dial112() }, Modifier.fillMaxWidth(), icon = Sym.Phone)
+            AppButton(stringResource(Res.string.emergency_call), vm::call112, Modifier.fillMaxWidth(), icon = Sym.Phone)
             Text(stringResource(Res.string.card112_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
         }
     }
+}
+
+/** A fresh position, else the last one the phone had, marked old; null without either. */
+private fun card112Of(vm: AppViewModel, fresh: GeoPoint?, last: GeoFix?, simulated: Boolean, walk: WalkDistance): Card112? = when {
+    fresh != null -> Card112.of(vm.venue, vm.c.grid, fresh, cardAccuracyM(last, simulated), 0, walk)
+    last != null -> Card112.of(vm.venue, vm.c.grid, GeoPoint(last.lat, last.lon), cardAccuracyM(last, false), wallNowMs() - last.timeMs, walk)
+    else -> null
+}
+
+/**
+ * The card in a few lines, for the notification read during the call: the sentence to say (with the nearest landmark),
+ * the coordinates and the Plus Code. The places to walk to stay on the card, so nothing here plans a route.
+ */
+suspend fun card112Text(vm: AppViewModel): String {
+    val last = vm.c.locationFix.value
+    val card = card112Of(vm, vm.pointNow(), last, vm.settings.value.simLat != null, StraightLine)
+        ?: return getString(Res.string.card112_no_position_text)
+    val spoken = card.spoken(
+        getString(Res.string.card112_at, vm.venue.name),
+        card.landmark?.let { getString(Res.string.card112_near_landmark, it) },
+    ) ?: getString(Res.string.card112_outside_text)
+    return listOfNotNull(
+        getString(Res.string.card112_stale_title).takeIf { card.ageMin >= STALE_MIN },
+        spoken,
+        getString(Res.string.card112_coordinates) + ": " + card.coordinates,
+        getString(Res.string.card112_pluscode) + ": " + card.plusCode,
+    ).joinToString("\n")
 }
 
 /** A position older than this much is shown as old: the person may have moved since. */

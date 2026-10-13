@@ -20,4 +20,5 @@ object RequestCodes {
     const val CHECKIN_ARRIVED = 12
     const val CHECKIN_EXTEND_15 = 13
     const val CHECKIN_EXTEND_30 = 14
+    const val CARD_112 = 15
 }

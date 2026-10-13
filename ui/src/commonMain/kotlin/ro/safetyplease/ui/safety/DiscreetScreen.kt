@@ -99,7 +99,7 @@ fun DiscreetScreen(vm: AppViewModel) {
         if (!vm.venue.safeguarding) {
             EmptyState(
                 stringResource(Res.string.discreet_off_title), stringResource(Res.string.discreet_off_text), Modifier.padding(padding), icon = Sym.Info,
-                action = { AppButton(stringResource(Res.string.emergency_call), { vm.phone.dial112() }, kind = ButtonKind.Secondary, icon = Sym.Phone) },
+                action = { AppButton(stringResource(Res.string.emergency_call), vm::call112, kind = ButtonKind.Secondary, icon = Sym.Phone) },
             )
             return@NavScreen
         }
@@ -140,7 +140,7 @@ fun DiscreetScreen(vm: AppViewModel) {
                 if (!report.cancelled) TextLink(stringResource(Res.string.discreet_withdraw), { vm.cancelReport(report.incidentId) })
             }
             AppButton(
-                stringResource(Res.string.emergency_call), { vm.phone.dial112() }, Modifier.fillMaxWidth(), ButtonKind.Secondary, icon = Sym.Phone,
+                stringResource(Res.string.emergency_call), vm::call112, Modifier.fillMaxWidth(), ButtonKind.Secondary, icon = Sym.Phone,
             )
             TextLink(stringResource(Res.string.card112_link), { vm.open(Dest.Safety(SafetyScreen.CARD_112)) }, Modifier.align(Alignment.CenterHorizontally))
         }

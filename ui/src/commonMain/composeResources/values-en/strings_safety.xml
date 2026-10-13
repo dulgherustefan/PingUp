@@ -137,5 +137,7 @@
     <string name="card112_landline">Landline phone</string>
     <string name="card112_medical">Medical point</string>
     <string name="safety_meters">%1$d m</string>
+    <string name="card112_notif_title">Your location for 112</string>
+    <string name="card112_channel">Location for 112</string>
     <string name="card112_note">The call’s position reaches the operator automatically only if the call connects. Say what you see around you too, so they can find you.</string>
 </resources>

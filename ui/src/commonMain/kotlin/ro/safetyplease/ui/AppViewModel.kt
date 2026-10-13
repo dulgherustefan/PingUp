@@ -57,7 +57,9 @@ import ro.safetyplease.ui.map.MapOverlays
 import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.ask_wait
+import ro.safetyplease.ui.resources.card112_notif_title
 import ro.safetyplease.ui.safety.SafetyScreen
+import ro.safetyplease.ui.safety.card112Text
 
 enum class Tab { MESSAGES, REPORT, MAP, INCIDENTS }
 
@@ -186,6 +188,9 @@ object OpenTarget {
     /** The check-in on the way, from its notification, and the alerts of friends who missed theirs. */
     const val CHECKIN = "checkin"
     const val CHECKIN_ALERTS = "checkin-alerts"
+
+    /** The 112 card, from the notification posted with the call. */
+    const val CARD_112 = "card112"
 }
 
 /** Where a link from a notification, the tile or a shortcut lands: a tab and maybe a screen on top; null for neither. */
@@ -198,6 +203,7 @@ fun landing(target: String): Pair<Tab, Dest?>? = when {
     target == OpenTarget.SHARING -> Tab.MESSAGES to Dest.Sharing
     target == OpenTarget.CHECKIN -> Tab.REPORT to Dest.Safety(SafetyScreen.CHECKIN)
     target == OpenTarget.CHECKIN_ALERTS -> Tab.REPORT to Dest.Safety(SafetyScreen.FRIEND_ALERTS)
+    target == OpenTarget.CARD_112 -> Tab.REPORT to Dest.Safety(SafetyScreen.CARD_112)
     else -> null
 }
 
@@ -329,6 +335,26 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
     var demoUnlocked by mutableStateOf(false)
 
     fun open(dest: Dest) = stack.push(dest)
+
+    /** The dialer was opened for 112: back in the app, the card is what the person needs. */
+    private var dialed112 = false
+
+    /**
+     * Every "Sună la 112": the dialer with the number filled in, then a notification with what to say, the coordinates,
+     * the Plus Code and the nearest landmark, to read from the notification shade during the call.
+     */
+    fun call112() {
+        phone.dial112()
+        dialed112 = true
+        viewModelScope.launch { phone.location112(getString(Res.string.card112_notif_title), card112Text(this@AppViewModel)) }
+    }
+
+    /** The app came back to the front: after a 112 call it opens on the card. */
+    fun resumed() {
+        if (!dialed112) return
+        dialed112 = false
+        open(Dest.Safety(SafetyScreen.CARD_112))
+    }
 
     /** "Du-mă acolo": the walking route to [target], on its own screen. */
     fun navigate(target: NavTarget) = open(Dest.Walk(target))

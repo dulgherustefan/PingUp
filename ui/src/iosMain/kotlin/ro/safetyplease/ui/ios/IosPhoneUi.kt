@@ -15,8 +15,13 @@ import platform.UIKit.UIApplicationOpenNotificationSettingsURLString
 import platform.UIKit.UIApplicationOpenSettingsURLString
 import platform.UIKit.UIPasteboard
 import platform.UIKit.popoverPresentationController
+import platform.UserNotifications.UNMutableNotificationContent
+import platform.UserNotifications.UNNotificationInterruptionLevel
+import platform.UserNotifications.UNNotificationRequest
+import platform.UserNotifications.UNUserNotificationCenter
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
+import ro.safetyplease.ui.OpenTarget
 import ro.safetyplease.ui.PhoneUi
 import ro.safetyplease.ui.common.Beacon
 import ro.safetyplease.ui.common.IosTorch
@@ -58,6 +63,17 @@ class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val
     override val gnss: GnssView? = null
 
     override fun dial112() = open("tel:112")
+
+    // as IosNotifications posts; iOS has no expiry for a delivered notification, so it stays until dismissed or replaced
+    override fun location112(title: String, text: String) {
+        val content = UNMutableNotificationContent()
+        content.setTitle(title)
+        content.setBody(text)
+        content.setUserInfo(mapOf<Any?, Any?>(IosApp.OPEN to OpenTarget.CARD_112))
+        content.setInterruptionLevel(UNNotificationInterruptionLevel.UNNotificationInterruptionLevelActive)
+        UNUserNotificationCenter.currentNotificationCenter()
+            .addNotificationRequest(UNNotificationRequest.requestWithIdentifier(LOCATION_112, content, null), null)
+    }
 
     // an app can open only its own page in Settings; location is under Privacy there
     override fun openLocationSettings() = openAppSettings()
@@ -121,4 +137,8 @@ class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val
     private fun onMain(block: () -> Unit) = dispatch_async(dispatch_get_main_queue(), block)
 
     private fun info(key: String): String = NSBundle.mainBundle.objectForInfoDictionaryKey(key) as? String ?: ""
+
+    private companion object {
+        const val LOCATION_112 = "location-112"
+    }
 }

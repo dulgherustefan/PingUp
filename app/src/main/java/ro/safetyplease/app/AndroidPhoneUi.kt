@@ -63,6 +63,8 @@ class AndroidPhoneUi(private val app: Application, private val container: AppCon
 
     override fun dial112() = open(Emergency.dialIntent())
 
+    override fun location112(title: String, text: String) = container.notifier.location112(title, text)
+
     override fun openLocationSettings() = open(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
 
     override fun openAppSettings() = open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", app.packageName, null)))

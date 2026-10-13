@@ -128,5 +128,6 @@ class SafetyUiTest {
     fun notificationsOpenTheCheckinAndTheFriendsAlerts() {
         assertEquals(Tab.REPORT to Dest.Safety(SafetyScreen.CHECKIN), landing(OpenTarget.CHECKIN))
         assertEquals(Tab.REPORT to Dest.Safety(SafetyScreen.FRIEND_ALERTS), landing(OpenTarget.CHECKIN_ALERTS))
+        assertEquals(Tab.REPORT to Dest.Safety(SafetyScreen.CARD_112), landing(OpenTarget.CARD_112))
     }
 }

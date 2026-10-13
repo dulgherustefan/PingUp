@@ -138,5 +138,7 @@
     <string name="card112_landline">Telefon fix</string>
     <string name="card112_medical">Punct medical</string>
     <string name="safety_meters">%1$d m</string>
+    <string name="card112_notif_title">Locația ta pentru 112</string>
+    <string name="card112_channel">Locația pentru 112</string>
     <string name="card112_note">Poziția apelului ajunge automat la operator doar dacă apelul se leagă. Spune și ce vezi în jur, ca să te găsească.</string>
 </resources>

@@ -203,7 +203,7 @@ private fun HelpGroup(vm: AppViewModel, dea: Boolean) {
         }
         GroupRow(
             stringResource(Res.string.emergency_call), subtitle = stringResource(Res.string.report_help_call_text), icon = Sym.Phone,
-            onClick = vm.phone::dial112,
+            onClick = vm::call112,
         )
     }
 }

@@ -161,7 +161,7 @@ fun UnwellScreen(vm: AppViewModel) {
             }
             BreathingGuide()
             AppButton(
-                stringResource(Res.string.emergency_call), { vm.phone.dial112() }, Modifier.fillMaxWidth(), ButtonKind.Secondary, icon = Sym.Phone,
+                stringResource(Res.string.emergency_call), vm::call112, Modifier.fillMaxWidth(), ButtonKind.Secondary, icon = Sym.Phone,
             )
         }
     }

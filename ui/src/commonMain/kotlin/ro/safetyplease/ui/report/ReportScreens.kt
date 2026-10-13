@@ -689,7 +689,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         stringResource(Res.string.report_not_112), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                         modifier = Modifier.weight(1f).padding(end = 12.dp),
                     )
-                    Call112Button(vm.phone::dial112, compact = true)
+                    Call112Button(vm::call112, compact = true)
                 }
             }
             if (waitMs > 0) {
@@ -1014,7 +1014,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
         FloatingFooter(LocalBottomClearance.current, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
             // the call button keeps its full label; Done takes the rest of the row
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Call112Button(vm.phone::dial112)
+                Call112Button(vm::call112)
                 AppButton(stringResource(Res.string.done), { vm.back() }, Modifier.weight(1f))
             }
             if (report.isOpen()) {
@@ -1103,7 +1103,7 @@ private fun HelpSteps(vm: AppViewModel, origin: GeoPoint?, stay: Boolean) {
         GroupDivider()
         GroupRow(
             stringResource(Res.string.emergency_call), subtitle = stringResource(Res.string.report_help_call_text), icon = Sym.Phone,
-            onClick = vm.phone::dial112,
+            onClick = vm::call112,
         )
     }
 }

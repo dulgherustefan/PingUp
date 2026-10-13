@@ -96,6 +96,9 @@ class Notifier(private val context: Context, private val venue: Venue, private v
                         enableVibration(true)
                         vibrationPattern = NOTICE_VIBRATION
                     },
+                // read during a 112 call: in the shade, without a sound over the call
+                NotificationChannel(CHANNEL_112, context.getString(R.string.card112_channel), NotificationManager.IMPORTANCE_DEFAULT)
+                    .apply { setSound(null, null) },
                 noticeAlarm(CHANNEL_NOTICE_PAUSE, R.string.channel_notice_pause, PAUSE_VIBRATION),
                 noticeAlarm(CHANNEL_NOTICE_EVACUATION, R.string.channel_notice_evacuation, EVACUATION_VIBRATION),
             )
@@ -268,6 +271,25 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             }
             SafetyNotice.CheckinCleared -> Unit
         }
+    }
+
+    /** What to say to 112, in the shade while the call lasts; a tap opens the card, and it goes by itself after 30 minutes. */
+    fun location112(title: String, text: String) {
+        if (!canPost()) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_112)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(text.lineSequence().firstOrNull().orEmpty())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(open(OpenTarget.CARD_112, RequestCodes.CARD_112))
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setOngoing(true)
+            .setAutoCancel(true)
+            .setSilent(true)
+            .setTimeoutAfter(LOCATION_112_MS)
+            .build()
+        manager.notify(LOCATION_112_ID, notification)
     }
 
     /** The mesh couldn't come back on its own. Same id as the running notification, which replaces it on restart. */
@@ -506,6 +528,9 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         private const val CHANNEL_PROGRAM = "program"
         private const val MAN_DOWN_ID = 4
         private const val CHECKIN_ID = 5
+        private const val LOCATION_112_ID = 6
+        private const val CHANNEL_112 = "card112"
+        private const val LOCATION_112_MS = 30 * 60_000L
         private const val FRIEND_ALERT_ID = 2000
         private const val CHANNEL_CHECKIN = "checkin"
         private const val CHANNEL_FRIENDS = "checkin_friends"

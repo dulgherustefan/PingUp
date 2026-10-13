@@ -54,6 +54,12 @@ interface PhoneUi {
     /** Opens the phone app with 112 filled in; the person places the call. */
     fun dial112()
 
+    /**
+     * Posts, or puts in place of the last one, the notification "Locația ta pentru 112" with [text], to read during the
+     * call; a tap opens the 112 card. It goes when dismissed, and on Android after 30 minutes.
+     */
+    fun location112(title: String, text: String)
+
     /** The phone's own location settings, to turn location on. */
     fun openLocationSettings()
 
