@@ -95,6 +95,12 @@ data class LogEntry(
     val template: Int = 0,
     val seq: Long = 0,
     val validUntil: Long = 0,
+    /** A report's extension entries and the priority rule that made it urgent here, as in [StaffIncident]. */
+    val density: Int = 0,
+    val cannotMove: Boolean = false,
+    val manDown: Boolean = false,
+    val unconscious: Boolean = false,
+    val topRule: String = "",
 )
 
 @Serializable
@@ -117,6 +123,8 @@ fun reportEntry(incident: StaffIncident, grid: SiteGrid, at: Long = incident.rec
         responds = incident.responds, breathes = incident.breathes,
         fromStaff = incident.fromStaff, people = incident.people, dangerContinues = incident.dangerContinues,
         accuracyM = incident.accuracyM, landmark = incident.landmark,
+        density = incident.density, cannotMove = incident.cannotMove, manDown = incident.manDown,
+        unconscious = incident.unconscious, topRule = incident.topRule,
     )
 }
 

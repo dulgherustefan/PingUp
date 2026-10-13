@@ -58,8 +58,8 @@ object Clustering {
     }
 }
 
-/** A crowd report as the signal sees it: the zone it names and when its reporter wrote it. */
-class CrowdReport(val zone: String, val reportedAt: Long)
+/** A crowd report as the signal sees it: the zone it names, when its reporter wrote it, and how much it counts. */
+class CrowdReport(val zone: String, val reportedAt: Long, val weight: Int = 1)
 
 /** [count] crowd reports from [zone], written over [minutes] minutes. */
 class CrowdSignal(val zone: String, val count: Int, val minutes: Int)
@@ -73,12 +73,15 @@ object CrowdWatch {
     const val WINDOW_MS = 10 * 60_000L
     const val MIN_REPORTS = 5
 
-    /** The zones with at least [MIN_REPORTS] reports written in the last [WINDOW_MS], the busiest first. */
+    /** "Nu mă pot mișca" says more than "it's packed": it counts as this many reports. */
+    const val CANNOT_MOVE_WEIGHT = 2
+
+    /** The zones whose reports of the last [WINDOW_MS] weigh at least [MIN_REPORTS], the busiest first. */
     fun signals(reports: Collection<CrowdReport>, nowMs: Long): List<CrowdSignal> =
         reports.filter { it.zone.isNotBlank() && nowMs - it.reportedAt <= WINDOW_MS }
             .groupBy { it.zone.trim().lowercase() }
             .values
-            .filter { it.size >= MIN_REPORTS }
+            .filter { zone -> zone.sumOf { it.weight } >= MIN_REPORTS }
             .map { zone ->
                 val span = zone.maxOf { it.reportedAt } - zone.minOf { it.reportedAt }
                 CrowdSignal(zone.first().zone.trim(), zone.size, maxOf(1L, (span + 59_999) / 60_000).toInt())

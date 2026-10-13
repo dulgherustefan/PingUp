@@ -7,6 +7,7 @@ import ro.safetyplease.core.announce.NoticeBoard
 import ro.safetyplease.core.announce.Notices
 import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.chat.PositionFrame
+import ro.safetyplease.core.control.StaffDensity
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.Identity
@@ -30,6 +31,8 @@ import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.PositionStore
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.incidents.IncidentManager
+import ro.safetyplease.core.incidents.PriorityRules
+import ro.safetyplease.core.incidents.PriorityTable
 import ro.safetyplease.core.mesh.CachedIncidents
 import ro.safetyplease.core.mesh.MeshConfig
 import ro.safetyplease.core.mesh.MeshEngine
@@ -132,6 +135,12 @@ class TestPhone(
     /** ACKs IncidentManager reported: the ACK, whether this phone signed it, and its hops. */
     val acks = mutableListOf<Triple<IncidentAck, Boolean, Int>>()
     var staffCap = IncidentManager.MAX_STAFF
+
+    /** No rule by default, so a test's severity is the one it sent. */
+    var priorityRules = PriorityRules(PriorityTable())
+
+    /** Routine crowd levels this phone opened, which never became incidents. */
+    val densityReports = mutableListOf<StaffIncident>()
     var sharesZone = true
     val positions = PositionStore.open(dir / "$name-positions.json", bg)
     var positionFrame = PositionFrame(PositionBox(BOX_LAT, BOX_LON), TestEvent.START * 1000)
@@ -149,6 +158,8 @@ class TestPhone(
         onReportResponse = { reportResponses += it },
         onAck = { ack, own, hops -> acks += Triple(ack, own, hops) },
         staffCap = { staffCap },
+        priority = { priorityRules },
+        divert = { incident -> StaffDensity.isRoutine(incident).also { if (it) densityReports += incident } },
     )
 
     val revocations = Revocations(

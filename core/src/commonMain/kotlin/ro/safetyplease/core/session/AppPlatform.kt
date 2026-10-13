@@ -9,6 +9,8 @@ import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.incidents.AlertPost
+import ro.safetyplease.core.incidents.MotionSample
+import ro.safetyplease.core.incidents.ResponderTarget
 import ro.safetyplease.core.mesh.BatteryReading
 import ro.safetyplease.core.mesh.PowerPlan
 import ro.safetyplease.core.mesh.Radio
@@ -64,6 +66,15 @@ interface AppPlatform {
     /** Hands [onReading] each reading of the battery, the current one first, for as long as the app runs. */
     fun watchBattery(onReading: (BatteryReading) -> Unit)
 
+    /**
+     * Hands [onSample] the accelerometer's readings, from any thread, until called again with null: staff man-down.
+     * A phone that can't keep it running in the background, the iPhone, ignores it.
+     */
+    fun watchMotion(onSample: ((MotionSample) -> Unit)?) = Unit
+
+    /** [watchMotion] does something here. */
+    val watchesMotion: Boolean get() = false
+
     /** The mobile network now, for staff who keep the network log; [cell] is the grid square of a fresh position. */
     suspend fun sampleMobileNetwork(atMs: Long, cell: String): NetworkSample
 
@@ -117,6 +128,14 @@ interface Notifications {
 
     /** Every few hours of a location share without an end: it still runs, with [people] seeing this phone. */
     fun shareReminder(people: Int)
+
+    /** Someone doesn't breathe nearby: the alert names the defibrillator to fetch on the way. */
+    fun responderAlert(post: AlertPost, target: ResponderTarget?) = staffAlert(post)
+
+    /** "Ești OK?" after a suspected fall, with sound and vibration until [untilMs] (wall time) or an answer. */
+    fun manDownCheck(untilMs: Long) = Unit
+
+    fun cancelManDownCheck() = Unit
 }
 
 /** The Bluetooth radio as the session drives it: on while the mesh runs, at the power the plan asks for. */
