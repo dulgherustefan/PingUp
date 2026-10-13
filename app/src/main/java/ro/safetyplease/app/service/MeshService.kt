@@ -93,7 +93,11 @@ class MeshService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (running && intent?.action == ACTION_STOP_SHARING) {
+        if (running && intent?.action == ACTION_CHECKIN) {
+            // "Am ajuns" (0 minutes) or "+15 / +30 min" in the check-in's notification
+            val minutes = intent.getIntExtra(EXTRA_MINUTES, 0)
+            if (minutes == 0) container.checkin.arrived() else container.checkin.extend(minutes)
+        } else if (running && intent?.action == ACTION_STOP_SHARING) {
             container.stopAllShares()
             runCatching { goForeground(location = false) }
         } else if (running && intent?.hasExtra(EXTRA_LOCATION) == true) {
@@ -120,6 +124,8 @@ class MeshService : Service() {
         private const val KEY_WANTED = "wanted"
         private const val EXTRA_LOCATION = "location"
         private const val ACTION_STOP_SHARING = "ro.safetyplease.app.STOP_SHARING"
+        private const val ACTION_CHECKIN = "ro.safetyplease.app.CHECKIN"
+        private const val EXTRA_MINUTES = "minutes"
 
         @Volatile
         var running = false
@@ -137,6 +143,10 @@ class MeshService : Service() {
 
         /** "Oprește" in the notification: every share ends at once, silently. */
         fun stopSharingIntent(context: Context): Intent = Intent(context, MeshService::class.java).setAction(ACTION_STOP_SHARING)
+
+        /** The check-in's notification: [minutes] more, or 0 for "Am ajuns". */
+        fun checkinIntent(context: Context, minutes: Int): Intent =
+            Intent(context, MeshService::class.java).setAction(ACTION_CHECKIN).putExtra(EXTRA_MINUTES, minutes)
 
         fun stop(context: Context) {
             setWanted(context, false)

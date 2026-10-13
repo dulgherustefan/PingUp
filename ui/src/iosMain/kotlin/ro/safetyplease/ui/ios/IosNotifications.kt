@@ -20,14 +20,21 @@ import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.incidents.AlertReason
 import ro.safetyplease.core.incidents.Discreet
 import ro.safetyplease.core.incidents.needsEscalation
+import ro.safetyplease.core.safety.SafetyNotice
 import ro.safetyplease.core.session.Notifications
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.OpenTarget
 import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.checkin_alert_silent
+import ro.safetyplease.ui.resources.checkin_alerted_text
+import ro.safetyplease.ui.resources.checkin_alerted_title
 import ro.safetyplease.ui.resources.exercise_title
 import ro.safetyplease.ui.resources.msg_group_left
 import ro.safetyplease.ui.resources.msg_zone
 import ro.safetyplease.ui.resources.notif_assigned_title
+import ro.safetyplease.ui.resources.notif_checkin_text
+import ro.safetyplease.ui.resources.notif_checkin_title
+import ro.safetyplease.ui.resources.notif_friend_silent_text
 import ro.safetyplease.ui.resources.notif_incident_title
 import ro.safetyplease.ui.resources.notif_report_title
 import ro.safetyplease.ui.resources.notif_response_title
@@ -57,6 +64,34 @@ class IosNotifications(private val venue: Venue, private val exercise: Boolean, 
     /** A location share without an end still runs: who sees the phone is a tap away. */
     override fun shareReminder(people: Int) = later {
         post(SHARING, getPluralString(Res.plurals.sharing_bar, people, people), "", OpenTarget.SHARING)
+    }
+
+    /**
+     * The check-in on the way. iOS runs the app only as long as Bluetooth gives it events, so the question comes at its
+     * time only while the app is alive, as the check-in is meant for the app in front or kept running by the mesh.
+     */
+    override fun safety(notice: SafetyNotice) {
+        when (notice) {
+            SafetyNotice.CheckinCleared -> cancel(CHECKIN)
+            is SafetyNotice.CheckinDue -> later {
+                post(
+                    CHECKIN, getString(Res.string.notif_checkin_title), getString(Res.string.notif_checkin_text, notice.label), OpenTarget.CHECKIN,
+                    Level.TIME_SENSITIVE,
+                )
+            }
+            is SafetyNotice.CheckinAlerted -> later {
+                post(
+                    CHECKIN, getString(Res.string.checkin_alerted_title),
+                    getPluralString(Res.plurals.checkin_alerted_text, notice.friends, notice.friends, notice.label), OpenTarget.CHECKIN,
+                )
+            }
+            is SafetyNotice.FriendSilent -> later {
+                post(
+                    "friend-silent-${notice.name}-${notice.label}", getString(Res.string.checkin_alert_silent, notice.name, notice.label),
+                    getString(Res.string.notif_friend_silent_text), OpenTarget.CHECKIN_ALERTS, Level.TIME_SENSITIVE,
+                )
+            }
+        }
     }
 
     /** A staff alert as the alert planner decided it: one that has to be heard breaks through Focus, unless it's a drill. */
@@ -174,6 +209,7 @@ class IosNotifications(private val venue: Venue, private val exercise: Boolean, 
     private companion object {
         const val SHIFT_ENDED = "shift-ended"
         const val SHARING = "sharing"
+        const val CHECKIN = "checkin"
 
         fun alert(incidentId: String) = "alert-$incidentId"
 

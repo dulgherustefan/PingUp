@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -23,7 +24,9 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.incidents.Discreet
+import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
@@ -39,6 +42,7 @@ import ro.safetyplease.ui.isOpen
 import ro.safetyplease.ui.rememberLocationRequest
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
+import ro.safetyplease.ui.resources.card112_link
 import ro.safetyplease.ui.resources.discreet_message
 import ro.safetyplease.ui.resources.discreet_no_location
 import ro.safetyplease.ui.resources.discreet_off_text
@@ -74,6 +78,7 @@ fun DiscreetScreen(vm: AppViewModel) {
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     var limited by remember { mutableStateOf(false) }
+    val safety = rememberReportOptions()
     val requestLocation = rememberLocationRequest(vm)
     // found again by its mark, so it is still the one in progress after the screen or the app was left
     val report = incidents.mine.filter { Discreet.isDiscreet(it.description) && it.isOpen() && now - it.createdAt < ACTIVE_MS }.maxByOrNull { it.createdAt }
@@ -115,7 +120,15 @@ fun DiscreetScreen(vm: AppViewModel) {
                         icon = Sym.Info, color = colors.redInk,
                     )
                 }
-                AppButton(stringResource(Res.string.discreet_send), { limited = vm.reportDiscreet(message) == null }, Modifier.fillMaxWidth())
+                ReportOptionsSection(safety, IncidentCategory.HARASSMENT, bleed = true)
+                AppButton(
+                    stringResource(Res.string.discreet_send),
+                    {
+                        limited = vm.reportDiscreet(message, safety.extras(IncidentCategory.HARASSMENT)) == null
+                        if (!limited) safety.reset()
+                    },
+                    Modifier.fillMaxWidth(),
+                )
             } else {
                 val status = Labels.myReportStatus(report.status, report.teamName.isNotEmpty())?.let {
                     if (it == Res.string.status_acknowledged) stringResource(it, report.teamName) else stringResource(it)
@@ -128,6 +141,7 @@ fun DiscreetScreen(vm: AppViewModel) {
             AppButton(
                 stringResource(Res.string.emergency_call), { vm.phone.dial112() }, Modifier.fillMaxWidth(), ButtonKind.Secondary, icon = Sym.Phone,
             )
+            TextLink(stringResource(Res.string.card112_link), { vm.open(Dest.Safety(SafetyScreen.CARD_112)) }, Modifier.align(Alignment.CenterHorizontally))
         }
     }
 }

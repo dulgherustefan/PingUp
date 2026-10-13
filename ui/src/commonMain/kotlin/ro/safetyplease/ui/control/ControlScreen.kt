@@ -122,6 +122,7 @@ import ro.safetyplease.ui.resources.sev_urgent
 import ro.safetyplease.ui.resources.status_cancelled
 import ro.safetyplease.ui.resources.status_resolved
 import ro.safetyplease.ui.resources.zone_unknown
+import ro.safetyplease.ui.resources.hotspots_open
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.ui.text.rememberNow
@@ -172,6 +173,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var confirmExport by remember { mutableStateOf(false) }
     var showReport by remember { mutableStateOf(false) }
     var composeNotice by remember { mutableStateOf(false) }
+    var showHotspots by remember { mutableStateOf(false) }
     var layer by rememberSaveable { mutableStateOf(MapLayer.INCIDENTS) }
     val squares = remember(heard, now) { Coverage.squares(heard.values, now) }
     val selected = selectedId?.let(cases::get)
@@ -201,6 +203,8 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             AppButton(stringResource(Res.string.control_export), { confirmExport = true }, kind = ButtonKind.Secondary, compact = true)
             Spacer(Modifier.width(8.dp))
             AppButton(stringResource(Res.string.notice_composer_title), { composeNotice = true }, compact = true, icon = Sym.Report)
+            Spacer(Modifier.width(8.dp))
+            AppButton(stringResource(Res.string.hotspots_open), { showHotspots = true }, kind = ButtonKind.Secondary, compact = true, icon = Sym.Place)
         }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(start = PaneGap, end = PaneGap, bottom = PaneGap)) {
             val wide = maxWidth >= WideWidth
@@ -257,6 +261,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     if (confirmExport) ExportDialog(c, vm.phone, log.entries.size, vm.viewModelScope) { confirmExport = false }
     if (showReport) ReportDialog(c, vm.phone, vm.viewModelScope) { showReport = false }
     if (composeNotice) NoticeComposer(vm) { composeNotice = false }
+    if (showHotspots) HotspotsDialog(incidents.staff, c.grid, vm.venue, now) { showHotspots = false }
 }
 
 /** Status in a word or two, with its icon and color, as the queue shows it. */

@@ -262,6 +262,10 @@ import ro.safetyplease.ui.resources.tab_report
 import ro.safetyplease.ui.resources.torch_failed
 import ro.safetyplease.ui.resources.torch_off
 import ro.safetyplease.ui.resources.torch_on
+import ro.safetyplease.ui.safety.Card112Row
+import ro.safetyplease.ui.safety.ReportOptionsSection
+import ro.safetyplease.ui.safety.SafetyEntries
+import ro.safetyplease.ui.safety.rememberReportOptions
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.Replies
 import ro.safetyplease.ui.text.agoText
@@ -402,6 +406,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var recognition by rememberSaveable { mutableStateOf("") }
     var describing by remember { mutableStateOf(false) }
     var anonymous by rememberSaveable { mutableStateOf(true) }
+    val safety = rememberReportOptions()
     // details stay folded into one summary row; whoever has more to add expands it, and staff always see them
     var showDetails by rememberSaveable { mutableStateOf(false) }
     // sent here from a profile: the form opens on what is reported, with the details shown so the text can be read
@@ -536,6 +541,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         )
                     }
                 }
+                if (category == 0) SafetyEntries(vm)
                 if (category != 0) {
                     Text(
                         stringResource(Labels.categoryExample(category)).replaceFirstChar { it.uppercase() },
@@ -645,6 +651,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                             )
                         }
                     }
+                    if (!staff) ReportOptionsSection(safety, category)
                     InputField(
                         description, { description = it.take(Limits.DESCRIPTION_CHARS) },
                         stringResource(if (staff) Res.string.report_description_staff else Res.string.report_description),
@@ -680,7 +687,9 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 stringResource(Res.string.report_send),
                 {
                     val fields = if (staff) StaffFields(people, danger) else null
-                    val id = vm.report(category, severity, zone, description, anonymous, triage, fields, if (recognisable) recognition else "")
+                    val id = vm.report(
+                        category, severity, zone, description, anonymous, triage, fields, if (recognisable) recognition else "", safety.extras(category),
+                    )
                     if (id != null) {
                         if (autoZone == null) vm.setManualZone(zone)
                         haptics.confirm()
@@ -694,6 +703,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         people = 0
                         danger = false
                         showDetails = false
+                        safety.reset()
                         vm.open(Dest.ReportSent(id))
                     }
                 },
@@ -979,6 +989,7 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
                     InsetGroup(Modifier.padding(top = 20.dp)) {
                         ReportTimeline(report, now, Modifier.padding(horizontal = Gutter, vertical = 16.dp))
                     }
+                    Card112Row(vm)
                 }
             }
         }
