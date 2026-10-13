@@ -95,6 +95,14 @@ class IosApp {
 
     private fun create(): AppViewModel {
         platform = IosPlatform(location, active, phone.appName, onRestart = { onMain(::restart) }, onWipe = { onMain(::wipe) })
+        // iOS keeps an app's Keychain items after the app is deleted, where Android's keystore goes with the app: keys
+        // without the app's files are ones a deleted app left, and deleting the app deletes everything (PRIVACY.md).
+        // The folder is made at once, so the keys made now stay even if nothing is written before the app quits
+        val data = platform.filesDir / "data"
+        if (!FileSystem.SYSTEM.exists(data)) {
+            KeychainVault(IosPlatform.VAULT_SERVICE).deleteAll()
+            FileSystem.SYSTEM.createDirectories(data)
+        }
         val session = PingUpSession(platform)
         session.foreground.value = active.value
         val factory = viewModelFactory { initializer { AppViewModel(session, phone) } }
