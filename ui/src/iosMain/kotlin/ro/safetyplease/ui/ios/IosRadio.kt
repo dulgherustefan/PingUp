@@ -15,6 +15,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import platform.CoreBluetooth.CBATTErrorInvalidOffset
+import platform.CoreBluetooth.CBATTErrorRequestNotSupported
+import platform.CoreBluetooth.CBATTErrorSuccess
 import platform.CoreBluetooth.CBATTRequest
 import platform.CoreBluetooth.CBAdvertisementDataServiceDataKey
 import platform.CoreBluetooth.CBAdvertisementDataServiceUUIDsKey
@@ -668,12 +671,21 @@ class IosRadio(
         /** Writes without response, the only kind the characteristic takes: nothing to answer. */
         override fun peripheralManager(peripheral: CBPeripheralManager, didReceiveWriteRequests: List<*>) {
             renewScan()
-            for (request in didReceiveWriteRequests) {
-                val write = request as? CBATTRequest ?: continue
+            val writes = didReceiveWriteRequests.filterIsInstance<CBATTRequest>()
+            for (write in writes) {
                 if (write.characteristic.UUID != characteristicId || write.offset != 0uL) continue
                 val link = incoming[write.central.identifier.UUIDString] ?: continue
                 channel.trySend(RadioEvent.Frame(link.id, write.value?.toBytes() ?: continue))
             }
+            // one answer per call, to the first request, writes without response included (Apple's documentation for
+            // this callback): without it iOS holds the next writes back, for up to 30 s as Herald saw
+            val first = writes.firstOrNull() ?: return
+            val result = when {
+                first.characteristic.UUID != characteristicId -> CBATTErrorRequestNotSupported
+                first.offset != 0uL -> CBATTErrorInvalidOffset
+                else -> CBATTErrorSuccess
+            }
+            peripheral.respondToRequest(first, result)
         }
 
         override fun peripheralManagerIsReadyToUpdateSubscribers(peripheral: CBPeripheralManager) {
