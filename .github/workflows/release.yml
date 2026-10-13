@@ -7,6 +7,8 @@
 #   KEYSTORE_PASSWORD  keystore password
 #   KEY_ALIAS          key alias
 #   KEY_PASSWORD       key password
+# Optional:
+#   SITE_DEPLOY_HOOK   a Vercel deploy hook of the site (its project > Settings > Git > Deploy Hooks)
 name: Release
 
 on:
@@ -70,3 +72,15 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" ping-up.apk app/build/outputs/mapping/release/mapping.txt \
             --title "$GITHUB_REF_NAME" --notes-file notes.md
+
+      # the page loads the version itself, but writes it in when built too, for search engines and readers without
+      # JavaScript: building the site again puts the new one there
+      - name: Site
+        env:
+          SITE_DEPLOY_HOOK: ${{ secrets.SITE_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$SITE_DEPLOY_HOOK" ]; then
+            echo "no SITE_DEPLOY_HOOK: the site's page keeps the old version until its next deploy"
+            exit 0
+          fi
+          curl -fsS -X POST "$SITE_DEPLOY_HOOK" > /dev/null

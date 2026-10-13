@@ -106,7 +106,7 @@ keytool -genkeypair -keystore release.jks -alias pingup -keyalg RSA -keysize 409
 base64 -i release.jks
 ```
 
-În Settings → Secrets and variables → Actions: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+În Settings → Secrets and variables → Actions: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Opțional, `SITE_DEPLOY_HOOK`: un deploy hook al site-ului din Vercel (proiectul site-ului → Settings → Git → Deploy Hooks), ca după fiecare release site-ul să se construiască din nou, cu versiunea nouă scrisă și în pagină.
 
 Pe iPhone aplicația se publică prin App Store; ce trebuie pentru prima trimitere e în [APP_STORE.md](APP_STORE.md).
 
