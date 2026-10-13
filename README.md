@@ -89,6 +89,8 @@ base64 -i release.jks
 
 În Settings → Secrets and variables → Actions: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
 
+Pe iPhone aplicația se publică prin App Store; ce trebuie pentru prima trimitere e în [APP_STORE.md](APP_STORE.md).
+
 Cheile de staff ale unui eveniment: `python tools/gen_staff_keys.py`. Semințele rămân în `tools/out/`, nu în git.
 Build-ul debug are o pereche separată, publică (`--demo`), pe care release-ul nu o acceptă.
 
