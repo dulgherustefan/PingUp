@@ -51,6 +51,7 @@ import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 import ro.safetyplease.ui.common.Nearby
+import ro.safetyplease.ui.map.MapLayers
 import ro.safetyplease.ui.map.MapOverlays
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.ask_wait
@@ -112,6 +113,9 @@ sealed interface Dest {
 
     /** Friends and groups, each with its switch, all off until turned on. */
     data object ShareChoose : Dest
+
+    /** The stages' schedule, "Planul meu" and its reminders. */
+    data object Program : Dest
 
     /** "Cine mă vede acum": each share with its time left, stopped one by one or all at once. */
     data object Sharing : Dest
@@ -252,6 +256,9 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
 
     /** What the features draw on the maps, each in its own layer. */
     val mapOverlays = MapOverlays()
+
+    /** The map's service layers, search pick and site plan, and the place "Du-mă acolo" asks the route for. */
+    val layers = MapLayers()
 
     val nearby: StateFlow<Nearby> = c.engine.state.map(Nearby::of).distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Nearby.of(c.engine.state.value))

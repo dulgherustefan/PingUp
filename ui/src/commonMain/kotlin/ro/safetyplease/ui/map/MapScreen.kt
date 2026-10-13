@@ -210,6 +210,8 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val mapOverlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
     val fix by vm.c.locationFix.collectAsStateWithLifecycle()
     var aboutMap by rememberSaveable { mutableStateOf(false) }
+    var pressed by remember { mutableStateOf<GeoPoint?>(null) }
+    LayersOverlay(vm)
 
     val friends by vm.friends.collectAsStateWithLifecycle()
     val records by vm.friendPositions.collectAsStateWithLifecycle()
@@ -296,6 +298,9 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     LaunchedEffect(engine, mapOverlay) {
         engine?.setOverlay(mapOverlay)
     }
+    LaunchedEffect(engine) {
+        engine?.setLongPress { pressed = it }
+    }
 
     // a pin of a feature's layer goes to that feature, any other is an incident
     fun openPin(key: String) {
@@ -312,6 +317,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
         }
     }
 
+    pressed?.let { PlaceDialog(vm, it) { pressed = null } }
     if (aboutMap) {
         AppDialog(
             onDismiss = { aboutMap = false }, title = stringResource(Res.string.map_about),
@@ -393,6 +399,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             else if (zone != null) showZone(zone.id)
                         },
                         onPinTap = { openPin(it.key) },
+                        onLongPress = { pressed = it },
                         camera = camera,
                         target = spot?.point,
                         targetColor = spotColor(colors, spotType),
@@ -419,6 +426,14 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             typeGlyph(type) ?: Sym.Flag, spotLabel(type), origin?.let { distanceMeters(it, near.point) },
                             spotColor(colors, type), focus == MapFocus.SPOT && spotType == type,
                         ) { showSpot(type) }
+                    }
+                }
+            }
+            if (dest.sendTo == null) {
+                item(key = "layers") {
+                    LayersPanel(vm, origin) { point ->
+                        move(listOf(point), 2.6f)
+                        scope.launch { listState.animateScrollToItem(0) }
                     }
                 }
             }

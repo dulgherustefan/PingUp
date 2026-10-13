@@ -79,6 +79,7 @@ class MapLibreEngine(
     private var venue: Venue? = null
     private var overlay = MapOverlay.EMPTY
     private var planBitmap: Pair<SitePlan, Bitmap>? = null
+    private var longPress: ((GeoPoint) -> Unit)? = null
 
     override var follow = FollowMode.NONE
         private set
@@ -98,6 +99,10 @@ class MapLibreEngine(
             onTap(GeoPoint(latLng.latitude, latLng.longitude), key)
             true
         }
+        map.addOnMapLongClickListener { latLng ->
+            longPress?.invoke(GeoPoint(latLng.latitude, latLng.longitude))
+            longPress != null
+        }
     }
 
     override fun setStyle(styleJson: String) {
@@ -114,6 +119,10 @@ class MapLibreEngine(
         put(GRID, MapGeoJson.grid(SiteGrid.of(venue.bounds)))
         put(POIS, MapGeoJson.pois(venue, poiColor))
         putOverlay()
+    }
+
+    override fun setLongPress(onLongPress: (GeoPoint) -> Unit) {
+        longPress = onLongPress
     }
 
     override fun setOverlay(overlay: MapOverlay) {

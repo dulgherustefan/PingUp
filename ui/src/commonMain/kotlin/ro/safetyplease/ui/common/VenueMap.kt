@@ -262,7 +262,7 @@ private fun rememberGlyphs(): Map<String, Painter> = GlyphTypes.associateWith { 
  * [grid] draws the site plan's squares, lettered along the top and numbered down the left side; [squareShades] fill
  * some of them, by 0-based column and row. [poiRings] ring numbered points in a color, by their number.
  * [mapOverlay] is what the features draw (the site plan, zone styles, routes and their pins); a tap on one of its pins
- * goes to [onPinTap] with the pin's key.
+ * goes to [onPinTap] with the pin's key. A long press inside the site goes to [onLongPress] with its point.
  */
 @Composable
 fun VenueMap(
@@ -277,6 +277,7 @@ fun VenueMap(
     compact: Boolean = false,
     onTap: ((GeoPoint, Zone?) -> Unit)? = null,
     onPinTap: ((MapPin) -> Unit)? = null,
+    onLongPress: ((GeoPoint) -> Unit)? = null,
     camera: MapCamera? = null,
     target: GeoPoint? = null,
     targetColor: Color = AppTheme.colors.accent,
@@ -313,6 +314,7 @@ fun VenueMap(
     }
     val currentTap by rememberUpdatedState(onTap)
     val currentPinTap by rememberUpdatedState(onPinTap)
+    val currentLongPress by rememberUpdatedState(onLongPress)
     val animateMoves by rememberUpdatedState(!LocalReduceMotion.current)
     val scope = rememberCoroutineScope()
     val inset = if (compact) CompactInset else MapInset
@@ -364,9 +366,16 @@ fun VenueMap(
                     },
                 )
                 .then(
-                    if (onTap == null && onPinTap == null && camera == null) Modifier else Modifier.pointerInput(venue, inset, camera) {
+                    if (onTap == null && onPinTap == null && onLongPress == null && camera == null) {
+                        Modifier
+                    } else Modifier.pointerInput(venue, inset, camera, onLongPress != null) {
                         detectTapGestures(
                             onDoubleTap = if (camera == null) null else { o -> scope.launch { camera.zoomAround(o, animateMoves) } },
+                            onLongPress = if (onLongPress == null) null else { offset ->
+                                val projection = Projection(venue, Size(size.width.toFloat(), size.height.toFloat()), inset.toPx())
+                                val point = projection.unproject(camera?.toBase(offset) ?: offset)
+                                if (venue.bounds.contains(point.lat, point.lon)) currentLongPress?.invoke(point)
+                            },
                             onTap = { offset ->
                                 val projection = Projection(venue, Size(size.width.toFloat(), size.height.toFloat()), inset.toPx())
                                 val screen = { p: GeoPoint -> camera?.toScreen(projection.project(p)) ?: projection.project(p) }
