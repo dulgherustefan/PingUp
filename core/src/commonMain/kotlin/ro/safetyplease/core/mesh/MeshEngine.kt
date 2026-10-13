@@ -298,6 +298,13 @@ class MeshEngine(
     /** Prefixes whose last link claimed a role it didn't prove: their advertised role is ignored for a while. */
     private val unprovenUntil = HashMap<Int, Long>()
 
+    /**
+     * Addresses whose link closed as a twin of another link with the same peer: the nodeId found there. An iPhone, and
+     * an Android phone to an iPhone in the background, advertises under another address than it connects from and its
+     * prefix isn't read, so going back to that address would only open the same twin again. Kept while the peer is linked.
+     */
+    private val twinAddresses = HashMap<String, Long>()
+
     /** Demo mode: where an ignored peer was found, kept away from until its address and prefix change. */
     private val shutOutAddressesUntil = HashMap<String, Long>()
     private val shutOutPrefixesUntil = HashMap<Int, Long>()
@@ -368,6 +375,7 @@ class MeshEngine(
         links.values.forEach { it.pump?.cancel() }
         links.clear()
         seen.clear()
+        twinAddresses.clear()
         connecting = null
         publishState()
     }
@@ -664,7 +672,7 @@ class MeshEngine(
         val now = clock.monoMs()
         val old = seen[e.address]
         val flags = if (e.prefix == null && old != null) old.flags else e.flags
-        seen[e.address] = Candidate(e.address, e.prefix ?: old?.prefix, flags, e.rssi, old?.sinceMs ?: now, now)
+        seen[e.address] = Candidate(e.address, e.prefix ?: old?.prefix, flags, e.rssi, old?.sinceMs ?: now, now, e.inBackground)
         maintainConnections(now)
     }
 
@@ -709,6 +717,7 @@ class MeshEngine(
         if (prefix != null && link.roleFlags != link.peerFlags) unprovenUntil[prefix] = now + ProvenRoles.UNPROVEN_MS
         seen.entries.removeAll { (address, c) -> address == link.address || (prefix != null && c.prefix == prefix) }
         if (link.peerId != 0L && links.values.none { it.peerId == link.peerId && it.ready }) {
+            twinAddresses.values.removeAll { it == link.peerId }
             _events.tryEmit(MeshEvent.PeerUnlinked(link.peerId))
         }
         refreshAdvertising()
@@ -788,6 +797,7 @@ class MeshEngine(
         if (twin != null) {
             val loser = duplicateLoser(older = twin, newer = link, peerId = hello.nodeId)
             log.link(clock.wallMs(), hello.nodeId.shortHex(), "duplicate link, closing the ${if (loser === link) "new" else "old"} one")
+            if (loser.outgoing) twinAddresses[loser.address] = hello.nodeId
             close(loser)
             if (loser === link) return
         }
@@ -1176,6 +1186,7 @@ class MeshEngine(
     private fun isBlocked(c: Candidate, now: Long): Boolean {
         if ((addressBlockedUntil[c.address] ?: 0) > now || (bannedAddressesUntil[c.address] ?: 0) > now) return true
         if ((shutOutAddressesUntil[c.address] ?: 0) > now) return true
+        if (c.address in twinAddresses) return true
         val prefix = c.prefix ?: return false
         return prefix in ignored || (prefixCooldownUntil[prefix] ?: 0) > now || (shutOutPrefixesUntil[prefix] ?: 0) > now
     }

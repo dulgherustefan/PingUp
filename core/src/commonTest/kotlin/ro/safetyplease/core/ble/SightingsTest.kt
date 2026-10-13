@@ -1,9 +1,10 @@
 package ro.safetyplease.core.ble
 
+import ro.safetyplease.core.protocol.NodeFlags
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.test.Test
 
 class SightingsTest {
     // --- RSSI average ---
@@ -95,6 +96,15 @@ class SightingsTest {
         s.heard("B", null, coded = false, rssi = -60, now = 0)
         s.heard("C", 3, coded = true, rssi = -60, now = 0)
         assertEquals(2 to 1, s.drainStats())
+        assertEquals(0 to 0, s.drainStats())
+    }
+
+    @Test
+    fun anIphoneInTheBackgroundIsReportedButNotCountedAsAMissedScanResponse() {
+        val s = Sightings()
+        // its advertising never has service data: counting it would hide how the scan responses of the others fare
+        val reported = s.heard(listOf(Advert("I", null, NodeFlags.ACCEPTS_CONNECTIONS, coded = false, rssi = -70, inBackground = true)), now = 0)
+        assertEquals(true, reported.single().inBackground)
         assertEquals(0 to 0, s.drainStats())
     }
 

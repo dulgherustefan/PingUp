@@ -41,6 +41,8 @@ data class Candidate(
     /** Visible without a link since when; resets when a link with it drops. */
     val sinceMs: Long,
     val lastSeenMs: Long,
+    /** An iPhone with the app in the background: it scans rarely there, so it doesn't find us soon. */
+    val inBackground: Boolean = false,
 )
 
 data class LinkView(
@@ -153,13 +155,14 @@ object ConnectionPolicy {
      * too, and if the duplicate rule (lower nodeId's link wins) then closed its link, it would connect again and
      * again. So we connect to such a phone only when our nodeId is the higher one, which its link beats.
      *
-     * A phone that can't advertise can't be found, so it always initiates. Sessions between an anchor and the others
-     * follow their own rule, [sessionDue].
+     * A phone that can't advertise can't be found, so it always initiates. A peer whose prefix we don't know is left to
+     * connect, except an iPhone with the app in the background, which scans rarely there. Sessions between an anchor
+     * and the others follow their own rule, [sessionDue].
      */
     fun initiates(me: Me, c: Candidate, nowMs: Long, sessions: Sessions): Boolean {
         if (isSession(me.mode, c.flags)) return sessionDue(me, c, nowMs, sessions)
         if (!me.canAdvertise) return true
-        val prefix = c.prefix ?: return false
+        val prefix = c.prefix ?: return c.inBackground
         if (c.flags and NodeFlags.PREFIX_IN_HELLO == 0) return me.nodePrefix.toUInt() > prefix.toUInt()
         return me.prefix.toUInt() <= prefix.toUInt() || nowMs - c.sinceMs >= FALLBACK_MS
     }

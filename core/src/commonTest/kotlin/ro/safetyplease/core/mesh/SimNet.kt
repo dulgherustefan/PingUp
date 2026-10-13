@@ -6,6 +6,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import ro.safetyplease.core.protocol.NodeFlags
 import ro.safetyplease.core.protocol.PacketCodec
 import ro.safetyplease.core.util.Clock
 import kotlin.math.PI
@@ -139,11 +140,23 @@ class SimNet(private val scope: CoroutineScope) {
             while (isActive) {
                 delay(1000)
                 for (a in radios) for (b in radios) {
-                    if (a !== b && a.on && b.on && a.canAdvertise && inRange(a, b)) {
-                        b.events.trySend(RadioEvent.PeerSeen(a.advertisedAddress, a.prefix, a.flags, rssi(a, b)))
-                    }
+                    if (a !== b && a.on && b.on && inRange(a, b)) sighting(a, b)?.let(b.events::trySend)
                 }
             }
+        }
+    }
+
+    /** What [b] reads of [a]'s advertising, if anything. */
+    private fun sighting(a: SimRadio, b: SimRadio): RadioEvent.PeerSeen? {
+        val iphone = a.iphone
+        return when {
+            // the UUID alone, and only while it accepts connections, as IosRadio does
+            iphone != null -> if (a.flags and NodeFlags.ACCEPTS_CONNECTIONS == 0) null
+            else RadioEvent.PeerSeen(a.advertisedAddress, null, NodeFlags.ACCEPTS_CONNECTIONS, rssi(a, b), inBackground = iphone)
+            !a.canAdvertise -> null
+            // an iPhone in the background reads no scan responses: neither the flags nor the prefix
+            b.iphone == true -> RadioEvent.PeerSeen(a.advertisedAddress, null, NodeFlags.ACCEPTS_CONNECTIONS, rssi(a, b))
+            else -> RadioEvent.PeerSeen(a.advertisedAddress, a.prefix, a.flags, rssi(a, b))
         }
     }
 
@@ -201,6 +214,13 @@ class SimRadio(
     override val events = Channel<RadioEvent>(Channel.UNLIMITED)
     val links = HashMap<Int, Peer>()
     var flags = 0
+
+    /**
+     * Advertises like an iPhone: the service UUID without service data, so no flags or prefix to read; true while its
+     * app is in the background, where iOS moves the UUID to Apple's overflow area and the iPhone reads no scan
+     * responses. Null for an Android phone.
+     */
+    var iphone: Boolean? = null
 
     /** What it advertises; the engine sets it once it starts. */
     var prefix = prefix

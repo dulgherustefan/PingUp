@@ -45,6 +45,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import ro.safetyplease.core.ble.Advert
 import ro.safetyplease.core.ble.AdvertData
 import ro.safetyplease.core.ble.BleLayout
+import ro.safetyplease.core.ble.OverflowArea
 import ro.safetyplease.core.ble.ScanCycle
 import ro.safetyplease.core.ble.Sightings
 import ro.safetyplease.core.mesh.NewSetPrefix
@@ -191,6 +192,9 @@ class BleRadio(
     private var prefix = nodeId.nodePrefix()
     private val newSetPrefix = NewSetPrefix(fixed = nodeId.nodePrefix())
     private val serviceUuid = ParcelUuid(BleConstants.SERVICE)
+
+    /** Our bit in the overflow area of an iPhone with Ping Up in the background. */
+    private val overflowBit = OverflowArea.bit(BleLayout.SERVICE)
     private val manager: BluetoothManager? = context.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? get() = manager?.adapter
     private val tasks = Channel<() -> Unit>(Channel.UNLIMITED)
@@ -862,8 +866,14 @@ class BleRadio(
     private fun startScanNow() {
         val adapter = adapter ?: return
         val scanner = adapter.bluetoothLeScanner ?: return
-        // the UUID filter is required for scanning to work with the screen off
-        val filter = ScanFilter.Builder().setServiceUuid(serviceUuid).build()
+        // a filter is required for scanning to work with the screen off: our UUID, as Android phones and iPhones in
+        // front advertise it, and our bit in Apple's overflow area, where iOS moves it with the app in the background
+        val filters = listOf(
+            ScanFilter.Builder().setServiceUuid(serviceUuid).build(),
+            ScanFilter.Builder()
+                .setManufacturerData(OverflowArea.APPLE, OverflowArea.payload(BleLayout.SERVICE), OverflowArea.filterMask(BleLayout.SERVICE))
+                .build(),
+        )
         val reportDelay = if (batchingBroken) 0L else scanReportDelay(scanMode, adapter.isOffloadedScanBatchingSupported)
         val settings = ScanSettings.Builder()
             .setScanMode(
@@ -878,7 +888,7 @@ class BleRadio(
             // on 1M and Coded; legacy advertisements are still received
             .apply { if (longRange) setLegacy(false).setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED) }
             .build()
-        val started = runCatching { scanner.startScan(listOf(filter), settings, scanCallback) }.isSuccess
+        val started = runCatching { scanner.startScan(filters, settings, scanCallback) }.isSuccess
         lastScanStartAt = now()
         if (started) {
             scanning = true
@@ -945,7 +955,13 @@ class BleRadio(
     }
 
     private fun advert(result: ScanResult): Advert? {
-        val (peerFlags, peerPrefix) = AdvertData.decode(result.scanRecord?.getServiceData(serviceUuid))
+        val record = result.scanRecord
+        if (record?.serviceUuids?.contains(serviceUuid) != true && record?.getServiceData(serviceUuid) == null) {
+            // read from the raw bytes: Android's filter may have matched another app's bit beside an Apple block
+            if (!OverflowArea.inRecord(record?.bytes, overflowBit)) return null
+            return Advert(result.device.address, null, NodeFlags.ACCEPTS_CONNECTIONS, coded = false, result.rssi, inBackground = true)
+        }
+        val (peerFlags, peerPrefix) = AdvertData.decode(record?.getServiceData(serviceUuid))
         if (peerPrefix == prefix) return null
         val coded = result.primaryPhy == BluetoothDevice.PHY_LE_CODED
         return Advert(result.device.address, peerPrefix, peerFlags, coded, result.rssi)
@@ -955,8 +971,9 @@ class BleRadio(
         if (!active) return
         lastScanResultAt = now()
         for (report in reports) {
+            if (report.inBackground && report.address !in scanned) log("iPhone in the background: ${report.address.takeLast(5)}")
             scanned[report.address] = devices.getValue(report.address)
-            events.trySend(RadioEvent.PeerSeen(report.address, report.prefix, report.flags, report.rssi))
+            events.trySend(RadioEvent.PeerSeen(report.address, report.prefix, report.flags, report.rssi, report.inBackground))
         }
     }
 

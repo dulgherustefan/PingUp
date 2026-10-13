@@ -404,6 +404,28 @@ class MeshEngineTest {
     }
 
     @Test
+    fun anAndroidPhoneReachesAnIphoneInTheBackgroundAndNeitherEndConnectsAgain() = runTest {
+        // both orders of nodeIds: the duplicate rule keeps the link the lower one opened and closes the other
+        for ((android, iphone) in listOf(A to B, B to A)) {
+            val world = World(this)
+            val a = world.node("A", android)
+            val i = world.node("I", iphone, canAdvertise = false)
+            i.radio.iphone = true
+            world.net.start()
+            advanceTimeBy(5_000)
+            assertEquals(1, a.readyLinks)
+            assertEquals(1, i.readyLinks)
+            advanceTimeBy(5 * 60_000L)
+            assertEquals(1, a.readyLinks)
+            assertEquals(1, i.readyLinks)
+            // each end connects from another address than the one it advertises: the end whose link lost would
+            // otherwise go back to the advertised one, only to open the same duplicate
+            val attempts = a.radio.connectAttempts + i.radio.connectAttempts
+            assertTrue(attempts.size <= 3, "$attempts")
+        }
+    }
+
+    @Test
     fun peerSendingGarbageIsBannedForTenMinutes() = runTest {
         val world = World(this)
         // A doesn't advertise, so the only way back is from the address B banned

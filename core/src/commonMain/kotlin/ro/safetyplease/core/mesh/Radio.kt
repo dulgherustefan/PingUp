@@ -5,8 +5,11 @@ import kotlinx.coroutines.channels.ReceiveChannel
 enum class PowerMode { LOW_POWER, BALANCED, LOW_LATENCY }
 
 sealed interface RadioEvent {
-    /** An advertisement of our service. [prefix] is missing if the scan response wasn't received. */
-    class PeerSeen(val address: String, val prefix: Int?, val flags: Int, val rssi: Int) : RadioEvent
+    /**
+     * An advertisement of our service. [prefix] is missing if the scan response wasn't received. [inBackground]: an
+     * iPhone with the app in the background, found by our bit in Apple's overflow area (OverflowArea).
+     */
+    class PeerSeen(val address: String, val prefix: Int?, val flags: Int, val rssi: Int, val inBackground: Boolean = false) : RadioEvent
 
     class LinkUp(val link: Int, val address: String, val outgoing: Boolean, val maxFrame: Int) : RadioEvent
 

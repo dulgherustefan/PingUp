@@ -13,8 +13,11 @@ const val FULL_RESULT_HOLD_MS = 10_000L
 const val LEGACY_PREFERENCE_MS = 3_000L
 const val SIGHTING_FORGET_MS = 60_000L
 
-/** A scan result of our service; [prefix] is null when the scan response didn't arrive. */
-data class Advert(val address: String, val prefix: Int?, val flags: Int, val coded: Boolean, val rssi: Int)
+/**
+ * A scan result of our service; [prefix] is null when the scan response didn't arrive. [inBackground]: an iPhone
+ * with the app in the background, found by our bit in Apple's overflow area ([OverflowArea]).
+ */
+data class Advert(val address: String, val prefix: Int?, val flags: Int, val coded: Boolean, val rssi: Int, val inBackground: Boolean = false)
 
 // a single sample varies by ~6 dB; sort by the recent average
 fun smoothRssi(previous: Double?, sample: Int): Double =
@@ -68,15 +71,15 @@ class Sightings {
 
     /**
      * Records a scan result ([prefix] null = no scan response) and returns the averaged RSSI to report,
-     * or null if this result shouldn't be reported.
+     * or null if this result shouldn't be reported. An iPhone in the background never has a scan response to miss.
      */
-    fun heard(address: String, prefix: Int?, coded: Boolean, rssi: Int, now: Long): Int? = synchronized(lock) {
+    fun heard(address: String, prefix: Int?, coded: Boolean, rssi: Int, now: Long, inBackground: Boolean = false): Int? = synchronized(lock) {
         if (!on) return@synchronized null
         val track = tracks.getOrPut(address) { Track(now) }
         track.heardAt = now
         track.rssi = smoothRssi(track.rssi, rssi)
         val full = prefix != null
-        if (!coded) {
+        if (!coded && !inBackground) {
             legacyResults++
             if (!full) withoutResponse++
         }
@@ -108,7 +111,9 @@ class Sightings {
      * only the ones to report come back, with the averaged RSSI.
      */
     fun heard(batch: List<Advert>, now: Long): List<Advert> = synchronized(lock) {
-        batch.mapNotNull { advert -> heard(advert.address, advert.prefix, advert.coded, advert.rssi, now)?.let { advert.copy(rssi = it) } }
+        batch.mapNotNull { advert ->
+            heard(advert.address, advert.prefix, advert.coded, advert.rssi, now, advert.inBackground)?.let { advert.copy(rssi = it) }
+        }
     }
 
     /** Forgets addresses not heard for a minute and returns them, so the radio can clear its state too. */

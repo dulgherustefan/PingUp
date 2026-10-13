@@ -389,8 +389,8 @@ class MeshPartsTest {
 
     private val current = NodeFlags.ACCEPTS_CONNECTIONS or NodeFlags.PREFIX_IN_HELLO
 
-    private fun cand(addr: String, prefix: Int?, flags: Int = current, rssi: Int = -60, since: Long = 0, seen: Long = 0) =
-        Candidate(addr, prefix, flags, rssi, since, seen)
+    private fun cand(addr: String, prefix: Int?, flags: Int = current, rssi: Int = -60, since: Long = 0, seen: Long = 0, inBackground: Boolean = false) =
+        Candidate(addr, prefix, flags, rssi, since, seen, inBackground)
 
     private fun link(id: Int, prefix: Int, outgoing: Boolean, up: Long = 0, activity: Long = 0, flags: Int = 0, inbound: Long? = null) =
         LinkView(id, "L$id", prefix, flags, outgoing, up, activity, inbound)
@@ -441,6 +441,15 @@ class MeshPartsTest {
         val unknown = listOf(cand("x", null, NodeFlags.ACCEPTS_CONNECTIONS, since = 0, seen = 60_000))
         assertNull(ConnectionPolicy.pick(me(1, nodePrefix = -1), unknown, emptyList(), 60_000, Sessions(), none))
         assertNotNull(ConnectionPolicy.pick(me(1, canAdvertise = false), unknown, emptyList(), 60_000, Sessions(), none))
+    }
+
+    @Test
+    fun anIphoneWithTheAppInTheBackgroundIsConnectedTo() {
+        // it scans rarely there: left to connect, it would find us minutes later
+        val asleep = listOf(cand("x", null, NodeFlags.ACCEPTS_CONNECTIONS, since = 0, seen = 60_000, inBackground = true))
+        assertNotNull(ConnectionPolicy.pick(me(1, nodePrefix = -1), asleep, emptyList(), 60_000, Sessions(), none))
+        // an anchor doesn't go to it: the iPhone goes to the anchor itself, every 3 minutes
+        assertNull(ConnectionPolicy.pick(me(1, mode = LinkMode.ANCHOR), asleep, emptyList(), 60_000, Sessions(), none))
     }
 
     @Test
