@@ -164,8 +164,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val animateMoves = !LocalReduceMotion.current
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
     val context = LocalContext.current
-    LaunchedEffect(Unit) { MapData.start(context) }
-    val mapState by MapData.state.collectAsStateWithLifecycle()
+    val mapState by remember { MapData.start(context).let { MapData.state } }.collectAsStateWithLifecycle()
     val mapKind = MapChoice.of(mapState, LocalTextOnly.current)
     var engine by remember { mutableStateOf<PingMapEngine?>(null) }
     val fix by vm.c.location.fix.collectAsStateWithLifecycle()

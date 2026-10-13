@@ -96,15 +96,24 @@ class AssetSource(private val assets: AssetManager) : PackSource {
  * Runs once per process, before any map opens; that is also the only time older versions are removed.
  */
 class MapInstaller(private val source: PackSource, private val root: File) {
+    /** The pack [install] would return without copying anything: the bundled version, already in place. */
+    fun installed(): MapPack? {
+        val bundled = bundled() ?: return null
+        if (MapVersions.newest(root.list()?.toList().orEmpty()) != bundled) return null
+        return MapPack.open(File(root, bundled))
+    }
+
     fun install(): MapPack? {
         root.mkdirs()
-        val bundled = MapVersions.newest(source.list(ASSET_ROOT).filter { MapPack.MANIFEST in source.list("$ASSET_ROOT/$it") })
+        val bundled = bundled()
         if (bundled != null && MapPack.open(File(root, bundled)) == null) copy(bundled)
         val names = root.list()?.toList().orEmpty().filter { MapPack.open(File(root, it)) != null }
         val chosen = MapVersions.newest(names)
         root.listFiles()?.filter { it.name != chosen }?.forEach(::remove)
         return chosen?.let { MapPack.open(File(root, it)) }
     }
+
+    private fun bundled() = MapVersions.newest(source.list(ASSET_ROOT).filter { MapPack.MANIFEST in source.list("$ASSET_ROOT/$it") })
 
     private fun copy(version: String) {
         val temp = File(root, "$version.tmp")

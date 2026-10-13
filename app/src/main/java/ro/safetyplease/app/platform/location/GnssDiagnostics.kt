@@ -67,6 +67,7 @@ class GnssDiagnostics internal constructor(private val manager: LocationManager?
     }
 
     internal fun stop() {
+        stats.resetWindow()
         if (!registered) return
         registered = false
         l5InFix = false

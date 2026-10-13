@@ -134,6 +134,16 @@ class MapPackTest {
     }
 
     @Test
+    fun installedIsKnownWithoutCopyingOnlyForTheBundledVersion() {
+        bundle("20261012")
+        assertNull(MapInstaller(DirSource(assets), files).installed())
+        install()
+        assertEquals(File(files, "20261012"), MapInstaller(DirSource(assets), files).installed()!!.dir)
+        bundle("20261101")
+        assertNull(MapInstaller(DirSource(assets), files).installed())
+    }
+
+    @Test
     fun aNewerBuildGetsItsOwnFolderAndTheOldOneGoes() {
         bundle("20261012")
         install()

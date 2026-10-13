@@ -59,6 +59,16 @@ class GnssTest {
     }
 
     @Test
+    fun resetWindowDropsTheUnfinishedMinuteOnly() {
+        val stats = GnssStats()
+        stats.onStatus(listOf(SatSignal(true, 40f, l1)))
+        stats.onFix(fix(4f, l5 = true))
+        stats.resetWindow()
+        assertEquals(GnssSample(60_000, null, null, null, null, null, 0, 80), stats.sample(60_000, 80))
+        assertEquals(1, stats.summary().fixes)
+    }
+
+    @Test
     fun csvHasTheCampaignColumns() {
         val samples = listOf(
             GnssSample(1_760_000_000_000, 50, 11.5f, 38.25f, 3.04f, 4.2f, 30, 91),

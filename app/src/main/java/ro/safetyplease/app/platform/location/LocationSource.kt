@@ -60,7 +60,10 @@ class LocationSource(private val context: Context, water: List<List<GeoPoint>>, 
     val located: StateFlow<LocationFix?> = _located
     private val _searching = MutableStateFlow(false)
 
-    /** Running with no fix in the last hour: the satellite data is stale, so the next fix can take up to 30 s. */
+    /**
+     * Running while the newest known fix (ours or the one Android kept) is missing or more than an hour old, checked every
+     * few seconds: the satellite data may be stale, so the next fix can take up to 30 s. False whenever the source is off.
+     */
     val searching: StateFlow<Boolean> = _searching
     private val _shareMaxMs = MutableStateFlow<Long?>(null)
 
@@ -79,8 +82,8 @@ class LocationSource(private val context: Context, water: List<List<GeoPoint>>, 
 
     private val listener = LocationListener { onLocation(it, FixMethod.GNSS) }
     private val passive = LocationListener { location ->
-        // with our own request open the same GPS fix arrives here too
-        if (location.provider != LocationManager.GPS_PROVIDER || requested == null) onLocation(location, FixMethod.PASSIVE)
+        // network and fused fixes are coarser than the chip; with our own request open the same GPS fix arrives here too
+        if (location.provider == LocationManager.GPS_PROVIDER && requested == null) onLocation(location, FixMethod.PASSIVE)
     }
 
     fun hasPermission(): Boolean =

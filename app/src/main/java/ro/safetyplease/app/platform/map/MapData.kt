@@ -31,7 +31,10 @@ object MapChoice {
     }
 }
 
-/** The base map installed for this process; [start] copies and checks it on the first call, off the main thread. */
+/**
+ * The base map installed for this process. [start] seeds the state on the calling thread when the bundled pack is
+ * already in place, so the first frame has its map, and otherwise copies and checks it off the main thread.
+ */
 object MapData {
     private val _state = MutableStateFlow<MapState>(MapState.Loading)
     val state: StateFlow<MapState> = _state
@@ -41,9 +44,12 @@ object MapData {
     fun start(context: Context) {
         if (!started.compareAndSet(false, true)) return
         val app = context.applicationContext
+        val installer = MapInstaller(AssetSource(app.assets), File(app.filesDir, MapInstaller.ASSET_ROOT))
+        val seeded = runCatching { installer.installed() }.getOrNull()
+        if (seeded != null) _state.value = MapState.Ready(seeded)
         scope.launch {
-            val pack = runCatching { MapInstaller(AssetSource(app.assets), File(app.filesDir, MapInstaller.ASSET_ROOT)).install() }.getOrNull()
-            _state.value = pack?.let(MapState::Ready) ?: MapState.Missing
+            val pack = runCatching { installer.install() }.getOrNull()
+            if (seeded == null || pack?.dir != seeded.dir) _state.value = pack?.let(MapState::Ready) ?: MapState.Missing
         }
     }
 }

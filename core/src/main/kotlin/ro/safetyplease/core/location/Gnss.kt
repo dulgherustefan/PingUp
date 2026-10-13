@@ -118,14 +118,20 @@ class GnssStats {
             fixes = windowFixes,
             batteryPct = batteryPct,
         )
+        resetWindow()
+        samples.addLast(s)
+        if (samples.size > MAX_SAMPLES) samples.removeFirst()
+        return s
+    }
+
+    /** Drops the unfinished minute, so a minute that ends after a pause does not count what came before it. */
+    @Synchronized
+    fun resetWindow() {
         windowAccuracy.clear()
         windowSats.clear()
         windowCn0.clear()
         windowFixes = 0
         windowL5 = 0
-        samples.addLast(s)
-        if (samples.size > MAX_SAMPLES) samples.removeFirst()
-        return s
     }
 
     /** Safe to call from another thread, for the export. */
