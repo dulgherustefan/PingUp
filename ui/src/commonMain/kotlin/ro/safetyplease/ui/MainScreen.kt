@@ -84,6 +84,7 @@ import ro.safetyplease.ui.chat.ConversationScreen
 import ro.safetyplease.ui.chat.MeetupRequests
 import ro.safetyplease.ui.chat.MessagesScreen
 import ro.safetyplease.ui.common.ExerciseBanner
+import ro.safetyplease.ui.common.ModalBanner
 import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.common.SharingBar
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -196,31 +197,50 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
         onPauseOrDispose { }
     }
     val alert = screenAlert(shown, vm.venue, here)
-    // friends wait while an evacuation concerns this phone, and a link to one of them opens once it ends
-    LaunchedEffect(evacuation != null) { vm.gate.evacuation(evacuation != null)?.let(vm::openTarget) }
+    val modals = vm.modals
+    LaunchedEffect(evacuation != null) { modals.evacuating = evacuation != null }
+    // a link to a friend's alert held behind something above friends opens once that is gone
+    val holdsFriends = modals.holdsFriends
+    LaunchedEffect(holdsFriends) { if (!holdsFriends) modals.release()?.let(vm::openTarget) }
+    val walkOnTop = vm.stack.lastOrNull() is Dest.Walk
+    LaunchedEffect(walkOnTop) { if (!walkOnTop) modals.walkEnded() }
+    val banner = modals.pick.banner
     ControlMapLayer(vm, hereZone)
     CompositionLocalProvider(LocalTextOnly provides textOnly, LocalReduceMotion provides reduce) {
         FullScreen {
             // the bands sit above every screen and take the status bar, so they cover no header
-            val topTaken = vm.c.exercise || bands.isNotEmpty() || sharing != null || evacuation != null
+            val topTaken = vm.c.exercise || bands.isNotEmpty() || sharing != null || evacuation != null || banner != null
             val barFree = !vm.c.exercise && evacuation == null
             Column(Modifier.fillMaxSize()) {
                 if (vm.c.exercise) ExerciseBanner()
                 evacuation?.let { EvacuationBanner(vm, it, hereZone, statusBar = !vm.c.exercise) { evacuationUi.reopened = true } }
-                sharing?.let { SharingBar(it, statusBar = barFree) { vm.open(Dest.Sharing) } }
-                NoticeBands(vm, bands, statusBar = barFree && sharing == null)
+                banner?.let { ModalBanner(it, statusBar = barFree) { modals.reopen(it.key) } }
+                sharing?.let { SharingBar(it, statusBar = barFree && banner == null) { vm.open(Dest.Sharing) } }
+                NoticeBands(vm, bands, statusBar = barFree && banner == null && sharing == null)
                 Box(Modifier.weight(1f).then(if (topTaken) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
                     CompositionLocalProvider(LocalStatusBarTop provides if (topTaken) 0.dp else null) {
                         Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce, demo)
                     }
                 }
             }
-            alert?.let { NoticeAlert(it, vm.c.exercise) { vm.c.notices.alerted(it.notice.topic, it.notice.seq) } }
-            if (evacuation == null) MeetupRequests(vm)
+            // one of these at a time, by ModalKind; the others wait in their sources
+            val noticeAsk = alert?.let { ModalAsk(ModalKind.NOTICE, "notice:${it.notice.topic}:${it.notice.seq}", title = it.title) }
+            if (modals.ask(ModalKind.NOTICE, noticeAsk) == ModalShow.DIALOG && alert != null) {
+                NoticeAlert(alert, vm.c.exercise) {
+                    modals.acted(noticeAsk!!.key)
+                    vm.c.notices.alerted(alert.notice.topic, alert.notice.seq)
+                }
+            }
+            MeetupRequests(vm)
             StaffChainLayer(vm)
-            RegasireRequests(vm, dialogs = evacuation == null)
-            // above everything else, and its way out goes on while it is minimised
-            evacuation?.let { EvacuationMode(vm, it, hereZone, evacuationUi, rememberEvacuationWalk(vm, hereZone)) }
+            RegasireRequests(vm)
+            // its way out goes on while it is minimised or waits behind "Ești OK?"
+            evacuation?.let { shown ->
+                val walk = rememberEvacuationWalk(vm, hereZone)
+                val full = !shown.held.alerted || evacuationUi.reopened
+                val ask = ModalAsk(ModalKind.EVACUATION, "evacuation:${shown.notice.topic}:${shown.notice.seq}").takeIf { full }
+                if (modals.ask(ModalKind.EVACUATION, ask) == ModalShow.DIALOG) EvacuationMode(vm, shown, hereZone, evacuationUi, walk)
+            }
         }
     }
 }

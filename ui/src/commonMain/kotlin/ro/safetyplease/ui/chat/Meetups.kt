@@ -52,6 +52,10 @@ import ro.safetyplease.core.protocol.SharePrecision
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.ModalAsk
+import ro.safetyplease.ui.ModalKind
+import ro.safetyplease.ui.ModalShow
+import ro.safetyplease.ui.ask
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -104,8 +108,9 @@ import ro.safetyplease.ui.resources.seen_white
 import ro.safetyplease.ui.text.Labels
 
 /**
- * Friends' requests to this phone, "Fă-te văzut" and "Vin la tine", each asked in a dialog; a yes to the first flashes
- * the torch. [AppRoot] hosts it once, over every screen.
+ * Friends' requests to this phone, "Fă-te văzut" and "Vin la tine", each asked in a dialog when
+ * [ro.safetyplease.ui.ModalArbiter] lets them; a yes to the first flashes the torch. [AppRoot] hosts it once, over every
+ * screen.
  */
 @Composable
 fun MeetupRequests(vm: AppViewModel) {
@@ -125,14 +130,23 @@ fun MeetupRequests(vm: AppViewModel) {
         if (yes) pulsingFor = ask.sender
     }
 
-    LaunchedEffect(ping, settings.pingAutoAccept) {
-        if (ping != null && settings.pingAutoAccept && pulsingFor == null) answerPing(ping, true)
-    }
     val pulsing = pulsingFor
+    val ask = when {
+        pulsing != null -> ModalAsk(ModalKind.MEETUP, "pulse:$pulsing")
+        ping != null -> ModalAsk(ModalKind.MEETUP, "seen:${ping.sender}:${ping.atMs}")
+        come != null -> ModalAsk(ModalKind.MEETUP, "come:${come.sender}:${come.atMs}")
+        else -> null
+    }
+    // even an automatic yes waits its turn: the torch doesn't light over an evacuation or an alert
+    val turn = vm.modals.ask(ModalKind.MEETUP, ask) == ModalShow.DIALOG
+    LaunchedEffect(ping, settings.pingAutoAccept, turn) {
+        if (turn && ping != null && settings.pingAutoAccept && pulsingFor == null) answerPing(ping, true)
+    }
+    if (!turn) return
     when {
         pulsing != null -> SeenPulse(vm, chat.nameOf(pulsing), settings) { pulsingFor = null }
         ping != null && !settings.pingAutoAccept -> SeenDialog(vm, ping, settings, onAnswer = { answerPing(ping, it) })
-        come != null -> ComeDialog(chat.nameOf(come.sender)) { yes, precision ->
+        come != null && ping == null -> ComeDialog(chat.nameOf(come.sender)) { yes, precision ->
             answered = answered + come
             chat.answerComing(come.sender, yes, precision)
         }

@@ -347,8 +347,8 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
         c.positioning.navigating(on)
     }
 
-    /** Friends' dialogs and links wait while an evacuation concerns this phone. */
-    val gate = EvacuationGate()
+    /** One dialog that opens by itself at a time, by priority; friends' links wait behind what is above them. */
+    val modals = ModalArbiter(c.clock::wallMs) { stack.lastOrNull() is Dest.Walk }
 
     fun back(): Boolean {
         if (stack.isEmpty()) return false
@@ -371,7 +371,7 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
     }
 
     fun openTarget(target: String) {
-        if (!gate.admits(target)) return
+        if (!modals.admits(target)) return
         stack.clear()
         val (tab, dest) = landing(target) ?: return
         this.tab = tab

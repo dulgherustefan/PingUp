@@ -30,6 +30,10 @@ import ro.safetyplease.core.control.StaffDensity
 import ro.safetyplease.core.incidents.ResponderTarget
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.ModalAsk
+import ro.safetyplease.ui.ModalKind
+import ro.safetyplease.ui.ModalShow
+import ro.safetyplease.ui.ask
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
@@ -71,11 +75,17 @@ import ro.safetyplease.ui.text.fill
 fun StaffChainLayer(vm: AppViewModel) {
     DensityLayer(vm)
     val ask by vm.c.staffChain.manDownAsk.collectAsStateWithLifecycle()
-    ask?.let { ManDownQuestion(vm, it) }
+    val until = ask
+    val question = until?.let { ModalAsk(ModalKind.MAN_DOWN, "mandown:$it", untilMs = it) }
+    if (vm.modals.ask(ModalKind.MAN_DOWN, question) == ModalShow.DIALOG && until != null) ManDownQuestion(vm, until)
     val targets by vm.c.staffChain.responderTargets.collectAsStateWithLifecycle()
     // it stays, with the defibrillator, after a team takes the incident: the responder closes it
-    targets.firstOrNull()?.let { target ->
-        ResponderAlert(vm, target) { vm.c.staffChain.dismissResponder(target.incidentId) }
+    val target = targets.firstOrNull()
+    val alert = target?.let { ModalAsk(ModalKind.RESPONDER, "responder:${it.incidentId}", title = stringResource(Res.string.responder_title)) }
+    if (vm.modals.ask(ModalKind.RESPONDER, alert) != ModalShow.DIALOG || target == null || alert == null) return
+    ResponderAlert(vm, target) { walks ->
+        vm.modals.acted(alert.key, walks)
+        vm.c.staffChain.dismissResponder(target.incidentId)
     }
 }
 
@@ -135,7 +145,7 @@ private fun ManDownQuestion(vm: AppViewModel, untilMs: Long) {
 
 /** Someone doesn't breathe nearby: how far, the walk by the defibrillator on the way, the incident and the sheet. */
 @Composable
-private fun ResponderAlert(vm: AppViewModel, target: ResponderTarget, onClose: () -> Unit) {
+private fun ResponderAlert(vm: AppViewModel, target: ResponderTarget, onClose: (walks: Boolean) -> Unit) {
     val colors = AppTheme.colors
     val incident = vm.c.incidentStore.value.staff.firstOrNull { it.incidentId == target.incidentId }
     val where = target.direct?.let { stringResource(Res.string.responder_distance, it) }
@@ -147,7 +157,7 @@ private fun ResponderAlert(vm: AppViewModel, target: ResponderTarget, onClose: (
         target.deaToPatient != null -> stringResource(Res.string.responder_dea_patient, deaName, target.deaToPatient!!)
         else -> stringResource(Res.string.responder_no_dea)
     }
-    Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog({ onClose(false) }, DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier.padding(24.dp).widthIn(max = 420.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(colors.dialog).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -160,7 +170,7 @@ private fun ResponderAlert(vm: AppViewModel, target: ResponderTarget, onClose: (
             AppButton(
                 stringResource(if (defibrillator != null) Res.string.route_go_dea else Res.string.route_go_patient),
                 {
-                    onClose()
+                    onClose(true)
                     vm.navigate(
                         if (defibrillator != null) NavTarget.Defibrillator(target.incidentId, defibrillator.point, deaName)
                         else NavTarget.Incident(target.incidentId),
@@ -169,14 +179,14 @@ private fun ResponderAlert(vm: AppViewModel, target: ResponderTarget, onClose: (
                 Modifier.fillMaxWidth(), kind = ButtonKind.Danger, icon = Sym.Walk,
             )
             AppButton(stringResource(Res.string.responder_open), {
-                onClose()
+                onClose(false)
                 vm.open(Dest.Incident(target.incidentId))
             }, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary)
             AppButton(stringResource(Res.string.responder_sheet), {
-                onClose()
+                onClose(false)
                 vm.open(Dest.FirstAidSheet(NOT_BREATHING_SHEET))
             }, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary)
-            AppButton(stringResource(Res.string.close), onClose, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary)
+            AppButton(stringResource(Res.string.close), { onClose(false) }, Modifier.fillMaxWidth(), kind = ButtonKind.Secondary)
         }
     }
 }

@@ -19,6 +19,10 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.distanceMeters
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.ModalAsk
+import ro.safetyplease.ui.ModalKind
+import ro.safetyplease.ui.ModalShow
+import ro.safetyplease.ui.ask
 import ro.safetyplease.ui.common.meetingPlaceName
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -50,11 +54,11 @@ import ro.safetyplease.ui.text.rememberNow
 /**
  * Finding each other, over every screen: "X s-a pierdut" with "Vin acolo", which opens the walk to the meeting landmark,
  * "Te caută prietenii" with "Sunt bine", and the reporter's offer to close a report once the friend it looks for is
- * fine; one dialog at a time, and none while [dialogs] is off (an evacuation holds the screen). It also keeps the map
- * layer of this feature: the landmark this phone is headed to and the friends' last signals. [AppRoot] hosts it.
+ * fine; one dialog at a time, when [ro.safetyplease.ui.ModalArbiter] lets friends ask. It also keeps the map layer of
+ * this feature: the landmark this phone is headed to and the friends' last signals. [AppRoot] hosts it.
  */
 @Composable
-fun RegasireRequests(vm: AppViewModel, dialogs: Boolean = true) {
+fun RegasireRequests(vm: AppViewModel) {
     val reg = vm.c.regasire
     val alerts by reg.alerts.collectAsStateWithLifecycle()
     val searched by reg.searchedBy.collectAsStateWithLifecycle()
@@ -63,25 +67,40 @@ fun RegasireRequests(vm: AppViewModel, dialogs: Boolean = true) {
     val gasps by reg.gasps.collectAsStateWithLifecycle()
     val now = rememberNow()
     RegasireLayer(vm, target?.takeIf { it.untilMs > now }, gasps.filter { now - it.fixAtMs < Regasire.GASP_SHOWN_MS }, now)
-    if (!dialogs) return
 
     val reply = found.firstOrNull()
     val search = searched.firstOrNull { it.untilMs > now }
     val alert = alerts.firstOrNull { it.untilMs > now }
+    val ask = when {
+        reply != null -> ModalAsk(ModalKind.FRIEND, "found:${reply.incidentId}:${reply.friend}")
+        search != null -> ModalAsk(ModalKind.FRIEND, "searched:${search.sender}:${search.msgId}", search.untilMs)
+        alert != null -> ModalAsk(ModalKind.FRIEND, "lost:${alert.sender}:${alert.msgId}", alert.untilMs)
+        else -> null
+    }
+    if (vm.modals.ask(ModalKind.FRIEND, ask) != ModalShow.DIALOG || ask == null) return
+    fun acted(walks: Boolean = false) = vm.modals.acted(ask.key, walks)
     when {
-        reply != null -> FoundDialog(vm, reply)
+        reply != null -> FoundDialog(vm, reply) { acted() }
         search != null -> AppDialog(
-            { reg.dismiss(search) }, stringResource(Res.string.searched_title), stringResource(Res.string.searched_ok),
-            onConfirm = { reg.imOk(search) }, dismissLabel = stringResource(Res.string.not_now),
+            {
+                acted()
+                reg.dismiss(search)
+            },
+            stringResource(Res.string.searched_title), stringResource(Res.string.searched_ok),
+            onConfirm = {
+                acted()
+                reg.imOk(search)
+            },
+            dismissLabel = stringResource(Res.string.not_now),
         ) {
             Note(stringResource(Res.string.searched_text, vm.c.chat.nameOf(search.sender)))
         }
-        alert != null -> LostDialog(vm, alert)
+        alert != null -> LostDialog(vm, alert, ::acted)
     }
 }
 
 @Composable
-private fun LostDialog(vm: AppViewModel, alert: LostAlert) {
+private fun LostDialog(vm: AppViewModel, alert: LostAlert, acted: (walks: Boolean) -> Unit) {
     val reg = vm.c.regasire
     val position by vm.position.collectAsStateWithLifecycle()
     val point = if (alert.landmark != 0) vm.venue.landmark(alert.landmark)?.point else vm.venue.meetingPoint
@@ -91,8 +110,14 @@ private fun LostDialog(vm: AppViewModel, alert: LostAlert) {
         alert.battery.takeIf { it in 0..100 }?.let { stringResource(Res.string.lost_alert_battery, "$it%") },
     )
     AppDialog(
-        { reg.dismiss(alert) }, stringResource(Res.string.lost_alert_title, vm.c.chat.nameOf(alert.sender)), stringResource(Res.string.lost_come),
+        {
+            acted(false)
+            reg.dismiss(alert)
+        },
+        stringResource(Res.string.lost_alert_title, vm.c.chat.nameOf(alert.sender)), stringResource(Res.string.lost_come),
         onConfirm = {
+            // the alert leaves its list a moment later: it must not open again over the route
+            acted(true)
             reg.comeThere(alert)
             vm.navigate(NavTarget.meeting(alert.landmark))
         },
@@ -103,14 +128,18 @@ private fun LostDialog(vm: AppViewModel, alert: LostAlert) {
 }
 
 @Composable
-private fun FoundDialog(vm: AppViewModel, reply: FoundReply) {
+private fun FoundDialog(vm: AppViewModel, reply: FoundReply, acted: () -> Unit) {
     val reg = vm.c.regasire
     val wait = stringResource(Res.string.report_update_wait)
+    fun done() {
+        acted()
+        reg.doneWith(reply)
+    }
     AppDialog(
-        { reg.doneWith(reply) }, stringResource(Res.string.found_title, vm.c.chat.nameOf(reply.friend)), stringResource(Res.string.found_close),
+        ::done, stringResource(Res.string.found_title, vm.c.chat.nameOf(reply.friend)), stringResource(Res.string.found_close),
         onConfirm = {
             // a report that takes no more updates has nothing left to close; one that must wait a minute keeps the offer
-            if (vm.updateReport(reply.incidentId, UpdateKind.RESOLVED_ITSELF) || vm.updateWaitMs(reply.incidentId) == null) reg.doneWith(reply)
+            if (vm.updateReport(reply.incidentId, UpdateKind.RESOLVED_ITSELF) || vm.updateWaitMs(reply.incidentId) == null) done()
             else vm.phone.toast(wait)
         },
         dismissLabel = stringResource(Res.string.found_keep),
