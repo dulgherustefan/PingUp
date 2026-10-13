@@ -16,7 +16,7 @@ Ce trebuie pentru prima trimitere a aplicației iPhone, după regulile Apple din
 1. **Contul Apple Developer.** O persoană fizică trebuie să aibă 18 ani; altfel îl face un părinte sau școala (ca organizație, cu număr D-U-N-S). Școlile acreditate și ONG-urile pot cere scutire de taxă.
 2. **Textele cu „(sursa: organizatorul)”** din `app/src/main/assets/pages` și `pages-en`: Apple respinge conținutul provizoriu (2.1). Se completează cu organizatorul.
 3. **Fișele de prim ajutor** (`firstaid`, `firstaid-en`) apar ca ciornă, „neverificate de un medic”: le aprobă un medic înainte de trimitere (1.4.1), altfel e risc de respingere.
-4. **O adresă de email de contact**, publică, în `PRIVACY.md` și în App Store Connect (1.2 cere date de contact; acum e doar GitHub).
+4. **Adresa de contact** (regula 1.2 cere date de contact) e acum în `PRIVACY.md`, în aplicație și în `LICENSE`; se trece și în App Store Connect.
 5. **Un cod de staff pentru recenzie**, făcut cu cheile evenimentului (`python tools/gen_staff_keys.py`): build-ul Release nu acceptă cheile demo. Se pune ca imagine în „Attachment” la notele pentru recenzie, împreună cu o scrisoare de la organizator.
 6. **Un video scurt** cu două iPhone-uri, unul blocat în buzunar: prieteni, mesaj, raport, alerta la staff. Apple nu-l cere, dar o rețea Bluetooth fără internet e greu de încercat de recenzent.
 7. **Criptarea la export**, decizia cu Franța (mai jos).
@@ -73,7 +73,7 @@ with one phone locked: [URL]
 
 Chat exists only between people who scanned each other's code in person: there is no public, random or anonymous chat.
 From a friend's or a group's profile, users can block them or report harassment to the event staff on site.
-Contact: [email]
+Contact: stdulgh@gmail.com
 
 Location goes only with a report the user sends, as the report screen says; without permission the user picks a zone
 on the map. Ping Up is not an emergency service: onboarding and the report screen say it doesn't replace 112 and
