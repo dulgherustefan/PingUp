@@ -18,6 +18,7 @@ import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSHTTPURLResponse
+import platform.Foundation.NSLog
 import platform.Foundation.NSMutableData
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
@@ -99,7 +100,10 @@ class IosPlatform(
     override fun assets(folder: String): Map<String, String> =
         fs.listOrNull(bundle / "assets" / folder).orEmpty().associate { it.name to fs.read(it) { readUtf8() } }
 
-    override fun log(message: String) = println(message)
+    // the system log, as Android's logcat: Console.app on a Mac shows it also for a phone running on its own, which the
+    // background test needs (under Xcode's debugger iOS doesn't suspend the app); filter on "Mesh:". The message is
+    // the format itself, its % doubled: a Kotlin string passed to NSLog's %@ crashes the app
+    override fun log(message: String) = NSLog("Mesh: " + message.replace("%", "%%"))
 
     override fun radio(scope: CoroutineScope, nodeId: Long): MeshRadio = IosRadio(scope, inFront, ::log)
 
