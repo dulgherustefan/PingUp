@@ -1,0 +1,12 @@
+{
+  "buildDate": "20261013",
+  "sha256": "b597dbfbb97e216a718625b85cd1b6112099a868352d1fe7e2c01d2a113e80c4",
+  "bbox": [
+    28.59,
+    43.92,
+    28.675,
+    44.01
+  ],
+  "maxzoom": 15,
+  "file": "costinesti.pmtiles"
+}

@@ -25,7 +25,7 @@ from pmtiles.reader import Reader
 from pmtiles.tile import zxy_to_tileid
 from pmtiles.writer import Writer
 
-BBOX = (28.6038, 43.9295, 28.6662, 43.9745)  # west, south, east, north
+BBOX = (28.590, 43.920, 28.675, 44.010)  # west, south, east, north: Costinești to Tuzla, NIBIRU included
 MAX_ZOOM = 15
 TILES = "costinesti.pmtiles"
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,7 +39,7 @@ def http_source(url):
         key = (offset, length)
         if key not in cache:
             request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-{offset + length - 1}", "User-Agent": "pingup-map-extract/1.0"})
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.urlopen(request, timeout=240) as response:
                 if response.status != 206:
                     sys.exit(f"{url} does not answer range requests (HTTP {response.status})")
                 cache[key] = response.read()
