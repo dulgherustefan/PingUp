@@ -90,6 +90,7 @@ import ro.safetyplease.core.incidents.EscalationReminder
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.Routing
 import ro.safetyplease.core.incidents.nextEscalation
+import ro.safetyplease.core.location.Positioning
 import ro.safetyplease.core.mesh.AnchorHeartbeat
 import ro.safetyplease.core.mesh.BatteryWatch
 import ro.safetyplease.core.mesh.CachedIncidents
@@ -103,6 +104,8 @@ import ro.safetyplease.core.mesh.Verdict
 import ro.safetyplease.core.metrics.MeshMetrics
 import ro.safetyplease.core.metrics.MetricsLog
 import ro.safetyplease.core.metrics.NetworkLog
+import ro.safetyplease.core.position.Regasire
+import ro.safetyplease.core.position.Search
 import ro.safetyplease.core.position.ShareChoice
 import ro.safetyplease.core.position.SharePlan
 import ro.safetyplease.core.position.ShareTime
@@ -111,7 +114,7 @@ import ro.safetyplease.core.protocol.ControlChannel
 import ro.safetyplease.core.protocol.Heartbeat
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.PointStatus
-import ro.safetyplease.core.protocol.PositionMethod
+import ro.safetyplease.core.protocol.SharePrecision
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.GeoFix
@@ -242,8 +245,11 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     private val notifications = platform.notifications(venue, exercise)
 
-    /** The phone's last position, null without permission or a fix. */
-    val locationFix: StateFlow<GeoFix?> = platform.location
+    /** GNSS fixes, the landmark the person says they stand by and, on Android with the setting on, steps. */
+    val positioning = Positioning(clock)
+
+    /** The phone's position as the app shows and sends it; null without permission or a fix. */
+    val locationFix: StateFlow<GeoFix?> = positioning.position
 
     /** The battery, with the power profile in force and how long it lasts at that profile's pace. */
     val battery = BatteryWatch(clock) { percent, charging ->
@@ -276,6 +282,14 @@ open class PingUpSession(private val platform: AppPlatform) {
     ) { message, sender ->
         if (!foreground.value || openConversation != message.conversation) notifications.chatMessage(message, sender)
     }
+
+    /** "M-am pierdut de grup", the last gasp at low battery and a lost person's last position in a report. */
+    val regasire = Regasire(
+        meshScope, chat, positions, clock, venue, identity.nodeId,
+        JsonStore(dataDir / "searches.json", ListSerializer(Search.serializer()), emptyList(), ioScope),
+        walk = { walkDistance }, mapState = { mapState.value }, myPosition = { positioning.position.value },
+        battery = { battery.state.value.percent.coerceIn(0, 100) }, frame = { positionFrame },
+    )
 
     /** What this phone shares now and with how many people; null when nothing. */
     val sharing: StateFlow<SharingNow?> = combine(chat.activeShares, settings.state, friends.state, groups.state, minuteTicks()) { active, s, _, _, _ ->
@@ -458,10 +472,15 @@ open class PingUpSession(private val platform: AppPlatform) {
             }
         }
         meshScope.launch {
-            platform.location.filterNotNull().collect { fix ->
-                chat.onFix(fix.lat, fix.lon, fix.accuracyM.takeIf { it > 0f }?.toDouble(), fix.courseDeg?.toDouble(), PositionMethod.GNSS, fix.timeMs)
+            positioning.fused.filterNotNull().collect { (fix, method) ->
+                chat.onFix(fix.lat, fix.lon, fix.accuracyM.takeIf { it > 0f }?.toDouble(), fix.courseDeg?.toDouble(), method, fix.timeMs)
             }
         }
+        meshScope.launch {
+            val exact = chat.activeShares.map { shares -> shares.any { it.precision == SharePrecision.EXACT } }
+            positioning.run(platform.location, settings.state.map { it.deadReckoning }, exact)
+        }
+        meshScope.launch { battery.state.collect { regasire.onBattery(it.percent, it.charging) } }
         meshScope.launch { endExpiredShift() }
         meshScope.launch { routeAlerts() }
         meshScope.launch {

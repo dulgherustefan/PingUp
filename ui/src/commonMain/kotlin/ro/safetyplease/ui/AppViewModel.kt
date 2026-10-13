@@ -553,9 +553,10 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
         val nickname = if (anonymous) null else c.settings.value.nickname
         val draft = ReportDraft(
             category, severity, zone, spot?.point?.lat, spot?.point?.lon, description, nickname, triage, staff, recognition, spot?.fields,
+            c.regasire.extrasFor(category),
         )
         if (!c.incidents.report(draft)) return null
-        return c.incidentStore.value.mine.lastOrNull()?.incidentId
+        return c.incidentStore.value.mine.lastOrNull()?.incidentId?.also { c.regasire.reportSent(it, category) }
     }
 
     /** Milliseconds until the report can take another update; null once it can't take any. */

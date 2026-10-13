@@ -120,6 +120,7 @@ import ro.safetyplease.ui.people.AddFriendScreen
 import ro.safetyplease.ui.people.BlockedScreen
 import ro.safetyplease.ui.people.NewGroupScreen
 import ro.safetyplease.ui.people.ProfileScreen
+import ro.safetyplease.ui.people.RegasireRequests
 import ro.safetyplease.ui.people.ShareChooseScreen
 import ro.safetyplease.ui.people.ShareIntroScreen
 import ro.safetyplease.ui.people.SharingScreen
@@ -191,6 +192,7 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
             alert?.let { NoticeAlert(it, vm.c.exercise) { vm.c.notices.alerted(it.notice.topic, it.notice.seq) } }
             MeetupRequests(vm)
             StaffChainLayer(vm)
+            RegasireRequests(vm)
         }
     }
 }

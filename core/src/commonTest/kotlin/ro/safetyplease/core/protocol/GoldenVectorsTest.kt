@@ -173,6 +173,7 @@ class GoldenVectorsTest {
         "announcement.notice.map_state" to { Golden.mapStateNotice().encode().toHex() },
         "announcement.notice.evacuation" to { Golden.evacuationNotice().encode().toHex() },
         "inner.lost_session" to { InnerCodec.encode(Golden.lostSession).toHex() },
+        "inner.lost_session.direct" to { InnerCodec.encode(Golden.directLostSession).toHex() },
         "inner.last_gasp" to { InnerCodec.encode(Golden.lastGasp).toHex() },
         "inner.checkin_missed" to { InnerCodec.encode(Golden.checkinMissed).toHex() },
     )
@@ -287,7 +288,8 @@ class GoldenVectorsTest {
             "inner.share_session" to Golden.shareSession, "inner.share_session.come" to Golden.comeSession,
             "inner.ping_request" to Golden.pingRequest, "inner.meeting_point" to Golden.meetingPoint,
             "inner.meeting_point.venue" to Golden.venueMeetingPoint, "inner.meeting_reply" to Golden.meetingReply,
-            "inner.lost_session" to Golden.lostSession, "inner.last_gasp" to Golden.lastGasp, "inner.checkin_missed" to Golden.checkinMissed,
+            "inner.lost_session" to Golden.lostSession, "inner.lost_session.direct" to Golden.directLostSession,
+            "inner.last_gasp" to Golden.lastGasp, "inner.checkin_missed" to Golden.checkinMissed,
         )
         for ((name, inner) in inners) assertEquals(inner.fields(), InnerCodec.decode(bytes(name))!!.fields(), name)
         val intro = InnerCodec.decode(bytes("inner.intro")) as Inner.Intro
@@ -587,7 +589,7 @@ class GoldenVectorsTest {
         val tampered = bytes("announcement.notice.map_state").also { it[it.size - 65] = (it[it.size - 65] + 1).toByte() }
         assertEquals(Verdict.INVALID, chain.checkAnnouncement(tampered), "the extensions are signed")
 
-        for (name in listOf("inner.lost_session", "inner.last_gasp", "inner.checkin_missed")) {
+        for (name in listOf("inner.lost_session", "inner.lost_session.direct", "inner.last_gasp", "inner.checkin_missed")) {
             assertTrue(bytes(name)[0] > Frozen11.LAST_INNER_KIND, "$name is a kind older phones drop")
         }
     }
@@ -933,6 +935,9 @@ private object Golden {
     )
 
     val lostSession = Inner.LostSession(msgId, groupId, LostAction.START, 4, 15, 37, 11)
+
+    /** "Sunt bine" to a friend's search: no group, no battery, no landmark. */
+    val directLostSession = Inner.LostSession(msgId, null, LostAction.FOUND, 0, 1, BatteryLevel.UNKNOWN, 0)
     val lastGasp = Inner.LastGasp(LastFix(44.426765, 26.102538, TIME + 600, 2), 5)
     val checkinMissed = Inner.CheckinMissed(msgId, null, TIME + 7200, LastFix(44.4271, 26.1031, TIME + 7000, 3), "Gara Costinești")
 

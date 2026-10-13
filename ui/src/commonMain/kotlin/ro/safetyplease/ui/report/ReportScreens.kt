@@ -100,6 +100,7 @@ import ro.safetyplease.ui.common.MapGlyph
 import ro.safetyplease.ui.common.MeButton
 import ro.safetyplease.ui.common.NotificationsOffBanner
 import ro.safetyplease.ui.common.RadioProblemBanner
+import ro.safetyplease.ui.common.RegasireReportRows
 import ro.safetyplease.ui.common.categoryIcon
 import ro.safetyplease.ui.common.helpOrigin
 import ro.safetyplease.ui.common.placeLine
@@ -573,6 +574,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         stringResource(Res.string.report_location_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
                         modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
                     )
+                    RegasireReportRows(vm, category)
                 }
                 if (recognisable) {
                     InputField(

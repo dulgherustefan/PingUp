@@ -106,6 +106,7 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.BackHandler
+import ro.safetyplease.ui.common.LostConfirmDialog
 import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.VenueMap
 import ro.safetyplease.ui.common.presenceText
@@ -146,6 +147,7 @@ import ro.safetyplease.ui.resources.chat_send_zone
 import ro.safetyplease.ui.resources.come_button
 import ro.safetyplease.ui.resources.come_sent
 import ro.safetyplease.ui.resources.group_members
+import ro.safetyplease.ui.resources.lost_button
 import ro.safetyplease.ui.resources.meet_propose
 import ro.safetyplease.ui.resources.more_options
 import ro.safetyplease.ui.resources.msg_copy
@@ -220,6 +222,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     var barPx by remember { mutableIntStateOf(0) }
     var pinPx by remember { mutableIntStateOf(0) }
     var meetingPicker by rememberSaveable { mutableStateOf(false) }
+    var lostAsk by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = items.lastIndex.coerceAtLeast(0))
     val backdrop = rememberBackdrop()
     val scrolled by remember { derivedStateOf { listState.canScrollBackward } }
@@ -277,6 +280,12 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
             meetingPicker = true
             quick = false
         })
+        if (group != null) {
+            add(QuickAction(Sym.PersonSearch, stringResource(Res.string.lost_button)) {
+                lostAsk = true
+                quick = false
+            })
+        }
         if (friend != null) {
             add(QuickAction(Sym.Walk, stringResource(Res.string.come_button)) {
                 vm.askFriend(Res.string.come_sent) { vm.c.chat.requestComing(friend.nodeId) }
@@ -402,6 +411,7 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
             )
         }
         if (meetingPicker) MeetingDialog(vm, conversation) { meetingPicker = false }
+        if (lostAsk) LostConfirmDialog(vm, conversation) { lostAsk = false }
     }
 }
 

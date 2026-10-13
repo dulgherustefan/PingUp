@@ -367,10 +367,12 @@ fun VenueMap(
                     },
                 )
                 .then(
-                    if (onTap == null && onPinTap == null && camera == null) Modifier else Modifier.pointerInput(venue, inset, camera) {
+                    if (onTap == null && onPinTap == null && camera == null && onLongPress == null) Modifier
+                    else Modifier.pointerInput(venue, inset, camera, onLongPress != null) {
                         detectTapGestures(
                             onDoubleTap = if (camera == null) null else { o -> scope.launch { camera.zoomAround(o, animateMoves) } },
-                            onLongPress = { offset ->
+                            // without a handler a long press stays a tap, as a slow finger expects
+                            onLongPress = if (onLongPress == null) null else { offset ->
                                 val projection = Projection(venue, Size(size.width.toFloat(), size.height.toFloat()), inset.toPx())
                                 val point = projection.unproject(camera?.toBase(offset) ?: offset)
                                 if (venue.bounds.contains(point.lat, point.lon)) currentLongPress?.invoke(point)

@@ -15,7 +15,6 @@ import ro.safetyplease.core.protocol.Frozen11
 import ro.safetyplease.core.protocol.Inner
 import ro.safetyplease.core.protocol.InnerCodec
 import ro.safetyplease.core.protocol.LastFix
-import ro.safetyplease.core.protocol.LostAction
 import ro.safetyplease.core.protocol.PacketType
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -150,7 +149,7 @@ class ChatExtrasTest {
     }
 
     @Test
-    fun theKindsAfterMeetingReplyGoUnansweredUntilAFeatureReadsThem() = runTest {
+    fun aMissedCheckInGoesUnansweredUntilItsFeatureReadsIt() = runTest {
         val w = World(this, tmp.root)
         val a = w.phone("A")
         val b = w.phone("B")
@@ -160,17 +159,10 @@ class ChatExtrasTest {
         val answered = b.chatSent()
         val links = b.engine.state.value.readyLinks
 
-        val fix = LastFix(44.0, 26.0, 1_760_000_000L, 2)
-        val kinds = listOf(
-            Inner.LostSession(1, null, LostAction.START, 1, 15, 40, 3),
-            Inner.LastGasp(fix, 4),
-            Inner.CheckinMissed(2, null, 1_760_000_600L, fix, "Gară"),
-        )
-        for (inner in kinds) {
-            // what a phone up to MEETING_REPLY (16) can't decode at all
-            assertTrue(InnerCodec.encode(inner)[0] > Frozen11.LAST_INNER_KIND)
-            a.engine.unicast(PacketType.PRIVATE, b.nodeId, testCrypto.box(InnerCodec.encode(inner), b.identity.box.publicKey, a.identity.box.secretKey))
-        }
+        val inner = Inner.CheckinMissed(2, null, 1_760_000_600L, LastFix(44.0, 26.0, 1_760_000_000L, 2), "Gară")
+        // what a phone up to MEETING_REPLY (16) can't decode at all
+        assertTrue(InnerCodec.encode(inner)[0] > Frozen11.LAST_INNER_KIND)
+        a.engine.unicast(PacketType.PRIVATE, b.nodeId, testCrypto.box(InnerCodec.encode(inner), b.identity.box.publicKey, a.identity.box.secretKey))
         advanceTimeBy(10_000)
 
         assertTrue(b.messages.isEmpty())

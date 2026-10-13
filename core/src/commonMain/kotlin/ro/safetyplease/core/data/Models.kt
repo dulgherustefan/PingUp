@@ -1,6 +1,7 @@
 package ro.safetyplease.core.data
 
 import kotlinx.serialization.Serializable
+import ro.safetyplease.core.position.SeenAt
 import ro.safetyplease.core.position.SharePlan
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.venue.GeoPoint
@@ -60,6 +61,8 @@ data class Settings(
     val identityReplaced: Boolean = false,
     /** A place the user saved from the map (a tent, the car), shown there until removed. */
     val savedPlace: GeoPoint? = null,
+    /** Steps bridge a short GNSS gap; off until measured on phones, and only where the phone has the sensors (Android). */
+    val deadReckoning: Boolean = false,
 )
 
 @Serializable
@@ -125,7 +128,13 @@ data class OutboxItem(
     val boxKey: String = "",
     /** Our intro: sealed to the recipient's key instead of boxed, since they don't have ours yet. */
     val sealed: Boolean = false,
-)
+    /** Retried until this long after [createdAt]. */
+    val ttlMs: Long = DEFAULT_TTL_MS,
+) {
+    companion object {
+        const val DEFAULT_TTL_MS = 24 * 60 * 60_000L
+    }
+}
 
 @Serializable
 data class ChatData(
@@ -248,6 +257,8 @@ data class StaffIncident(
     val replyKey: String = "",
     /** The reporter's updates that reached this phone, by [IncidentUpdate.seq]. */
     val updates: List<IncidentUpdate> = emptyList(),
+    /** Where the person a lost report looks for was last seen, from a position they had shared with the reporter. */
+    val lastSeen: SeenAt? = null,
     /** Responses this phone sent the reporter, oldest first. */
     val responses: List<ReportResponse> = emptyList(),
     /** From the report's extension block: staff's crowd level 1..5 (0: none) and the three flags. */

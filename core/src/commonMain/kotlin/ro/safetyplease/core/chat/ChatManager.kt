@@ -58,6 +58,12 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /**
+ * A lost session this phone sent, with the seq of the exact share it started (null when a longer exact share ran
+ * already) and the share of that conversation it replaced, if any.
+ */
+internal data class LostShare(val session: Inner.LostSession, val shareSeq: Int?, val replaced: OutgoingShare?)
+
+/**
  * Private chat over the mesh: crypto_box envelopes, an outbox retried until DELIVERED, PING/PONG, sealed intros (one
  * scan makes both phones friends) and groups by fan-out. Runs on the mesh context; public methods can be called from anywhere.
  */
@@ -272,27 +278,35 @@ class ChatManager(
         scope.launch { beginShare(conversation, durationMin, precision) }
     }
 
-    private fun beginShare(conversation: String, durationMin: Int, precision: Int) {
-        val recipients = recipientsOf(conversation)?.second ?: return
-        if (recipients.isEmpty() || precision !in SharePrecision.EXACT..SharePrecision.ZONE) return
+    /** [startsAfterMs]: the first START waits this long, for recipients whose DELIVERED of a lost session accepts it. */
+    private fun beginShare(conversation: String, durationMin: Int, precision: Int, startsAfterMs: Long = 0): OutgoingShare? {
+        val recipients = recipientsOf(conversation)?.second ?: return null
+        if (recipients.isEmpty() || precision !in SharePrecision.EXACT..SharePrecision.ZONE) return null
         val minutes = durationMin.coerceIn(1, PositionData.MAX_SHARE_MIN)
         val share = OutgoingShare(conversation, precision, clock.wallMs() + minutes * 60_000L, nextSeq())
         positions.update { data -> data.copy(shares = data.shares.filterNot { it.conversation == conversation } + share) }
         startSent.keys.removeAll { it.first == conversation }
+        if (startsAfterMs > 0) {
+            val mono = clock.monoMs()
+            for (recipient in recipients) startSent[conversation to recipient] = 0 to mono + startsAfterMs - START_RETRY_MS
+        }
         policy.reset()
         sharePosition()
+        return share
     }
 
     /** Stops at once. Recipients that no other share still reaches get a STOP; the others' phones end it at expiry anyway. */
     fun stopShare(conversation: String) {
-        scope.launch {
-            val share = positions.value.shares.firstOrNull { it.conversation == conversation } ?: return@launch
-            positions.update { data -> data.copy(shares = data.shares - share) }
-            startSent.keys.removeAll { it.first == conversation }
-            val still = shareTargets(clock.wallMs()).keys
-            for (recipient in recipientsOf(conversation)?.second.orEmpty()) {
-                if (recipient !in still) sendDirect(recipient, Inner.ShareSession(ShareAction.STOP, 0, share.precision, share.seq))
-            }
+        scope.launch { endShare(conversation) }
+    }
+
+    private fun endShare(conversation: String) {
+        val share = positions.value.shares.firstOrNull { it.conversation == conversation } ?: return
+        positions.update { data -> data.copy(shares = data.shares - share) }
+        startSent.keys.removeAll { it.first == conversation }
+        val still = shareTargets(clock.wallMs()).keys
+        for (recipient in recipientsOf(conversation)?.second.orEmpty()) {
+            if (recipient !in still) sendDirect(recipient, Inner.ShareSession(ShareAction.STOP, 0, share.precision, share.seq))
         }
     }
 
@@ -567,9 +581,8 @@ class ChatManager(
         if (!proposed.tryTake(groupId ?: recipients.single(), clock.monoMs())) return@async false
         val minutes = expiryMin.coerceIn(1, MeetingLimits.MAX_EXPIRY_MIN)
         val meetAt = meetAtSec?.takeIf { it in 1..MeetingLimits.MAX_MEET_AT }
-        meetingSeq = (meetingSeq + 1) and 0xFF
         val inner = Inner.MeetingPoint(
-            newId(), groupId, meetingSeq, place.landmark, place.point?.lat, place.point?.lon, place.venuePoint, meetAt, minutes,
+            newId(), groupId, nextMeetingSeq(), place.landmark, place.point?.lat, place.point?.lon, place.venuePoint, meetAt, minutes,
         )
         val proposal = MeetingProposal(
             conversation, identity.nodeId, inner.msgId, inner.seq, place, meetAt, clock.wallMs() + minutes * 60_000L,
@@ -581,17 +594,27 @@ class ChatManager(
         true
     }.await()
 
-    /** Says yes to the meeting point of [conversation]: every member is told, with the retries of a message. */
-    fun acceptMeeting(conversation: String) {
+    /**
+     * Says yes to the meeting point of [conversation], with the retries of a message: every member is told, or only
+     * [only] (the proposer, for a lost session's landmark).
+     */
+    fun acceptMeeting(conversation: String, only: Long? = null) {
         scope.launch {
             val proposal = _meetings.value.firstOrNull { it.conversation == conversation } ?: return@launch
             if (proposal.proposer == identity.nodeId || identity.nodeId in proposal.accepted) return@launch
-            val (groupId, recipients) = recipientsOf(conversation) ?: return@launch
+            val (groupId, members) = recipientsOf(conversation) ?: return@launch
+            val recipients = if (only == null) members else members.filter { it == only }
             _meetings.update { list -> list.map { if (it == proposal) it.copy(accepted = it.accepted + identity.nodeId) else it } }
             val reply = Inner.MeetingReply(newId(), groupId, MeetingAction.ACCEPT, proposal.msgId)
             val bytes = InnerCodec.encode(reply)
             for (recipient in recipients) enqueue(reply.msgId, recipient, bytes)
         }
+    }
+
+    /** The seq of this phone's next meeting point; a lost session's landmark takes one too, so a later proposal wins. */
+    internal fun nextMeetingSeq(): Int {
+        meetingSeq = (meetingSeq + 1) and 0xFF
+        return meetingSeq
     }
 
     /** Takes back our own meeting point of [conversation]. */
@@ -616,6 +639,11 @@ class ChatManager(
     /** Pins [proposal] as if its proposer had sent it; for the debug demo, whose friends are not on the mesh. */
     fun pinMeeting(proposal: MeetingProposal) {
         scope.launch { _meetings.update { list -> list.filterNot { it.conversation == proposal.conversation } + proposal } }
+    }
+
+    /** Drops the meeting point [msgId] of [conversation] here only, as when a lost session ends. Call on the mesh context. */
+    internal fun unpinMeeting(conversation: String, msgId: Long) {
+        _meetings.update { list -> list.filterNot { it.conversation == conversation && it.msgId == msgId } }
     }
 
     private fun onMeetingPoint(packet: Packet, inner: Inner.MeetingPoint) {
@@ -672,6 +700,12 @@ class ChatManager(
         _lighting.update { list -> list.filter { it.untilMs > now } }
         _meetings.update { list -> list.filter { it.expiresAtMs > now && recipientsOf(it.conversation) != null } }
         comeOut.entries.removeAll { now - it.value.atMs >= COME_ASK_MS }
+    }
+
+    /** A phone that confirmed our lost session reads positions and holds the share that went with it, if that still runs. */
+    private fun acceptedByLost(sender: Long, conversation: String, seq: Int) {
+        positions.update { it.withReader(sender) }
+        if (positions.value.shares.any { it.conversation == conversation && it.seq == seq }) onAccepted(sender, seq)
     }
 
     /** The recipient reads positions: it gets ours now, without waiting for the next move. */
@@ -833,8 +867,15 @@ class ChatManager(
         return null to listOf(friend.nodeId)
     }
 
-    private fun enqueue(msgId: Long, recipient: Long, inner: ByteArray, boxKey: String = "", sealed: Boolean = false) {
-        val item = OutboxItem(msgId, recipient, inner.toHex(), clock.wallMs(), boxKey = boxKey, sealed = sealed)
+    private fun enqueue(
+        msgId: Long,
+        recipient: Long,
+        inner: ByteArray,
+        boxKey: String = "",
+        sealed: Boolean = false,
+        ttlMs: Long = OUTBOX_TTL_MS,
+    ) {
+        val item = OutboxItem(msgId, recipient, inner.toHex(), clock.wallMs(), boxKey = boxKey, sealed = sealed, ttlMs = ttlMs)
         chat.update { it.copy(outbox = it.outbox + item) }
         attempt(item)
     }
@@ -873,7 +914,7 @@ class ChatManager(
 
     private fun retryOutbox(linkTrigger: Boolean) {
         val now = clock.wallMs()
-        val expired = chat.value.outbox.filter { now - it.createdAt > OUTBOX_TTL_MS || gaveUp(it, now) }
+        val expired = chat.value.outbox.filter { now - it.createdAt > it.ttlMs || gaveUp(it, now) }
         if (expired.isNotEmpty()) {
             val failed = expired.map { it.msgId }.toSet()
             chat.update { data ->
@@ -898,6 +939,76 @@ class ChatManager(
     /** The last attempt had as long as the next one would have waited and no DELIVERED came back. */
     private fun gaveUp(item: OutboxItem, now: Long): Boolean =
         item.attempts >= MAX_ATTEMPTS && now - item.lastAttemptAt >= backoffMs(item.attempts)
+
+    // --- lost from the group and the last gasp (PROTOCOL.md, section 6.6.2), read by position/Regasire ---
+
+    internal var onLost: (sender: Long, conversation: String, inner: Inner.LostSession) -> Unit = { _, _, _ -> }
+    internal var onLastGasp: (sender: Long, inner: Inner.LastGasp) -> Unit = { _, _ -> }
+
+    /** The lost sessions whose DELIVERED accepts the exact share that went with them, by msgId: its conversation and seq. */
+    private val impliedShares = LinkedHashMap<Long, Pair<String, Int>>()
+
+    /**
+     * A lost session to every member of [conversation], retried as a message for [ttlMs]; null when nobody is there.
+     * Call on the mesh context.
+     */
+    internal fun sendLost(
+        conversation: String,
+        ttlMs: Long = OUTBOX_TTL_MS,
+        build: (msgId: Long, groupId: Long?) -> Inner.LostSession,
+    ): Inner.LostSession? {
+        val (groupId, recipients) = recipientsOf(conversation) ?: return null
+        if (recipients.isEmpty()) return null
+        val inner = build(newId(), groupId)
+        val bytes = InnerCodec.encode(inner)
+        for (recipient in recipients) enqueue(inner.msgId, recipient, bytes, ttlMs = ttlMs)
+        return inner
+    }
+
+    /**
+     * "M-am pierdut de grup" from this phone: the lost session [build] makes, retried for [LOST_TTL_MS], and an exact
+     * share of [minutes] with [conversation] unless a longer exact one runs already. A phone that confirms the session
+     * understood it and holds the share from it, so its DELIVERED stands for the share's ACCEPT; the START goes after
+     * [LOST_START_AFTER_MS] only to those that haven't confirmed, as to an older phone. Null when nobody is there.
+     * Call on the mesh context.
+     */
+    internal fun sendLostWithShare(
+        conversation: String,
+        minutes: Int,
+        build: (msgId: Long, groupId: Long?) -> Inner.LostSession,
+    ): LostShare? {
+        val inner = sendLost(conversation, LOST_TTL_MS, build) ?: return null
+        val now = clock.wallMs()
+        val running = positions.value.shares.firstOrNull { it.conversation == conversation && it.expiresAtMs > now }
+        if (running != null && running.precision == SharePrecision.EXACT && running.expiresAtMs >= now + minutes * 60_000L) {
+            return LostShare(inner, null, null)
+        }
+        val share = beginShare(conversation, minutes, SharePrecision.EXACT, LOST_START_AFTER_MS) ?: return LostShare(inner, null, null)
+        impliedShares[inner.msgId] = conversation to share.seq
+        while (impliedShares.size > 64) impliedShares.remove(impliedShares.keys.first())
+        return LostShare(inner, share.seq, running)
+    }
+
+    /**
+     * The group is found: the share a lost session started ([LostShare.shareSeq]) ends, and the one it replaced comes
+     * back for the time it had left. A share the user changed since is left alone. Call on the mesh context.
+     */
+    internal fun endLostShare(conversation: String, lost: LostShare) {
+        val seq = lost.shareSeq ?: return
+        val current = positions.value.shares.firstOrNull { it.conversation == conversation } ?: return
+        if (current.seq != seq) return
+        val now = clock.wallMs()
+        val previous = lost.replaced?.takeIf { it.expiresAtMs > now } ?: return endShare(conversation)
+        beginShare(conversation, ((previous.expiresAtMs - now + 59_999) / 60_000).toInt(), previous.precision)
+    }
+
+    /** Once, never retried; false if it didn't go. Call on the mesh context. */
+    internal fun sendLastGasp(recipient: Long, gasp: Inner.LastGasp): Boolean = sendDirect(recipient, gasp)
+
+    /** Who our shares reach now, each with the most precise of them. Call on the mesh context. */
+    internal fun shareTargetsNow(): Map<Long, Int> = shareTargets(clock.wallMs())
+
+    internal fun recipientsNow(conversation: String): List<Long> = recipientsOf(conversation)?.second.orEmpty()
 
     // --- receiving ---
 
@@ -958,8 +1069,13 @@ class ChatManager(
             is Inner.PingRequest -> onPingRequest(sender, inner)
             is Inner.MeetingPoint -> onMeetingPoint(packet, inner)
             is Inner.MeetingReply -> onMeetingReply(packet, inner)
-            // decoded for the features that will read them; until then dropped, unanswered, as an older phone does
-            is Inner.LostSession, is Inner.LastGasp, is Inner.CheckinMissed -> Unit
+            is Inner.LostSession -> conversationOf(sender, inner.groupId)?.let { conversation ->
+                confirm(sender, inner.msgId)
+                onLost(sender, conversation, inner)
+            }
+            is Inner.LastGasp -> if (knows(sender)) onLastGasp(sender, inner)
+            // decoded for the feature that will read it; until then dropped, unanswered, as an older phone does
+            is Inner.CheckinMissed -> Unit
             // an intro only ever comes sealed
             is Inner.Intro -> Unit
         }
@@ -1070,6 +1186,7 @@ class ChatManager(
 
     private fun onDelivered(sender: Long, msgId: Long) {
         if (chat.value.outbox.none { it.msgId == msgId && it.recipient == sender }) return
+        impliedShares[msgId]?.let { (conversation, seq) -> acceptedByLost(sender, conversation, seq) }
         chat.update { data ->
             data.copy(
                 outbox = data.outbox.filterNot { it.msgId == msgId && it.recipient == sender },
@@ -1162,7 +1279,13 @@ class ChatManager(
 
     companion object {
         const val MAX_MESSAGES = 2000
-        const val OUTBOX_TTL_MS = 24 * 60 * 60_000L
+        const val OUTBOX_TTL_MS = OutboxItem.DEFAULT_TTL_MS
+
+        /** A lost session and its end are retried this long, 7 attempts: past it the meeting is over. */
+        const val LOST_TTL_MS = 15 * 60_000L
+
+        /** The START of a lost session's share waits this long for the DELIVERED that makes it needless. */
+        const val LOST_START_AFTER_MS = 60_000L
         const val RETRY_TICK_MS = 5_000L
         const val LINK_SETTLE_MS = 1_500L
         const val LINK_RETRY_WINDOW_MS = 60_000L

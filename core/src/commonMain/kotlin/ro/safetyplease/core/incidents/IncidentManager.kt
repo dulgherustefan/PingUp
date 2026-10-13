@@ -18,6 +18,7 @@ import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.mesh.MeshEngine
 import ro.safetyplease.core.mesh.MeshEvent
 import ro.safetyplease.core.metrics.timedAck
+import ro.safetyplease.core.position.SeenAt
 import ro.safetyplease.core.protocol.AckFlags
 import ro.safetyplease.core.protocol.AckOrder
 import ro.safetyplease.core.protocol.AckStatus
@@ -58,6 +59,7 @@ class ReportDraft(
     /** "Cum te recunoaștem?", sent on the first line of the description ([Recognition]). */
     val recognition: String = "",
     val location: LocationFields? = null,
+    /** The body's extension block (PROTOCOL.md, section 6.3). */
     val extras: ReportExtras = ReportExtras.NONE,
 )
 
@@ -409,6 +411,7 @@ class IncidentManager(
             // a crowd level counts only from staff: a participant's report with one is an ordinary report
             density = if (body.staff != null) body.extras.density else 0, cannotMove = body.extras.cannotMove, manDown = body.extras.manDown,
             unconscious = body.extras.unconscious,
+            lastSeen = body.extras.lastSeen?.let { SeenAt.of(it, body.timestamp * 1000) },
         )
         if (divert(opened)) {
             // nobody acknowledges it, so the cache must not keep it as a report still waiting for staff

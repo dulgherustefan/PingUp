@@ -79,10 +79,12 @@ import ro.safetyplease.ui.common.MapGlyph
 import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MapReserve
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.RegasireMapRows
 import ro.safetyplease.ui.common.VenueMap
 import ro.safetyplease.ui.common.friendSpotText
 import ro.safetyplease.ui.common.incidentPoint
 import ro.safetyplease.ui.common.onSite
+import ro.safetyplease.ui.common.rememberRegasireMap
 import ro.safetyplease.ui.common.routeText
 import ro.safetyplease.ui.common.spotColor
 import ro.safetyplease.ui.common.typeGlyph
@@ -223,6 +225,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     var aboutMap by rememberSaveable { mutableStateOf(false) }
     var pressed by remember { mutableStateOf<GeoPoint?>(null) }
     LayersOverlay(vm, dest.sendTo == null)
+    val regasire = rememberRegasireMap(vm)
 
     val friends by vm.friends.collectAsStateWithLifecycle()
     val records by vm.friendPositions.collectAsStateWithLifecycle()
@@ -309,11 +312,13 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     LaunchedEffect(engine, mapOverlay) {
         engine?.setOverlay(mapOverlay)
     }
-    // A finger held on the map, on either kind of map: inside the site, and not while a zone is being chosen to send,
-    // it offers the point to a friend or keeps it as the saved place.
+    // A finger held on the map, on either kind of map: inside the site, and not while a zone is being chosen to send.
+    // Near a numbered landmark it asks whether the person stands by it; elsewhere it offers the point to a friend or
+    // keeps it as the saved place.
     val choosingZone = dest.sendTo != null
     fun onMapLongPress(point: GeoPoint) {
-        if (!choosingZone && vm.venue.bounds.contains(point.lat, point.lon)) pressed = point
+        if (choosingZone || !vm.venue.bounds.contains(point.lat, point.lon)) return
+        if (!regasire.longPress(point)) pressed = point
     }
     LaunchedEffect(engine, choosingZone) {
         engine?.setOnLongPress { onMapLongPress(it) }
@@ -335,6 +340,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     }
 
     pressed?.let { PlaceDialog(vm, it) { pressed = null } }
+    regasire.AskDialog(vm)
     if (aboutMap) {
         AppDialog(
             onDismiss = { aboutMap = false }, title = stringResource(Res.string.map_about),
@@ -514,6 +520,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     }
                 }
             }
+            item(key = "regasire") { RegasireMapRows(vm, origin) }
             if (friendSpots.isNotEmpty()) {
                 item(key = "friends-title") { SectionTitle(stringResource(Res.string.map_friends)) }
                 item(key = "friends") {

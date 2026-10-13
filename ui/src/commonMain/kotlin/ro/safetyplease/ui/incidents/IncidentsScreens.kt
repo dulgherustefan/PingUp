@@ -63,6 +63,7 @@ import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.IncidentHeader
+import ro.safetyplease.ui.common.LastSeenBlock
 import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MeButton
 import ro.safetyplease.ui.common.NotificationsOffBanner
@@ -70,6 +71,7 @@ import ro.safetyplease.ui.common.UpdateTimeline
 import ro.safetyplease.ui.common.VenueMap
 import ro.safetyplease.ui.common.categoryIcon
 import ro.safetyplease.ui.common.incidentPoint
+import ro.safetyplease.ui.common.lastSeenOverlay
 import ro.safetyplease.ui.common.placeText
 import ro.safetyplease.ui.common.reportFacts
 import ro.safetyplease.ui.control.HandOverDialog
@@ -604,7 +606,9 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 position = position,
                 pins = pins,
                 highlightZone = incident.zone,
+                mapOverlay = lastSeenOverlay(vm, incident),
             )
+            LastSeenBlock(vm, incident)
             InsetGroup(Modifier.padding(top = 20.dp)) { StaffReportBlock(incident, settings.teamName, incidentPlace(vm, incident)) }
             // the medical team that has the incident keeps its hand-over card here, from what this phone holds
             if (isAssignedTo(incident.teamName, settings.teamName) && Responders.isResponder(settings.teamName)) {

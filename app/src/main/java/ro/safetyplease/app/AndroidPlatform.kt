@@ -20,6 +20,7 @@ import ro.safetyplease.app.platform.ble.BleRadio
 import ro.safetyplease.app.platform.keystore.KeyVault
 import ro.safetyplease.app.platform.location.GnssPrewarm
 import ro.safetyplease.app.platform.location.LocationSource
+import ro.safetyplease.app.platform.location.PedestrianSteps
 import ro.safetyplease.app.platform.motion.MotionSensor
 import ro.safetyplease.app.platform.network.MobileNetwork
 import ro.safetyplease.app.platform.power.BatteryMonitor
@@ -55,6 +56,7 @@ class AndroidPlatform(private val app: Application) : AppPlatform {
     val locationSource = LocationSource(app)
     override val location = locationSource.fix
     val gnssPrewarm = GnssPrewarm(app)
+    val steps = PedestrianSteps(app)
 
     /** [LocationSource] lives on the main thread. */
     private val main = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
