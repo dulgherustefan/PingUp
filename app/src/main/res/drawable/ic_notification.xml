@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Three linked phones: the mesh. Not a pin, which the status bar would read as "location in use". -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <group android:scaleX="0.055" android:scaleY="0.055" android:translateX="-2.08" android:translateY="-1.53"><path android:pathData="M124,196A132,132 0,1 1,388 196C388,286 318,352 274,410Q256,434 238,410C194,352 124,286 124,196Z M256,138a58,58 0,1 0,0 116a58,58 0,1 0,0 -116Z" android:fillColor="#FFFFFFFF" android:fillType="evenOdd"/></group>
+    <path
+        android:pathData="M12,5L5,18L19,18Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,1.5a3.5,3.5 0,1 1,0 7a3.5,3.5 0,1 1,0 -7Z M5,14.5a3.5,3.5 0,1 1,0 7a3.5,3.5 0,1 1,0 -7Z M19,14.5a3.5,3.5 0,1 1,0 7a3.5,3.5 0,1 1,0 -7Z" />
 </vector>

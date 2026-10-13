@@ -87,8 +87,45 @@ android {
     }
 }
 
+/**
+ * The texts live in :ui (composeResources), one copy for both apps. The Android code that isn't a shared screen
+ * (notifications, widgets, the screens not moved yet) reads the same files as R.string, copied here at build time.
+ */
+abstract class SharedStrings : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val composeResources: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val out = outputDir.get().asFile
+        out.deleteRecursively()
+        composeResources.get().asFile.listFiles()?.filter { it.isDirectory && it.name.startsWith("values") }?.forEach { dir ->
+            File(dir, "strings.xml").takeIf { it.exists() }?.copyTo(File(out, "${dir.name}/strings.xml"))
+        }
+        // code reads some of them by name (SharedTexts), which the resource shrinker can't see
+        File(out, "raw/keep.xml").apply { parentFile.mkdirs() }.writeText(
+            "<resources xmlns:tools=\"http://schemas.android.com/tools\" tools:keep=\"@string/*,@plurals/*,@array/*\" />\n",
+        )
+    }
+}
+
+val sharedStrings = tasks.register<SharedStrings>("sharedStrings") {
+    composeResources.set(rootProject.layout.projectDirectory.dir("ui/src/commonMain/composeResources"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.res?.addGeneratedSourceDirectory(sharedStrings, SharedStrings::outputDir)
+    }
+}
+
 dependencies {
     implementation(project(":core"))
+    implementation(project(":ui"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -103,14 +140,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.service)
 
-    implementation(libs.androidx.camera.core)
-    implementation(libs.androidx.camera.camera2)
-    implementation(libs.androidx.camera.lifecycle)
-    implementation(libs.androidx.camera.view)
-
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.zxing.core)
     implementation(libs.maplibre.android)
 
     // "@aar" also turns off transitive deps; otherwise lazysodium pulls jna.jar on top of jna.aar and classes clash.

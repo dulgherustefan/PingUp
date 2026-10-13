@@ -9,14 +9,19 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import ro.safetyplease.app.demo.Demo
-import ro.safetyplease.app.service.MeshService
-import ro.safetyplease.app.ui.AppRoot
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.ui.AppRoot
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.OpenTarget
+import ro.safetyplease.ui.designsystem.AppTheme
 
 class MainActivity : ComponentActivity() {
-    private val vm: AppViewModel by viewModels()
+    private val container get() = (application as App).container
+    private val vm: AppViewModel by viewModels {
+        viewModelFactory { initializer { AppViewModel(container, AndroidPhoneUi(application, container)) } }
+    }
 
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(AppLocale.wrap(newBase))
 
@@ -27,11 +32,11 @@ class MainActivity : ComponentActivity() {
             SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
             SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
         )
-        Demo.install(vm.c)
+        Demo.install(container)
         // on recreation (rotation, theme, font size) the launch intent was already handled
         if (savedInstanceState == null) intent?.getStringExtra(EXTRA_OPEN)?.let(vm::openTarget)
         setContent {
-            AppTheme { AppRoot(vm, onStartMesh = ::startMesh) }
+            AppTheme { AppRoot(vm, onStartMesh = ::startMesh) { Demo.Screen(vm) } }
         }
     }
 
@@ -43,38 +48,25 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         if (vm.settings.value.onboarded) startMesh()
-        vm.c.location.start()
+        container.location.start()
     }
 
     override fun onStop() {
-        vm.c.location.stop()
+        container.location.stop()
         super.onStop()
     }
 
-    /** Start only with permissions granted; otherwise Android 14+ won't let the service go foreground. */
-    private fun startMesh() {
-        if (!vm.c.radio.hasPermissions()) return
-        if (MeshService.running) vm.retryRadio() else MeshService.start(this)
-        vm.c.location.start()
-    }
+    private fun startMesh() = vm.phone.startMesh()
 
     companion object {
         // res/xml/shortcuts.xml repeats EXTRA_OPEN and OPEN_REPORT
         const val EXTRA_OPEN = "open"
-        const val OPEN_HOME = "home"
-        const val OPEN_INCIDENTS = "incidents"
-
-        /** The report categories, for a new report; the tile, the shortcut and the mesh notification open it. */
-        const val OPEN_REPORT = "report"
-
-        /** The discreet report, straight to its confirmation; its own Quick Settings tile opens it. */
-        const val OPEN_DISCREET = "discreet"
-
-        /** One of your reports, by id. */
-        const val OPEN_REPORT_PREFIX = "report:"
-        const val OPEN_CHAT_PREFIX = "chat:"
-
-        /** "Cine mă vede acum", from the notification of a location share. */
-        const val OPEN_SHARING = "sharing"
+        const val OPEN_HOME = OpenTarget.HOME
+        const val OPEN_INCIDENTS = OpenTarget.INCIDENTS
+        const val OPEN_REPORT = OpenTarget.REPORT
+        const val OPEN_DISCREET = OpenTarget.DISCREET
+        const val OPEN_REPORT_PREFIX = OpenTarget.REPORT_PREFIX
+        const val OPEN_CHAT_PREFIX = OpenTarget.CHAT_PREFIX
+        const val OPEN_SHARING = OpenTarget.SHARING
     }
 }

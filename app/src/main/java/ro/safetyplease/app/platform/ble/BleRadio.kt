@@ -42,15 +42,21 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import ro.safetyplease.core.ble.Advert
+import ro.safetyplease.core.ble.AdvertData
+import ro.safetyplease.core.ble.AppleSweep
+import ro.safetyplease.core.ble.BleLayout
+import ro.safetyplease.core.ble.OverflowArea
+import ro.safetyplease.core.ble.ScanCycle
+import ro.safetyplease.core.ble.Sightings
 import ro.safetyplease.core.mesh.NewSetPrefix
 import ro.safetyplease.core.mesh.PowerMode
 import ro.safetyplease.core.mesh.PowerPlan
-import ro.safetyplease.core.mesh.Radio
 import ro.safetyplease.core.mesh.RadioEvent
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.protocol.NodeFlags
+import ro.safetyplease.core.session.MeshRadio
 import ro.safetyplease.core.util.nodePrefix
-import java.nio.ByteBuffer
 
 /**
  * BLE radio: every phone is both peripheral (GATT server + advertising) and central (scanning + GATT
@@ -64,7 +70,7 @@ class BleRadio(
     private val scope: CoroutineScope,
     nodeId: Long,
     private val log: (String) -> Unit,
-) : Radio {
+) : MeshRadio {
     override val events = Channel<RadioEvent>(Channel.UNLIMITED)
 
     /** Field measurements (debug builds); null otherwise. */
@@ -187,6 +193,9 @@ class BleRadio(
     private var prefix = nodeId.nodePrefix()
     private val newSetPrefix = NewSetPrefix(fixed = nodeId.nodePrefix())
     private val serviceUuid = ParcelUuid(BleConstants.SERVICE)
+
+    /** Our bit in the overflow area of an iPhone with Ping Up in the background. */
+    private val overflowBit = OverflowArea.bit(BleLayout.SERVICE)
     private val manager: BluetoothManager? = context.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? get() = manager?.adapter
     private val tasks = Channel<() -> Unit>(Channel.UNLIMITED)
@@ -228,6 +237,10 @@ class BleRadio(
     /** A batched scan failed to start on this stack; plain scans until the radio restarts. */
     private var batchingBroken = false
 
+    /** The second, short scan for every Apple advertisement ([AppleSweep]). */
+    private var sweepJob: Job? = null
+    private var sweeping = false
+
     private var canAdvertise = true
     private val failures = AdvertiseFailures()
     private val legacyAdv = AdvSet(coded = false)
@@ -261,7 +274,7 @@ class BleRadio(
 
     // --- lifecycle ---
 
-    fun start() {
+    override fun start() {
         if (running) return
         running = true
         ContextCompat.registerReceiver(
@@ -280,7 +293,7 @@ class BleRadio(
         post { bringUp() }
     }
 
-    fun stop() {
+    override fun stop() {
         if (!running) return
         running = false
         runCatching { context.unregisterReceiver(stateReceiver) }
@@ -290,7 +303,7 @@ class BleRadio(
     }
 
     /** Call after the user grants permissions, so the radio starts without an app restart. */
-    fun retry() = post { if (running && !active) bringUp() }
+    override fun retry() = post { if (running && !active) bringUp() }
 
     fun hasPermissions(): Boolean {
         fun granted(p: String) = ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
@@ -343,6 +356,7 @@ class BleRadio(
         )
         if (!openServer()) log("GATT server unavailable")
         requestScan()
+        startSweeps()
         publishStatus()
     }
 
@@ -356,6 +370,8 @@ class BleRadio(
         cycleJob?.cancel()
         cycle.resume()
         advertiseJob?.cancel()
+        sweepJob?.cancel()
+        stopSweep()
         stopScanNow()
         legacyAdv.stop()
         codedAdv.stop()
@@ -431,7 +447,7 @@ class BleRadio(
     }
 
     /** Applies a profile from [ro.safetyplease.core.mesh.PowerPolicy]: the stack's modes and our scan duty cycle. */
-    fun setPower(plan: PowerPlan) {
+    override fun setPower(plan: PowerPlan) {
         if (plan == this.plan) return
         this.plan = plan
         log("power: ${plan.profile} scan=${plan.scan} advertise=${plan.advertise} duty=${plan.duty}")
@@ -464,7 +480,7 @@ class BleRadio(
             val ok = withTimeoutOrNull(timeoutMs) { setUp(link, device, timeoutMs) } ?: false
             if (ok && !link.closed && !link.ops.dropped) {
                 link.ready = true
-                events.trySend(RadioEvent.LinkUp(link.id, address, true, link.mtu - BleConstants.ATT_OVERHEAD))
+                events.trySend(RadioEvent.LinkUp(link.id, address, true, link.mtu - BleLayout.ATT_OVERHEAD))
                 // no suspension point between LinkUp and the early frames, so the order stays the wire order
                 for (frame in link.early) events.trySend(RadioEvent.Frame(link.id, frame))
                 link.early.clear()
@@ -793,7 +809,7 @@ class BleRadio(
                 incoming[address] = link
                 // without a server-side connect(), cancelConnection() can't close the link later
                 runCatching { gattServer?.connect(device, false) }
-                events.trySend(RadioEvent.LinkUp(link.id, address, false, mtu - BleConstants.ATT_OVERHEAD))
+                events.trySend(RadioEvent.LinkUp(link.id, address, false, mtu - BleLayout.ATT_OVERHEAD))
                 if (probe != null) runCatching { gattServer?.readPhy(device) }
             } else {
                 val link = incoming.remove(address) ?: return@post
@@ -858,8 +874,14 @@ class BleRadio(
     private fun startScanNow() {
         val adapter = adapter ?: return
         val scanner = adapter.bluetoothLeScanner ?: return
-        // the UUID filter is required for scanning to work with the screen off
-        val filter = ScanFilter.Builder().setServiceUuid(serviceUuid).build()
+        // a filter is required for scanning to work with the screen off: our UUID, as Android phones and iPhones in
+        // front advertise it, and our bit in Apple's overflow area, where iOS moves it with the app in the background
+        val filters = listOf(
+            ScanFilter.Builder().setServiceUuid(serviceUuid).build(),
+            ScanFilter.Builder()
+                .setManufacturerData(OverflowArea.APPLE, OverflowArea.payload(BleLayout.SERVICE), OverflowArea.filterMask(BleLayout.SERVICE))
+                .build(),
+        )
         val reportDelay = if (batchingBroken) 0L else scanReportDelay(scanMode, adapter.isOffloadedScanBatchingSupported)
         val settings = ScanSettings.Builder()
             .setScanMode(
@@ -874,7 +896,7 @@ class BleRadio(
             // on 1M and Coded; legacy advertisements are still received
             .apply { if (longRange) setLegacy(false).setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED) }
             .build()
-        val started = runCatching { scanner.startScan(listOf(filter), settings, scanCallback) }.isSuccess
+        val started = runCatching { scanner.startScan(filters, settings, scanCallback) }.isSuccess
         lastScanStartAt = now()
         if (started) {
             scanning = true
@@ -931,6 +953,51 @@ class BleRadio(
         }
     }
 
+    // --- the Apple sweep ---
+
+    private fun startSweeps() {
+        sweepJob?.cancel()
+        sweepJob = scope.launch {
+            while (isActive) {
+                delay(AppleSweep.EVERY_MS)
+                if (!active || !AppleSweep.wanted(plan?.profile) || !startSweep()) continue
+                delay(AppleSweep.FOR_MS)
+                stopSweep()
+            }
+        }
+    }
+
+    private fun startSweep(): Boolean {
+        val scanner = adapter?.bluetoothLeScanner ?: return false
+        // it counts toward Android's five starts in 30 s like the main scan, so it keeps the same spacing
+        if (now() - lastScanStartAt < BleConstants.SCAN_START_SPACING_MS || now() < scanBlockedUntil) return false
+        val filter = ScanFilter.Builder().setManufacturerData(OverflowArea.APPLE, ByteArray(0)).build()
+        val settings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+            .build()
+        sweeping = runCatching { scanner.startScan(listOf(filter), settings, sweepCallback) }.isSuccess
+        if (sweeping) lastScanStartAt = now()
+        return sweeping
+    }
+
+    private fun stopSweep() {
+        if (!sweeping) return
+        sweeping = false
+        runCatching { adapter?.bluetoothLeScanner?.stopScan(sweepCallback) }
+    }
+
+    private val sweepCallback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult) = heard(listOf(result))
+
+        override fun onBatchScanResults(results: MutableList<ScanResult>) = heard(results)
+
+        override fun onScanFailed(errorCode: Int) = post {
+            sweeping = false
+            log("apple sweep failed: $errorCode")
+        }
+    }
+
     /** On the scan callback thread: only [sightings] and [probe] may be touched here. */
     private fun heard(results: List<ScanResult>) {
         val devices = HashMap<String, BluetoothDevice>()
@@ -941,11 +1008,13 @@ class BleRadio(
     }
 
     private fun advert(result: ScanResult): Advert? {
-        val data = result.scanRecord?.getServiceData(serviceUuid)
-        val known = data != null && data.size >= BleConstants.ADVERT_DATA_SIZE &&
-            (data[0].toInt() and 0xff) == BleConstants.ADVERT_VERSION
-        val peerFlags = if (known) data[1].toInt() and 0xff else NodeFlags.ACCEPTS_CONNECTIONS
-        val peerPrefix = if (known) ByteBuffer.wrap(data, 2, 4).int else null
+        val record = result.scanRecord
+        if (record?.serviceUuids?.contains(serviceUuid) != true && record?.getServiceData(serviceUuid) == null) {
+            // read from the raw bytes: Android's filter may have matched another app's bit beside an Apple block
+            if (!OverflowArea.inRecord(record?.bytes, overflowBit)) return null
+            return Advert(result.device.address, null, NodeFlags.ACCEPTS_CONNECTIONS, coded = false, result.rssi, inBackground = true)
+        }
+        val (peerFlags, peerPrefix) = AdvertData.decode(record?.getServiceData(serviceUuid))
         if (peerPrefix == prefix) return null
         val coded = result.primaryPhy == BluetoothDevice.PHY_LE_CODED
         return Advert(result.device.address, peerPrefix, peerFlags, coded, result.rssi)
@@ -955,8 +1024,9 @@ class BleRadio(
         if (!active) return
         lastScanResultAt = now()
         for (report in reports) {
+            if (report.inBackground && report.address !in scanned) log("iPhone in the background: ${report.address.takeLast(5)}")
             scanned[report.address] = devices.getValue(report.address)
-            events.trySend(RadioEvent.PeerSeen(report.address, report.prefix, report.flags, report.rssi))
+            events.trySend(RadioEvent.PeerSeen(report.address, report.prefix, report.flags, report.rssi, report.inBackground))
         }
     }
 
@@ -1094,10 +1164,10 @@ class BleRadio(
     }
 
     private fun AdvSet.interval(): Int = when (advertiseMode) {
-        PowerMode.LOW_POWER -> AdvertisingSetParameters.INTERVAL_HIGH
-        PowerMode.BALANCED -> AdvertisingSetParameters.INTERVAL_MEDIUM
+        PowerMode.LOW_POWER -> if (coded) AdvertisingSetParameters.INTERVAL_HIGH else BleConstants.ADVERTISE_LOW_POWER
+        PowerMode.BALANCED -> if (coded) AdvertisingSetParameters.INTERVAL_MEDIUM else BleConstants.ADVERTISE_BALANCED
         // a Coded packet stays ~8x longer on air; don't go below 250 ms
-        PowerMode.LOW_LATENCY -> if (coded) AdvertisingSetParameters.INTERVAL_MEDIUM else AdvertisingSetParameters.INTERVAL_LOW
+        PowerMode.LOW_LATENCY -> if (coded) AdvertisingSetParameters.INTERVAL_MEDIUM else BleConstants.ADVERTISE_LOW_LATENCY
     }
 
     private fun AdvSet.parameters(interval: Int): AdvertisingSetParameters {
@@ -1114,8 +1184,7 @@ class BleRadio(
         return builder.build()
     }
 
-    private fun payload(flags: Int, prefix: Int): ByteArray = ByteBuffer.allocate(BleConstants.ADVERT_DATA_SIZE)
-        .put(BleConstants.ADVERT_VERSION.toByte()).put(flags.toByte()).putInt(prefix).array()
+    private fun payload(flags: Int, prefix: Int): ByteArray = AdvertData.encode(flags, prefix)
 
     // the UUID goes in the advertisement so scan filters match it; short data goes in the scan response
     private fun uuidData(): AdvertiseData = AdvertiseData.Builder().setIncludeDeviceName(false).setIncludeTxPowerLevel(false)

@@ -25,8 +25,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.BuildConfig
-import ro.safetyplease.app.platform.ble.Advert
 import ro.safetyplease.app.platform.ble.RadioProbe
+import ro.safetyplease.core.ble.Advert
 import ro.safetyplease.core.util.nodePrefix
 import ro.safetyplease.core.util.toHex
 import java.io.File
@@ -93,7 +93,7 @@ class FieldRecorder(private val context: Context, private val c: AppContainer, p
     fun stop(): Recording? {
         val s = session ?: return null
         session = null
-        if (c.radio.probe === this) c.radio.probe = null
+        if (c.bleRadio.probe === this) c.bleRadio.probe = null
         s.censusCallback?.let { callback -> runCatching { adapter?.bluetoothLeScanner?.stopScan(callback) } }
         s.jobs.forEach { it.cancel() }
         // a last round, so battery and counters cover the whole recording
@@ -157,11 +157,11 @@ class FieldRecorder(private val context: Context, private val c: AppContainer, p
                 }
             }
         }
-        c.radio.probe = this
+        c.bleRadio.probe = this
     }
 
     private fun startCensus(s: Session) {
-        check(c.radio.hasPermissions()) { "no Bluetooth permission" }
+        check(c.bleRadio.hasPermissions()) { "no Bluetooth permission" }
         val scanner = adapter?.bluetoothLeScanner ?: error("Bluetooth is off")
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) = s.census.heard(result.device.address, result.rssi)

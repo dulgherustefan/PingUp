@@ -19,6 +19,9 @@ import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 import ro.safetyplease.core.venue.distanceMeters
+import ro.safetyplease.ui.map.MapFriend
+import ro.safetyplease.ui.map.MapMarker
+import ro.safetyplease.ui.map.MapMe
 
 class MapGeoJsonTest {
     private val venue = Venue(

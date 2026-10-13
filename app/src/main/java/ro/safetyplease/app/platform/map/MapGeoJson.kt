@@ -10,6 +10,9 @@ import kotlinx.serialization.json.put
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.map.MapFriend
+import ro.safetyplease.ui.map.MapMarker
+import ro.safetyplease.ui.map.MapMe
 import kotlin.math.cos
 import kotlin.math.sin
 

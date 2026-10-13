@@ -28,7 +28,8 @@ class TranslationTest {
         )
     }
 
-    private val sets = listOf("src/main/res", "src/debug/res").map { load("$it/values/strings.xml") to load("$it/values-en/strings.xml") }
+    // the shared texts (in :ui, for both apps) and the debug build's own
+    private val sets = listOf("../ui/src/commonMain/composeResources", "src/debug/res").map { load("$it/values/strings.xml") to load("$it/values-en/strings.xml") }
 
     private fun placeholders(text: String): List<String> =
         Regex("""%(\d+\$)?[-#+ 0,(]*\d*(\.\d+)?[a-zA-Z%]""").findAll(text).map { it.value }.sorted().toList()
@@ -53,6 +54,21 @@ class TranslationTest {
                 }
             }
             for ((key, items) in ro.arrays) assertEquals(key, items.size, en.arrays.getValue(key).size)
+        }
+    }
+
+    @Test
+    fun sharedTextsReadTheSameInBothApps() {
+        // Compose Multiplatform fills only %1$s and %1$d, and shows an escape Android needs, like \', as it is
+        val (ro, en) = sets.first()
+        for (texts in listOf(ro, en)) {
+            val all = texts.strings.entries.map { it.key to it.value } +
+                texts.plurals.flatMap { (key, items) -> items.values.map { key to it } } +
+                texts.arrays.flatMap { (key, items) -> items.map { key to it } }
+            for ((key, text) in all) {
+                assertTrue("$key: $text", placeholders(text).all { Regex("""%\d+\$[sd]""").matches(it) })
+                assertTrue("$key: $text", "\\'" !in text && "\\\"" !in text)
+            }
         }
     }
 

@@ -1,7 +1,7 @@
 package ro.safetyplease.app.demo
 
 import android.bluetooth.BluetoothDevice
-import ro.safetyplease.app.platform.ble.Advert
+import ro.safetyplease.core.ble.Advert
 import ro.safetyplease.core.mesh.MeshState
 import ro.safetyplease.core.util.toHex
 

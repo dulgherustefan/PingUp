@@ -1,0 +1,455 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0106B4EACA1ACFE79E68FB0E /* PingUpApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */; };
+		1F174F750DB8933AB3123434 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EA86D8801676F739A4738B33 /* PrivacyInfo.xcprivacy */; };
+		3017ECA219C868B35D27E8E6 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 71B5785356A0F8914AB7DD5F /* assets */; };
+		465DE5A687FB6D976F42F31E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 11693A333C3375DEE8694C9A /* Assets.xcassets */; };
+		B40911DAB3835CF043AA3473 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6398700908A499B5420D225D /* InfoPlist.strings */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		11693A333C3375DEE8694C9A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2BF05116436C360A237D2D81 /* ro */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ro; path = ro.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		6D82221C73CA4EAE2D81B56D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		71B5785356A0F8914AB7DD5F /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = ../app/src/main/assets; sourceTree = SOURCE_ROOT; };
+		AD80B33C55B538CF3FD3A1DA /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		CBBE556015D106F2E073FB7F /* PingUp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PingUp.entitlements; sourceTree = "<group>"; };
+		D36ED98DF41588AF3FAA629E /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		EA86D8801676F739A4738B33 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		F254425B1A6F3FAD5CBF58D2 /* PingUp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PingUp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingUpApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0426A7ADD28D327DEB1F6213 = {
+			isa = PBXGroup;
+			children = (
+				83BA925686D6F095C4193006 /* PingUp */,
+				366818782A2A570C2DFF40B8 /* pingup */,
+				140804B90A20B822A23FC2E1 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		04FBEB71F565905F9E1D40D8 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				0E7823D58C01F61916A9CAEC /* main */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		0E7823D58C01F61916A9CAEC /* main */ = {
+			isa = PBXGroup;
+			children = (
+				71B5785356A0F8914AB7DD5F /* assets */,
+			);
+			path = main;
+			sourceTree = "<group>";
+		};
+		140804B90A20B822A23FC2E1 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F254425B1A6F3FAD5CBF58D2 /* PingUp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		366818782A2A570C2DFF40B8 /* pingup */ = {
+			isa = PBXGroup;
+			children = (
+				DE540C602A18448E24D11D0A /* app */,
+				95B99A3479EE95E964D3DF95 /* iosApp */,
+			);
+			name = pingup;
+			path = ..;
+			sourceTree = "<group>";
+		};
+		83BA925686D6F095C4193006 /* PingUp */ = {
+			isa = PBXGroup;
+			children = (
+				11693A333C3375DEE8694C9A /* Assets.xcassets */,
+				6D82221C73CA4EAE2D81B56D /* Info.plist */,
+				CBBE556015D106F2E073FB7F /* PingUp.entitlements */,
+				FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */,
+				EA86D8801676F739A4738B33 /* PrivacyInfo.xcprivacy */,
+				6398700908A499B5420D225D /* InfoPlist.strings */,
+			);
+			path = PingUp;
+			sourceTree = "<group>";
+		};
+		95B99A3479EE95E964D3DF95 /* iosApp */ = {
+			isa = PBXGroup;
+			children = (
+				D36ED98DF41588AF3FAA629E /* Signing.xcconfig */,
+			);
+			path = iosApp;
+			sourceTree = "<group>";
+		};
+		DE540C602A18448E24D11D0A /* app */ = {
+			isa = PBXGroup;
+			children = (
+				04FBEB71F565905F9E1D40D8 /* src */,
+			);
+			path = app;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		477257CFCEF70F73AA30C907 /* PingUp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A9534B977BBE102B1E889485 /* Build configuration list for PBXNativeTarget "PingUp" */;
+			buildPhases = (
+				9508C55CDEDE51A63627C976 /* Build the Kotlin framework */,
+				8F00EDE8837FA041A9CC7B50 /* Sources */,
+				7EE9BF4C10CDA030A919052D /* Add the debug assets */,
+				904624ACF758FDD304E7E37C /* Resources */,
+				15FF970A037667E42E3DF518 /* Set the version */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PingUp;
+			packageProductDependencies = (
+			);
+			productName = PingUp;
+			productReference = F254425B1A6F3FAD5CBF58D2 /* PingUp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		28CAC6DA8941393E5FD7844F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					477257CFCEF70F73AA30C907 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 260FB4554CC0A9BCC7035441 /* Build configuration list for PBXProject "PingUp" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				ro,
+			);
+			mainGroup = 0426A7ADD28D327DEB1F6213;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 140804B90A20B822A23FC2E1 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				477257CFCEF70F73AA30C907 /* PingUp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		904624ACF758FDD304E7E37C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				465DE5A687FB6D976F42F31E /* Assets.xcassets in Resources */,
+				B40911DAB3835CF043AA3473 /* InfoPlist.strings in Resources */,
+				1F174F750DB8933AB3123434 /* PrivacyInfo.xcprivacy in Resources */,
+				3017ECA219C868B35D27E8E6 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		15FF970A037667E42E3DF518 /* Set the version */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Set the version";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# the version of the last release tag, as on Android, and a build number that only grows, which TestFlight\n# wants new for every upload: the number of commits. The app is signed after this, with what it wrote\nplist=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\nversion=$(git -C \"$SRCROOT\" describe --tags --abbrev=0 --match 'v*.*.*' 2>/dev/null | sed 's/^v//')\nbuild=$(git -C \"$SRCROOT\" rev-list --count HEAD 2>/dev/null)\nif [ -n \"$version\" ]; then /usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $version\" \"$plist\"; fi\nif [ -n \"$build\" ]; then /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $build\" \"$plist\"; fi\n";
+		};
+		7EE9BF4C10CDA030A919052D /* Add the debug assets */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Add the debug assets";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# only a debug build carries the demo staff keys, and only it trusts them\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then\n  mkdir -p \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/assets-debug\"\n  cp -R \"$SRCROOT/../app/src/debug/assets/.\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/assets-debug/\"\nfi\n";
+		};
+		9508C55CDEDE51A63627C976 /* Build the Kotlin framework */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build the Kotlin framework";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping the Gradle build: OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED is YES\"\n  exit 0\nfi\n# Xcode starts scripts without the shell's environment: find a JDK as Android Studio would\nif [ -z \"$JAVA_HOME\" ]; then\n  for jdk in \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" \"$(/usr/libexec/java_home 2>/dev/null)\"; do\n    if [ -x \"$jdk/bin/java\" ]; then export JAVA_HOME=\"$jdk\"; break; fi\n  done\nfi\ncd \"$SRCROOT/..\"\n./gradlew :ui:embedAndSignAppleFrameworkForXcode\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8F00EDE8837FA041A9CC7B50 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0106B4EACA1ACFE79E68FB0E /* PingUpApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		6398700908A499B5420D225D /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				AD80B33C55B538CF3FD3A1DA /* en */,
+				2BF05116436C360A237D2D81 /* ro */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		0A029994577EC93BDC297B4A /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D36ED98DF41588AF3FAA629E /* Signing.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = PingUp/PingUp.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
+				INFOPLIST_FILE = PingUp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					PingUpUi,
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		6641B660B8D12322B4EBE8E0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		B864B8ED6B4AEAC2E5B14F29 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		DF1C4175F7984352B3B7D8DC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D36ED98DF41588AF3FAA629E /* Signing.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
+				INFOPLIST_FILE = PingUp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					PingUpUi,
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		260FB4554CC0A9BCC7035441 /* Build configuration list for PBXProject "PingUp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B864B8ED6B4AEAC2E5B14F29 /* Debug */,
+				6641B660B8D12322B4EBE8E0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A9534B977BBE102B1E889485 /* Build configuration list for PBXNativeTarget "PingUp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DF1C4175F7984352B3B7D8DC /* Debug */,
+				0A029994577EC93BDC297B4A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 28CAC6DA8941393E5FD7844F /* Project object */;
+}

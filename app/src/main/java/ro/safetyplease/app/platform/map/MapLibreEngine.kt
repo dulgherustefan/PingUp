@@ -40,9 +40,12 @@ import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
-
-/** #RRGGBB colors from the app theme: text and its halo, "me", friends, and friends seen over 30 minutes ago. */
-data class MapPalette(val ink: String, val halo: String, val me: String, val friend: String, val stale: String)
+import ro.safetyplease.ui.map.FollowMode
+import ro.safetyplease.ui.map.MapFriend
+import ro.safetyplease.ui.map.MapMarker
+import ro.safetyplease.ui.map.MapMe
+import ro.safetyplease.ui.map.MapPalette
+import ro.safetyplease.ui.map.PingMapEngine
 
 /**
  * [PingMapEngine] over a MapLibre map. The overlay sources are kept here as GeoJSON strings and pushed again after

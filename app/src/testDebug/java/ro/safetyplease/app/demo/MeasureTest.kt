@@ -2,7 +2,7 @@ package ro.safetyplease.app.demo
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import ro.safetyplease.app.platform.ble.Advert
+import ro.safetyplease.core.ble.Advert
 import ro.safetyplease.core.mesh.DropReason
 import ro.safetyplease.core.mesh.LinkInfo
 import ro.safetyplease.core.mesh.MeshCounters

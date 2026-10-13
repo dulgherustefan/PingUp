@@ -1,6 +1,7 @@
 package ro.safetyplease.app.platform.map
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.view.MotionEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -16,13 +17,19 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import org.maplibre.android.MapLibre
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import ro.safetyplease.core.venue.GeoPoint
+import ro.safetyplease.ui.map.MapKind
+import ro.safetyplease.ui.map.MapPalette
+import ro.safetyplease.ui.map.OfflineMap
+import ro.safetyplease.ui.map.PingMapEngine
 
 /**
  * The MapLibre view of [pack], kept in step with the screen's lifecycle. [onReady] gets the engine once the map
@@ -93,4 +100,26 @@ fun PingMap(
     }
 
     AndroidView(factory = { view }, modifier = modifier)
+}
+
+/** The MapLibre base map for the screens; its data is copied out of the APK on first use. */
+class AndroidOfflineMap(context: Context) : OfflineMap {
+    init {
+        MapData.start(context)
+    }
+
+    override val kind: StateFlow<MapKind> = MapData.kind
+
+    @Composable
+    override fun Show(
+        dark: Boolean,
+        palette: MapPalette,
+        modifier: Modifier,
+        onTap: (GeoPoint, String?) -> Unit,
+        onReady: (PingMapEngine) -> Unit,
+    ) {
+        val state by MapData.state.collectAsStateWithLifecycle()
+        val pack = (state as? MapState.Ready)?.pack ?: return
+        PingMap(pack, dark, palette, modifier, onTap, onReady)
+    }
 }

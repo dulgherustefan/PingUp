@@ -1,19 +1,25 @@
 package ro.safetyplease.app.platform.ble
 
+import ro.safetyplease.core.ble.BleLayout
 import java.util.UUID
 
-/** Our own UUIDs, generated once. Changing them breaks compatibility with older versions. */
+/** The shared layout as Android's types, and what only the Android radio needs. */
 object BleConstants {
-    val SERVICE: UUID = UUID.fromString("f24a82e1-f0bc-471f-9cae-a9598a2a4dc4")
-    val CHARACTERISTIC: UUID = UUID.fromString("c5d82591-cfb9-45dd-bea5-8447e1811ba6")
-    val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+    val SERVICE: UUID = UUID.fromString(BleLayout.SERVICE)
+    val CHARACTERISTIC: UUID = UUID.fromString(BleLayout.CHARACTERISTIC)
+    val CCCD: UUID = UUID.fromString(BleLayout.CCCD)
 
-    const val ADVERT_VERSION = 1
-    const val ADVERT_DATA_SIZE = 6
+    /**
+     * The legacy set's intervals, in 0.625 ms units, from the list Apple gives accessories (Accessory Design Guidelines):
+     * iOS scans in windows these fall into, so an iPhone finds the phone sooner. 1022.5, 211.25 and 152.5 ms, next to
+     * Android's own 1000, 250 and 100; the Coded set, which no iPhone hears, keeps those.
+     */
+    const val ADVERTISE_LOW_POWER = 1636
+    const val ADVERTISE_BALANCED = 338
+    const val ADVERTISE_LOW_LATENCY = 244
 
     const val REQUESTED_MTU = 517
     const val DEFAULT_MTU = 23
-    const val ATT_OVERHEAD = 3
 
     /** Connect phase only; tune it from the `connected ... in N ms` log lines. */
     const val CONNECT_TIMEOUT_MS = 20_000L
@@ -35,19 +41,8 @@ object BleConstants {
     const val ADVERTISE_START_GIVE_UP_MS = 30_000L
     const val CODED_RETRY_MS = 60_000L
 
-    const val RSSI_ALPHA = 0.3
-
     /** One batch a second: the engine gets about one sighting per second per address anyway. */
     const val SCAN_BATCH_DELAY_MS = 1_000L
-
-    /**
-     * Just under the batch delay: a batch that arrives a few ms early still reports each address,
-     * instead of skipping it until the next batch.
-     */
-    const val REPORT_WINDOW_MS = SCAN_BATCH_DELAY_MS - 100
-    const val FULL_RESULT_HOLD_MS = 10_000L
-    const val LEGACY_PREFERENCE_MS = 3_000L
-    const val SIGHTING_FORGET_MS = 60_000L
 
     /** Android allows at most 5 scan starts per 30 s; 6.5 s apart stays under the limit. */
     const val SCAN_START_SPACING_MS = 6_500L

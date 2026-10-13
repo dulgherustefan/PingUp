@@ -7,6 +7,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import ro.safetyplease.ui.map.MapKind
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -19,9 +20,10 @@ sealed interface MapState {
     class Ready(val pack: MapPack) : MapState
 }
 
-enum class MapKind { PENDING, REAL, FALLBACK }
-
 object MapChoice {
+    /** What the map can be with the drawn map's battery note out of the picture: text-only mode is the screen's call. */
+    fun of(state: MapState): MapKind = of(state, textOnly = false)
+
     /** The real map needs its data; in text-only mode the drawn map shows its battery note instead. */
     fun of(state: MapState, textOnly: Boolean): MapKind = when {
         textOnly -> MapKind.FALLBACK
@@ -38,6 +40,10 @@ object MapChoice {
 object MapData {
     private val _state = MutableStateFlow<MapState>(MapState.Loading)
     val state: StateFlow<MapState> = _state
+    private val _kind = MutableStateFlow(MapKind.PENDING)
+
+    /** [state] as the screens see it. */
+    val kind: StateFlow<MapKind> = _kind
     private val started = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -46,10 +52,15 @@ object MapData {
         val app = context.applicationContext
         val installer = MapInstaller(AssetSource(app.assets), File(app.filesDir, MapInstaller.ASSET_ROOT))
         val seeded = runCatching { installer.installed() }.getOrNull()
-        if (seeded != null) _state.value = MapState.Ready(seeded)
+        if (seeded != null) set(MapState.Ready(seeded))
         scope.launch {
             val pack = runCatching { installer.install() }.getOrNull()
-            if (seeded == null || pack?.dir != seeded.dir) _state.value = pack?.let(MapState::Ready) ?: MapState.Missing
+            if (seeded == null || pack?.dir != seeded.dir) set(pack?.let(MapState::Ready) ?: MapState.Missing)
         }
+    }
+
+    private fun set(state: MapState) {
+        _state.value = state
+        _kind.value = MapChoice.of(state)
     }
 }

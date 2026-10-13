@@ -46,12 +46,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.R
-import ro.safetyplease.app.ui.AppViewModel
-import ro.safetyplease.app.ui.designsystem.ConfirmDialog
-import ro.safetyplease.app.ui.designsystem.LocalAppColors
-import ro.safetyplease.app.ui.designsystem.ScreenScaffold
 import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.control.PointReport
 import ro.safetyplease.core.crypto.CertStatus
@@ -68,6 +65,10 @@ import ro.safetyplease.core.util.nodePrefix
 import ro.safetyplease.core.util.shortHex
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.truncateUtf8
+import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.designsystem.ConfirmDialog
+import ro.safetyplease.ui.designsystem.LocalAppColors
+import ro.safetyplease.ui.designsystem.ScreenScaffold
 
 /** Demo mode, debug builds only: tools for presenting and for debugging the transport. */
 object Demo {
@@ -196,8 +197,9 @@ object Demo {
 
     @Composable
     fun Screen(vm: AppViewModel) {
-        val c = vm.c
         val context = LocalContext.current
+        // the demo drives Android parts too (radio probe, recorder): the whole container, not just the session
+        val c = (context.applicationContext as App).container
         val colors = LocalAppColors.current
         val mesh by vm.mesh.collectAsStateWithLifecycle()
         val settings by vm.settings.collectAsStateWithLifecycle()

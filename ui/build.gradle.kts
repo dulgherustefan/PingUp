@@ -1,0 +1,93 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+// The screens, shared: Compose Multiplatform for the Android app and the iPhone app. Moved here from :app one by one;
+// whatever needs the phone itself (Bluetooth, camera, notifications) stays behind interfaces in :core or the apps.
+plugins {
+    // the Kotlin plugin is already on the classpath from the root build.gradle.kts, so no version here
+    id("org.jetbrains.kotlin.multiplatform")
+    alias(libs.plugins.android.kmp.library)
+    alias(libs.plugins.compose.multiplatform)
+    alias(libs.plugins.kotlin.compose)
+}
+
+kotlin {
+    android {
+        namespace = "ro.safetyplease.ui"
+        compileSdk = 37
+        minSdk = 26
+        compilerOptions { jvmTarget = JvmTarget.JVM_17 }
+        // off by default in AGP 9's library plugin; without it the shared resources (fonts, files) never reach the APK
+        androidResources { enable = true }
+        // the shared tests run on the JVM too, as `./gradlew test` and CI run them
+        withHostTest {}
+    }
+    // the iPhone app links one static framework with the screens, :core and libsodium in it
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "PingUpUi"
+            isStatic = true
+        }
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            // the screens' API speaks in the session's types and the shared texts' resources
+            api(project(":core"))
+            implementation(libs.compose.mp.runtime)
+            implementation(libs.compose.mp.foundation)
+            implementation(libs.compose.mp.ui)
+            implementation(libs.compose.mp.navigationevent)
+            api(libs.compose.mp.resources)
+            implementation(libs.compose.mp.material3)
+            implementation(libs.compose.mp.lifecycle.viewmodel)
+            implementation(libs.compose.mp.lifecycle.runtime)
+            implementation(libs.qrcode)
+        }
+        androidMain.dependencies {
+            // permissions and the activity's own windows: launchers, rationale, orientation
+            implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.core.ktx)
+            // scanning QR codes: the camera's frames, read by zxing
+            implementation(libs.androidx.camera.core)
+            implementation(libs.androidx.camera.camera2)
+            implementation(libs.androidx.camera.lifecycle)
+            implementation(libs.androidx.camera.view)
+            implementation(libs.zxing.core)
+        }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
+    }
+}
+
+compose.resources {
+    packageOfResClass = "ro.safetyplease.ui.resources"
+    // the Android app still uses them from code that isn't shared yet
+    publicResClass = true
+}
+
+// The tests read the app's assets by path: the iPhone simulator runs them off the Mac's disk too
+val testEnvironment = tasks.register("testEnvironment") {
+    val root = rootDir.absolutePath
+    val output = layout.buildDirectory.dir("generated/testEnvironment")
+    inputs.property("root", root)
+    outputs.dir(output)
+    doLast {
+        val file = output.get().file("ro/safetyplease/ui/TestEnvironment.kt").asFile
+        file.parentFile.mkdirs()
+        file.writeText(
+            "package ro.safetyplease.ui\n\n/** Where the repository is on the machine that built the tests. */\n" +
+                "internal const val REPO_ROOT = \"" + root.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\"\n",
+        )
+    }
+}
+kotlin.sourceSets.commonTest { kotlin.srcDir(testEnvironment) }
+// lint reads the test sources too, the generated file among them, but doesn't know which task writes it
+tasks.configureEach { if (name.startsWith("lint") || name.endsWith("LintModel")) dependsOn(testEnvironment) }
+
+// `./gradlew test`, as CI runs it, runs the shared tests here on the JVM
+tasks.register("test") {
+    description = "Runs the shared tests on the JVM."
+    group = "verification"
+    dependsOn("testAndroidHostTest")
+}

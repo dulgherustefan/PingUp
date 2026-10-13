@@ -28,28 +28,20 @@ import ro.safetyplease.core.location.FixMethod
 import ro.safetyplease.core.location.GnssStats
 import ro.safetyplease.core.location.Heading
 import ro.safetyplease.core.location.LocationFix
+import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.GeoPoint
-
-/** [accuracyM] is the radius Android gives the fix, in metres; 0 when it gives none. */
-data class GeoFix(val lat: Double, val lon: Double, val accuracyM: Float, val timeMs: Long) {
-    fun isFresh(nowMs: Long) = nowMs - timeMs < FRESH_MS
-
-    companion object {
-        /** An older fix is no longer where the person is: a report would send a team to the wrong place. */
-        const val FRESH_MS = 2 * 60_000L
-    }
-}
 
 /**
  * Position from GPS_PROVIDER, without Play Services or network: offline the chipset decides the accuracy, not the
  * provider. Fixes heard passively from other apps come for free. How often the chip is asked follows [DutyCycle]; every
  * fix passes [FixGate] before anyone sees it. Runs while a screen is visible ([start]/[stop]) or a share session is on.
  */
-class LocationSource(private val context: Context, water: List<List<GeoPoint>>, private val batteryPct: () -> Int) {
+class LocationSource(private val context: Context) {
     private val manager: LocationManager? = context.getSystemService(LocationManager::class.java)
     private val executor = ContextCompat.getMainExecutor(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val gate = FixGate(water)
+    private var gate = FixGate(emptyList())
+    private var batteryPct: () -> Int = { 100 }
     private val motion = Motion(context)
     val diagnostics = GnssDiagnostics(manager)
     private val _fix = MutableStateFlow<GeoFix?>(null)
@@ -100,6 +92,12 @@ class LocationSource(private val context: Context, water: List<List<GeoPoint>>, 
 
     /** The phone's location setting: with it off there is no fix, whatever the permission. */
     fun isGpsOn(): Boolean = runCatching { manager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true }.getOrDefault(false)
+
+    /** The event's water, where no fix can be, and the battery level for the diagnostic log; the session knows them once it runs. */
+    fun configure(water: List<List<GeoPoint>>, batteryPct: () -> Int) {
+        gate = FixGate(water)
+        this.batteryPct = batteryPct
+    }
 
     /** A screen that shows or uses the position is visible. */
     fun start() {
@@ -253,7 +251,8 @@ class LocationSource(private val context: Context, water: List<List<GeoPoint>>, 
         cycle?.onFix(SystemClock.elapsedRealtime(), fix)
         if (method != FixMethod.CACHED) diagnostics.onFix(fix)
         _located.value = fix
-        _fix.value = GeoFix(fix.lat, fix.lon, fix.accuracyM, fix.timeMs)
+        val course = fix.headingDeg?.takeIf { (fix.speedMps ?: 0f) > Heading.COURSE_MIN_SPEED_MPS }
+        _fix.value = GeoFix(fix.lat, fix.lon, fix.accuracyM, fix.timeMs, course)
     }
 
     private fun ageMs(location: Location) = SystemClock.elapsedRealtime() - location.elapsedRealtimeNanos / 1_000_000

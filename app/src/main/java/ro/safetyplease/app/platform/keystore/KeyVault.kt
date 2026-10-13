@@ -3,6 +3,7 @@ package ro.safetyplease.app.platform.keystore
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import ro.safetyplease.core.session.Vault
 import java.io.File
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -14,10 +15,10 @@ import javax.crypto.spec.GCMParameterSpec
  * App secrets (identity, staff seeds) are stored AES-GCM encrypted with an Android Keystore key
  * that never leaves the phone's hardware.
  */
-class KeyVault(context: Context) {
+class KeyVault(context: Context) : Vault {
     private val dir = File(context.filesDir, "vault").apply { mkdirs() }
 
-    fun load(name: String): ByteArray? = try {
+    override fun load(name: String): ByteArray? = try {
         val bytes = File(dir, name).readBytes()
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, bytes, 0, IV_SIZE))
@@ -26,14 +27,21 @@ class KeyVault(context: Context) {
         null
     }
 
-    fun save(name: String, secret: ByteArray) {
+    override fun save(name: String, secret: ByteArray) {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
         File(dir, name).writeBytes(cipher.iv + cipher.doFinal(secret))
     }
 
-    fun delete(name: String) {
+    override fun delete(name: String) {
         File(dir, name).delete()
+    }
+
+    override fun exists(name: String): Boolean = File(dir, name).exists()
+
+    /** Keeps a secret that can no longer be decrypted as `name.bad`, so it isn't overwritten. */
+    override fun setAside(name: String) {
+        File(dir, name).renameTo(File(dir, "$name.bad"))
     }
 
     private fun key(): SecretKey {

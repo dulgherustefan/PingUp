@@ -7,6 +7,7 @@ import androidx.core.location.GnssStatusCompat
 import androidx.core.location.LocationManagerCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.datetime.TimeZone
 import ro.safetyplease.core.location.GnssCsv
 import ro.safetyplease.core.location.GnssStats
 import ro.safetyplease.core.location.GnssSummary
@@ -15,7 +16,6 @@ import ro.safetyplease.core.location.LocationFix
 import ro.safetyplease.core.location.SatSignal
 import java.io.File
 import java.text.SimpleDateFormat
-import java.time.ZoneId
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executor
@@ -84,7 +84,7 @@ class GnssDiagnostics internal constructor(private val manager: LocationManager?
     }
 
     /** Writes the per-minute log as `gnss-<model>-<time>.csv` in [dir]. */
-    fun writeCsv(dir: File, nowMs: Long, zone: ZoneId): File {
+    fun writeCsv(dir: File, nowMs: Long, zone: TimeZone): File {
         val model = "${Build.MANUFACTURER} ${Build.MODEL}"
         val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.ROOT).format(Date(nowMs))
         val name = "gnss-" + model.replace(Regex("[^A-Za-z0-9]+"), "_") + "-$stamp.csv"

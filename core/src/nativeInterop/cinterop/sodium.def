@@ -1,0 +1,4 @@
+# libsodium for the iOS targets; core/build.gradle.kts points it at the build of tools/build_libsodium_ios.sh
+package = sodium
+headers = sodium.h
+staticLibraries = libsodium.a

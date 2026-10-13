@@ -27,11 +27,6 @@ import kotlinx.coroutines.launch
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.core.data.Role
-import ro.safetyplease.core.incidents.IncidentManager
-import ro.safetyplease.core.mesh.AnchorHeartbeat
-import ro.safetyplease.core.mesh.DeviceReadings
-import ro.safetyplease.core.mesh.PowerPolicy
-import ro.safetyplease.core.metrics.NetworkLog
 
 /**
  * Keeps the mesh running with the screen off. Android requires a connectedDevice foreground service
@@ -41,10 +36,7 @@ import ro.safetyplease.core.metrics.NetworkLog
 class MeshService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var container: AppContainer
-    private val battery get() = container.battery.state
     private val screenOn = MutableStateFlow(true)
-    private val boosting = MutableStateFlow(false)
-    private val reportPending = MutableStateFlow(false)
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -69,11 +61,12 @@ class MeshService : Service() {
         }
         running = true
         setWanted(this, true)
-        container.meshScope.launch { container.radio.start() }
         screenOn.value = getSystemService(PowerManager::class.java)?.isInteractive ?: true
         val screenEvents = IntentFilter(Intent.ACTION_SCREEN_ON).apply { addAction(Intent.ACTION_SCREEN_OFF) }
         ContextCompat.registerReceiver(this, screenReceiver, screenEvents, ContextCompat.RECEIVER_NOT_EXPORTED)
 
+        // the radio, its power and an anchor's heartbeat, until the service ends and cancels the scope
+        scope.launch { container.runMesh(screenOn) }
         scope.launch {
             val links = container.engine.state.map { it.readyLinks }.distinctUntilChanged()
             val role = container.settings.state.map { it.role }.distinctUntilChanged()
@@ -82,61 +75,6 @@ class MeshService : Service() {
                 delay(1_000)
                 container.notifier.updateForeground(count, isAnchor, sharing)
             }
-        }
-        scope.launch {
-            container.boostUntil.collectLatest { until ->
-                val remaining = until - container.clock.monoMs()
-                boosting.value = remaining > 0
-                if (remaining > 0) {
-                    delay(remaining)
-                    boosting.value = false
-                }
-            }
-        }
-        scope.launch {
-            container.incidentStore.state.map { it.mine }.distinctUntilChanged().collectLatest { mine ->
-                while (true) {
-                    val until = IncidentManager.pendingUntil(mine, container.clock.wallMs())
-                    reportPending.value = until != null
-                    if (until == null) break
-                    delay(until - container.clock.wallMs())
-                }
-            }
-        }
-        scope.launch {
-            val role = container.settings.state.map { it.role }.distinctUntilChanged()
-            combine(role, battery, screenOn, boosting, reportPending) { r, b, screen, boost, pending ->
-                PowerPolicy.plan(r.hasStaffKeys, r == Role.ANCHOR, b.percent, b.charging, screen, boost, pending)
-            }.distinctUntilChanged().collect { plan ->
-                container.meshScope.launch { container.radio.setPower(plan) }
-            }
-        }
-        scope.launch {
-            container.settings.state.map { it.role == Role.ANCHOR }.distinctUntilChanged().collectLatest { anchor ->
-                if (anchor) beatAsAnchor()
-            }
-        }
-    }
-
-    /**
-     * Tells the console this anchor is alive, how its battery is and what it hears (PROTOCOL.md, section 6.9), with
-     * its square of the site grid once it had a fix there and, with the mobile network log on, its last sample.
-     */
-    private suspend fun beatAsAnchor() {
-        val heartbeat = AnchorHeartbeat()
-        var square: Pair<Int, Int>? = null
-        while (true) {
-            delay(AnchorHeartbeat.CHECK_MS)
-            val b = battery.value
-            val device = DeviceReadings(b.percent, b.charging, b.temperatureC)
-            val settings = container.settings.value
-            val now = container.clock.wallMs()
-            container.location.fix.value?.takeIf { it.isFresh(now) }?.let { fix -> container.grid.squareAt(fix.lat, fix.lon)?.let { square = it } }
-            val sample = container.networkLog.value.samples.lastOrNull()
-                ?.takeIf { settings.networkLog && now - it.at <= 2 * NetworkLog.INTERVAL_MS }
-            val mobile = sample?.let(AnchorHeartbeat::mobileOf)
-            heartbeat.next(container.engine.state.value, device, settings.anchorZone, container.clock.monoMs(), mobile, square)
-                ?.let { container.sendHeartbeat(it) }
         }
     }
 
@@ -149,6 +87,12 @@ class MeshService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            container.settings.update { it.copy(meshEnabled = false) }
+            setWanted(this, false)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (running && intent?.action == ACTION_STOP_SHARING) {
             container.stopAllShares()
             runCatching { goForeground(location = false) }
@@ -164,17 +108,18 @@ class MeshService : Service() {
         if (running) {
             running = false
             runCatching { unregisterReceiver(screenReceiver) }
-            container.meshScope.launch { container.radio.stop() }
         }
         scope.cancel()
         super.onDestroy()
     }
 
     companion object {
+        /** From the notification's button: turns the network off until the user turns it back on. */
+        const val ACTION_STOP = "ro.safetyplease.app.STOP_MESH"
         private const val PREFS = "mesh_service"
         private const val KEY_WANTED = "wanted"
         private const val EXTRA_LOCATION = "location"
-        private const val ACTION_STOP_SHARING = "org.pingup.app.STOP_SHARING"
+        private const val ACTION_STOP_SHARING = "ro.safetyplease.app.STOP_SHARING"
 
         @Volatile
         var running = false

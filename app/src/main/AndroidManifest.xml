@@ -96,13 +96,18 @@
 
         <!-- Shares the control console's shift log and the pilot metrics; only the export folder in the cache is reachable. -->
         <provider
-            android:name=".ui.control.LogFiles"
+            android:name=".platform.share.LogFiles"
             android:authorities="${applicationId}.log"
             android:exported="false"
-            android:grantUriPermissions="true" />
+            android:grantUriPermissions="true">
+            <!-- getUriForFile reads the paths from here; the provider's constructor alone isn't enough -->
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/log_paths" />
+        </provider>
 
         <receiver
-            android:name=".ui.control.ExportShared"
+            android:name=".platform.share.ExportShared"
             android:exported="false" />
 
         <receiver

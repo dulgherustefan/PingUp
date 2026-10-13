@@ -4,9 +4,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import kotlinx.datetime.TimeZone
+import okio.Path.Companion.toOkioPath
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
-import ro.safetyplease.app.ui.me.phoneMetrics
+import ro.safetyplease.ui.me.phoneMetrics
 import ro.safetyplease.core.crypto.QrCodes
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.protocol.AckStatus
@@ -17,7 +19,6 @@ import ro.safetyplease.core.util.shortHex
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.toLong
 import ro.safetyplease.core.venue.GeoPoint
-import java.time.ZoneId
 
 /**
  * Test commands over adb, debug builds only. Replies go to logcat, tag MeshDebug.
@@ -29,7 +30,7 @@ import java.time.ZoneId
  *   adb pull /sdcard/Android/data/org.pingup.app/files/measure/
  * The pilot metrics, as the settings screen exports them, go to the same folder: --es cmd metrics.
  *
- * Demo kit (README, "Demo"): control, staff (--es team "Medical 1" --es zone main-stage --ez lead true) and
+ * Demo kit (DEMO.md): control, staff (--es team "Medical 1" --es zone main-stage --ez lead true) and
  * anchor (--es zone bar) take shifts of the demo key chain; pack loads the demo event pack and restarts the app;
  * scenario seeds the console's test data and reset takes it back; prieteni seeds friends sharing their position.
  */
@@ -131,7 +132,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
             "measure" -> measure(Demo.recorder(context, c), arg("action"), intent)
             "metrics" -> {
                 val dir = Demo.recorder(context, c).directory ?: error("external storage unavailable")
-                val files = c.phoneMetrics().writeTo(dir.apply { mkdirs() }, c.clock.wallMs(), ZoneId.systemDefault())
+                val files = c.phoneMetrics().writeTo(dir.apply { mkdirs() }.toOkioPath(), c.clock.wallMs(), TimeZone.currentSystemDefault())
                 "${files.size} files: adb pull $dir/"
             }
             else -> "unknown command"

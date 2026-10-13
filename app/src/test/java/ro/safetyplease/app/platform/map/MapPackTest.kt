@@ -13,6 +13,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ro.safetyplease.ui.map.MapKind
 import java.io.File
 import java.io.InputStream
 import java.nio.file.Files

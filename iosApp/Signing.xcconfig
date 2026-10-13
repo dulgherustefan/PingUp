@@ -1,0 +1,12 @@
+// Signing on your Mac. What Xcode's Signing & Capabilities sets is lost each time xcodegen makes the project again, so
+// your team goes in Local.xcconfig, next to this file and out of git:
+//
+//   DEVELOPMENT_TEAM = ABCDE12345
+//
+// A free Apple account can't sign a bundle id that another team already registered, so each of you on a free account
+// adds a suffix of their own in the same file:
+//
+//   PRODUCT_BUNDLE_IDENTIFIER = org.pingup.app.stefan
+PRODUCT_BUNDLE_IDENTIFIER = org.pingup.app
+CODE_SIGN_STYLE = Automatic
+#include? "Local.xcconfig"

@@ -48,6 +48,8 @@ try:
 except ImportError:
     sys.exit('PyNaCl is missing: pip install pynacl "qrcode[pil]"')
 
+from check_venue import problems as venue_problems
+
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "tools" / "out"
 SEEDS = OUT / "staff_seeds.json"
@@ -292,6 +294,10 @@ def pack_body(args, state: dict) -> str:
 
 def cmd_pack(args) -> None:
     """The organiser signs SP-PACK-v1 || the body; phones check that and the chain up to the root in the app."""
+    # a signed pack can't be fixed on the phones, so a broken map stops here
+    found = venue_problems(json.loads(Path(args.venue).read_text(encoding="utf-8")))
+    if found:
+        sys.exit(f"{args.venue}:\n" + "\n".join(found))
     state = chain_state("organiser", event_step(args))
     body = pack_body(args, state)
     _, organiser_secret = sign_pair(bytes.fromhex(state["organiser"]["seed"]))

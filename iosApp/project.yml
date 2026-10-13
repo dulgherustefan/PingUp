@@ -1,0 +1,108 @@
+# The iPhone app. Generate the Xcode project from this file after changing it:
+#
+#   cd iosApp && xcodegen
+#
+# Swift only hosts the shared screens from :ui (Compose Multiplatform); Xcode builds them through Gradle first.
+name: PingUp
+options:
+  bundleIdPrefix: org.pingup
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+targets:
+  PingUp:
+    type: application
+    platform: iOS
+    scheme: {}
+    sources:
+      - path: PingUp
+      # what the app ships with: the Android app's assets, the same files
+      - path: ../app/src/main/assets
+        type: folder
+        buildPhase: resources
+    info:
+      path: PingUp/Info.plist
+      properties:
+        CFBundleDisplayName: Ping Up
+        # Romanian first, English second, as values/ and values-en/ on Android
+        CFBundleDevelopmentRegion: ro
+        CFBundleLocalizations: [ro, en]
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # the app's own background while it starts, white or the green-black night (Android's windowBackground);
+        # left empty, iOS shows pure black in dark mode and then fades it into the app
+        UILaunchScreen:
+          UIColorName: Background
+        # all the app ever shows; landscape only for the control console, as the app delegate says
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        # Compose draws at the screen's own rate (120 Hz on ProMotion) only with this
+        CADisableMinimumFrameDurationOnPhone: true
+        # the mesh keeps going with the app in the background: scanning and connecting, and the server others connect to
+        UIBackgroundModes: [bluetooth-central, bluetooth-peripheral]
+        # why each permission is asked, in Romanian here and in each language in <language>.lproj/InfoPlist.strings
+        NSCameraUsageDescription: Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.
+        NSBluetoothAlwaysUsageDescription: Ping Up trimite mesajele și rapoartele din telefon în telefon prin Bluetooth, fără semnal, chiar și cu telefonul în buzunar.
+        NSLocationWhenInUseUsageDescription: Poziția arată în ce zonă ești și ajunge la echipe doar când trimiți un raport, ca să te găsească.
+    # the bundle id and the team, which a Local.xcconfig of your own can change (Signing.xcconfig says how)
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
+    settings:
+      base:
+        # one 1024 px icon, drawn from the same artwork as the Android one; iOS rounds the corners
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # only when git can't tell: "Set the version" below takes them from the last release tag and the commits
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        TARGETED_DEVICE_FAMILY: "1"
+        # the Kotlin framework has no Intel simulator slice (iosX64 is a tier 3 target since Kotlin 2.3)
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
+        FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        OTHER_LDFLAGS: [$(inherited), -framework, PingUpUi]
+        # Gradle writes the framework outside the sandbox Xcode gives build scripts
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+      configs:
+        # urgent alerts break through Focus only with Time Sensitive Notifications, a capability of the paid Apple
+        # Developer Program, which a release needs anyway; Debug builds leave it out, so a free account can still run
+        # the app on a phone
+        Release:
+          CODE_SIGN_ENTITLEMENTS: PingUp/PingUp.entitlements
+    postCompileScripts:
+      - name: Add the debug assets
+        basedOnDependencyAnalysis: false
+        script: |
+          # only a debug build carries the demo staff keys, and only it trusts them
+          if [ "$CONFIGURATION" = "Debug" ]; then
+            mkdir -p "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/assets-debug"
+            cp -R "$SRCROOT/../app/src/debug/assets/." "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/assets-debug/"
+          fi
+    postBuildScripts:
+      - name: Set the version
+        basedOnDependencyAnalysis: false
+        script: |
+          # the version of the last release tag, as on Android, and a build number that only grows, which TestFlight
+          # wants new for every upload: the number of commits. The app is signed after this, with what it wrote
+          plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+          version=$(git -C "$SRCROOT" describe --tags --abbrev=0 --match 'v*.*.*' 2>/dev/null | sed 's/^v//')
+          build=$(git -C "$SRCROOT" rev-list --count HEAD 2>/dev/null)
+          if [ -n "$version" ]; then /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$plist"; fi
+          if [ -n "$build" ]; then /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build" "$plist"; fi
+    preBuildScripts:
+      - name: Build the Kotlin framework
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "YES" = "$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED" ]; then
+            echo "Skipping the Gradle build: OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED is YES"
+            exit 0
+          fi
+          # Xcode starts scripts without the shell's environment: find a JDK as Android Studio would
+          if [ -z "$JAVA_HOME" ]; then
+            for jdk in "/Applications/Android Studio.app/Contents/jbr/Contents/Home" "$(/usr/libexec/java_home 2>/dev/null)"; do
+              if [ -x "$jdk/bin/java" ]; then export JAVA_HOME="$jdk"; break; fi
+            done
+          fi
+          cd "$SRCROOT/.."
+          ./gradlew :ui:embedAndSignAppleFrameworkForXcode

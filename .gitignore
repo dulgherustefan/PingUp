@@ -11,6 +11,8 @@ captures/
 
 # local machine
 local.properties
+xcuserdata/
+iosApp/Local.xcconfig
 .idea/
 *.iml
 .DS_Store

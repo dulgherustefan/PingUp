@@ -18,9 +18,7 @@ import androidx.core.content.ContextCompat
 import ro.safetyplease.app.Emergency
 import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.R
-import ro.safetyplease.app.text.Labels
-import ro.safetyplease.app.text.Replies
-import ro.safetyplease.app.text.needsEscalation
+import ro.safetyplease.app.text.text
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.data.ChatMessage
@@ -30,8 +28,12 @@ import ro.safetyplease.core.incidents.AlertLevel
 import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.incidents.AlertReason
 import ro.safetyplease.core.incidents.Discreet
+import ro.safetyplease.core.incidents.needsEscalation
 import ro.safetyplease.core.position.SharingNow
+import ro.safetyplease.core.session.Notifications
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.text.Labels
+import ro.safetyplease.ui.text.Replies
 
 /**
  * The app's notifications. In an [exercise] every title says so and no alert sounds the alarm: the insistent level
@@ -39,7 +41,7 @@ import ro.safetyplease.core.venue.Venue
  */
 // Every notify() is preceded by canPost(); lint can't see a permission check made in a helper.
 @SuppressLint("MissingPermission")
-class Notifier(private val context: Context, private val venue: Venue, private val exercise: Boolean) {
+class Notifier(private val context: Context, private val venue: Venue, private val exercise: Boolean) : Notifications {
     private val manager = NotificationManagerCompat.from(context)
 
     init {
@@ -129,10 +131,15 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             )
             builder.addAction(R.drawable.ic_notification, context.getString(R.string.sharing_stop), stop)
         }
-        // an anchor only relays; its screen has no report tab
+        // an anchor only relays; its screen has no report tab, and nobody passing by should be able to switch it off
         if (!anchor) {
             val report = open(MainActivity.OPEN_REPORT, RequestCodes.REPORT_ACTION)
             builder.addAction(R.drawable.ic_report, context.getString(R.string.action_report), report)
+            val stop = PendingIntent.getService(
+                context, RequestCodes.STOP_MESH, Intent(context, MeshService::class.java).setAction(MeshService.ACTION_STOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            builder.addAction(0, context.getString(R.string.notif_mesh_stop), stop)
         }
         return builder.build()
     }
@@ -148,7 +155,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
     }
 
     /** Every 4 hours of a share without an end: "partajezi locația cu N prieteni". */
-    fun shareReminder(people: Int) {
+    override fun shareReminder(people: Int) {
         if (!canPost()) return
         val notification = NotificationCompat.Builder(context, CHANNEL_SHARING)
             .setSmallIcon(R.drawable.ic_notification)
@@ -174,7 +181,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
     }
 
     /** The phone's shift certificate ran out, so it went back to being a participant's. */
-    fun shiftEnded() {
+    override fun shiftEnded() {
         if (!canPost()) return
         val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
             .setSmallIcon(R.drawable.ic_notification)
@@ -188,16 +195,16 @@ class Notifier(private val context: Context, private val venue: Venue, private v
     }
 
     /** A staff alert as [ro.safetyplease.core.incidents.AlertPlanner] decided it: the channel follows the level. */
-    fun staffAlert(post: AlertPost) {
+    override fun staffAlert(post: AlertPost) {
         if (!canPost()) return
         val incident = post.incident
         val zone = if (incident.zone.isEmpty()) context.getString(R.string.zone_unknown) else venue.zoneName(incident.zone)
-        val category = context.getString(Labels.category(incident.category))
+        val category = context.text(Labels.category(incident.category))
         val title = when (post.route.reason) {
             AlertReason.ASSIGNED -> context.getString(R.string.notif_assigned_title, category)
             AlertReason.UNACCEPTED -> context.getString(R.string.notif_unaccepted_title, incident.teamName, category)
             AlertReason.ROLE, AlertReason.EVERYONE -> context.getString(R.string.notif_widened_title, category)
-            else -> context.getString(R.string.notif_incident_title, category, context.getString(Labels.urgency(incident.severity)))
+            else -> context.getString(R.string.notif_incident_title, category, context.text(Labels.urgency(incident.severity)))
         }
         val level = post.route.level
         val channel = when (level) {
@@ -221,17 +228,16 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         manager.notify(id, builder.build())
     }
 
-    fun cancelStaffAlert(incidentId: String) = manager.cancel(incidentId.hashCode())
+    override fun cancelStaffAlert(incidentId: String) = manager.cancel(incidentId.hashCode())
 
     /**
      * Status of your report, in the same words as its screen. An urgent report nobody on staff has confirmed in time
      * tells you to look for help in person and offers to call 112.
      */
-    fun reportUpdate(report: MyReport, nowMs: Long) {
+    override fun reportUpdate(report: MyReport, nowMs: Long) {
         if (!canPost()) return
-        val status = Labels.myReportStatus(report.status, report.teamName.isNotEmpty())?.let {
-            if (it == R.string.status_acknowledged) context.getString(it, report.teamName) else context.getString(it)
-        }
+        // only the acknowledged status names the team; the others leave the argument out
+        val status = Labels.myReportStatus(report.status, report.teamName.isNotEmpty())?.let { context.text(it, report.teamName) }
         val escalate = report.needsEscalation(nowMs)
         if (status == null && !escalate) return
         val id = report.incidentId.hashCode() xor 0x5a5a
@@ -260,11 +266,11 @@ class Notifier(private val context: Context, private val venue: Venue, private v
      * The console's latest answer to your report, in the foreground too: it is what you are waiting for, so it sounds
      * and vibrates on the status channel.
      */
-    fun reportResponse(report: MyReport) {
+    override fun reportResponse(report: MyReport) {
         val response = report.responses.lastOrNull() ?: return
         if (!canPost()) return
         val id = report.incidentId.hashCode() xor 0x2b2b
-        val text = Replies.response(context.resources, venue, response.code, response.landmark)
+        val text = context.text(Replies.response(response.code), Replies.landmarkName(venue, response.landmark))
         val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.notif_response_title))
@@ -276,13 +282,13 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         manager.notify(id, notification)
     }
 
-    fun chatMessage(message: ChatMessage, senderName: String) {
+    override fun chatMessage(message: ChatMessage, senderName: String) {
         if (!canPost()) return
         val text = when (message.kind) {
             MsgKind.TEXT -> message.text
-            MsgKind.QUICK -> context.getString(Labels.quick(message.quickCode))
+            MsgKind.QUICK -> context.text(Labels.quick(message.quickCode))
             MsgKind.ZONE -> context.getString(R.string.msg_zone, venue.zoneName(message.zone))
-            MsgKind.SYSTEM -> context.getString(R.string.msg_group_invite, senderName)
+            MsgKind.SYSTEM -> context.text(Labels.systemNotice(message.conversation), senderName)
             MsgKind.LEFT -> context.getString(R.string.msg_group_left, message.text)
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_CHAT)
@@ -295,13 +301,13 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         manager.notify(message.conversation.hashCode(), notification)
     }
 
-    fun cancelConversation(conversation: String) = manager.cancel(conversation.hashCode())
+    override fun cancelConversation(conversation: String) = manager.cancel(conversation.hashCode())
 
     /**
      * A notice from the organiser, one notification per topic: a newer one replaces it, a withdrawn one takes it away.
      * A pause or an evacuation takes the screen once and sounds; in an exercise, it only vibrates on the quiet channel.
      */
-    fun notice(notice: Notice, title: String, text: String) {
+    override fun notice(notice: Notice, title: String, text: String) {
         val id = NOTICE_ID + notice.topic
         if (notice.cancelled) return manager.cancel(id)
         if (!canPost()) return

@@ -1,0 +1,274 @@
+# Ping Up wire format v1 (protocol 1.0 and 1.1): golden vectors. Format: "<name> <value>"; values are lowercase hex, except qr.* (text).
+# Lines starting with # are comments. Checked both ways by core/src/commonTest/.../protocol/GoldenVectorsTest.kt.
+# Any change to these bytes is a wire change: see PROTOCOL.md, "Golden vectors".
+#
+# Conventions: seed(B) = the 32 bytes B, B+1, ..., B+31. TIME = 1760000000 (0x68e77800).
+# INCIDENT_ID = 00112233445566778899aabbccddeeff. TOKEN = 202122...2f (16 bytes).
+# MSG = 0102030405060708, GROUP = 1112131415161718, OTHER = 2122232425262728.
+
+# X25519 key pairs come from crypto_box_seed_keypair, Ed25519 from crypto_sign_seed_keypair (libsodium).
+# staff: box seed(0x10), sign seed(0x30); alice: box seed(0x50), sign seed(0x70); bob: box seed(0x90), sign seed(0xb0).
+key.staff.box 0427a5d75c1471e72fc176011f82968caa76dbd2bd661cd736b6e8834ac58f0e
+key.staff.sign 8bb04e1c1b83dddf311f5bcddf7c50ede3c0802f47ec796e2a131cf41298d9f3
+key.alice.box 1084f97dcc3125bdd2c3ccbe57dc872fe246539a43565830f47e6e78257b3a72
+key.alice.sign 1ce56a48c82ff99162a14bc544612674e5d61fb9317e65d4055780fdbcb4dc35
+key.bob.box f7b4a75fae0c61698d629f65c0ef21b380434bcc43c139f6b0d5255e3641d863
+key.bob.sign 74fca2a3b389fb1a64d9bf52cc0dd4c2964f3804c0cf7c755e8513c6db8198dc
+# nodeId = first 8 bytes of SHA-256(sign public || box public).
+node.alice 79388b6b02a70d49
+node.bob a172a384b1dc84a5
+
+# Whole frame: TEST, ttl 7, id 0123456789abcdef, sender f0e1d2c3b4a59687, TIME, no recipient, E=0, payload "ping".
+frame.test 017f07000123456789abcdeff0e1d2c3b4a5968768e77800000470696e67
+# Whole frame: PRIVATE, ttl 5, id 0123456789abcdef, sender node.alice, TIME, recipient node.bob, E=1, payload private.box.
+frame.private 012005050123456789abcdef79388b6b02a70d4968e778000045a172a384b1dc84a5e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7bcc50159847f3c091d324a3c6dbd75d6137db72ae9d85fcef99d38bbe145743426c021490c4e822f631249d007
+# PRIVATE, ttl 7, id 0011223344556677, sender node.alice, TIME, recipient node.bob, E=1, payload 00 01 ... 3b (60 bytes),
+# split for a 64-byte frame with fragId beef: chunks of 26, 26 and 8 bytes.
+frame.fragment.0 01200707001122334455667779388b6b02a70d4968e77800001aa172a384b1dc84a5beef0003000102030405060708090a0b0c0d0e0f10111213141516171819
+frame.fragment.1 01200707001122334455667779388b6b02a70d4968e77800001aa172a384b1dc84a5beef01031a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233
+frame.fragment.2 01200707001122334455667779388b6b02a70d4968e778000008a172a384b1dc84a5beef02033435363738393a3b
+# Dedup key of frame.private (local, never sent; informative).
+dedup.private ec0ee9d19e53affb
+
+# HELLO: version 1, nodeId node.alice, flags STAFF|ACCEPTS_CONNECTIONS (0x09), no nickname.
+hello 0179388b6b02a70d490900
+# HELLO: version 1, nodeId node.alice, flags PENDING_INCIDENT (0x04), nickname "Ana" (debug builds only).
+hello.nick 0179388b6b02a70d490403416e61
+# SUMMARY: (00112233..77, report, NONE), (0102030405060708, no report, RESOLVED), (fffffffffffffffe, report, CANCELLED).
+summary 03001122334455667780010203040506070803fffffffffffffffe84
+# REQUEST: (00112233..77, report), (0102030405060708, ack), (fffffffffffffffe, report and ack).
+request 03001122334455667780010203040506070801fffffffffffffffe81
+
+# Incident body: MEDICAL, URGENT, TIME, zone "Scena mare", 44.426765, 26.102538,
+# description "Persoană căzută lângă gard", nickname "Ana", cancelHash = incident.cancelHash.
+incident.body 010368e77800070a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef7
+# Incident body: CROWD, LOW, TIME, zone "", no coordinates, description "", no nickname, no cancel hash.
+incident.body.minimal 050168e7780000000000
+# First 16 bytes of SHA-256("SP-CANCEL-v1" || TOKEN).
+incident.cancelHash 0117b666bb268fe792c6157cd295fef7
+# INCIDENT_REPORT payload: INCIDENT_ID || crypto_box_seal(incident.body) to key.staff.box, with the ephemeral key pair
+# crypto_box_seed_keypair(seed(0xd0)) instead of a random one. Real seals are randomized; only opening is fixed.
+incident.report 00112233445566778899aabbccddeeffea831a2f8791781cc3cabafbe15ae5dc6c5f9d8023c0f4df9094ecffe0981132eb2f5972d5b556fe16b3808dd6e52c618d8c865aeaac0bb596441050ad4356e18b8a4b4b890c1756a1f82a61e029c0ac673fb1be80a9ae231e335c75973e17b68df11711189a739bc2f4f37a0c4b6836564c8be113578f7eb33037b9c68b2e
+# Bytes the ACK signature covers: "SP-ACK-v1" || INCIDENT_ID, ACKNOWLEDGED, TIME+60, team "Medical 1".
+incident.ack.signed 53502d41434b2d763100112233445566778899aabbccddeeff0268e7783c094d65646963616c2031
+# INCIDENT_ACK payload: the fields above || Ed25519 signature with the staff sign key.
+incident.ack 00112233445566778899aabbccddeeff0268e7783c094d65646963616c20314c70941e2332c2f411e48c13b32a8f32560815b1dfadc4b5df15688c7e75d22ee75b6a19c219504675b9db8d231e8c5a166756a24d876eb42c2ed811dd140f07
+# INCIDENT_CANCEL payload: INCIDENT_ID || TOKEN.
+incident.cancel 00112233445566778899aabbccddeeff202122232425262728292a2b2c2d2e2f
+
+# Inner messages (plaintext inside PRIVATE).
+# Text: MSG, no group, "Ne vedem la scenă?"
+inner.text 010102030405060708004e6520766564656d206c61207363656ec4833f
+# Text: MSG, GROUP, "salut"
+inner.text.group 01010203040506070801111213141516171873616c7574
+# Quick: MSG, no group, MEET_AT_POINT (4)
+inner.quick 0201020304050607080004
+# Zone: MSG, GROUP, "bar", -22.951916, -43.210487
+inner.zone 03010203040506070803111213141516171803626172fea1c814fd6ca909
+# Zone: MSG, no group, "bar", no coordinates
+inner.zone.plain 0301020304050607080003626172
+# Ping: MSG
+inner.ping 040102030405060708
+# Pong: MSG, pingId OTHER
+inner.pong 0501020304050607082122232425262728
+# Delivered: MSG, deliveredId OTHER
+inner.delivered 0601020304050607082122232425262728
+# GroupInvite: MSG, GROUP, "Prietenii", members (node.bob, key.bob.box, "Bob"), (3132333435363738, seed(0x40), "Cora")
+inner.invite 0701020304050607081112131415161718095072696574656e696902a172a384b1dc84a5f7b4a75fae0c61698d629f65c0ef21b380434bcc43c139f6b0d5255e3641d86303426f623132333435363738404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f04436f7261
+# LeftGroup: MSG, GROUP (a kind older phones do not know: they drop it silently)
+inner.left_group 0801020304050607081112131415161718
+# ZoneRequest: MSG
+inner.zone_request 090102030405060708
+# ZoneUpdate: MSG, "bar"
+inner.zone_update 0a010203040506070803626172
+# Intro: MSG, key.alice.box, key.alice.sign, "Ana", then alice's Ed25519 signature over "SP-INTRO-v1" || node.bob || MSG || key.alice.box || key.alice.sign || "Ana". It travels as crypto_box_seal to bob's box key; older phones drop it silently
+inner.intro 0b01020304050607081084f97dcc3125bdd2c3ccbe57dc872fe246539a43565830f47e6e78257b3a721ce56a48c82ff99162a14bc544612674e5d61fb9317e65d4055780fdbcb4dc3503416e61000a9f712f9a22d6572ff29ea9180f6d5da0a43741eb563f7c310e468d35bd9faf9400b8299f68e0197db386c64eb06ad725b4fae399120bb427cba391e5570f
+# Position in the grid box (no msgId): accuracy class 1 (<= 10 m), GNSS, minute 600, seq 7, next update class 1 (2 min), heading 64 (90 degrees), x 1234, y 567
+inner.position 0c0202580701404d2237
+# Position outside the box: lat -22.951916, lon -43.210487, accuracy class 4 (<= 100 m), manual pin, minute 65535, seq 255, on request, heading unknown
+inner.position.absolute 0c19ffffff05fffea1c814fd6ca909
+# ShareSession: START, 90 minutes, approximate, seq 3
+inner.share_session 0d01005a0103
+# ShareSession: COME_ASK ("Vin la tine"), 15 minutes, exact, seq 9
+inner.share_session.come 0d05000f0009
+# PingRequest ("Fă-te văzut", no msgId): ASK, 10 seconds
+inner.ping_request 0e010a
+# MeetingPoint: MSG, GROUP, time set, seq 3, landmark 14, 22:30 (minute 1350), expires after 90 minutes
+inner.meeting_point 0f0102030405060708031112131415161718030e0546005a
+# MeetingPoint: MSG, no group, the venue's meeting point at -22.951916, -43.210487, no time, seq 4, expires after 60 minutes
+inner.meeting_point.venue 0f0102030405060708040400fea1c814fd6ca909003c
+# MeetingReply: MSG, GROUP, ACCEPT, proposal OTHER
+inner.meeting_reply 100102030405060708011112131415161718012122232425262728
+# PRIVATE payload: nonce e0 e1 ... f7 || crypto_box(inner.text) from alice's box key to bob's.
+private.box e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7bcc50159847f3c091d324a3c6dbd75d6137db72ae9d85fcef99d38bbe145743426c021490c4e822f631249d007
+
+# Friend QR for alice, nickname "Ana".
+qr.friend SPF1.EIT5fcwxJb3Sw8y-V9yHL-JGU5pDVlgw9H5ueCV7OnIc5WpIyC_5kWKhS8VEYSZ05dYfuTF-ZdQFV4D9vLTcNQNBbmE
+# Staff QR: box seed(0x10), sign seed(0x30), role STAFF, team "Medical 1", no zone.
+qr.staff SPS1.EBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4_QEFCQ0RFRkdISUpLTE1OTwEJTWVkaWNhbCAxAA
+
+# Protocol 1.1. Same header and the same bytes for everything above; the vectors below are new in 1.1.
+# HELLO: version 1, nodeId node.alice, flags STAFF|ACCEPTS_CONNECTIONS|PROTOCOL_1_1 (0x19), no nickname. 1.0 reads it too.
+hello.v11 0179388b6b02a70d491900
+# hello followed by abcd, bytes a newer version appends. 1.1 reads it as hello; 1.0 rejects it.
+hello.extended 0179388b6b02a70d490900abcd
+# SUMMARY2: kind INCIDENTS (1), then the bytes of summary.
+summary2 0103001122334455667780010203040506070803fffffffffffffffe84
+# SUMMARY2 of kind 7e, which 1.1 doesn't read: it decodes with no entries and is ignored, not malformed.
+summary2.unknown 7e010203
+# REQUEST2: kind INCIDENTS (1), then the bytes of request.
+request2 0103001122334455667780010203040506070801fffffffffffffffe81
+# Whole frame of a type 1.1 doesn't read: 0x55, ttl 7, id 0123456789abcdef, sender node.alice, TIME, no recipient,
+# E=0, payload "future". 1.0 rejects it.
+frame.opaque 015507000123456789abcdef79388b6b02a70d4968e778000006667574757265
+# frame.opaque as a 1.1 relay passes it on: only the ttl changes, capped at 3.
+frame.opaque.relayed 015503000123456789abcdef79388b6b02a70d4968e778000006667574757265
+# incident.body with flag 0x80 from a newer version and its field, abcd, after the cancel hash.
+# 1.1 reads it as incident.body; 1.0 rejects it.
+incident.body.extended 010368e77800870a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef7abcd
+# INCIDENT_ACK built as a newer version's, before status 7 and the epoch had a meaning: INCIDENT_ID, status 7,
+# TIME+120, team "Medical 1", then abcd, its extensions, then the Ed25519 signature with the staff sign key over
+# "SP-ACK-v1" and everything before it. 1.1 now reads status 7 as CLOSED_BY_CONTROL and the flags byte ab as ASSIGNED
+# and EPOCH (its other bits are ignored), so cd is the epoch, 205; incident.ack.unknown carries a status 1.1 doesn't
+# know. 1.0 rejects both.
+incident.ack.future 00112233445566778899aabbccddeeff0768e77878094d65646963616c2031abcde68c5e0146c07167cabfe91c6c86c80d24ff25703f3dd8cad1c03bdc34f419f9ab710d07386b01372cba54f9d092973bfeea19ce3884069796d89595dae7e405
+# INCIDENT_ACK with which the control console assigns the incident (1.1): INCIDENT_ID, ACKNOWLEDGED, TIME+90,
+# team "Medical", then the ACK flags byte 01 (ASSIGNED), then the Ed25519 signature with the staff sign key over
+# "SP-ACK-v1" and everything before it. 1.1 reads it as an assignment, which a team's own take replaces; it never goes
+# to a 1.0 phone, which would reject it.
+incident.ack.assigned 00112233445566778899aabbccddeeff0268e7785a074d65646963616c011dc40b5dbfcf0d34e4104e7e7161b59b46c91381bebc3b55828203b9e12eceae5528556360be878d975c922004be5a54c86b2d9f1ef87dfd9504912f65bf4906
+
+# Protocol 1.1, field states, closing by control and reopening. ACK statuses 5 ON_SCENE, 6 HANDED_OVER,
+# 7 CLOSED_BY_CONTROL, 8 UNFOUNDED, 9 REOPENED; the epoch travels after the ACK flags byte, behind flag 02 (EPOCH).
+# Each one: INCIDENT_ID, the status, TIME + n, the team, the extensions if any, then the Ed25519 signature with the
+# staff sign key over "SP-ACK-v1" and everything before it. 1.0 rejects all of them; a 1.1 node never sends them to it.
+# ON_SCENE, TIME+150, team "Medical 1", epoch 0: no extensions.
+incident.ack.on_scene 00112233445566778899aabbccddeeff0568e77896094d65646963616c2031e6409bc89520e008de4996df539613ec11e5770d5b44f40b988f9c3fbc52a0fcf58fe903262776f86d6e974d027954d02c0286f044a90666b526158cc0b74b02
+# HANDED_OVER, TIME+180, team "Medical 1".
+incident.ack.handed_over 00112233445566778899aabbccddeeff0668e778b4094d65646963616c20311b7811537c364970e1668178155488a8567f8fdcdc2f6f4f8eb6e0f0a0f100b66cd28c0bdcb182bef7490b42f110c23fb6c7d872f3d7c472e5e50be31936b703
+# CLOSED_BY_CONTROL, TIME+210, team "Control".
+incident.ack.closed 00112233445566778899aabbccddeeff0768e778d207436f6e74726f6cfe59d1b90b8935b49a0fe7c343a8f703332633ae80c469aa8174184c161c77e655926d25396c86c1f970ee6c261b0e63c25476ab668fef1484ebf75d7e650609
+# UNFOUNDED, TIME+240, team "Control".
+incident.ack.unfounded 00112233445566778899aabbccddeeff0868e778f007436f6e74726f6cf8ed78f5648c0f678acd2e2de283bcd42c7ad981b907ba21f20d409083aa8ee9cfe2ea17feeff7962e6db3d185b15b4e29d742106a4b93278dde0a134d08c90b
+# REOPENED, TIME+270, team "Control", extensions 02 01: flag EPOCH, epoch 1.
+incident.ack.reopened 00112233445566778899aabbccddeeff0968e7790e07436f6e74726f6c0201e33b16e64693524e7a232a79cbe6eedb0c4864756bdb5a09c55be25f8174b8eed69f870f67138b1a5fbda09a33b4aae5a16f2cc6d67a516dd0b5bf1f05772f0b
+# ACKNOWLEDGED, TIME+300, team "Medical", extensions 03 01: flags ASSIGNED and EPOCH, epoch 1. An assignment after a reopen.
+incident.ack.assigned.epoch 00112233445566778899aabbccddeeff0268e7792c074d65646963616c03018791090307f6f5a548ae1350695b7431c48273c605bbf340cea94d1b7eede889e1bf91b1f3f6a6635d72f02b63bc4eb7d5912d5647a076bc6a9ec322aff3f807
+# INCIDENT_ACK from a newer version: status 7e, TIME+330, team "Medical 1", then abcd, its extensions, then the
+# signature. 1.1 verifies and relays it but doesn't store it; 1.0 rejects it.
+incident.ack.unknown 00112233445566778899aabbccddeeff7e68e7794a094d65646963616c2031abcd056c5da8662425c20901ecbafd9492ea0c7e718921dae738aa948ef657c9546ba65f3ebd4adb3c2355fa7858dfaa10ebb4667542867b078d111c81971b395204
+# incident.body with flag 08 and the triage byte after the cancel hash: responds NO (2), breathes UNKNOWN (3) << 2 = 0e.
+incident.body.triage 010368e778000f0a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef70e
+# Staff report: VIOLENCE, URGENT, TIME, zone "Poarta 2", no coordinates, description "Acces pe la spatele scenei",
+# nickname "Securitate 1" (the team, from the staff QR), cancelHash = incident.cancelHash, then flag 10's two bytes:
+# people 3, flags 01 (the danger continues).
+incident.body.staff 020368e778001608506f617274612032001a4163636573207065206c612073706174656c65207363656e65690c5365637572697461746520310117b666bb268fe792c6157cd295fef70301
+# LOST_FRIEND (8), LOW, TIME, zone "Scena mare", no coordinates, no description, no nickname, cancelHash. 1.0 rejects
+# the category, so a 1.0 staff phone drops this report without a word.
+incident.body.lost_friend 080168e77800040a5363656e61206d61726500000117b666bb268fe792c6157cd295fef7
+# SUMMARY2 of kind INCIDENTS with epochs: (00112233..77, report, REOPENED), (0102030405060708, no report,
+# CLOSED_BY_CONTROL), then the flags byte 01 (EPOCHS) and one epoch per entry: 01, 00.
+summary2.epochs 0102001122334455667789010203040506070807010100
+
+# HELLO a phone sends once the peer's HELLO showed PREFIX_IN_HELLO: version 1, nodeId node.alice, flags
+# STAFF|ACCEPTS_CONNECTIONS|PROTOCOL_1_1|PREFIX_IN_HELLO (0x39), no nickname, then the prefix it advertises, 1a2b3c4d.
+# 1.1 reads the prefix; a 1.1 phone without the extension skips it; 1.0 rejects it and never gets it.
+hello.prefix 0179388b6b02a70d4939001a2b3c4d
+# incident.body.triage with flag 20 as well: after the triage byte, accuracy 12 m (0c) and landmark 4 (04).
+# 1.0 rejects it; a report without accuracy or landmark leaves the flag out and stays 1.0 (incident.body).
+incident.body.location 010368e778002f0a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef70e0c04
+
+# Key chain (PROTOCOL.md, section 9). Certificates: version 1, role, 32-byte key, validFrom u32, validUntil u32, issuer key id
+# (first 8 bytes of SHA-256 of the issuer's Ed25519 public key), u8 name length, name, then the issuer's Ed25519 signature
+# over "SP-CERT-v1" || everything before it. Ed25519 seeds: root seed(0x20), organiser seed(0x40), event seed(0x60),
+# shift seed(0x80); the day's report key is the X25519 pair from seed(0xc0).
+key.root.sign 29acbae141bccaf0b22e1a94d34d0bc7361e526d0bfe12c89794bc9322966dd7
+# Organiser (0x10) "Fest SRL", TIME - 86400 to TIME + 365 days, signed by the root.
+cert.organiser 01102543b92ff1095511476adc8369db6ddc933665a11978dda1404ee1066ca9559d68e626806ac8ab8024f6ed6acbfe100908466573742053524cc9d3f3ad1c89167d153b2b4e7b57fc635731be05200091df23be1828e2d9adc21aeffdf83f44f05dd8e286fe7e5addd26cc99d757af3001a51cc831bb6476007
+# Event (0x11) "Fest 2025", TIME - 3600 to TIME + 3 days, signed by the organiser.
+cert.event 0111174553b456dddfc6908ecab1c101fe6ab21e2baa0617795b7d43a63482993fd568e769f068eb6c8003396219237f75a6094665737420323032350a906a04f55390c5fa316b69e2bdb9bae75bc590817c713fcf6e8dc92945cef8606fa4a6631237491bbea13e12335f7e153a58c79810d88442cc0947485dce0c
+# Shift of the team "Medical 1" (role 1, staff), TIME to TIME + 12 h, signed by the event; then its id (first 8 bytes of SHA-256).
+cert.staff 0101cd14b37f956e953194ff7fb73b3d81dcc561d61a7538094b7c3e1a643ee5f3aa68e7780068e820c068894d58f18f2c34094d65646963616c203192006002b5efc88c45e4144f39c157bf49985526cbf52bc1b4f1c95b725b1446b2efa3de99383c76011eeab5b9525f3f54550616a62e096788df366271f4850e
+cert.staff.id 80cfd267bfc5954f
+# The day's report key (0x12), TIME - 3600 to TIME + 23 h, signed by the event.
+cert.report_key 0112124e4ca0a5aed0c807ecbd88be5e3aa4c0f514998238759fb90a6cffc881855d68e769f068e8bb7068894d58f18f2c3400abcc62237517171aad68116721d0a733934a2f52bc124f5d9d0d500f402112010f86b073f2332e75b4c741befab7d3eb6e18458175b851ae63aa26308757660d
+# HELLO with HELLO_AUTH (flags 0x79 = STAFF|ACCEPTS_CONNECTIONS|PROTOCOL_1_1|PREFIX_IN_HELLO|HELLO_AUTH), prefix 1a2b3c4d,
+# alice's nonce 404142...4f, auth flags 0: what a phone sends before it knows the peer's nonce.
+hello.auth.nonce 0179388b6b02a70d4979001a2b3c4d404142434445464748494a4b4c4d4e4f00
+# The same with auth flags 01, cert.staff and the shift key's signature over "SP-HELLO-v1" || bob's nonce 606162...6f || node.alice.
+hello.auth 0179388b6b02a70d4979001a2b3c4d404142434445464748494a4b4c4d4e4f010101cd14b37f956e953194ff7fb73b3d81dcc561d61a7538094b7c3e1a643ee5f3aa68e7780068e820c068894d58f18f2c34094d65646963616c203192006002b5efc88c45e4144f39c157bf49985526cbf52bc1b4f1c95b725b1446b2efa3de99383c76011eeab5b9525f3f54550616a62e096788df366271f4850eb080c1af66d6c32cc962a4d59be66ddb74e8bb10ac5e3dc040269f84ed6fe92424ccb00a383b139556e6efdc511afb41f74735592de72daf5fdbe8bf8f27ef0d
+# ACKNOWLEDGED by "Medical 1" at TIME + 60 under cert.staff: ACK flags 0x04 (CERT), the certificate, then the shift key's signature.
+incident.ack.cert 00112233445566778899aabbccddeeff0268e7783c094d65646963616c2031040101cd14b37f956e953194ff7fb73b3d81dcc561d61a7538094b7c3e1a643ee5f3aa68e7780068e820c068894d58f18f2c34094d65646963616c203192006002b5efc88c45e4144f39c157bf49985526cbf52bc1b4f1c95b725b1446b2efa3de99383c76011eeab5b9525f3f54550616a62e096788df366271f4850e3f03fbf51592ef0ffd99c0074a4398ad25b30dc74589eb16001d0a11fd9871d3065132705e74741f657e40ad7d0f1c2af3d2f49ad90644158e85c38396bd7c0b
+# ANNOUNCEMENT kind 1 (revocation) by the event key, issued TIME + 600: cert.staff.id and 0102030405060708, then the signature over
+# "SP-ANN-v1" || everything before it.
+announcement.revocation 0168894d58f18f2c3468e77a580280cfd267bfc5954f01020304050607085db8ac796ff7ca30d1c30cb3ba1ea525df5cbee951593aed3bef33544373fe6ce2312fc7230b5891636c3e4c3971198b4bd51ee76e9b29859f4dc270b6d7730e
+# SPS2 for a lead of "Medical 1": cert.staff, shift seed(0x80), flags 03, cert.report_key, report seed(0xc0), empty zone.
+qr.shift SPS2.AQHNFLN_lW6VMZT_f7c7PYHcxWHWGnU4CUt8PhpkPuXzqmjneABo6CDAaIlNWPGPLDQJTWVkaWNhbCAxkgBgArXvyIxF5BRPOcFXv0mYVSbL9SvBtPHJW3JbFEay76PemTg8dgEe6rW5Ul8_VFUGFqYuCWeI3zZicfSFDoCBgoOEhYaHiImKi4yNjo-QkZKTlJWWl5iZmpucnZ6fAwESEk5MoKWu0MgH7L2Ivl46pMD1FJmCOHWfuQps_8iBhV1o52nwaOi7cGiJTVjxjyw0AKvMYiN1FxcarWgRZyHQpzOTSi9SvBJPXZ0NUA9AIRIBD4awc_IzLnW0x0G--rfT624YRYF1uFGuY6omMIdXZg3AwcLDxMXGx8jJysvMzc7P0NHS09TV1tfY2drb3N3e3wA
+# SPR1 carrying announcement.revocation.
+qr.revocation SPR1.AWiJTVjxjyw0aOd6WAKAz9Jnv8WVTwECAwQFBgcIXbiseW_3yjDRwwyzuh6lJd9cvulRWTrtO-8zVENz_mziMS_HIwtYkWNsPkw5cRmLS9Ue526bKYWfTcJwttdzDg
+
+# Event pack (PROTOCOL.md, section 16). The body is the JSON text in GoldenVectorsTest (Golden.PACK_BODY): a real pack
+# "fest-2025", version 1, TIME - 3600 to TIME + 3 days, cert.organiser, cert.event, [cert.report_key], an empty venue.
+# Its hash is SHA-256 over the body's UTF-8 bytes; the signature is the organiser's (seed(0x40)) over "SP-PACK-v1" || body.
+event.pack.hash 1d939162713f2284043ee32d69d2caaf5c88e751054e88edf0d58ce7208c949e
+event.pack.signature 5d866aa4f96bc982c12c99678ae4d69fad4818b177575ca488141d4fc02c634d7cdf80b616408302265c3cc309953eaf7d72ada0e3c651c0be34da371663e708
+# SPE1 gate code carrying event.pack.hash.
+qr.event SPE1.HZORYnE_IoQEPuMtadLKr1yI51EFTojt8NWM5yCMlJ4
+
+# 1.1, control channel (PROTOCOL.md, section 6.9).
+# Whole frame: PRIVATE, ttl 6, id 0123456789abcdef, sender node.alice, TIME, recipient the control channel 5350
+# 2d4354524c31 ("SP-CTRL1"), E=1, payload 00 01 ... 3b (60 bytes, in place of a sealed heartbeat, which is random).
+frame.control 012006050123456789abcdef79388b6b02a70d4968e77800003c53502d4354524c31000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b
+# Heartbeat plaintext: charging, battery 78 %, -5 degrees C, quiet 300 s, 3 links, crowd bucket 4 (11-20), zone "B2".
+control.heartbeat 01014efb012c0304024232
+# Heartbeat with nothing known: not charging, no battery, no temperature, never heard a phone, no links, no crowd, no zone.
+control.heartbeat.unknown 0100ff80ffff000000
+# Built by hand: control.heartbeat with flag bit 0x80 and the bytes abcd after the zone, which a newer version may add.
+control.heartbeat.extended 01814efb012c0304024232abcd
+# control.heartbeat with the site block: 2 bars, technology 5 (lte), data 0x80 (measured) | 0x10 (validated) | probe 1
+# (answered) << 2 | transport 1 (mobile), square C4 (column 2, row 3).
+control.heartbeat.site 01014efb012c03040242320205950203
+# Point status: point 5, level 2 (busy), issued TIME + 60, team "Medical 1", signed with the build's staff key.
+control.point 0200050268e7783c094d65646963616c2031a2518d24d214d67e0e2c4c12bea7a8c091abc07fa9bbd785838cad73ce85e9693187f71fea10917ac075d5403d596133b50fb506ceb3da2c69e5de545bfbed0d
+# The same under cert.staff, signed with the shift key seed(0x80).
+control.point.cert 0201050268e7783c094d65646963616c20310101cd14b37f956e953194ff7fb73b3d81dcc561d61a7538094b7c3e1a643ee5f3aa68e7780068e820c068894d58f18f2c34094d65646963616c203192006002b5efc88c45e4144f39c157bf49985526cbf52bc1b4f1c95b725b1446b2efa3de99383c76011eeab5b9525f3f54550616a62e096788df366271f4850eb323db3dcedf65fdddb88fbb0b207ecae34247a365352e93123e76f550a82b63d14ff0c6b8209330cbf2cac18e9189b97f48df14efc35c88453323af1e22700d
+
+# 1.1, responses to the reporter and the reporter's updates (PROTOCOL.md, sections 6.3, 6.10 and 6.11).
+# incident.body.location with flag 0x40 and the reporter's reply key after the location fields: X25519 from seed(0xe0).
+incident.body.reply 010368e778006f0a5363656e61206d61726502a5e60d018e4b0a001f506572736f616ec4832063c4837a7574c483206cc3a26e67c483206761726403416e610117b666bb268fe792c6157cd295fef70e0c04bbe343582f235ea6e2998ea061e98ef30cca8e7881c4874eb6137fbab3a4282d
+# Response plaintext: code 2 (go to landmark), landmark 4.
+response.body 0204
+# INCIDENT_RESPONSE at TIME + 120, flags 0: response.body sealed to the reply key with the ephemeral pair from seed(0xd0)
+# (50 bytes), then the build's staff signature over "SP-RESP-v1" || everything before it.
+incident.response 00112233445566778899aabbccddeeff68e778780032ea831a2f8791781cc3cabafbe15ae5dc6c5f9d8023c0f4df9094ecffe09811329ef39aa6054cfb803df2a0903ba092a5dab77c2d5420a39c1da0298f43468e67aa9f1026672e0e757e08ca1daa6401e26102301c48c1b04edf87e68b40028a68a3a0b0ec8cc507fdbdb476d5faf031f2ce0d
+# A control shift (role 3) "Control", key from seed(0xa0), TIME to TIME + 12 h, signed by the event.
+cert.control 01034fd099ccd47d7893dfe9ec24414ecb0d9b5420232aad30d91c465be33cbe65c468e7780068e820c068894d58f18f2c3407436f6e74726f6c14edbe900a36dfdd0d610987b4cbc7fa627e2a155f6b0328b588d9efbb75ad27bcbe9d401395b6961c2444ca29dff8eef56ff53cb5e277a846a57dcba3a1730f
+# The same response under cert.control: flags 01, the certificate after the sealed body, the shift key's signature.
+incident.response.cert 00112233445566778899aabbccddeeff68e778780132ea831a2f8791781cc3cabafbe15ae5dc6c5f9d8023c0f4df9094ecffe09811329ef39aa6054cfb803df2a0903ba092a5dab701034fd099ccd47d7893dfe9ec24414ecb0d9b5420232aad30d91c465be33cbe65c468e7780068e820c068894d58f18f2c3407436f6e74726f6c14edbe900a36dfdd0d610987b4cbc7fa627e2a155f6b0328b588d9efbb75ad27bcbe9d401395b6961c2444ca29dff8eef56ff53cb5e277a846a57dcba3a1730f8b139adc4a5f36603b8a24ef72573aa8698c31124aebbea86c2b44aef37f8a1b5bd22fa9ab176e4a16dcdd699fa9b25ef0f5342b4b9737b1f27849f04604bd06
+# Update plaintext: kind 2 (moved) at TIME + 180, the cancel token 2021...2f, flags 07: 44.4268, 26.1027, zone "Bar",
+# accuracy 9 m, landmark 4.
+update.body 0268e778b4202122232425262728292a2b2c2d2e2f0702a5e630018e4bac034261720904
+# INCIDENT_UPDATE: the incidentId, sequence number 1, update.body sealed to the staff key with the pair from seed(0xd0).
+incident.update 00112233445566778899aabbccddeeff01ea831a2f8791781cc3cabafbe15ae5dc6c5f9d8023c0f4df9094ecffe09811329d96dbb0f709a5c0ddeaf88849ad833f8ee709c5268c2d9de6035018eb4b12aad2c364c04006147d0cc22bf0fbe0b19d692cd67e
+# Whole frame: INCIDENT_UPDATE (0x14), ttl 7, E=1, id 0123456789abcdef, sender 0, TIME + 180, payload incident.update.
+frame.update 011407040123456789abcdef000000000000000068e778b4006500112233445566778899aabbccddeeff01ea831a2f8791781cc3cabafbe15ae5dc6c5f9d8023c0f4df9094ecffe09811329d96dbb0f709a5c0ddeaf88849ad833f8ee709c5268c2d9de6035018eb4b12aad2c364c04006147d0cc22bf0fbe0b19d692cd67e
+# SUMMARY2 kind 2 (RESPONSES): one entry, the id8 0011223344556677 and the response's timestamp TIME + 120.
+summary2.responses 0201001122334455667768e77878
+# SUMMARY2 kind 3 (UPDATES): id8 0011223344556677 at sequence 1, 0102030405060708 at sequence 3.
+summary2.updates 0302001122334455667701010203040506070803
+# REQUEST2 kind 2 for 0011223344556677, and kind 3 for 0011223344556677 and 0102030405060708.
+request2.responses 02010011223344556677
+request2.updates 030200112233445566770102030405060708
+
+# 1.1, notices from the control console (PROTOCOL.md, sections 6.2 and 6.8).
+# ANNOUNCEMENT kind 2 (notice): topic 1 (alert), level 2 (pause), flags 0, sequence 1, issued TIME + 60, valid until
+# TIME + 3660, template 3, zone "Scena mare", one parameter "15:30", cert.control, then the shift key's signature over
+# "SP-ANN-v1" || everything before it.
+announcement.notice 020102000000000168e7783c68e7864c030a5363656e61206d617265010531353a333001034fd099ccd47d7893dfe9ec24414ecb0d9b5420232aad30d91c465be33cbe65c468e7780068e820c068894d58f18f2c3407436f6e74726f6c14edbe900a36dfdd0d610987b4cbc7fa627e2a155f6b0328b588d9efbb75ad27bcbe9d401395b6961c2444ca29dff8eef56ff53cb5e277a846a57dcba3a1730fbdcb2326979a205eb318d36ce14d2c262c44896829e799ef04381b510951f28d88be5dc01c9870ac8a97dbffae1ad6a2bc4bd425c306f41171f3d72bb1240702
+# The same pause withdrawn: flags 01 (CANCEL), sequence 2, issued TIME + 120, valid until TIME + 3660, template 0, no
+# zone, no parameters, cert.control and its signature.
+announcement.notice.cancel 020102010000000268e7787868e7864c00000001034fd099ccd47d7893dfe9ec24414ecb0d9b5420232aad30d91c465be33cbe65c468e7780068e820c068894d58f18f2c3407436f6e74726f6c14edbe900a36dfdd0d610987b4cbc7fa627e2a155f6b0328b588d9efbb75ad27bcbe9d401395b6961c2444ca29dff8eef56ff53cb5e277a846a57dcba3a1730f9c22720a98e3c0225d31b23deb5e2ed5fbca4e799ad86fda5a132ea26b04b3bb4969593f9dce08768c22d5b308179a174ca7fd89e8fb5ce01c98333c00f72603
+# SUMMARY2 kind 4 (NOTICES): topic 1 at sequence 2, topic 2 at sequence 5, each key an i64 and the sequence a u32.
+summary2.notices 0402000000000000000100000002000000000000000200000005
+# REQUEST2 kind 4 for topics 1 and 2.
+request2.notices 040200000000000000010000000000000002
