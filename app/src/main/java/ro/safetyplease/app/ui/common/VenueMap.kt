@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.R
+import ro.safetyplease.app.platform.map.MapFriend
 import ro.safetyplease.app.ui.designsystem.AppColors
 import ro.safetyplease.app.ui.designsystem.AppTheme
 import ro.safetyplease.app.ui.designsystem.LocalReduceMotion
@@ -227,7 +228,8 @@ private fun rememberGlyphs(): Map<String, Painter> = GlyphTypes.associateWith { 
 /**
  * Venue map drawn on a Canvas, no tiles, no internet: the fenced site with its walkways, zones colored by type with
  * what's in them (stage and crowd, tents, trees, stalls), their icon and name, the useful points, a compass and a scale bar.
- * You are the pulsing dot labeled "Tu"; [target] is where you're heading, joined to you by a dotted route.
+ * You are the pulsing dot labeled "Tu"; [target] is where you're heading, joined to you by a dotted route. [friends] are
+ * drawn as on the real map: ring, dot and name.
  * With [camera] the map zooms with two fingers, a double tap and the buttons. [compact] is the message bubble variant.
  * [reserved] are the corners the overlay's controls cover: no name or scale bar is drawn under them.
  * [grid] draws the site plan's squares, lettered along the top and numbered down the left side; [squareShades] fill
@@ -239,6 +241,7 @@ fun VenueMap(
     modifier: Modifier = Modifier,
     position: GeoPoint? = null,
     pins: List<MapPin> = emptyList(),
+    friends: List<MapFriend> = emptyList(),
     myZone: String = "",
     highlightZone: String = "",
     meetingFocused: Boolean = false,
@@ -541,6 +544,18 @@ fun VenueMap(
                     ZoneLabelMode.IconOnly -> badge(Offset(origin.x + r, origin.y + r), r, solid, glyph, ring = 1.5.dp.toPx())
                     ZoneLabelMode.TextOnly -> haloText(stacked, origin, ink, paint.halo)
                     ZoneLabelMode.None -> Unit
+                }
+            }
+
+            // friends under "me": the grown ring, then the dot, full, faded or grey by age, and the name below
+            friends.forEach { f ->
+                val o = at(GeoPoint(f.lat, f.lon))
+                val tone = (if (f.grey) colors.secondaryLabel else colors.green).copy(alpha = f.fade)
+                drawCircle(tone.copy(alpha = 0.16f * f.fade), f.ringM * meter, o)
+                markerDot(o, f.dotRadius.dp.toPx(), tone)
+                if (f.label.isNotEmpty()) {
+                    val text = measurer.measure(f.label, smallStyle.copy(color = colors.label))
+                    haloText(text, Offset(o.x - text.size.width / 2f, o.y + 11.dp.toPx()), colors.label.copy(alpha = f.fade), paint.halo)
                 }
             }
 

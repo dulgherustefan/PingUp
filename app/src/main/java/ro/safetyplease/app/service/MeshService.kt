@@ -77,10 +77,10 @@ class MeshService : Service() {
         scope.launch {
             val links = container.engine.state.map { it.readyLinks }.distinctUntilChanged()
             val role = container.settings.state.map { it.role }.distinctUntilChanged()
-            combine(links, role) { count, r -> count to (r == Role.ANCHOR) }.collectLatest { (count, isAnchor) ->
+            combine(links, role, container.sharing) { count, r, sharing -> Triple(count, r == Role.ANCHOR, sharing) }.collectLatest { (count, isAnchor, sharing) ->
                 // links come and go often; the notification shouldn't flicker with them
                 delay(1_000)
-                container.notifier.updateForeground(count, isAnchor)
+                container.notifier.updateForeground(count, isAnchor, sharing)
             }
         }
         scope.launch {
@@ -144,11 +144,15 @@ class MeshService : Service() {
         val anchor = container.settings.value.role == Role.ANCHOR
         var type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
         if (location && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-        ServiceCompat.startForeground(this, Notifier.FOREGROUND_ID, container.notifier.foreground(container.engine.state.value.readyLinks, anchor), type)
+        val notification = container.notifier.foreground(container.engine.state.value.readyLinks, anchor, container.sharing.value)
+        ServiceCompat.startForeground(this, Notifier.FOREGROUND_ID, notification, type)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (running && intent?.hasExtra(EXTRA_LOCATION) == true) {
+        if (running && intent?.action == ACTION_STOP_SHARING) {
+            container.stopAllShares()
+            runCatching { goForeground(location = false) }
+        } else if (running && intent?.hasExtra(EXTRA_LOCATION) == true) {
             val location = intent.getBooleanExtra(EXTRA_LOCATION, false) && container.location.hasPermission()
             // Android refuses the location type when the app is not visible; the mesh keeps its own type then
             runCatching { goForeground(location) }.onFailure { runCatching { goForeground(location = false) } }
@@ -170,6 +174,7 @@ class MeshService : Service() {
         private const val PREFS = "mesh_service"
         private const val KEY_WANTED = "wanted"
         private const val EXTRA_LOCATION = "location"
+        private const val ACTION_STOP_SHARING = "org.pingup.app.STOP_SHARING"
 
         @Volatile
         var running = false
@@ -184,6 +189,9 @@ class MeshService : Service() {
             if (!running) return
             ContextCompat.startForegroundService(context, Intent(context, MeshService::class.java).putExtra(EXTRA_LOCATION, on))
         }
+
+        /** "Oprește" in the notification: every share ends at once, silently. */
+        fun stopSharingIntent(context: Context): Intent = Intent(context, MeshService::class.java).setAction(ACTION_STOP_SHARING)
 
         fun stop(context: Context) {
             setWanted(context, false)

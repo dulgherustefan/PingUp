@@ -99,6 +99,8 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val haptics = rememberHaptics()
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
+    val sharing by vm.sharing.collectAsStateWithLifecycle()
+    val autoAnswer by vm.autoAnswer.collectAsStateWithLifecycle()
     val code = remember(settings.nickname) { vm.myQrText() }
     val role = when (settings.role) {
         AppRole.STAFF -> stringResource(R.string.role_staff, settings.teamName)
@@ -156,6 +158,17 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 }
 
                 InsetGroup {
+                    GroupRow(
+                        stringResource(R.string.me_sharing), icon = Sym.MyLocation, chevron = true,
+                        value = sharing?.let { pluralStringResource(R.plurals.me_sharing_people, it.people, it.people) } ?: stringResource(R.string.me_sharing_off),
+                        onClick = { if (sharing != null) vm.open(Dest.Sharing) else vm.openShare() },
+                    )
+                    GroupDivider()
+                    SwitchRow(
+                        stringResource(R.string.me_auto_answer), autoAnswer, vm::setAutoAnswer,
+                        subtitle = stringResource(R.string.me_auto_answer_text), icon = Sym.PersonSearch,
+                    )
+                    GroupDivider()
                     SwitchRow(
                         stringResource(R.string.me_share_zone), settings.shareZone, vm::setShareZone,
                         subtitle = stringResource(R.string.me_share_zone_text), icon = Sym.Place,

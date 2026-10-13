@@ -977,4 +977,84 @@
     <string name="gnss_prewarm_text">Telefonul ia acum datele sateliților, ca la festival să te găsească în câteva secunde, fără semnal.</string>
     <string name="gnss_searching">Caut sateliți, până la 30 s</string>
     <string name="gnss_searching_text">N-a mai fost o poziție de peste o oră. Sub cerul liber merge mai repede.</string>
+    <string name="share_intro_title">Locația ta, doar pentru cine bifezi.</string>
+    <string name="share_intro_text">Dacă pornești partajarea, telefonul tău trimite locația ta, prin telefoanele din jur, către prietenii pe care îi bifezi, și când aplicația e închisă sau nu e folosită. Locația e criptată: telefoanele care o transmit mai departe, organizatorul și noi nu o putem citi. Nimic nu pleacă din telefon până nu bifezi un prieten. Oprești oricând, din notificare sau de aici, fără ca nimeni să fie anunțat.</string>
+    <string name="share_intro_choose">Alege cu cine</string>
+    <string name="share_intro_later">Nu acum</string>
+    <string name="share_title">Partajează locația</string>
+    <string name="share_friends">Prieteni</string>
+    <string name="share_groups">Grupuri</string>
+    <string name="share_empty">Adaugă întâi un prieten, cu codul QR.</string>
+    <string name="share_until">Până la %1$s</string>
+    <string name="share_until_stopped">Până o oprești</string>
+    <string name="share_with">Cu %1$s</string>
+    <string name="share_length">Cât timp</string>
+    <string name="share_len_15">15 min</string>
+    <string name="share_len_hour">1 h</string>
+    <string name="share_len_day">Până la sfârșitul zilei de festival</string>
+    <string name="share_len_open">Până opresc</string>
+    <string name="share_len_open_note">Primești o reamintire la fiecare 4 ore.</string>
+    <string name="share_precision">Cât de exact</string>
+    <string name="share_prec_exact">Exact (≈ 1 m, cât dă GPS-ul)</string>
+    <string name="share_prec_approx">Zonă aproximativă (≈ 100 m)</string>
+    <string name="share_prec_zone">Doar zona (cum e azi)</string>
+    <string name="share_prec_exact_short">Exact</string>
+    <string name="share_prec_approx_short">Zonă aproximativă</string>
+    <string name="share_prec_zone_short">Doar zona</string>
+    <string name="share_suggested">Sugerat</string>
+    <string name="share_start">Pornește</string>
+    <plurals name="sharing_bar">
+        <item quantity="one">Partajezi locația cu %d prieten</item>
+        <item quantity="few">Partajezi locația cu %d prieteni</item>
+        <item quantity="other">Partajezi locația cu %d de prieteni</item>
+    </plurals>
+    <plurals name="sharing_until">
+        <item quantity="one">Partajezi locația cu %1$d prieten până la %2$s</item>
+        <item quantity="few">Partajezi locația cu %1$d prieteni până la %2$s</item>
+        <item quantity="other">Partajezi locația cu %1$d de prieteni până la %2$s</item>
+    </plurals>
+    <string name="sharing_bar_open">Vezi cine te vede</string>
+    <string name="sharing_stop">Oprește</string>
+    <string name="channel_sharing_reminder">Reamintiri despre locație</string>
+    <string name="watchers_title">Cine mă vede acum</string>
+    <string name="watchers_stop_all">Oprește tot</string>
+    <string name="watchers_empty">Nu partajezi locația cu nimeni.</string>
+    <string name="watchers_add">Partajează cu altcineva</string>
+    <string name="watchers_left">încă %1$d min</string>
+    <string name="pos_title">Locația</string>
+    <string name="pos_now">acum</string>
+    <string name="pos_ago">acum %1$d min</string>
+    <string name="pos_last_known">ultima poziție cunoscută, %1$d min</string>
+    <string name="pos_pace_request">la cerere</string>
+    <string name="pos_pace_still">staționar</string>
+    <string name="pos_ring">± %1$d m</string>
+    <string name="pos_none">Nu îți partajează locația.</string>
+    <string name="pos_near">e în apropiere, uită-te în jur</string>
+    <string name="pos_arrow">~%1$d m, spre %2$s</string>
+    <string name="pos_stage">~%1$d m · mergi spre scena %2$s</string>
+    <string name="pos_landmark">~%1$d m · mergi spre reperul %2$d</string>
+    <string name="pos_no_me">Pornește locația ca să vezi încotro e.</string>
+    <string name="pos_on_map">Arată pe hartă</string>
+    <string name="pos_ask_wait">Poți întreba din nou în %1$d s</string>
+    <string name="profile_share_mine">Partajează locația ta</string>
+    <string name="map_friends">Prieteni</string>
+    <string name="me_sharing">Partajarea locației</string>
+    <string name="me_sharing_off">Oprită</string>
+    <string name="me_auto_answer">Răspunde singur la „Unde ești?”</string>
+    <string name="me_auto_answer_text">Prietenii cu care nu partajezi primesc zona aproximativă când întreabă.</string>
+    <string-array name="pos_directions">
+        <item>nord</item>
+        <item>nord-est</item>
+        <item>est</item>
+        <item>sud-est</item>
+        <item>sud</item>
+        <item>sud-vest</item>
+        <item>vest</item>
+        <item>nord-vest</item>
+    </string-array>
+    <plurals name="me_sharing_people">
+        <item quantity="one">cu %d prieten</item>
+        <item quantity="few">cu %d prieteni</item>
+        <item quantity="other">cu %d de prieteni</item>
+    </plurals>
 </resources>

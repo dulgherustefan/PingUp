@@ -954,4 +954,81 @@
     <string name="gnss_prewarm_text">Your phone is getting satellite data now, so at the festival it finds you in seconds, with no signal.</string>
     <string name="gnss_searching">Looking for satellites, up to 30 s</string>
     <string name="gnss_searching_text">There has been no position for over an hour. It is faster under open sky.</string>
+    <string name="share_intro_title">Your location, only for the people you tick.</string>
+    <string name="share_intro_text">If you turn sharing on, your phone sends your location, through the phones around you, to the friends you tick, also when the app is closed or not in use. Your location is encrypted: the phones that pass it on, the organiser and we cannot read it. Nothing leaves your phone until you tick a friend. Stop at any time, from the notification or from here, without anyone being told.</string>
+    <string name="share_intro_choose">Choose who</string>
+    <string name="share_intro_later">Not now</string>
+    <string name="share_title">Share location</string>
+    <string name="share_friends">Friends</string>
+    <string name="share_groups">Groups</string>
+    <string name="share_empty">Add a friend first, with the QR code.</string>
+    <string name="share_until">Until %1$s</string>
+    <string name="share_until_stopped">Until you stop it</string>
+    <string name="share_with">With %1$s</string>
+    <string name="share_length">How long</string>
+    <string name="share_len_15">15 min</string>
+    <string name="share_len_hour">1 h</string>
+    <string name="share_len_day">Until the end of the festival day</string>
+    <string name="share_len_open">Until I stop it</string>
+    <string name="share_len_open_note">You get a reminder every 4 hours.</string>
+    <string name="share_precision">How exact</string>
+    <string name="share_prec_exact">Exact (about 1 m, as good as the GPS)</string>
+    <string name="share_prec_approx">Approximate area (about 100 m)</string>
+    <string name="share_prec_zone">Zone only (as today)</string>
+    <string name="share_prec_exact_short">Exact</string>
+    <string name="share_prec_approx_short">Approximate area</string>
+    <string name="share_prec_zone_short">Zone only</string>
+    <string name="share_suggested">Suggested</string>
+    <string name="share_start">Start</string>
+    <plurals name="sharing_bar">
+        <item quantity="one">Sharing your location with %d friend</item>
+        <item quantity="other">Sharing your location with %d friends</item>
+    </plurals>
+    <plurals name="sharing_until">
+        <item quantity="one">Sharing your location with %1$d friend until %2$s</item>
+        <item quantity="other">Sharing your location with %1$d friends until %2$s</item>
+    </plurals>
+    <string name="sharing_bar_open">See who sees you</string>
+    <string name="sharing_stop">Stop</string>
+    <string name="channel_sharing_reminder">Location reminders</string>
+    <string name="watchers_title">Who sees me now</string>
+    <string name="watchers_stop_all">Stop all</string>
+    <string name="watchers_empty">You are not sharing your location with anyone.</string>
+    <string name="watchers_add">Share with someone else</string>
+    <string name="watchers_left">%1$d min left</string>
+    <string name="pos_title">Location</string>
+    <string name="pos_now">now</string>
+    <string name="pos_ago">%1$d min ago</string>
+    <string name="pos_last_known">last known position, %1$d min</string>
+    <string name="pos_pace_request">on request</string>
+    <string name="pos_pace_still">not moving</string>
+    <string name="pos_ring">± %1$d m</string>
+    <string name="pos_none">Not sharing their location with you.</string>
+    <string name="pos_near">nearby, look around</string>
+    <string name="pos_arrow">~%1$d m, to the %2$s</string>
+    <string name="pos_stage">~%1$d m · head for stage %2$s</string>
+    <string name="pos_landmark">~%1$d m · head for landmark %2$d</string>
+    <string name="pos_no_me">Turn on your location to see which way.</string>
+    <string name="pos_on_map">Show on map</string>
+    <string name="pos_ask_wait">You can ask again in %1$d s</string>
+    <string name="profile_share_mine">Share your location</string>
+    <string name="map_friends">Friends</string>
+    <string name="me_sharing">Location sharing</string>
+    <string name="me_sharing_off">Off</string>
+    <string name="me_auto_answer">Answer “Where are you?” on my own</string>
+    <string name="me_auto_answer_text">Friends you are not sharing with get your approximate area when they ask.</string>
+    <string-array name="pos_directions">
+        <item>north</item>
+        <item>north-east</item>
+        <item>east</item>
+        <item>south-east</item>
+        <item>south</item>
+        <item>south-west</item>
+        <item>west</item>
+        <item>north-west</item>
+    </string-array>
+    <plurals name="me_sharing_people">
+        <item quantity="one">with %d friend</item>
+        <item quantity="other">with %d friends</item>
+    </plurals>
 </resources>

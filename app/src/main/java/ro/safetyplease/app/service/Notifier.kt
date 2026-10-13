@@ -30,6 +30,7 @@ import ro.safetyplease.core.incidents.AlertLevel
 import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.incidents.AlertReason
 import ro.safetyplease.core.incidents.Discreet
+import ro.safetyplease.core.position.SharingNow
 import ro.safetyplease.core.venue.Venue
 
 /**
@@ -67,6 +68,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
                 NotificationChannel(CHANNEL_INCIDENT, context.getString(R.string.channel_incident), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_STATUS, context.getString(R.string.channel_status), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_CHAT, context.getString(R.string.channel_chat), NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(CHANNEL_SHARING, context.getString(R.string.channel_sharing_reminder), NotificationManager.IMPORTANCE_DEFAULT),
                 // the organiser's notices, apart from the incident alarm: a pause and an evacuation sound and feel different
                 NotificationChannel(CHANNEL_NOTICE, context.getString(R.string.channel_notice), NotificationManager.IMPORTANCE_DEFAULT)
                     .apply {
@@ -106,19 +108,27 @@ class Notifier(private val context: Context, private val venue: Venue, private v
 
     private fun marked(title: String): String = if (exercise) context.getString(R.string.exercise_title, title) else title
 
-    fun foreground(links: Int, anchor: Boolean): Notification {
+    /** While [sharing] runs the notification says so first, with "Oprește", which ends every share without a word to anyone. */
+    fun foreground(links: Int, anchor: Boolean, sharing: SharingNow? = null): Notification {
         val text = when {
             links == 0 -> context.getString(R.string.notif_mesh_searching)
             else -> context.resources.getQuantityString(R.plurals.notif_mesh_links, links, links)
         }
+        val title = if (sharing != null) sharingText(sharing) else context.getString(if (anchor) R.string.notif_mesh_title_anchor else R.string.notif_mesh_title)
         val builder = NotificationCompat.Builder(context, CHANNEL_MESH)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(marked(context.getString(if (anchor) R.string.notif_mesh_title_anchor else R.string.notif_mesh_title)))
+            .setContentTitle(marked(title))
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setContentIntent(open(MainActivity.OPEN_HOME, RequestCodes.OPEN_HOME))
+            .setContentIntent(open(if (sharing != null) MainActivity.OPEN_SHARING else MainActivity.OPEN_HOME, RequestCodes.OPEN_HOME))
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+        if (sharing != null) {
+            val stop = PendingIntent.getService(
+                context, RequestCodes.STOP_SHARING, MeshService.stopSharingIntent(context), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            builder.addAction(R.drawable.ic_notification, context.getString(R.string.sharing_stop), stop)
+        }
         // an anchor only relays; its screen has no report tab
         if (!anchor) {
             val report = open(MainActivity.OPEN_REPORT, RequestCodes.REPORT_ACTION)
@@ -127,8 +137,26 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         return builder.build()
     }
 
-    fun updateForeground(links: Int, anchor: Boolean) {
-        if (canPost()) manager.notify(FOREGROUND_ID, foreground(links, anchor))
+    fun updateForeground(links: Int, anchor: Boolean, sharing: SharingNow?) {
+        if (canPost()) manager.notify(FOREGROUND_ID, foreground(links, anchor, sharing))
+    }
+
+    private fun sharingText(sharing: SharingNow): String {
+        val people = sharing.people
+        val until = sharing.endsAtMs ?: return context.resources.getQuantityString(R.plurals.sharing_bar, people, people)
+        return context.resources.getQuantityString(R.plurals.sharing_until, people, people, Labels.clock(until))
+    }
+
+    /** Every 4 hours of a share without an end: "partajezi locația cu N prieteni". */
+    fun shareReminder(people: Int) {
+        if (!canPost()) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_SHARING)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.resources.getQuantityString(R.plurals.sharing_bar, people, people))
+            .setAutoCancel(true)
+            .setContentIntent(open(MainActivity.OPEN_SHARING, RequestCodes.SHARING_REMINDER))
+            .build()
+        manager.notify(SHARING_REMINDER_ID, notification)
     }
 
     /** The mesh couldn't come back on its own. Same id as the running notification, which replaces it on restart. */
@@ -307,6 +335,8 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         private const val CHANNEL_INCIDENT = "incident"
         private const val CHANNEL_STATUS = "report_status"
         private const val CHANNEL_CHAT = "chat"
+        private const val CHANNEL_SHARING = "sharing_reminder"
+        private const val SHARING_REMINDER_ID = 3
         private const val NOTICE_ID = 100
         private const val CHANNEL_NOTICE = "notice"
         private const val CHANNEL_NOTICE_PAUSE = "notice_pause"

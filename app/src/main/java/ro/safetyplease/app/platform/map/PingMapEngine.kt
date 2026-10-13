@@ -1,5 +1,6 @@
 package ro.safetyplease.app.platform.map
 
+import ro.safetyplease.core.position.FriendAge
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
@@ -7,16 +8,30 @@ import ro.safetyplease.core.venue.Venue
 /** [accuracyM] is the radius Android reports for the fix; the ring drawn around the dot is the 95% one. */
 data class MapMe(val lat: Double, val lon: Double, val accuracyM: Float, val headingDeg: Float? = null)
 
-/** A friend's last shared position; [stale] ones are drawn faded. [label] is what the map writes under the dot. */
+/**
+ * A friend's last shared position: [ringM] is the ring to draw, already grown with the age ([FriendRing]); [age] makes
+ * the dot full, normal, faded or grey. [label] is what the map writes under the dot.
+ */
 data class MapFriend(
     val id: String,
     val lat: Double,
     val lon: Double,
-    val accuracyM: Float,
-    val ageMin: Int,
-    val stale: Boolean,
+    val ringM: Float,
+    val age: FriendAge,
     val label: String = "",
-)
+) {
+    /** Opacity of the dot: full for the first ten minutes, faded after. */
+    val fade: Float get() = if (age == FriendAge.NOW || age == FriendAge.RECENT) 1f else STALE_FADE
+
+    /** A fresh position is drawn a little larger: the "full pin". */
+    val dotRadius: Float get() = if (age == FriendAge.NOW) 8.5f else 7f
+
+    val grey: Boolean get() = age == FriendAge.STALE
+
+    private companion object {
+        const val STALE_FADE = 0.5f
+    }
+}
 
 /** A tappable marker, such as an open incident; [color] is #RRGGBB. */
 data class MapMarker(val key: String, val point: GeoPoint, val color: String)

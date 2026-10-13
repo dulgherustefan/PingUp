@@ -90,7 +90,8 @@ adb -s SERIAL logcat -s MeshDebug:V
 | `anchor --es zone bar` | Ancoră în zona dată |
 | `participant` | Înapoi la participant |
 | `scenario` | Pe consolă: incidente de test în toate categoriile și stările, starea punctelor, două ancore cu acoperire și un anunț de căldură activ (care pleacă și la telefoanele din jur) |
-| `reset` | Scoate datele scenariului și retrage anunțul de căldură |
+| `reset` | Scoate datele scenariului, prietenii demo și retrage anunțul de căldură |
+| `prieteni` | Trei prieteni demo care își partajează poziția lângă tine (unul acum și aproape, unul de acum 8 min la 150 m, unul de acum 40 min) și o partajare a ta cu primul, ca harta și listele să se vadă fără radio |
 
 Datele de test se recunosc: descrierile încep cu „Demo”, iar id-urile incidentelor cu `dec0de`. În demo, fiecare echipă deschide rapoartele, ca să le vadă orice telefon din prezentare.
 

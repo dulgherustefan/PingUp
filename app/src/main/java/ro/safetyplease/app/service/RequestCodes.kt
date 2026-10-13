@@ -12,4 +12,6 @@ object RequestCodes {
     const val REPORT_TILE = 4
     const val SHIFT_ENDED = 5
     const val DISCREET_TILE = 6
+    const val STOP_SHARING = 7
+    const val SHARING_REMINDER = 8
 }

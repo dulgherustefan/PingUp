@@ -12,6 +12,8 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.SecureRandom
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,10 +21,15 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -46,6 +53,8 @@ import ro.safetyplease.core.announce.NoticeBoard
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.announce.Notices
 import ro.safetyplease.core.chat.ChatManager
+import ro.safetyplease.core.chat.PositionFrame
+import ro.safetyplease.core.chat.PositionPolicy
 import ro.safetyplease.core.control.ConsoleLog
 import ro.safetyplease.core.control.ConsoleRecorder
 import ro.safetyplease.core.control.ControlMessages
@@ -53,8 +62,8 @@ import ro.safetyplease.core.control.HeardPeer
 import ro.safetyplease.core.control.PeerBook
 import ro.safetyplease.core.control.PointBoard
 import ro.safetyplease.core.control.PointReport
-import ro.safetyplease.core.control.SentPoint
 import ro.safetyplease.core.control.ReporterRecords
+import ro.safetyplease.core.control.SentPoint
 import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.crypto.Crypto
@@ -71,10 +80,12 @@ import ro.safetyplease.core.crypto.StaffRole
 import ro.safetyplease.core.crypto.StaffSecretKeys
 import ro.safetyplease.core.data.BlockedPerson
 import ro.safetyplease.core.data.ChatStore
+import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.Group
 import ro.safetyplease.core.data.IncidentData
 import ro.safetyplease.core.data.JsonStore
+import ro.safetyplease.core.data.PositionStore
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.event.EventKind
@@ -88,6 +99,7 @@ import ro.safetyplease.core.event.modeFileName
 import ro.safetyplease.core.incidents.AlertPlanner
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.Routing
+import ro.safetyplease.core.location.Heading
 import ro.safetyplease.core.mesh.CachedIncidents
 import ro.safetyplease.core.mesh.MeshConfig
 import ro.safetyplease.core.mesh.MeshEngine
@@ -98,10 +110,15 @@ import ro.safetyplease.core.mesh.Verdict
 import ro.safetyplease.core.metrics.MeshMetrics
 import ro.safetyplease.core.metrics.MetricsLog
 import ro.safetyplease.core.metrics.NetworkLog
+import ro.safetyplease.core.position.ShareChoice
+import ro.safetyplease.core.position.SharePlan
+import ro.safetyplease.core.position.ShareTime
+import ro.safetyplease.core.position.SharingNow
 import ro.safetyplease.core.protocol.ControlChannel
 import ro.safetyplease.core.protocol.Heartbeat
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.PointStatus
+import ro.safetyplease.core.protocol.PositionMethod
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.SiteGrid
@@ -248,12 +265,90 @@ class AppContainer(private val app: Application) {
     @Volatile
     var openConversation: String? = null
 
+    /** What friends share with this phone and what it shares, kept across restarts until each session ends. */
+    val positions = PositionStore.open(File(dataDir, "positions.json"), ioScope)
+    private val positionFrame = PositionFrame.of(event, venue.bounds)
+
     val chat = ChatManager(
         meshScope, engine, crypto, identity, friends, groups, blocked, chatStore, clock, SecureRandom().asKotlinRandom(),
         myNickname = { settings.value.nickname },
         shareZone = { settings.value.shareZone },
+        positions = positions,
+        positionFrame = { positionFrame },
     ) { message, sender ->
         if (!foreground.value || openConversation != message.conversation) notifier.chatMessage(message, sender)
+    }
+
+    /** Location wiring runs on the main thread, where [LocationSource] lives. */
+    private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    /** What this phone shares now and with how many people; null when nothing. */
+    val sharing: StateFlow<SharingNow?> = combine(chat.activeShares, settings.state, friends.state, groups.state, minuteTicks()) { active, s, _, _, _ ->
+        SharingNow.of(active, s.sharePlans, ::recipientsOf, clock.wallMs())
+    }.stateIn(ioScope, SharingStarted.Eagerly, null)
+
+    /** Who a conversation reaches: the friend, or the group's members but this phone. */
+    fun recipientsOf(conversation: String): List<Long> =
+        if (Conversations.isGroup(conversation)) {
+            groups.value.firstOrNull { Conversations.group(it.id) == conversation }?.members?.map { it.nodeId }?.filter { it != identity.nodeId }.orEmpty()
+        } else {
+            friends.value.filter { Conversations.friend(it.nodeId) == conversation }.map { it.nodeId }
+        }
+
+    /** The start of the festival day: the pack's, or 06:00 local time without a pack. */
+    fun dayStartMs(): Long = event?.let { it.dayStart * 1000 }
+        ?: LocalDate.now().atTime(NO_PACK_DAY_START_HOUR, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    /** Shares this phone's position with [conversation] as [choice] says; the caller is a visible screen. */
+    fun startShare(conversation: String, choice: ShareChoice) {
+        val length = choice.length ?: return
+        val precision = choice.precision ?: return
+        val now = clock.wallMs()
+        val plan = SharePlan(conversation, ShareTime.endAt(length, now, dayStartMs()), now)
+        settings.update { s -> s.copy(sharePlans = s.sharePlans.filterNot { it.conversation == conversation } + plan) }
+        chat.startShare(conversation, ShareTime.sessionMinutes(plan.endAtMs, now), precision)
+        location.share(PositionPolicy.MIN_INTERVAL_MS)
+    }
+
+    fun stopShare(conversation: String) {
+        settings.update { s -> s.copy(sharePlans = s.sharePlans.filterNot { it.conversation == conversation }) }
+        chat.stopShare(conversation)
+    }
+
+    /** "Oprește" in the notification or "Oprește tot": every share ends, and nobody is told more than the STOP. */
+    fun stopAllShares() {
+        val conversations = chat.activeShares.value.map { it.conversation } + settings.value.sharePlans.map { it.conversation }
+        settings.update { it.copy(sharePlans = emptyList()) }
+        conversations.distinct().forEach(chat::stopShare)
+        mainScope.launch { location.share(null) }
+    }
+
+    /** Renews mesh sessions for plans longer than two hours, ends plans whose share is gone and reminds of open-ended ones. */
+    private fun keepShares() {
+        val now = clock.wallMs()
+        val active = chat.activeShares.value
+        val plans = settings.value.sharePlans
+        val kept = SharingNow.keptPlans(plans, active, now)
+        for (plan in kept) {
+            val session = active.firstOrNull { it.conversation == plan.conversation } ?: continue
+            if (ShareTime.needsRenew(plan, session.expiresAtMs, now)) chat.renewShare(plan.conversation, ShareTime.sessionMinutes(plan.endAtMs, now))
+        }
+        val due = kept.filter { ShareTime.reminderDue(it, now) }
+        if (due.isNotEmpty()) sharing.value?.let { notifier.shareReminder(it.people) }
+        val updated = kept.map { if (it in due) it.copy(remindedAtMs = now) else it }
+        if (updated == plans) return
+        settings.update { s ->
+            // a share started while this ran stays as it was written
+            val fresh = s.sharePlans.filter { it !in plans }
+            s.copy(sharePlans = updated.filter { u -> fresh.none { it.conversation == u.conversation } } + fresh)
+        }
+    }
+
+    private fun minuteTicks() = flow {
+        while (true) {
+            emit(Unit)
+            delay(SHARE_TICK_MS)
+        }
     }
 
     val incidents = IncidentManager(
@@ -315,6 +410,24 @@ class AppContainer(private val app: Application) {
             }
         }
         meshScope.launch { remindUnconfirmed() }
+        meshScope.launch {
+            while (true) {
+                keepShares()
+                delay(SHARE_TICK_MS)
+            }
+        }
+        mainScope.launch {
+            // a share keeps the GNSS going off-screen; the foreground type for it is added from a visible screen
+            chat.activeShares.map { shares -> shares.isNotEmpty() }.distinctUntilChanged().collect { on ->
+                location.share(if (on) PositionPolicy.MIN_INTERVAL_MS else null)
+            }
+        }
+        mainScope.launch {
+            location.located.filterNotNull().collect { fix ->
+                val course = fix.headingDeg?.takeIf { (fix.speedMps ?: 0f) > Heading.COURSE_MIN_SPEED_MPS }
+                chat.onFix(fix.lat, fix.lon, fix.accuracyM.takeIf { it > 0f }?.toDouble(), course?.toDouble(), PositionMethod.GNSS, fix.timeMs)
+            }
+        }
         meshScope.launch { endExpiredShift() }
         meshScope.launch { routeAlerts() }
         meshScope.launch {
@@ -589,5 +702,7 @@ class AppContainer(private val app: Application) {
         private const val VAULT_SHIFT = "shift"
         private const val SHIFT_CHECK_MS = 60_000L
         private const val DOWNLOAD_TIMEOUT_MS = 20_000
+        private const val SHARE_TICK_MS = 30_000L
+        private const val NO_PACK_DAY_START_HOUR = 6
     }
 }

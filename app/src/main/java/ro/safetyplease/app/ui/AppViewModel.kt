@@ -3,6 +3,7 @@ package ro.safetyplease.app.ui
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
@@ -20,6 +21,7 @@ import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.app.MainActivity
 import ro.safetyplease.app.platform.location.GeoFix
+import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.app.ui.common.Nearby
 import ro.safetyplease.core.crypto.CertStatus
 import ro.safetyplease.core.crypto.QrCodes
@@ -27,6 +29,7 @@ import ro.safetyplease.core.crypto.ReservedNames
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.Friend
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.data.PositionRecord
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.data.StaffIncident
@@ -37,6 +40,9 @@ import ro.safetyplease.core.incidents.StaffCode
 import ro.safetyplease.core.incidents.StaffCodes
 import ro.safetyplease.core.incidents.StatusFilter
 import ro.safetyplease.core.incidents.UpdateDraft
+import ro.safetyplease.core.position.AskLimit
+import ro.safetyplease.core.position.ShareChoice
+import ro.safetyplease.core.position.SharingNow
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.LocationFields
@@ -83,9 +89,10 @@ sealed interface Dest {
     /**
      * Event map: your zone, the zones, the meeting point and, for staff, open incidents.
      * With [spot] (a place type, like "medical"), it opens on the way to the nearest such place.
-     * With [sendTo], the chosen zone is sent straight to that conversation.
+     * With [sendTo], the chosen zone is sent straight to that conversation. With [friend], it opens on that friend's
+     * shared position.
      */
-    data class Map(val spot: String = "", val sendTo: String? = null) : Dest
+    data class Map(val spot: String = "", val sendTo: String? = null, val friend: Long? = null) : Dest
 
     /** Offline first-aid sheets, then one of them by [id]. */
     data object FirstAid : Dest
@@ -94,6 +101,15 @@ sealed interface Dest {
     /** The offline information pages, then one of them by [id]. */
     data object Pages : Dest
     data class Page(val id: String) : Dest
+
+    /** What sharing the location means, before Android asks for it. */
+    data object ShareIntro : Dest
+
+    /** Friends and groups, each with its switch, all off until turned on. */
+    data object ShareChoose : Dest
+
+    /** "Cine mă vede acum": each share with its time left, stopped one by one or all at once. */
+    data object Sharing : Dest
 }
 
 /** What one tap on the staff codes screen did. */
@@ -138,6 +154,7 @@ fun landing(target: String): Pair<Tab, Dest?>? = when {
     target == MainActivity.OPEN_DISCREET -> Tab.REPORT to Dest.Discreet
     target.startsWith(MainActivity.OPEN_REPORT_PREFIX) -> Tab.REPORT to Dest.ReportSent(target.removePrefix(MainActivity.OPEN_REPORT_PREFIX))
     target.startsWith(MainActivity.OPEN_CHAT_PREFIX) -> Tab.MESSAGES to Dest.Conversation(target.removePrefix(MainActivity.OPEN_CHAT_PREFIX))
+    target == MainActivity.OPEN_SHARING -> Tab.MESSAGES to Dest.Sharing
     else -> null
 }
 
@@ -388,9 +405,42 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun unblock(nodeId: Long) = c.chat.unblock(nodeId)
 
-    fun requestZone(friend: Friend) = c.chat.requestZone(friend.nodeId)
-
     fun setShareZone(on: Boolean) = c.settings.update { it.copy(shareZone = on) }
+
+    // --- location sharing ---
+
+    val sharing: StateFlow<SharingNow?> = c.sharing
+    val friendPositions: StateFlow<List<PositionRecord>> = c.chat.friendPositions
+    val autoAnswer: StateFlow<Boolean> = c.positions.state.map { it.autoAnswer }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), c.positions.value.autoAnswer)
+
+    /** When each friend was last asked "Unde ești?" here, for the button to wait out the chat's limit. */
+    val askedAt = mutableStateMapOf<Long, Long>()
+
+    /** The explanation comes first until it was accepted once; after that, straight to the list. */
+    fun openShare() = open(if (c.settings.value.locationIntro) Dest.ShareChoose else Dest.ShareIntro)
+
+    fun acceptShareIntro() = c.settings.update { it.copy(locationIntro = true) }
+
+    /** From the visible list: the share, the GNSS it needs, and the location type of the foreground service. */
+    fun startShare(conversation: String, choice: ShareChoice) {
+        c.startShare(conversation, choice)
+        MeshService.shareLocation(getApplication(), true)
+    }
+
+    fun stopShare(conversation: String) = c.stopShare(conversation)
+
+    fun stopAllShares() = c.stopAllShares()
+
+    fun setAutoAnswer(on: Boolean) = c.chat.setAutoAnswer(on)
+
+    /** "Unde ești?": a position if the friend shares or answers, else the zone; at most once a minute per friend. */
+    fun requestPosition(friend: Friend) {
+        val now = c.clock.wallMs()
+        if (AskLimit.waitMs(askedAt[friend.nodeId], now) > 0) return
+        askedAt[friend.nodeId] = now
+        c.chat.requestPosition(friend.nodeId)
+    }
 
     fun setNotices(on: Boolean) = c.settings.update { it.copy(notices = on) }
 

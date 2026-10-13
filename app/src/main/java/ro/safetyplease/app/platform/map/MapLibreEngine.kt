@@ -1,6 +1,7 @@
 package ro.safetyplease.app.platform.map
 
 import android.graphics.Color
+import androidx.core.graphics.toColorInt
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdate
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -17,6 +18,7 @@ import org.maplibre.android.style.layers.PropertyFactory.circleColor
 import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
+import org.maplibre.android.style.layers.PropertyFactory.circleStrokeOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
 import org.maplibre.android.style.layers.PropertyFactory.fillColor
 import org.maplibre.android.style.layers.PropertyFactory.fillOpacity
@@ -39,8 +41,8 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
 
-/** #RRGGBB colors from the app theme: text and its halo, "me", friends. */
-data class MapPalette(val ink: String, val halo: String, val me: String, val friend: String)
+/** #RRGGBB colors from the app theme: text and its halo, "me", friends, and friends seen over 30 minutes ago. */
+data class MapPalette(val ink: String, val halo: String, val me: String, val friend: String, val stale: String)
 
 /**
  * [PingMapEngine] over a MapLibre map. The overlay sources are kept here as GeoJSON strings and pushed again after
@@ -156,7 +158,8 @@ class MapLibreEngine(
         }
         val polygons = Expression.eq(Expression.geometryType(), "Polygon")
         val points = Expression.eq(Expression.geometryType(), "Point")
-        val fadedIfStale = Expression.switchCase(Expression.get("stale"), Expression.literal(0.45f), Expression.literal(1f))
+        val fade = Expression.toNumber(Expression.get("fade"))
+        val friendColor = Expression.switchCase(Expression.get("grey"), Expression.color(colors.stale.toColorInt()), Expression.color(colors.friend.toColorInt()))
         listOf<Layer>(
             FillLayer("zones-fill", ZONES).withProperties(fillColor(Expression.toColor(Expression.get("color"))), fillOpacity(0.22f)),
             LineLayer("zones-line", ZONES).withProperties(lineColor(Expression.toColor(Expression.get("color"))), lineWidth(1.5f)),
@@ -177,10 +180,11 @@ class MapLibreEngine(
             CircleLayer(MARKERS_LAYER, MARKERS).withProperties(
                 circleColor(Expression.toColor(Expression.get("color"))), circleRadius(9f), circleStrokeColor(Color.WHITE), circleStrokeWidth(2.5f),
             ),
-            FillLayer("friends-ring", FRIENDS).withProperties(fillColor(colors.friend), fillOpacity(Expression.product(Expression.literal(0.16f), fadedIfStale)))
+            FillLayer("friends-ring", FRIENDS).withProperties(fillColor(friendColor), fillOpacity(Expression.product(Expression.literal(0.16f), fade)))
                 .withFilter(polygons),
             CircleLayer("friends-dot", FRIENDS).withProperties(
-                circleColor(colors.friend), circleRadius(7f), circleStrokeColor(Color.WHITE), circleStrokeWidth(2f), circleOpacity(fadedIfStale),
+                circleColor(friendColor), circleRadius(Expression.toNumber(Expression.get("size"))), circleStrokeColor(Color.WHITE), circleStrokeWidth(2f),
+                circleOpacity(fade), circleStrokeOpacity(fade),
             ).withFilter(points),
             label(SymbolLayer("friends-label", FRIENDS), 12f).withProperties(
                 textField(Expression.get("label")), textFont(MEDIUM), textAnchor("top"), textOffset(arrayOf(0f, 0.9f)),

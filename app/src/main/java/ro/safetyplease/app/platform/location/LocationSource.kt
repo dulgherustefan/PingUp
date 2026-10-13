@@ -86,6 +86,15 @@ class LocationSource(private val context: Context, water: List<List<GeoPoint>>, 
         if (location.provider == LocationManager.GPS_PROVIDER && requested == null) onLocation(location, FixMethod.PASSIVE)
     }
 
+    /**
+     * Where the phone faces now, for an arrow on screen: the GNSS course of the last fix while walking, else the compass
+     * read at this moment ([Heading.pick]); null when neither can be trusted.
+     */
+    fun heading(): Float? {
+        val last = _located.value
+        return Heading.pick(last?.headingDeg?.takeIf { (last.speedMps ?: 0f) > Heading.COURSE_MIN_SPEED_MPS }, last?.speedMps, motion.azimuth, motion.compassAccuracy)
+    }
+
     fun hasPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 

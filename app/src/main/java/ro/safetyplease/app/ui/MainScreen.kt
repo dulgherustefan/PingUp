@@ -58,8 +58,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,11 +84,13 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ro.safetyplease.app.R
 import ro.safetyplease.app.demo.Demo
+import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.chat.ConversationScreen
 import ro.safetyplease.app.ui.chat.MessagesScreen
 import ro.safetyplease.app.ui.common.ExerciseBanner
 import ro.safetyplease.app.ui.common.RadioGate
+import ro.safetyplease.app.ui.common.SharingBar
 import ro.safetyplease.app.ui.control.ControlScreen
 import ro.safetyplease.app.ui.control.ControlWindow
 import ro.safetyplease.app.ui.designsystem.AppTheme
@@ -105,10 +107,10 @@ import ro.safetyplease.app.ui.designsystem.backdropSource
 import ro.safetyplease.app.ui.designsystem.glass
 import ro.safetyplease.app.ui.designsystem.pressScale
 import ro.safetyplease.app.ui.designsystem.rememberBackdrop
-import ro.safetyplease.app.ui.incidents.IncidentDetailScreen
-import ro.safetyplease.app.ui.incidents.IncidentsScreen
 import ro.safetyplease.app.ui.firstaid.FirstAidScreen
 import ro.safetyplease.app.ui.firstaid.FirstAidSheetScreen
+import ro.safetyplease.app.ui.incidents.IncidentDetailScreen
+import ro.safetyplease.app.ui.incidents.IncidentsScreen
 import ro.safetyplease.app.ui.info.PageScreen
 import ro.safetyplease.app.ui.info.PagesScreen
 import ro.safetyplease.app.ui.map.MapScreen
@@ -124,17 +126,20 @@ import ro.safetyplease.app.ui.people.AddFriendScreen
 import ro.safetyplease.app.ui.people.BlockedScreen
 import ro.safetyplease.app.ui.people.NewGroupScreen
 import ro.safetyplease.app.ui.people.ProfileScreen
+import ro.safetyplease.app.ui.people.ShareChooseScreen
+import ro.safetyplease.app.ui.people.ShareIntroScreen
+import ro.safetyplease.app.ui.people.SharingScreen
 import ro.safetyplease.app.ui.report.MyReportsScreen
 import ro.safetyplease.app.ui.report.ReportScreen
 import ro.safetyplease.app.ui.report.ReportSentScreen
 import ro.safetyplease.app.ui.safety.DiscreetScreen
 import ro.safetyplease.app.ui.staffcodes.PointsScreen
 import ro.safetyplease.app.ui.staffcodes.StaffCodesScreen
+import ro.safetyplease.core.data.Role as AppRole
+import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
-import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.protocol.AckStatus
-import ro.safetyplease.core.data.Role as AppRole
 
 /** The mesh can't start without these. */
 fun radioPermissions(): List<String> =
@@ -258,14 +263,22 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit) {
     val now = rememberNow()
     val shown = shownNotices(vm, if (vm.c.showsNotices(settings)) board.active(now / 1000) else emptyList())
     val bands = shown.filter { !it.held.dismissed }
+    val sharing by vm.sharing.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    // the foreground service may hold the location type only while asked from a visible screen
+    LifecycleResumeEffect(sharing != null) {
+        MeshService.shareLocation(context, sharing != null)
+        onPauseOrDispose { }
+    }
     val alert = shown.firstOrNull { it.notice.urgent && !it.held.alerted }
     CompositionLocalProvider(LocalTextOnly provides textOnly, LocalReduceMotion provides reduce) {
         FullScreen {
             // the bands sit above every screen and take the status bar, so they cover no header
-            val topTaken = vm.c.exercise || bands.isNotEmpty()
+            val topTaken = vm.c.exercise || bands.isNotEmpty() || sharing != null
             Column(Modifier.fillMaxSize()) {
                 if (vm.c.exercise) ExerciseBanner()
-                NoticeBands(vm, bands, statusBar = !vm.c.exercise)
+                sharing?.let { SharingBar(it, statusBar = !vm.c.exercise) { vm.open(Dest.Sharing) } }
+                NoticeBands(vm, bands, statusBar = !vm.c.exercise && sharing == null)
                 Box(Modifier.weight(1f).then(if (topTaken) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
                     CompositionLocalProvider(LocalStatusBarTop provides if (topTaken) 0.dp else null) {
                         Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce)
@@ -325,6 +338,9 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         is Dest.FirstAidSheet -> FirstAidSheetScreen(vm, dest.id)
         Dest.Pages -> PagesScreen(vm)
         is Dest.Page -> PageScreen(vm, dest.id)
+        Dest.ShareIntro -> ShareIntroScreen(vm)
+        Dest.ShareChoose -> ShareChooseScreen(vm)
+        Dest.Sharing -> SharingScreen(vm)
         null -> when (role) {
             AppRole.ANCHOR -> AnchorScreen(vm)
             AppRole.CONTROL -> ControlScreen(vm, onStartMesh)

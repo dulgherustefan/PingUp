@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.ln
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.R
@@ -65,6 +66,7 @@ import ro.safetyplease.app.demo.Demo
 import ro.safetyplease.app.platform.map.FollowMode
 import ro.safetyplease.app.platform.map.MapChoice
 import ro.safetyplease.app.platform.map.MapData
+import ro.safetyplease.app.platform.map.MapFriend
 import ro.safetyplease.app.platform.map.MapKind
 import ro.safetyplease.app.platform.map.MapMarker
 import ro.safetyplease.app.platform.map.MapMe
@@ -76,6 +78,7 @@ import ro.safetyplease.app.text.NoticeText
 import ro.safetyplease.app.text.rememberNow
 import ro.safetyplease.app.ui.AppViewModel
 import ro.safetyplease.app.ui.Dest
+import ro.safetyplease.app.ui.common.FriendSpot
 import ro.safetyplease.app.ui.common.LowBatteryBanner
 import ro.safetyplease.app.ui.common.MapCamera
 import ro.safetyplease.app.ui.common.MapCorner
@@ -84,6 +87,7 @@ import ro.safetyplease.app.ui.common.MapPin
 import ro.safetyplease.app.ui.common.MapReserve
 import ro.safetyplease.app.ui.common.MeButton
 import ro.safetyplease.app.ui.common.VenueMap
+import ro.safetyplease.app.ui.common.friendSpotText
 import ro.safetyplease.app.ui.common.incidentPoint
 import ro.safetyplease.app.ui.common.routeText
 import ro.safetyplease.app.ui.common.spotColor
@@ -93,6 +97,7 @@ import ro.safetyplease.app.ui.common.zoneTone
 import ro.safetyplease.app.ui.designsystem.AppButton
 import ro.safetyplease.app.ui.designsystem.AppDialog
 import ro.safetyplease.app.ui.designsystem.AppTheme
+import ro.safetyplease.app.ui.designsystem.Avatar
 import ro.safetyplease.app.ui.designsystem.GlassIconButton
 import ro.safetyplease.app.ui.designsystem.GroupDivider
 import ro.safetyplease.app.ui.designsystem.GroupRow
@@ -115,13 +120,13 @@ import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.notices.shadeType
 import ro.safetyplease.app.ui.rememberLocationRequest
 import ro.safetyplease.core.announce.NoticeTopic
+import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.distanceMeters
-import kotlin.math.ln
 
 /** Places the quick chips lead to, in chip order. */
 private val SpotTypes = listOf("medical", "exit", Venue.MEETING, "water", "wc", "info", "charge", Venue.DEA)
@@ -170,6 +175,19 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val fix by vm.c.location.fix.collectAsStateWithLifecycle()
     var aboutMap by rememberSaveable { mutableStateOf(false) }
 
+    val friends by vm.friends.collectAsStateWithLifecycle()
+    val records by vm.friendPositions.collectAsStateWithLifecycle()
+    val friendSpots = FriendSpot.of(records, friends, now, vm.venue)
+    val mapFriends = friendSpots.map { MapFriend(it.friend.nodeId.toString(), it.point.lat, it.point.lon, it.ringM.toFloat(), it.age, it.friend.nickname) }
+    val friendPoint = dest.friend?.let { id -> friendSpots.firstOrNull { it.friend.nodeId == id }?.point }
+
+    /** What the map opens on: the way to a place, a friend and you, or just you. */
+    fun openingPoints(): List<GeoPoint> = when {
+        focus == MapFocus.SPOT -> listOfNotNull(origin, vm.venue.nearest(spotType, origin)?.point)
+        friendPoint != null -> listOfNotNull(origin, friendPoint)
+        else -> listOfNotNull(origin)
+    }
+
     val pins = remember(incidents.staff, settings.role, colors) {
         if (!settings.role.hasStaffKeys) emptyList()
         else incidents.staff.filter { !AckStatus.isClosed(it.status) && !Priority.isInformational(it.category) }.mapNotNull { incident ->
@@ -213,7 +231,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     // on opening, the map shows where you are, or the route to the place it was opened for
     LaunchedEffect(camera) {
         snapshotFlow { camera.ready }.first { it }
-        val points = if (focus == MapFocus.SPOT) listOfNotNull(origin, vm.venue.nearest(spotType, origin)?.point) else listOfNotNull(origin)
+        val points = openingPoints()
         if (points.isNotEmpty()) camera.show(points, if (focus == MapFocus.SPOT) 2.6f else 1.5f, animated = false)
     }
 
@@ -221,7 +239,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     LaunchedEffect(engine, mapState) {
         val real = engine ?: return@LaunchedEffect
         real.setVenue(vm.venue) { hex(spotColor(colors, it)) }
-        val points = if (focus == MapFocus.SPOT) listOfNotNull(origin, vm.venue.nearest(spotType, origin)?.point) else listOfNotNull(origin)
+        val points = openingPoints()
         if (points.isEmpty()) real.fit(vm.venue.bounds, animated = false)
         else real.show(points, realZoom(if (focus == MapFocus.SPOT) 2.6f else 1.5f), animated = false)
     }
@@ -235,6 +253,9 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     }
     LaunchedEffect(engine, pins) {
         engine?.setMarkers(pins.map { MapMarker(it.key, it.point, hex(it.color)) })
+    }
+    LaunchedEffect(engine, mapFriends) {
+        engine?.setFriends(mapFriends)
     }
 
     val haptics = rememberHaptics()
@@ -298,7 +319,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                         PingMap(
                             pack = (mapState as MapState.Ready).pack,
                             dark = colors.dark,
-                            palette = MapPalette(hex(colors.label), hex(colors.cell), hex(colors.accent), hex(colors.green)),
+                            palette = MapPalette(hex(colors.label), hex(colors.cell), hex(colors.accent), hex(colors.green), hex(colors.secondaryLabel)),
                             modifier = Modifier.fillMaxSize(),
                             onTap = { point, key ->
                                 when {
@@ -317,6 +338,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                         modifier = mapModifier,
                         position = origin,
                         pins = pins,
+                        friends = mapFriends,
                         myZone = myZoneId,
                         highlightZone = if (focus == MapFocus.ZONE) tapped else "",
                         meetingFocused = focus == MapFocus.SPOT && spotType == Venue.MEETING,
@@ -407,6 +429,23 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                                     IconCircle(Sym.MyLocation, if (origin != null) colors.accent else colors.fill, if (origin != null) colors.onAccent else colors.secondaryLabel, 36.dp)
                                 },
                             )
+                        }
+                    }
+                }
+            }
+            if (friendSpots.isNotEmpty()) {
+                item(key = "friends-title") { SectionTitle(stringResource(R.string.map_friends)) }
+                item(key = "friends") {
+                    InsetGroup {
+                        friendSpots.forEachIndexed { index, spot ->
+                            GroupRow(
+                                spot.friend.nickname,
+                                subtitle = friendSpotText(spot),
+                                leading = { Avatar(spot.friend.nickname, 36.dp) },
+                                chevron = true,
+                                onClick = { vm.open(Dest.Profile(Conversations.friend(spot.friend.nodeId))) },
+                            )
+                            if (index < friendSpots.lastIndex) GroupDivider(start = 64.dp)
                         }
                     }
                 }

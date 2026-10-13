@@ -97,6 +97,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import ro.safetyplease.app.R
 import ro.safetyplease.app.text.Labels
 import ro.safetyplease.app.text.agoText
@@ -107,9 +109,12 @@ import ro.safetyplease.app.ui.Dest
 import ro.safetyplease.app.ui.ScanOutcome
 import ro.safetyplease.app.ui.Tab
 import ro.safetyplease.app.ui.common.BigCodeDialog
+import ro.safetyplease.app.ui.common.FriendSpot
+import ro.safetyplease.app.ui.common.FriendSpotLines
 import ro.safetyplease.app.ui.common.QrBadge
 import ro.safetyplease.app.ui.common.QrCardWidth
 import ro.safetyplease.app.ui.common.friendStatus
+import ro.safetyplease.app.ui.common.untilText
 import ro.safetyplease.app.ui.deniedForGood
 import ro.safetyplease.app.ui.designsystem.ActionTile
 import ro.safetyplease.app.ui.designsystem.AppButton
@@ -141,9 +146,10 @@ import ro.safetyplease.app.ui.designsystem.subheadline
 import ro.safetyplease.app.ui.designsystem.title1
 import ro.safetyplease.app.ui.openAppSettings
 import ro.safetyplease.core.data.Conversations
+import ro.safetyplease.core.data.Friend
+import ro.safetyplease.core.position.AskLimit
+import ro.safetyplease.core.position.Guide
 import ro.safetyplease.core.protocol.Limits
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 
 private class QrAnalyzer(private val onResult: (String) -> Unit) : ImageAnalysis.Analyzer {
     override fun analyze(image: ImageProxy) {
@@ -639,8 +645,8 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
     val density = LocalDensity.current
     val friend = friends.firstOrNull { Conversations.friend(it.nodeId) == conversation }
     val group = groups.firstOrNull { Conversations.group(it.id) == conversation }
+    val sharing by vm.sharing.collectAsStateWithLifecycle()
     var confirm by remember { mutableStateOf(false) }
-    var asked by remember { mutableStateOf(false) }
     var blocking by remember { mutableStateOf<Pair<Long, String>?>(null) }
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
@@ -687,19 +693,17 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                         value = if (friend.lastZone.isNotEmpty()) vm.venue.zoneName(friend.lastZone) else stringResource(R.string.profile_last_zone_none),
                         icon = Sym.Place,
                     )
-                    GroupDivider()
-                    GroupRow(
-                        stringResource(R.string.profile_where_are_you),
-                        subtitle = if (asked) stringResource(R.string.profile_where_asked) else null,
-                        icon = Sym.MyLocation, tint = colors.accent,
-                        onClick = {
-                            vm.requestZone(friend)
-                            asked = true
-                        },
-                    )
                 } else if (group != null) {
                     GroupRow(stringResource(R.string.profile_created), value = Labels.date(LocalResources.current, group.createdAt), icon = Sym.Clock)
                 }
+            }
+            if (friend != null) FriendLocation(vm, friend)
+            InsetGroup(Modifier.padding(top = 24.dp)) {
+                val mine = sharing?.shares?.firstOrNull { it.conversation == conversation }
+                GroupRow(
+                    stringResource(R.string.profile_share_mine), icon = Sym.MyLocation, tint = colors.accent,
+                    value = mine?.let { untilText(it.endsAtMs) }, chevron = true, onClick = { vm.openShare() },
+                )
             }
             if (group != null) {
                 SectionTitle(pluralStringResource(R.plurals.group_members, group.members.size, group.members.size))
@@ -760,5 +764,52 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
             if (friend?.nodeId == nodeId) vm.home(Tab.MESSAGES)
             vm.block(nodeId)
         }
+    }
+}
+
+/**
+ * Where a friend is, when they share it: which way and how far, how old and how sure. "Unde ești?" waits out the
+ * chat's once-a-minute limit. There is no "Fă-te văzut" yet: the chat has no ping-to-be-seen request to send.
+ */
+@Composable
+private fun FriendLocation(vm: AppViewModel, friend: Friend) {
+    val records by vm.friendPositions.collectAsStateWithLifecycle()
+    val located by vm.c.location.located.collectAsStateWithLifecycle()
+    val me by vm.position.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val colors = AppTheme.colors
+    // every second: the compass turns the arrow and the ask button counts down
+    val now = rememberNow(1_000)
+    val spot = FriendSpot.of(records, listOf(friend), now, vm.venue).firstOrNull()
+    SectionTitle(stringResource(R.string.pos_title))
+    InsetGroup {
+        if (spot != null) {
+            val simulated = settings.simLat != null
+            val my95 = if (simulated) 0.0 else located?.ring95M?.toDouble() ?: 0.0
+            val guide = me?.let { Guide.of(it, my95, spot.point, spot.ringM, vm.venue) }
+            FriendSpotLines(spot, guide, vm.c.location.heading())
+            GroupDivider(start = Gutter)
+            GroupRow(
+                stringResource(R.string.pos_on_map), icon = Sym.MapFill, tint = colors.accent, chevron = true,
+                onClick = { vm.open(Dest.Map(friend = friend.nodeId)) },
+            )
+        } else {
+            Text(
+                stringResource(R.string.pos_none), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                modifier = Modifier.padding(horizontal = Gutter, vertical = 12.dp),
+            )
+        }
+        GroupDivider(start = Gutter)
+        val wait = AskLimit.waitMs(vm.askedAt[friend.nodeId], now)
+        GroupRow(
+            stringResource(R.string.profile_where_are_you),
+            subtitle = when {
+                wait > 0 -> stringResource(R.string.pos_ask_wait, ((wait + 999) / 1000).toInt())
+                vm.askedAt.containsKey(friend.nodeId) -> stringResource(R.string.profile_where_asked)
+                else -> null
+            },
+            icon = Sym.PersonSearch, tint = if (wait > 0) colors.tertiaryLabel else colors.accent,
+            onClick = if (wait > 0) null else ({ vm.requestPosition(friend) }),
+        )
     }
 }

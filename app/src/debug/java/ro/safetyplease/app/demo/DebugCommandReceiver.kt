@@ -31,7 +31,7 @@ import java.time.ZoneId
  *
  * Demo kit (README, "Demo"): control, staff (--es team "Medical 1" --es zone main-stage --ez lead true) and
  * anchor (--es zone bar) take shifts of the demo key chain; pack loads the demo event pack and restarts the app;
- * scenario seeds the console's test data and reset takes it back.
+ * scenario seeds the console's test data and reset takes it back; prieteni seeds friends sharing their position.
  */
 class DebugCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -93,6 +93,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 Demo.reset(c)
                 "scenario removed"
             }
+            "prieteni" -> DemoFriends.seed(c)
             "participant" -> {
                 c.leaveStaff()
                 "participant"

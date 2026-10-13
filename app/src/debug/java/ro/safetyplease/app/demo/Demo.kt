@@ -169,6 +169,7 @@ object Demo {
         seededPoints = emptyMap()
         c.heard.update { it - DemoScenario.ANCHOR_PREFIXES.toSet() }
         c.notices.cancel(NoticeTopic.HEAT)
+        DemoFriends.remove(c)
     }
 
     private const val HEAT_LEVEL = 2

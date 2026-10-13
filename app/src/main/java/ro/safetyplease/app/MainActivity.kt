@@ -73,5 +73,8 @@ class MainActivity : ComponentActivity() {
         /** One of your reports, by id. */
         const val OPEN_REPORT_PREFIX = "report:"
         const val OPEN_CHAT_PREFIX = "chat:"
+
+        /** "Cine mă vede acum", from the notification of a location share. */
+        const val OPEN_SHARING = "sharing"
     }
 }

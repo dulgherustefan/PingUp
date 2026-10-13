@@ -1,6 +1,7 @@
 package ro.safetyplease.core.data
 
 import kotlinx.serialization.Serializable
+import ro.safetyplease.core.position.SharePlan
 import ro.safetyplease.core.util.toHex
 
 @Serializable
@@ -40,6 +41,10 @@ data class Settings(
     val shareZone: Boolean = true,
     /** A participant opted in to the organiser's notices; staff always gets them. */
     val notices: Boolean = false,
+    /** The location sharing explanation was read and accepted with "Alege cu cine". */
+    val locationIntro: Boolean = false,
+    /** How long each running location share lasts, as the user chose it. */
+    val sharePlans: List<SharePlan> = emptyList(),
 )
 
 @Serializable

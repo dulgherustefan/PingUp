@@ -4,12 +4,14 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.double
+import kotlinx.serialization.json.float
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import ro.safetyplease.core.position.FriendAge
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
@@ -99,18 +101,21 @@ class MapGeoJsonTest {
     }
 
     @Test
-    fun eachFriendIsARingAndADotWithTheStaleFlag() {
+    fun eachFriendIsARingAndADotLookingItsAge() {
         val friends = features(
             MapGeoJson.friends(
                 listOf(
-                    MapFriend("a", 43.95, 28.635, accuracyM = 20f, ageMin = 1, stale = false, label = "Ana"),
-                    MapFriend("b", 43.949, 28.634, accuracyM = 5f, ageMin = 12, stale = true),
+                    MapFriend("a", 43.95, 28.635, ringM = 32f, age = FriendAge.NOW, label = "Ana"),
+                    MapFriend("b", 43.949, 28.634, ringM = 8f, age = FriendAge.FADED),
+                    MapFriend("c", 43.948, 28.633, ringM = 300f, age = FriendAge.STALE),
                 ),
             ),
         )
-        assertEquals(listOf("Polygon", "Point", "Polygon", "Point"), friends.map { it.type() })
-        assertEquals(listOf("a", "a", "b", "b"), friends.map { it.prop("id").content })
-        assertEquals(listOf(false, false, true, true), friends.map { it.prop("stale").boolean })
+        assertEquals(listOf("Polygon", "Point", "Polygon", "Point", "Polygon", "Point"), friends.map { it.type() })
+        assertEquals(listOf("a", "a", "b", "b", "c", "c"), friends.map { it.prop("id").content })
+        assertEquals(listOf(1f, 1f, 0.5f, 0.5f, 0.5f, 0.5f), friends.map { it.prop("fade").float })
+        assertEquals(listOf(false, false, false, false, true, true), friends.map { it.prop("grey").boolean })
+        assertTrue(friends[1].prop("size").float > friends[3].prop("size").float)
         assertEquals("Ana", friends[1].prop("label").content)
         assertEquals(32.0, distanceMeters(GeoPoint(43.95, 28.635), friends[0].ring()[0]).toDouble(), 1.0)
     }
