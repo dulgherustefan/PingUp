@@ -1,0 +1,85 @@
+# Who wrote each file and under which license, in the REUSE format (https://reuse.software); `reuse lint` checks it.
+# When several tables match a file, the last one wins: the code's catch-all comes first, the exceptions after it.
+version = 1
+SPDX-PackageName = "Ping Up"
+SPDX-PackageDownloadLocation = "https://github.com/dulgherustefan/PingUp"
+
+# the code, and everything not listed below
+[[annotations]]
+path = "**"
+SPDX-FileCopyrightText = "2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# the documentation, the protocol with its golden vectors, and the texts the app shows
+[[annotations]]
+path = [
+    "*.md",
+    "tools/*.md",
+    ".github/pull_request_template.md",
+    "core/src/commonTest/resources/golden/**",
+    "app/src/main/assets/pages/**",
+    "app/src/main/assets/pages-en/**",
+    "app/src/main/assets/firstaid/**",
+    "app/src/main/assets/firstaid-en/**",
+    "app/src/main/assets/notices.json",
+    "app/src/main/assets/venue.json",
+]
+SPDX-FileCopyrightText = "2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver"
+SPDX-License-Identifier = "CC-BY-4.0"
+
+# the logo and the mascot, which Mascot.kt draws from the logo's paths (TRADEMARKS.md)
+[[annotations]]
+path = [
+    "app/src/main/res/drawable/ic_launcher_background.xml",
+    "app/src/main/res/drawable/ic_launcher_foreground.xml",
+    "app/src/main/res/drawable/ic_launcher_monochrome.xml",
+    "iosApp/PingUp/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
+    "ui/src/commonMain/kotlin/ro/safetyplease/ui/designsystem/Mascot.kt",
+]
+SPDX-FileCopyrightText = "2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver"
+SPDX-License-Identifier = "LicenseRef-PingUp-Brand"
+
+# the icons from Phosphor Icons 2.1.1
+[[annotations]]
+path = [
+    "ui/src/commonMain/kotlin/ro/safetyplease/ui/designsystem/Icons.kt",
+    "app/src/main/res/drawable/ic_discreet.xml",
+    "app/src/main/res/drawable/ic_phone.xml",
+    "app/src/main/res/drawable/ic_report.xml",
+    "app/src/main/res/drawable/ic_shortcut_report_foreground.xml",
+]
+SPDX-FileCopyrightText = [
+    "2023 Phosphor Icons",
+    "2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver",
+]
+SPDX-License-Identifier = "MIT"
+
+# the Inter font
+[[annotations]]
+path = "ui/src/commonMain/composeResources/font/inter_variable.ttf"
+SPDX-FileCopyrightText = "2016 The Inter Project Authors (https://github.com/rsms/inter)"
+SPDX-License-Identifier = "OFL-1.1"
+
+# the base map pack (tools/map_assets.md): OpenStreetMap data cut from a Protomaps daily build
+[[annotations]]
+path = "app/src/main/assets/maps/**/*.pmtiles"
+SPDX-FileCopyrightText = "OpenStreetMap contributors (https://www.openstreetmap.org/copyright)"
+SPDX-License-Identifier = "ODbL-1.0"
+
+# the map's glyphs, made from Noto Sans by protomaps/basemaps-assets
+[[annotations]]
+path = "app/src/main/assets/maps/**/fonts/**"
+SPDX-FileCopyrightText = "2022 The Noto Project Authors (https://github.com/notofonts)"
+SPDX-License-Identifier = "OFL-1.1"
+
+# the map's icons, from protomaps/basemaps-assets, drawn from Mapzen's tangrams/icons
+[[annotations]]
+path = "app/src/main/assets/maps/**/sprites/**"
+SPDX-FileCopyrightText = "2017 Mapzen"
+SPDX-License-Identifier = "MIT"
+
+# the Gradle wrapper; gradlew and gradlew.bat also say it in their own headers, which take precedence
+[[annotations]]
+path = ["gradlew", "gradlew.bat", "gradle/wrapper/**"]
+SPDX-FileCopyrightText = "2007 the original author or authors"
+SPDX-License-Identifier = "Apache-2.0"

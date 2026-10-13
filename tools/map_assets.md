@@ -28,14 +28,15 @@ License 1.1. The styles use two stacks, `Noto Sans Regular` and `Noto Sans Mediu
 - `1024-1279.pbf` (Cyrillic: a few OSM names near the site carry it; without it MapLibre logs a failed range)
 - `8192-8447.pbf` (dashes, quotes, the ellipsis)
 
-Copy them to `fonts/Noto Sans Regular/` and `fonts/Noto Sans Medium/`, and put the font's `OFL.txt` in `licenses/`
-as `OFL-Noto-Sans.txt`.
+Copy them to `fonts/Noto Sans Regular/` and `fonts/Noto Sans Medium/`. The license is `LICENSES/OFL-1.1.txt`, and
+`REUSE.toml` names the font's authors.
 
 ## Sprites
 
 From the same repository, folder `sprites/v4/`: `light.json`, `light.png`, `light@2x.json`, `light@2x.png` and the
 four `dark` files. They draw the icons of OpenStreetMap points at zoom 15 and above; a missing icon only leaves the
-name without its symbol.
+name without its symbol. They are MIT, drawn from Mapzen's [tangrams/icons](https://github.com/tangrams/icons), and
+the tiles are OpenStreetMap data under the ODbL; `REUSE.toml` says both.
 
 ## Checking a pack
 

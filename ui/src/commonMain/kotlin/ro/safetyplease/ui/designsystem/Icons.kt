@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 
 /**
- * App icons: Phosphor Icons 2.1.1 (MIT, see licenses/). Regular for lists and bars, Fill for the selected tab,
+ * App icons: Phosphor Icons 2.1.1 (MIT, see LICENSES/MIT.txt). Regular for lists and bars, Fill for the selected tab,
  * Bold for back, close and plus. Their grid is 256.
  */
 object Sym {

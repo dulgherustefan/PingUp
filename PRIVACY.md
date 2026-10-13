@@ -44,7 +44,7 @@ Totul rămâne pe telefon până îl ștergi. Un mesaj care nu ajunge în 24 de 
 
 ## Contact
 
-Ping Up e făcut de Dulgheru Ștefan Alexandru, Ilie-Goga Radu, Cîrciumaru Radu și Farkas Oliver. Scrie-ne la [stdulgh@gmail.com](mailto:stdulgh@gmail.com) sau pe [github.com/dulgherustefan/PingUp/issues](https://github.com/dulgherustefan/PingUp/issues).
+Ping Up e făcut de Dulgheru Ștefan Alexandru, Ilie-Goga Radu, Cîrciumaru Radu și Farkaș Andrei-Oliver. Scrie-ne la [stdulgh@gmail.com](mailto:stdulgh@gmail.com) sau pe [github.com/dulgherustefan/PingUp/issues](https://github.com/dulgherustefan/PingUp/issues).
 
 Actualizată pe 13 octombrie 2026. Același text e în aplicație, la Eu › Confidențialitate.
 
@@ -96,6 +96,6 @@ Everything stays on the phone until you delete it. A message that hasn’t arriv
 
 ## Contact
 
-Ping Up is made by Dulgheru Ștefan Alexandru, Ilie-Goga Radu, Cîrciumaru Radu and Farkas Oliver. Write to us at [stdulgh@gmail.com](mailto:stdulgh@gmail.com) or on [github.com/dulgherustefan/PingUp/issues](https://github.com/dulgherustefan/PingUp/issues).
+Ping Up is made by Dulgheru Ștefan Alexandru, Ilie-Goga Radu, Cîrciumaru Radu and Farkaș Andrei-Oliver. Write to us at [stdulgh@gmail.com](mailto:stdulgh@gmail.com) or on [github.com/dulgherustefan/PingUp/issues](https://github.com/dulgherustefan/PingUp/issues).
 
 Updated on October 13, 2026. The same text is in the app, under Me › Privacy.
