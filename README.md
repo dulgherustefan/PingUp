@@ -115,3 +115,5 @@ Build-ul debug are o pereche separată, publică (`--demo`), pe care release-ul 
 
 Harta unui festival nou se pune în `app/src/main/assets/venue.json` și se verifică cu `python3 tools/check_venue.py app/src/main/assets/venue.json`: zonele nu au voie să se suprapună, id-urile încap în protocol, iar numerele reperelor sunt unice. Aceeași verificare rulează în CI și înainte ca `gen_staff_keys.py pack` să semneze pachetul de eveniment. Formatul e descris în script.
 
+## Drepturi
+Toate drepturile rezervate. Detalii în [LICENSE](LICENSE).
