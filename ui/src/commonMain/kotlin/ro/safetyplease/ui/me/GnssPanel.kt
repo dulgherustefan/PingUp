@@ -19,6 +19,7 @@ import ro.safetyplease.core.location.DutyCycle
 import ro.safetyplease.core.util.formatDecimal
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.common.freshExportDir
+import ro.safetyplease.ui.common.StepsSwitch
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.TextLink
@@ -102,6 +103,7 @@ internal fun GnssPanel(vm: AppViewModel, gnss: GnssView, onDismiss: () -> Unit) 
             stringResource(Res.string.gnss_mode_text), style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
         )
+        StepsSwitch(vm)
     }
 }
 

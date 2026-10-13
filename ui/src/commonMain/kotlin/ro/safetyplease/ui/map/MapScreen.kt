@@ -77,10 +77,12 @@ import ro.safetyplease.ui.common.MapGlyph
 import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MapReserve
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.RegasireMapRows
 import ro.safetyplease.ui.common.VenueMap
 import ro.safetyplease.ui.common.friendSpotText
 import ro.safetyplease.ui.common.incidentPoint
 import ro.safetyplease.ui.common.onSite
+import ro.safetyplease.ui.common.rememberRegasireMap
 import ro.safetyplease.ui.common.routeText
 import ro.safetyplease.ui.common.spotColor
 import ro.safetyplease.ui.common.typeGlyph
@@ -210,6 +212,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val mapOverlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
     val fix by vm.c.locationFix.collectAsStateWithLifecycle()
     var aboutMap by rememberSaveable { mutableStateOf(false) }
+    val regasire = rememberRegasireMap(vm)
 
     val friends by vm.friends.collectAsStateWithLifecycle()
     val records by vm.friendPositions.collectAsStateWithLifecycle()
@@ -293,6 +296,9 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     LaunchedEffect(engine, mapFriends) {
         engine?.setFriends(mapFriends)
     }
+    LaunchedEffect(engine) {
+        engine?.setOnLongPress(regasire::longPress)
+    }
     LaunchedEffect(engine, mapOverlay) {
         engine?.setOverlay(mapOverlay)
     }
@@ -312,6 +318,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
         }
     }
 
+    regasire.AskDialog(vm)
     if (aboutMap) {
         AppDialog(
             onDismiss = { aboutMap = false }, title = stringResource(Res.string.map_about),
@@ -393,6 +400,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             else if (zone != null) showZone(zone.id)
                         },
                         onPinTap = { openPin(it.key) },
+                        onLongPress = regasire::longPress,
                         camera = camera,
                         target = spot?.point,
                         targetColor = spotColor(colors, spotType),
@@ -480,6 +488,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     }
                 }
             }
+            item(key = "regasire") { RegasireMapRows(vm, origin) }
             if (friendSpots.isNotEmpty()) {
                 item(key = "friends-title") { SectionTitle(stringResource(Res.string.map_friends)) }
                 item(key = "friends") {

@@ -21,6 +21,7 @@ class AppContainer private constructor(private val android: AndroidPlatform) : P
 
     init {
         location.configure(venue.water) { battery.state.value.percent }
+        android.steps.follow(positioning)
     }
 
     companion object {
