@@ -78,6 +78,9 @@ data class Route(val level: AlertLevel, val reason: AlertReason? = null) {
 object Routing {
     const val WIDEN_AFTER_MS = 90_000L
 
+    /** A report written this many minutes after it happened, or less, still widens. */
+    const val LATE_MIN = 15
+
     /** The roles the console offers, first name canonical, then the names a team may carry in another language. */
     private val roles = listOf(
         listOf("Medical"),
@@ -125,9 +128,15 @@ object Routing {
     fun waitingSince(incident: StaffIncident): Long =
         if (incident.status == AckStatus.REOPENED) incident.statusAt else incident.receivedAt
 
-    /** 0 while it's fresh, 1 once its role hears it, 2 once everyone does; 0 when someone has it. */
+    /**
+     * Whether it widens at all. An anonymous report that can't be answered and one about something that happened more
+     * than [LATE_MIN] minutes ago are not emergencies: they wait in the console's queue (safeguarding's, if discreet).
+     */
+    fun widens(incident: StaffIncident): Boolean = !incident.noReply && incident.happenedMinAgo <= LATE_MIN
+
+    /** 0 while it's fresh, 1 once its role hears it, 2 once everyone does; 0 when someone has it or it doesn't widen. */
     fun stage(incident: StaffIncident, nowMs: Long): Int {
-        if (handled(incident)) return 0
+        if (handled(incident) || !widens(incident)) return 0
         val waited = nowMs - waitingSince(incident)
         return when {
             waited >= 2 * WIDEN_AFTER_MS -> 2
@@ -160,7 +169,8 @@ object Routing {
         }
         // safeguarding hears a discreet request at once, wherever the team stands, and nobody else is told early
         if (role == Discreet.ROLE && ofMyRole) return Route(AlertLevel.VIBRATE, AlertReason.ROLE)
-        if (me.lead && ofMyRole && UrgentEscalation.overdue(incident, nowMs)) return Route(AlertLevel.INSISTENT, AlertReason.ESCALATED)
+        // the escalation widens too: a report that waits in the console's queue doesn't reach the other leads
+        if (me.lead && ofMyRole && widens(incident) && UrgentEscalation.overdue(incident, nowMs)) return Route(AlertLevel.INSISTENT, AlertReason.ESCALATED)
         // a phone that knows neither its team nor its zone can't be routed to: it hears every urgency
         val unrouted = me.team.isBlank() && me.zone.isBlank()
         val stage = stage(incident, nowMs)
@@ -183,7 +193,7 @@ object Routing {
         if (AckStatus.isClosed(incident.status)) return null
         val moments = when {
             me.console -> if (incident.assigned && incident.status == AckStatus.ACKNOWLEDGED) listOf(incident.statusAt + WIDEN_AFTER_MS) else emptyList()
-            handled(incident) -> emptyList()
+            handled(incident) || !widens(incident) -> emptyList()
             else -> waitingSince(incident).let { since ->
                 listOfNotNull(since + WIDEN_AFTER_MS, UrgentEscalation.deadline(incident)?.takeIf { me.lead }, since + 2 * WIDEN_AFTER_MS)
             }

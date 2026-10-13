@@ -29,7 +29,7 @@ class LayersTest {
             Poi("water", 44.0005, 28.0080, "Apă lângă camping", 10),
             Poi("wc", 44.0020, 28.0020, "Toalete scenă", 5),
             Poi("dea", 44.0030, 28.0030, "DEA scena principală", 14),
-            Poi(ServiceLayer.PHONE, 44.0040, 28.0030, "Telefon fix"),
+            Poi(Venue.PHONE, 44.0040, 28.0030, "Telefon fix"),
         ),
     )
 
@@ -109,7 +109,7 @@ class LayersTest {
         val medical = ServiceLayer.points(venue, setOf("medical", "wc"), board, now)
         assertEquals(listOf("Toalete scenă", "Punct medical"), medical.map { it.name })
         assertEquals(venue.zone("medical")!!.center, medical.last().point)
-        assertEquals(listOf("water", "wc", "medical", Venue.DEA, ServiceLayer.PHONE), ServiceLayer.present(venue))
+        assertEquals(listOf("water", "wc", "medical", Venue.DEA, Venue.PHONE), ServiceLayer.present(venue))
     }
 
     @Test
@@ -119,7 +119,7 @@ class LayersTest {
             pois = venue.pois + Poi(ServiceLayer.EARPLUGS, 44.0011, 28.0061, "Dopuri la intrare"),
         )
         assertEquals(
-            listOf("water", "wc", "medical", Venue.DEA, ServiceLayer.PHONE, ServiceLayer.QUIET, ServiceLayer.EARPLUGS),
+            listOf("water", "wc", "medical", Venue.DEA, Venue.PHONE, ServiceLayer.QUIET, ServiceLayer.EARPLUGS),
             ServiceLayer.present(quiet),
         )
         val points = ServiceLayer.points(quiet, setOf(ServiceLayer.QUIET, ServiceLayer.EARPLUGS), emptyMap(), now)

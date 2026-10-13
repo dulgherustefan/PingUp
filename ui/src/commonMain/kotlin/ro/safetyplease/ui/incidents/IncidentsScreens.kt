@@ -153,6 +153,7 @@ import ro.safetyplease.ui.resources.status_cancelled
 import ro.safetyplease.ui.resources.status_resolved
 import ro.safetyplease.ui.resources.tab_incidents
 import ro.safetyplease.ui.resources.zone_unknown
+import ro.safetyplease.ui.safety.ReportOptionNotes
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.ui.text.hopsText
@@ -554,6 +555,7 @@ fun IncidentDetailScreen(vm: AppViewModel, incidentId: String) {
                 Modifier.onSizeChanged { headerPx = it.height },
                 status = { StaffStatus(incident.status, incident.teamName, mine = incident.isAssignedToMe(settings.teamName)) },
             )
+            ReportOptionNotes(incident, Modifier.padding(horizontal = Gutter))
             if (incident.cancelRequested && !closed) {
                 Banner(
                     stringResource(Res.string.incident_cancel_requested), stringResource(Res.string.incident_cancel_requested_text),

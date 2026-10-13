@@ -144,6 +144,7 @@ import ro.safetyplease.ui.resources.tab_messages
 import ro.safetyplease.ui.resources.tab_report
 import ro.safetyplease.ui.resources.tab_unread
 import ro.safetyplease.ui.safety.DiscreetScreen
+import ro.safetyplease.ui.safety.SafetyScreenHost
 import ro.safetyplease.ui.staff.StaffChainLayer
 import ro.safetyplease.ui.staffcodes.PointsScreen
 import ro.safetyplease.ui.staffcodes.StaffCodesScreen
@@ -264,6 +265,7 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         is Dest.ReportSent -> ReportSentScreen(vm, dest.incidentId, onStartMesh)
         Dest.MyReports -> MyReportsScreen(vm)
         Dest.Discreet -> DiscreetScreen(vm)
+        is Dest.Safety -> SafetyScreenHost(vm, dest.screen)
         Dest.StaffCodes -> StaffCodesScreen(vm)
         Dest.Points -> PointsScreen(vm)
         Dest.Blocked -> BlockedScreen(vm)

@@ -22,17 +22,27 @@ import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.incidents.AlertReason
 import ro.safetyplease.core.incidents.Discreet
 import ro.safetyplease.core.incidents.needsEscalation
+import ro.safetyplease.core.safety.SafetyNotice
 import ro.safetyplease.core.session.Notifications
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.OpenTarget
 import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.checkin_alert_silent
+import ro.safetyplease.ui.resources.checkin_alerted_none
+import ro.safetyplease.ui.resources.checkin_alerted_none_title
+import ro.safetyplease.ui.resources.checkin_alerted_text
+import ro.safetyplease.ui.resources.checkin_alerted_title
 import ro.safetyplease.ui.resources.exercise_title
 import ro.safetyplease.ui.resources.layers_reminder_title
 import ro.safetyplease.ui.resources.layers_reminder_walk
 import ro.safetyplease.ui.resources.msg_group_left
 import ro.safetyplease.ui.resources.msg_zone
 import ro.safetyplease.ui.resources.notif_assigned_title
+import ro.safetyplease.ui.resources.notif_checkin_text
+import ro.safetyplease.ui.resources.notif_checkin_title
 import ro.safetyplease.ui.resources.notif_escalated_title
+import ro.safetyplease.ui.resources.notif_friend_silent_text
+import ro.safetyplease.ui.resources.notif_friend_silent_text_no_fix
 import ro.safetyplease.ui.resources.notif_incident_title
 import ro.safetyplease.ui.resources.notif_report_title
 import ro.safetyplease.ui.resources.notif_responder_title
@@ -45,8 +55,11 @@ import ro.safetyplease.ui.resources.report_escalate_text
 import ro.safetyplease.ui.resources.report_escalate_title
 import ro.safetyplease.ui.resources.sharing_bar
 import ro.safetyplease.ui.resources.zone_unknown
+import ro.safetyplease.ui.safety.deadlineText
+import ro.safetyplease.ui.safety.shortDuration
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.Replies
+import ro.safetyplease.ui.text.wallNowMs
 
 /**
  * The app's notifications on an iPhone, saying what the Android ones say. In an [exercise] every title says so and
@@ -70,6 +83,49 @@ class IosNotifications(private val venue: Venue, private val exercise: Boolean, 
         val text = if (walkMin > 0) getString(Res.string.layers_reminder_walk, stage, walkMin) else stage
         val title = getString(Res.string.layers_reminder_title, set.title, Labels.clock(set.start * 1000))
         post("set-${set.stage}@${set.start}", title, text, OpenTarget.HOME)
+    }
+
+    /**
+     * The check-in on the way. iOS runs the app only as long as Bluetooth gives it events, so the question comes at its
+     * time only while the app is alive, as the check-in is meant for the app in front or kept running by the mesh.
+     */
+    override fun safety(notice: SafetyNotice) {
+        when (notice) {
+            SafetyNotice.CheckinCleared -> cancel(CHECKIN)
+            is SafetyNotice.CheckinDue -> later {
+                post(
+                    CHECKIN, getString(Res.string.notif_checkin_title), getString(Res.string.notif_checkin_text, notice.label), OpenTarget.CHECKIN,
+                    Level.TIME_SENSITIVE,
+                )
+            }
+            is SafetyNotice.CheckinAlerted -> later {
+                if (notice.friends == 0) {
+                    post(
+                        CHECKIN, getString(Res.string.checkin_alerted_none_title), getString(Res.string.checkin_alerted_none, notice.label),
+                        OpenTarget.CHECKIN,
+                    )
+                } else {
+                    post(
+                        CHECKIN, getString(Res.string.checkin_alerted_title),
+                        getPluralString(Res.plurals.checkin_alerted_text, notice.friends, notice.friends, notice.label), OpenTarget.CHECKIN,
+                    )
+                }
+            }
+            is SafetyNotice.FriendSilent -> later {
+                val now = wallNowMs()
+                val due = deadlineText(notice.deadlineMs, now)
+                val late = shortDuration(now - notice.deadlineMs)
+                val text = if (notice.fixedAtMs > 0) {
+                    getString(Res.string.notif_friend_silent_text, due, late, shortDuration(now - notice.fixedAtMs))
+                } else {
+                    getString(Res.string.notif_friend_silent_text_no_fix, due, late)
+                }
+                post(
+                    "friend-silent-${notice.name}-${notice.label}", getString(Res.string.checkin_alert_silent, notice.name, notice.label),
+                    text, OpenTarget.CHECKIN_ALERTS, Level.TIME_SENSITIVE,
+                )
+            }
+        }
     }
 
     /** A staff alert as the alert planner decided it: one that has to be heard breaks through Focus, unless it's a drill. */
@@ -189,6 +245,7 @@ class IosNotifications(private val venue: Venue, private val exercise: Boolean, 
     private companion object {
         const val SHIFT_ENDED = "shift-ended"
         const val SHARING = "sharing"
+        const val CHECKIN = "checkin"
 
         fun alert(incidentId: String) = "alert-$incidentId"
 

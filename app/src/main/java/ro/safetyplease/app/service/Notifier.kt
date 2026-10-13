@@ -33,8 +33,12 @@ import ro.safetyplease.core.incidents.Discreet
 import ro.safetyplease.core.incidents.ResponderTarget
 import ro.safetyplease.core.incidents.needsEscalation
 import ro.safetyplease.core.position.SharingNow
+import ro.safetyplease.core.safety.SafetyNotice
 import ro.safetyplease.core.session.Notifications
 import ro.safetyplease.core.venue.Venue
+import ro.safetyplease.ui.OpenTarget
+import ro.safetyplease.ui.safety.deadlineText
+import ro.safetyplease.ui.safety.shortDuration
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.Replies
 
@@ -75,6 +79,17 @@ class Notifier(private val context: Context, private val venue: Venue, private v
                 NotificationChannel(CHANNEL_CHAT, context.getString(R.string.channel_chat), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_SHARING, context.getString(R.string.channel_sharing_reminder), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_PROGRAM, context.getString(R.string.layers_channel_program), NotificationManager.IMPORTANCE_DEFAULT),
+                // "Ai ajuns?" and a friend who didn't: both have to be seen
+                NotificationChannel(CHANNEL_CHECKIN, context.getString(R.string.safety_channel_checkin), NotificationManager.IMPORTANCE_HIGH)
+                    .apply {
+                        enableVibration(true)
+                        vibrationPattern = NOTICE_VIBRATION
+                    },
+                NotificationChannel(CHANNEL_FRIENDS, context.getString(R.string.safety_channel_friends), NotificationManager.IMPORTANCE_HIGH)
+                    .apply {
+                        enableVibration(true)
+                        vibrationPattern = NOTICE_VIBRATION
+                    },
                 // the organiser's notices, apart from the incident alarm: a pause and an evacuation sound and feel different
                 NotificationChannel(CHANNEL_NOTICE, context.getString(R.string.channel_notice), NotificationManager.IMPORTANCE_DEFAULT)
                     .apply {
@@ -184,6 +199,75 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             .setTimeoutAfter(maxOf(set.end * 1000 - System.currentTimeMillis(), 1))
             .build()
         manager.notify(id, notification)
+    }
+
+    /** The check-in on the way: the question at its time, what happened after, a friend who didn't arrive. */
+    override fun safety(notice: SafetyNotice) {
+        if (notice == SafetyNotice.CheckinCleared) return manager.cancel(CHECKIN_ID)
+        if (!canPost()) return
+        when (notice) {
+            is SafetyNotice.CheckinDue -> {
+                // a receiver, not the mesh service: it works with the mesh off and doesn't start it
+                fun answer(minutes: Int, code: Int) = PendingIntent.getBroadcast(
+                    context, code, CheckinReceiver.intent(context, minutes), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+                val text = context.getString(R.string.notif_checkin_text, notice.label)
+                val built = NotificationCompat.Builder(context, CHANNEL_CHECKIN)
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setContentTitle(context.getString(R.string.notif_checkin_title))
+                    .setContentText(text)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setContentIntent(open(OpenTarget.CHECKIN, RequestCodes.CHECKIN_OPEN))
+                    .addAction(0, context.getString(R.string.checkin_arrived), answer(0, RequestCodes.CHECKIN_ARRIVED))
+                    .addAction(0, context.getString(R.string.checkin_extend, 15), answer(15, RequestCodes.CHECKIN_EXTEND_15))
+                    .addAction(0, context.getString(R.string.checkin_extend, 30), answer(30, RequestCodes.CHECKIN_EXTEND_30))
+                    .build()
+                manager.notify(CHECKIN_ID, built)
+            }
+            is SafetyNotice.CheckinAlerted -> {
+                val none = notice.friends == 0
+                val text = if (none) {
+                    context.getString(R.string.checkin_alerted_none, notice.label)
+                } else {
+                    context.resources.getQuantityString(R.plurals.checkin_alerted_text, notice.friends, notice.friends, notice.label)
+                }
+                val built = NotificationCompat.Builder(context, CHANNEL_CHECKIN)
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setContentTitle(context.getString(if (none) R.string.checkin_alerted_none_title else R.string.checkin_alerted_title))
+                    .setContentText(text)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                    .setAutoCancel(true)
+                    .setContentIntent(open(OpenTarget.CHECKIN, RequestCodes.CHECKIN_OPEN))
+                    .build()
+                manager.notify(CHECKIN_ID, built)
+            }
+            is SafetyNotice.FriendSilent -> {
+                val id = FRIEND_ALERT_ID + (notice.name + notice.label).hashCode()
+                val now = System.currentTimeMillis()
+                val due = deadlineText(notice.deadlineMs, now)
+                val late = shortDuration(now - notice.deadlineMs)
+                val text = if (notice.fixedAtMs > 0) {
+                    context.getString(R.string.notif_friend_silent_text, due, late, shortDuration(now - notice.fixedAtMs))
+                } else {
+                    context.getString(R.string.notif_friend_silent_text_no_fix, due, late)
+                }
+                val built = NotificationCompat.Builder(context, CHANNEL_FRIENDS)
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setContentTitle(context.getString(R.string.checkin_alert_silent, notice.name, notice.label))
+                    .setContentText(text)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+                    // the shade shows how long ago the deadline was, and keeps counting
+                    .setWhen(notice.deadlineMs)
+                    .setShowWhen(true)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true)
+                    .setContentIntent(open(OpenTarget.CHECKIN_ALERTS, id))
+                    .build()
+                manager.notify(id, built)
+            }
+            SafetyNotice.CheckinCleared -> Unit
+        }
     }
 
     /** The mesh couldn't come back on its own. Same id as the running notification, which replaces it on restart. */
@@ -421,6 +505,10 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         private const val SHARING_REMINDER_ID = 3
         private const val CHANNEL_PROGRAM = "program"
         private const val MAN_DOWN_ID = 4
+        private const val CHECKIN_ID = 5
+        private const val FRIEND_ALERT_ID = 2000
+        private const val CHANNEL_CHECKIN = "checkin"
+        private const val CHANNEL_FRIENDS = "checkin_friends"
         private const val NOTICE_ID = 100
         private const val CHANNEL_NOTICE = "notice"
         private const val CHANNEL_NOTICE_PAUSE = "notice_pause"

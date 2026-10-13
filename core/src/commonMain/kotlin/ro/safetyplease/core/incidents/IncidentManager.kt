@@ -59,7 +59,10 @@ class ReportDraft(
     /** "Cum te recunoaștem?", sent on the first line of the description ([Recognition]). */
     val recognition: String = "",
     val location: LocationFields? = null,
-    /** The body's extension block (PROTOCOL.md, section 6.3). */
+    /**
+     * The body's extension block (PROTOCOL.md, section 6.3): reported later, anonymously or for someone else, staff's
+     * crowd level and flags, where a lost person was last seen. An anonymous report has no reply key.
+     */
     val extras: ReportExtras = ReportExtras.NONE,
 )
 
@@ -148,16 +151,18 @@ class IncidentManager(
         val now = clock.wallMs()
         val incidentId = crypto.random(INCIDENT_ID_SIZE)
         val cancelToken = crypto.random(IncidentCancel.TOKEN_SIZE)
-        val reply = crypto.boxKeyPair()
+        // an anonymous report can't be answered, so it carries nothing to answer to
+        val anonymous = draft.extras.anonymous
+        val reply = if (anonymous) null else crypto.boxKeyPair()
         val zone = draft.zone.truncateUtf8(Limits.ZONE_BYTES)
         // until reports are signed (2.18), the team named in the staff QR stands for who wrote it
         val staff = draft.staff?.takeIf { staffSecret() != null }
-        val nickname = (if (staff != null) teamName() else draft.nickname)?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
+        val nickname = (if (staff != null) teamName() else draft.nickname.takeUnless { anonymous })?.truncateUtf8(Limits.NICK_BYTES)?.ifEmpty { null }
         // a routine density level is no incident: nothing to cancel or answer, and nothing to follow here
         val routine = staff != null && StaffDensity.isRoutine(draft.category, draft.extras)
         fun body(description: String) = IncidentBody(
             draft.category, draft.severity, now / 1000, zone, draft.lat, draft.lon, description, nickname,
-            IncidentCancel.hash(cancelToken).takeUnless { routine }, draft.triage, staff, draft.location, reply.publicKey.takeUnless { routine },
+            IncidentCancel.hash(cancelToken).takeUnless { routine }, draft.triage, staff, draft.location, reply?.publicKey.takeUnless { routine },
             draft.extras,
         )
         // with every other field full, the reply key leaves the longest descriptions a few bytes short
@@ -168,7 +173,7 @@ class IncidentManager(
             incidentId = incidentId.toHex(), category = draft.category, severity = draft.severity, zone = zone,
             lat = draft.lat, lon = draft.lon, description = description, anonymous = nickname == null,
             createdAt = now, updatedAt = now, cancelToken = cancelToken.toHex(), sealed = sealed.toHex(),
-            replyKey = reply.publicKey.toHex(), replySecret = reply.secretKey.toHex(),
+            replyKey = reply?.publicKey?.toHex().orEmpty(), replySecret = reply?.secretKey?.toHex().orEmpty(),
         )
         if (!routine) store.update { it.copy(mine = (it.mine.withoutStaleSeals(now) + report).takeLast(MAX_MINE)) }
         scope.launch {
@@ -412,6 +417,7 @@ class IncidentManager(
             density = if (body.staff != null) body.extras.density else 0, cannotMove = body.extras.cannotMove, manDown = body.extras.manDown,
             unconscious = body.extras.unconscious,
             lastSeen = body.extras.lastSeen?.let { SeenAt.of(it, body.timestamp * 1000) },
+            happenedMinAgo = body.extras.happenedMinAgo, witness = body.extras.witness, noReply = body.extras.anonymous,
         )
         if (divert(opened)) {
             // nobody acknowledges it, so the cache must not keep it as a report still waiting for staff

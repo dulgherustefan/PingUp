@@ -41,6 +41,7 @@ import ro.safetyplease.core.position.SharingNow
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
 import ro.safetyplease.core.protocol.LocationFields
+import ro.safetyplease.core.protocol.ReportExtras
 import ro.safetyplease.core.protocol.StaffFields
 import ro.safetyplease.core.protocol.Triage
 import ro.safetyplease.core.protocol.UpdateKind
@@ -56,6 +57,7 @@ import ro.safetyplease.ui.map.MapOverlays
 import ro.safetyplease.ui.map.NavTarget
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.ask_wait
+import ro.safetyplease.ui.safety.SafetyScreen
 
 enum class Tab { MESSAGES, REPORT, MAP, INCIDENTS }
 
@@ -123,6 +125,9 @@ sealed interface Dest {
 
     /** "Cine mă vede acum": each share with its time left, stopped one by one or all at once. */
     data object Sharing : Dest
+
+    /** The check-in on the way, "Nu sunt bine" and the 112 card. */
+    data class Safety(val screen: SafetyScreen) : Dest
 }
 
 /** What one tap on the staff codes screen did. */
@@ -177,6 +182,10 @@ object OpenTarget {
 
     /** "Cine mă vede acum", from the notification of a location share. */
     const val SHARING = "sharing"
+
+    /** The check-in on the way, from its notification, and the alerts of friends who missed theirs. */
+    const val CHECKIN = "checkin"
+    const val CHECKIN_ALERTS = "checkin-alerts"
 }
 
 /** Where a link from a notification, the tile or a shortcut lands: a tab and maybe a screen on top; null for neither. */
@@ -187,6 +196,8 @@ fun landing(target: String): Pair<Tab, Dest?>? = when {
     target.startsWith(OpenTarget.REPORT_PREFIX) -> Tab.REPORT to Dest.ReportSent(target.removePrefix(OpenTarget.REPORT_PREFIX))
     target.startsWith(OpenTarget.CHAT_PREFIX) -> Tab.MESSAGES to Dest.Conversation(target.removePrefix(OpenTarget.CHAT_PREFIX))
     target == OpenTarget.SHARING -> Tab.MESSAGES to Dest.Sharing
+    target == OpenTarget.CHECKIN -> Tab.REPORT to Dest.Safety(SafetyScreen.CHECKIN)
+    target == OpenTarget.CHECKIN_ALERTS -> Tab.REPORT to Dest.Safety(SafetyScreen.FRIEND_ALERTS)
     else -> null
 }
 
@@ -236,6 +247,12 @@ fun reportSpot(settings: Settings, fix: GeoFix?, nowMs: Long, venue: Venue): Rep
     val accuracy = if (simulated || fix == null) 0 else LocationFields.accuracyM(fix.accuracyM.toDouble())
     return ReportSpot(point, accuracy, venue.nearestLandmark(point))
 }
+
+/**
+ * Where a report says it happened: here and now, from [spot]; for one written later, nowhere, since the phone is no
+ * longer where it happened and its pin would send a team to the wrong place. The zone picked still goes.
+ */
+fun spotFor(spot: ReportSpot?, extras: ReportExtras): ReportSpot? = spot.takeIf { extras.happenedMinAgo == 0 }
 
 /** The report still needs help: neither closed nor cancelled by you. */
 fun MyReport.isOpen() = !AckStatus.isClosed(status) && !cancelled
@@ -548,12 +565,14 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
         triage: Triage? = null,
         staff: StaffFields? = null,
         recognition: String = "",
+        extras: ReportExtras = ReportExtras.NONE,
     ): String? {
-        val spot = spotNow()
+        val spot = spotFor(spotNow(), extras)
         val nickname = if (anonymous) null else c.settings.value.nickname
         val draft = ReportDraft(
             category, severity, zone, spot?.point?.lat, spot?.point?.lon, description, nickname, triage, staff, recognition, spot?.fields,
-            c.regasire.extrasFor(category),
+            // the options chosen on the form, and where a lost friend was last seen when the report looks for one
+            extras.copy(lastSeen = c.regasire.extrasFor(category).lastSeen ?: extras.lastSeen),
         )
         if (!c.incidents.report(draft)) return null
         return c.incidentStore.value.mine.lastOrNull()?.incidentId?.also { c.regasire.reportSent(it, category) }
@@ -598,8 +617,11 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
     }
 
     /** "Mă simt în nesiguranță": a harassment report, anonymous, marked for safeguarding; no sound or vibration here. */
-    fun reportDiscreet(text: String): String? =
-        report(IncidentCategory.HARASSMENT, Priority.severity(IncidentCategory.HARASSMENT, urgent = false), currentZoneId(), Discreet.describe(text), anonymous = true)
+    fun reportDiscreet(text: String, extras: ReportExtras = ReportExtras.NONE): String? =
+        report(
+            IncidentCategory.HARASSMENT, Priority.severity(IncidentCategory.HARASSMENT, urgent = false), currentZoneId(), Discreet.describe(text),
+            anonymous = true, extras = extras,
+        )
 
     fun acknowledge(incidentId: String) = c.incidents.acknowledge(incidentId)
 

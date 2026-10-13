@@ -111,6 +111,26 @@ class RoutingTest {
     }
 
     @Test
+    fun anAnonymousReportOrOneAboutThePastStaysInTheConsolesQueue() {
+        val harassment = incident(severity = Severity.MEDIUM, category = IncidentCategory.HARASSMENT, zone = "bar", receivedAt = 10_000)
+        val later = harassment.copy(happenedMinAgo = 3 * 60)
+        val anonymous = harassment.copy(noReply = true)
+        val stillNow = harassment.copy(happenedMinAgo = Routing.LATE_MIN)
+        val long = 10_000 + 10 * WIDEN_AFTER_MS
+        for (quiet in listOf(later, anonymous)) {
+            assertEquals(0, Routing.stage(quiet, long))
+            assertEquals(AlertLevel.SILENT, level(guard, quiet, long), "the role isn't called in")
+            assertEquals(AlertLevel.SILENT, level(medic, quiet, long), "nor everyone")
+            assertNull(Routing.nextChange(guard, quiet, 10_000), "nothing to wake up for")
+            assertEquals(Route(AlertLevel.NOTIFY, AlertReason.CONSOLE), Routing.route(console, quiet, long), "the console has it in its queue")
+        }
+        assertEquals(Route(AlertLevel.VIBRATE, AlertReason.EVERYONE), Routing.route(medic, stillNow, long), "a quarter of an hour ago still widens")
+        val discreetLater = later.copy(description = Discreet.describe("Mă simt în nesiguranță."))
+        assertEquals(Route(AlertLevel.VIBRATE, AlertReason.ROLE), Routing.route(StaffProfile(console = false, team = Discreet.ROLE), discreetLater, long))
+        assertEquals(AlertLevel.SILENT, level(medic, discreetLater, long))
+    }
+
+    @Test
     fun aReopenStartsTheWaitAgain() {
         val reopened = incident(zone = "bar", status = AckStatus.REOPENED, statusAt = 500_000, epoch = 1)
         assertEquals(AlertLevel.SILENT, level(guard, reopened, 500_000 + WIDEN_AFTER_MS))

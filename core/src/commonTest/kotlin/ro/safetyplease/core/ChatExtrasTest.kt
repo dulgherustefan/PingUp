@@ -15,6 +15,7 @@ import ro.safetyplease.core.protocol.Frozen11
 import ro.safetyplease.core.protocol.Inner
 import ro.safetyplease.core.protocol.InnerCodec
 import ro.safetyplease.core.protocol.LastFix
+import ro.safetyplease.core.protocol.LostAction
 import ro.safetyplease.core.protocol.PacketType
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -149,25 +150,31 @@ class ChatExtrasTest {
     }
 
     @Test
-    fun aMissedCheckInGoesUnansweredUntilItsFeatureReadsIt() = runTest {
+    fun theKindsAfterMeetingReplyAreAllReadNow() = runTest {
         val w = World(this, tmp.root)
         val a = w.phone("A")
         val b = w.phone("B")
         a.befriend(b)
         w.net.start()
         advanceTimeBy(30_000)
-        val answered = b.chatSent()
         val links = b.engine.state.value.readyLinks
 
-        val inner = Inner.CheckinMissed(2, null, 1_760_000_600L, LastFix(44.0, 26.0, 1_760_000_000L, 2), "Gară")
-        // what a phone up to MEETING_REPLY (16) can't decode at all
-        assertTrue(InnerCodec.encode(inner)[0] > Frozen11.LAST_INNER_KIND)
-        a.engine.unicast(PacketType.PRIVATE, b.nodeId, testCrypto.box(InnerCodec.encode(inner), b.identity.box.publicKey, a.identity.box.secretKey))
-        advanceTimeBy(10_000)
-
-        assertTrue(b.messages.isEmpty())
-        assertEquals(answered, b.chatSent(), "no DELIVERED")
-        assertEquals(links, b.engine.state.value.readyLinks, "not malformed, so nobody is banned")
+        val fix = LastFix(44.0, 26.0, 1_760_000_000L, 2)
+        // a lost session and a missed check-in from a friend are confirmed; a last gasp never is, it has no msgId
+        val kinds = listOf(
+            Inner.LostSession(1, null, LostAction.START, 1, 15, 40, 3) to true,
+            Inner.LastGasp(fix, 4) to false,
+            Inner.CheckinMissed(2, null, 1_760_000_600L, fix, "Gară") to true,
+        )
+        for ((inner, confirmed) in kinds) {
+            // what a phone up to MEETING_REPLY (16) can't decode at all
+            assertTrue(InnerCodec.encode(inner)[0] > Frozen11.LAST_INNER_KIND)
+            val answered = b.chatSent()
+            a.engine.unicast(PacketType.PRIVATE, b.nodeId, testCrypto.box(InnerCodec.encode(inner), b.identity.box.publicKey, a.identity.box.secretKey))
+            advanceTimeBy(10_000)
+            assertEquals(confirmed, b.chatSent() > answered, "DELIVERED for $inner")
+        }
+        assertEquals(links, b.engine.state.value.readyLinks, "understood, so nobody is banned")
     }
 
     // --- blocking ---

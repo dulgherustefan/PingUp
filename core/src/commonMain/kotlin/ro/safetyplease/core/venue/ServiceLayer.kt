@@ -22,14 +22,12 @@ data class ServicePoint(val type: String, val name: String, val point: GeoPoint,
 object ServiceLayer {
     /** In the order of the filter chips. */
     val TYPES = listOf(
-        "water", "wc", "medical", Venue.DEA, "info", "charge", Venue.SHADE, SAFE, PHONE, Venue.EXIT, LOCKERS, QUIET, EARPLUGS,
+        "water", "wc", "medical", Venue.DEA, "info", "charge", Venue.SHADE, SAFE, Venue.PHONE, Venue.EXIT, LOCKERS, QUIET, EARPLUGS,
     )
 
     /** A safe space (Safe Zone, welfare). */
     const val SAFE = "safe"
 
-    /** A landline phone. */
-    const val PHONE = "phone"
     const val LOCKERS = "lockers"
 
     /** A quiet zone, away from the sound: the venue's zones of type "chill" and the points of the same type. */

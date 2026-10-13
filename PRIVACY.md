@@ -18,6 +18,10 @@ O folosim pe telefon ca să știm în ce zonă ești și ce e aproape. Coordonat
 
 E oprită până o pornești tu. Alegi fiecare prieten sau grup cu care o împarți, cât timp (15 minute, o oră, până la sfârșitul zilei de festival sau până o oprești) și cât de exact: poziția exactă, o zonă aproximativă de vreo 100 de metri sau doar zona. Poziția e criptată cap-coadă pentru prietenii aleși: telefoanele prin care trece și organizatorul nu o pot citi. Un prieten cu care o împarți poate atașa ultima poziție pe care i-ai trimis-o la un raport de persoană pierdută, care ajunge la echipa care caută. Telefonul unui prieten păstrează doar ultima ta poziție, cel mult 2 ore. O oprești oricând, din „Cine mă vede acum” sau, pe Android, din notificare, iar prietenul nu e anunțat. Tot în Eu poți porni răspunsul automat la „Unde ești?”: prietenii care te întreabă primesc atunci zona ta aproximativă.
 
+## Check-in pe drum
+
+E oprit până îl pornești tu. Alegi locul unde ajungi, ora și 1–5 prieteni. La ora aleasă telefonul te întreabă „Ai ajuns?”; dacă nu răspunzi în 10 minute de la întrebare, prietenii aleși primesc o singură alertă, criptată cap-coadă ca un mesaj, cu numele locului, ora și ultima poziție pe care o avea telefonul. Cât timp răspunzi, nu pleacă nimic. Alertele primite de la prieteni rămân pe telefon, cel mult zece. Un raport poate spune și că s-a întâmplat mai devreme (până la 24 de ore în urmă; atunci pleacă fără coordonatele telefonului, doar cu zona aleasă), că e despre altcineva sau că e anonim, fără răspuns: un raport anonim nu are nici poreclă, nici cheie de răspuns, deci echipa nu poate să-ți răspundă.
+
 ## Camera
 
 Doar pentru scanarea codurilor QR. Nicio imagine nu e salvată și nu pleacă din telefon.
@@ -69,6 +73,10 @@ We use it on the phone to know which zone you’re in and what’s nearby. Coord
 ## Sharing your location with friends
 
 It’s off until you turn it on. You pick each friend or group you share it with, for how long (15 minutes, an hour, until the end of the festival day or until you stop it) and how exactly: your exact position, an approximate area of about 100 metres, or just the zone. Your position is end-to-end encrypted for the friends you picked: the phones it passes through and the organiser can’t read it. A friend you share it with may attach the last position you sent them to a lost-person report, which goes to the search team. A friend’s phone keeps only your last position, for at most 2 hours. You can stop it at any time from “Who sees me now” or, on Android, from the notification, and your friend isn’t told. Also in Me you can turn on the automatic answer to “Where are you?”: friends who ask then get your approximate area.
+
+## Check-in on the way
+
+It’s off until you turn it on. You pick where you are going, the time and 1 to 5 friends. At that time the phone asks “Did you arrive?”; if you don’t answer within 10 minutes of the question, the friends you picked get one alert, end-to-end encrypted like a message, with the name of the place, the time and the last position the phone had. As long as you answer, nothing is sent. The alerts you get from friends stay on your phone, at most ten. A report can also say that it happened earlier (up to 24 hours ago; it then goes without the phone’s coordinates, only with the zone you pick), that it is about someone else, or that it is anonymous with no reply: an anonymous report has neither a nickname nor a reply key, so the team can’t answer you.
 
 ## Camera
 

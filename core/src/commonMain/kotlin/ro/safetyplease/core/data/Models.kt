@@ -268,6 +268,12 @@ data class StaffIncident(
     val unconscious: Boolean = false,
     /** The [ro.safetyplease.core.incidents.PriorityRule] that made it urgent on this phone; empty for none. */
     val topRule: String = "",
+    /** The reporter says it happened this many minutes before the report; 0 when it is happening now. */
+    val happenedMinAgo: Int = 0,
+    /** The reporter saw it happen to someone else. */
+    val witness: Boolean = false,
+    /** The reporter sent it with no nickname and no reply key: nothing can be answered. */
+    val noReply: Boolean = false,
 )
 
 @Serializable

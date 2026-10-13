@@ -119,7 +119,10 @@ import ro.safetyplease.core.protocol.ControlChannel
 import ro.safetyplease.core.protocol.Heartbeat
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.PointStatus
+import ro.safetyplease.core.protocol.PositionMethod
 import ro.safetyplease.core.protocol.SharePrecision
+import ro.safetyplease.core.safety.CheckinData
+import ro.safetyplease.core.safety.CheckinManager
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.venue.GeoFix
@@ -284,6 +287,7 @@ open class PingUpSession(private val platform: AppPlatform) {
         shareZone = { settings.value.shareZone },
         positions = positions,
         positionFrame = { positionFrame },
+        onCheckinMissed = { sender, missed -> checkin.onFriendMissed(sender, missed) },
     ) { message, sender ->
         if (!foreground.value || openConversation != message.conversation) notifications.chatMessage(message, sender)
     }
@@ -294,6 +298,19 @@ open class PingUpSession(private val platform: AppPlatform) {
         JsonStore(dataDir / "searches.json", ListSerializer(Search.serializer()), emptyList(), ioScope),
         walk = { walkDistance }, mapState = { mapState.value }, myPosition = { positioning.position.value },
         battery = { battery.state.value.percent.coerceIn(0, 100) }, frame = { positionFrame },
+    )
+
+    private val checkinStore = JsonStore(dataDir / "checkin.json", CheckinData.serializer(), CheckinData(), ioScope)
+
+    /** The check-in on the way, and the alerts of friends who missed theirs. */
+    val checkin: CheckinManager = CheckinManager(
+        meshScope, checkinStore, clock,
+        friends = { friends.value },
+        lastFix = { platform.location.value },
+        alert = chat::sendCheckinMissed,
+        withdraw = chat::withdrawCheckinMissed,
+        tell = { to, text -> to.forEach { chat.sendText(Conversations.friend(it), text) } },
+        notify = notifications::safety,
     )
 
     /** What this phone shares now and with how many people; null when nothing. */
@@ -486,6 +503,7 @@ open class PingUpSession(private val platform: AppPlatform) {
         meshScope.launch {
             engine.start()
             chat.start()
+            checkin.start()
             incidents.start()
             staffChain.start()
             revocations.start()
@@ -817,8 +835,10 @@ open class PingUpSession(private val platform: AppPlatform) {
      * going to the background, where iOS may end it later without a word.
      */
     fun flush() {
-        listOf(events, settings, friends, groups, incidentStore, consoleLog, metricsLog, networkLog, reporterMetrics, meshCache, revokedStore)
-            .forEach { it.flush() }
+        listOf(
+            events, settings, friends, groups, incidentStore, consoleLog, metricsLog, networkLog, reporterMetrics, meshCache, revokedStore,
+            checkinStore,
+        ).forEach { it.flush() }
         positions.flush()
         chatStore.flush()
         staffChain.flush()

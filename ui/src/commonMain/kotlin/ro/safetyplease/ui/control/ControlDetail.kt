@@ -162,6 +162,7 @@ import ro.safetyplease.ui.resources.sev_urgent
 import ro.safetyplease.ui.resources.staff_status_cancelled
 import ro.safetyplease.ui.resources.staff_status_closed
 import ro.safetyplease.ui.resources.staff_status_resolved
+import ro.safetyplease.ui.safety.ReportOptionNotes
 import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.Replies
 import ro.safetyplease.ui.text.agoText
@@ -243,6 +244,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
             if (case.cancelRequested) Note(stringResource(Res.string.incident_cancel_requested), colors.orangeInk)
             if (Priority.isInformational(r.category)) Note(stringResource(Res.string.incident_informational), colors.secondaryLabel)
             MedicalPanel(vm, case, incident, history)
+            incident?.let { ReportOptionNotes(it, Modifier.padding(top = 4.dp)) }
 
             Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.fill).padding(12.dp)) {
                 Text(

@@ -42,7 +42,7 @@ object PlaceSearch {
         "charge" to listOf("incarcare", "charging", "charge", "baterie"),
         Venue.SHADE to listOf("umbra", "shade"),
         ServiceLayer.SAFE to listOf("safe", "safe zone", "siguranta", "welfare"),
-        ServiceLayer.PHONE to listOf("telefon", "phone"),
+        Venue.PHONE to listOf("telefon", "phone"),
         Venue.EXIT to listOf("iesire", "exit", "poarta", "gate"),
         ServiceLayer.LOCKERS to listOf("vestiar", "dulap", "locker", "lockers"),
         ServiceLayer.QUIET to listOf("liniste", "linistit", "quiet", "calm", "relaxare", "chill"),

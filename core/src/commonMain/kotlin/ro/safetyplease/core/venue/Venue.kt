@@ -133,6 +133,9 @@ data class Venue(
         /** A shaded place, where the heat notice sends people. */
         const val SHADE = "shade"
 
+        /** A landline phone the public can use; the service layer and the 112 card both read this type. */
+        const val PHONE = "phone"
+
         /** Farther than this, "near" would send a team to the wrong place. */
         const val LANDMARK_METERS = 100
 

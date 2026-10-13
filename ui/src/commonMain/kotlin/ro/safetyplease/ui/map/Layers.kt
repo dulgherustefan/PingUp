@@ -356,7 +356,7 @@ private fun foundColor(found: Found): Color =
     if (found.kind == FoundKind.FRIEND) AppTheme.colors.green else spotColor(AppTheme.colors, found.type)
 
 fun serviceGlyph(type: String): ImageVector = typeGlyph(type) ?: when (type) {
-    ServiceLayer.PHONE -> Sym.Phone
+    Venue.PHONE -> Sym.Phone
     ServiceLayer.SAFE -> Sym.Groups
     else -> Sym.Place
 }
@@ -370,7 +370,7 @@ fun typeLabel(type: String): StringResource = when (type) {
     "charge" -> Res.string.layers_type_charge
     Venue.SHADE -> Res.string.layers_type_shade
     ServiceLayer.SAFE -> Res.string.layers_type_safe
-    ServiceLayer.PHONE -> Res.string.layers_type_phone
+    Venue.PHONE -> Res.string.layers_type_phone
     Venue.EXIT -> Res.string.layers_type_exit
     ServiceLayer.QUIET -> Res.string.layers_type_quiet
     ServiceLayer.EARPLUGS -> Res.string.layers_type_earplugs
