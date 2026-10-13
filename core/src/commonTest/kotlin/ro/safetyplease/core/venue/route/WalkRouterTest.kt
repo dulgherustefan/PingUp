@@ -15,13 +15,16 @@ import ro.safetyplease.core.venue.route.Sites.at
 import ro.safetyplease.core.venue.route.Sites.crosses
 import ro.safetyplease.core.venue.route.Sites.rect
 import ro.safetyplease.core.venue.route.Sites.zone
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.sin
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.TimeSource
 
 class WalkRouterTest {
     /** A fence across the whole grid at x = 150, margin included, with [gates] in it. */
@@ -121,9 +124,9 @@ class WalkRouterTest {
     fun theTimeIsAtWalkingPaceAndShownAsARange() {
         val route = WalkRouter(Sites.empty()).route(at(50.0, 50.0), at(250.0, 50.0))!!
         assertTrue(abs(route.meters - 200) <= 2 && abs(route.seconds - 200) <= 2)
-        assertEquals(4..5, route.minutes())
-        assertEquals(10..15, route.copy(seconds = 600).minutes())
-        assertEquals(1..2, route.copy(seconds = 20).minutes())
+        assertEquals(4..5, Route.minutes(route.seconds))
+        assertEquals(10..15, Route.minutes(600))
+        assertEquals(1..2, Route.minutes(20))
     }
 
     /** A block north-west of the corner at (200, 70): the walk from below it to its east side bends left there. */
@@ -178,7 +181,7 @@ class WalkRouterTest {
         assertEquals(3, router.nearestOpen(from, "water", MapState(mapOf("west" to ZoneState.CLOSED)))!!.number)
         val found = router.nearestOpen(from, "water")!!
         assertEquals("Apă 2", found.name)
-        assertEquals(found.route.meters, router.route(from, found.point)!!.meters)
+        assertEquals(found.route.meters, router.route(from, at(80.0, 120.0))!!.meters)
         assertNull(router.nearestOpen(from, "dea"))
     }
 
@@ -225,24 +228,82 @@ class WalkRouterTest {
     }
 
     @Test
-    fun aRouteOnFiftyFiveThousandCellsTakesUnderFiftyMilliseconds() {
-        // 640 m square, fences every 80 m with the gate at alternate ends: the walk zigzags across the whole grid
-        val fences = (1..7).map { listOf(at(-40.0, it * 80.0), at(680.0, it * 80.0)) }
-        val gates = (1..7).map { at(if (it % 2 == 1) 620.0 else 20.0, it * 80.0).let { p -> Gate(p.lat, p.lon) } }
-        val venue = Sites.empty(640.0, 640.0).copy(barriers = fences, gates = gates)
-        val router = WalkRouter(venue)
-        assertTrue(router.grid(false).size in 50_000..60_000, "${router.grid(false).size} cells")
-        val from = at(10.0, 10.0)
-        val to = at(630.0, 630.0)
-        repeat(5) { router.route(from, to) }
-        val clock = TimeSource.Monotonic
-        val times = (1..10).map {
-            val start = clock.markNow()
-            assertNotNull(router.route(from, to))
-            start.elapsedNow().inWholeMicroseconds
+    fun aRouteOnFiftyFiveThousandCellsExpandsEachCellAtMostOnce() {
+        val router = WalkRouter(Sites.zigzag())
+        val size = router.grid(false).size
+        assertTrue(size in 50_000..60_000, "$size cells")
+        val probe = assertNotNull(router.probe(Sites.zigzagEnds.first, Sites.zigzagEnds.second))
+        assertTrue(probe.expanded <= EXPANDED_ZIGZAG, "${probe.expanded} cells expanded")
+        assertTrue(router.route(Sites.zigzagEnds.first, Sites.zigzagEnds.second)!!.meters > 7 * 600)
+
+        // across an open site A* goes nearly straight to the goal
+        val open = WalkRouter(Sites.empty(640.0, 640.0))
+        val straight = assertNotNull(open.probe(at(10.0, 10.0), at(630.0, 630.0)))
+        assertTrue(straight.expanded < 3 * straight.cost, "${straight.expanded} cells expanded for ${straight.cost}")
+    }
+
+    @Test
+    fun aGateDrawnOffTheFenceLineStillLetsTheWalkThrough() {
+        val center = Pair(150.0, 100.0)
+        for (angle in listOf(0.0, 20.0, 45.0, 60.0, 90.0, 135.0)) {
+            val ux = cos(angle * PI / 180)
+            val uy = sin(angle * PI / 180)
+            fun along(t: Double, n: Double) = at(center.first + t * ux - n * uy, center.second + t * uy + n * ux)
+            val fence = listOf(along(-1_000.0, 0.0), along(1_000.0, 0.0))
+            val from = along(20.0, -40.0)
+            val to = along(-20.0, 40.0)
+            val shut = Sites.empty().copy(barriers = listOf(fence))
+            assertNull(WalkRouter(shut).route(from, to), "no gate at $angle°")
+            for (offset in listOf(0.0, 2.5, 4.9, -2.5, -4.9)) {
+                val g = along(0.0, offset)
+                val site = shut.copy(gates = listOf(Gate(g.lat, g.lon)))
+                val route = assertNotNull(WalkRouter(site).route(from, to), "gate $offset m off a fence at $angle°")
+                val crossings = Sites.fenceCrossings(route, fence)
+                assertEquals(1, crossings.size, "gate $offset m off a fence at $angle°")
+                val (a, b) = crossings[0]
+                assertTrue(Sites.distance(g, a, b) <= 2 * Gate.REACH_M + WalkGrid.CELL_M, "gate $offset m off a fence at $angle°")
+            }
         }
-        println("route on ${router.grid(false).size} cells: median ${times.sorted()[5] / 1000.0} ms, max ${times.max() / 1000.0} ms")
-        assertTrue(times.max() < 50_000, "$times µs")
-        assertTrue(router.route(from, to)!!.meters > 7 * 600)
+    }
+
+    @Test
+    fun aStarFindsTheCheapestWalkAsDijkstraDoes() {
+        var compared = 0
+        Sites.randomSites(seed = 7, count = 25).forEach { (venue, state) ->
+            val router = WalkRouter(venue)
+            val grid = router.grid(false)
+            Sites.randomPairs(seed = venue.hashCode(), count = 4).forEach { (from, to) ->
+                val probe = router.probe(from, to, state) ?: return@forEach
+                val expected = Sites.dijkstra(grid, Costs(grid, state, grid.cellAt(from)), probe.start, probe.goal)
+                assertTrue(abs(probe.cost - expected) <= 1e-3 * max(1.0, expected), "A* ${probe.cost}, Dijkstra $expected")
+                compared++
+            }
+        }
+        assertTrue(compared >= 40, "$compared walks compared")
+    }
+
+    @Test
+    fun aSmoothedRouteNeverCutsThroughAShutCell() {
+        var checked = 0
+        Sites.randomSites(seed = 11, count = 25).forEach { (venue, state) ->
+            val router = WalkRouter(venue)
+            val grid = router.grid(false)
+            Sites.randomPairs(seed = venue.hashCode() + 1, count = 4).forEach { (from, to) ->
+                val route = router.route(from, to, state) ?: return@forEach
+                val costs = Costs(grid, state, grid.cellAt(from))
+                Sites.samples(route, perMeter = 10).forEach { p ->
+                    val cell = grid.cellAt(p)
+                    assertTrue(cell >= 0 && costs.of(cell) != WalkRouter.SHUT, "the route crosses a shut cell at ${Sites.x(p)}, ${Sites.y(p)}")
+                }
+                checked++
+            }
+        }
+        assertTrue(checked >= 40, "$checked routes checked")
+    }
+
+    private companion object {
+        /** The zigzag's search expands about 42,700 of its 54,000 cells; much more would mean a broken heuristic or heap. */
+        const val EXPANDED_ZIGZAG = 45_000
     }
 }
+

@@ -16,6 +16,7 @@
     <string name="route_turn_back">întoarce-te</string>
     <string name="route_left">%1$d m · ~%2$d–%3$d min</string>
     <string name="route_arrived">Ai ajuns</string>
+    <string name="route_near">Ești aproape. Uită-te în jur.</string>
     <string name="route_off">Ai ieșit de pe traseu. Dacă mai mergi așa, căutăm alt drum.</string>
     <string name="route_steps">Pașii</string>
     <string name="route_no_position">Pornește locația ca să vezi drumul.</string>

@@ -14,8 +14,8 @@ import kotlin.math.sqrt
 
 /**
  * The site as square cells of [cellM] metres, [MARGIN_M] past the venue's bounds, for walking. A cell is shut when
- * water, a fence or a blocked area touches it; a fence opens only within [Gate.REACH_M] of a gate. With [staff], the
- * staff-only gates open and the areas only staff may enter are walkable. Built once, read from any thread.
+ * water, a fence or a blocked area touches it; a fence opens only within [Gate.REACH_M] of a gate's foot on it. With
+ * [staff], the staff-only gates open and the areas only staff may enter are walkable. Built once, read from any thread.
  */
 class WalkGrid(val venue: Venue, val staff: Boolean) {
     private val metersPerLon = METERS_PER_LAT * cos(radians((venue.bounds.minLat + venue.bounds.maxLat) / 2))
@@ -95,11 +95,36 @@ class WalkGrid(val venue: Venue, val staff: Boolean) {
         forCellsNear(ax, ay, bx, by, HALF_DIAGONAL) { set(it, flag) }
     }
 
+    /**
+     * Opens the fence cells around the gate's foot on the nearest fence: a gate drawn a few metres off the line still
+     * opens the whole thickness of the fence there, not only the cells within reach of its own point.
+     */
     private fun openGate(index: Int, gate: Gate) {
         val gx = x(gate.point)
         val gy = y(gate.point)
         val reach = max(Gate.REACH_M.toDouble(), cellM) / cellM
-        forCellsNear(gx, gy, gx, gy, reach) { cell ->
+        var fx = gx
+        var fy = gy
+        var nearest = reach
+        venue.barriers.forEach { line ->
+            line.zipWithNext { a, b ->
+                val ax = x(a)
+                val ay = y(a)
+                val bx = x(b)
+                val by = y(b)
+                val d = segmentDistance(gx, gy, ax, ay, bx, by)
+                if (d <= nearest) {
+                    nearest = d
+                    val dx = bx - ax
+                    val dy = by - ay
+                    val length2 = dx * dx + dy * dy
+                    val t = if (length2 == 0.0) 0.0 else (((gx - ax) * dx + (gy - ay) * dy) / length2).coerceIn(0.0, 1.0)
+                    fx = ax + t * dx
+                    fy = ay + t * dy
+                }
+            }
+        }
+        forCellsNear(fx, fy, fx, fy, reach) { cell ->
             if (flags[cell].toInt() and FENCE != 0) {
                 flags[cell] = (flags[cell].toInt() and FENCE.inv()).toByte()
                 gateOf[cell] = index
@@ -125,7 +150,7 @@ class WalkGrid(val venue: Venue, val staff: Boolean) {
         const val CELL_M = 3.0
         const val MARGIN_M = 30.0
         const val MAX_CELLS = 250_000.0
-        private const val METERS_PER_LAT = 111_320.0
+        internal const val METERS_PER_LAT = 111_320.0
 
         /** Slightly over half a cell's diagonal, so a line through a cell's corner shuts all four cells around it. */
         private const val HALF_DIAGONAL = 0.71

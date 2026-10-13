@@ -7,6 +7,7 @@ import ro.safetyplease.core.venue.Poi
 import ro.safetyplease.core.venue.route.Sites.at
 import ro.safetyplease.core.venue.route.Sites.crosses
 import ro.safetyplease.core.venue.route.Sites.zone
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -28,10 +29,8 @@ class RouteGuideTest {
     fun onTheRouteItTellsTheNextStepAndWhatIsLeft() {
         val p = RouteGuide(route).update(at(10.0, 2.0), 5f, 0)
         assertEquals(0, p.step)
-        assertEquals(90, p.toStepM)
         assertEquals(190, p.remainingM)
         assertEquals(190, p.remainingSec)
-        assertEquals(2, p.offRouteM)
         assertTrue(!p.offRoute && !p.reroute && !p.arrived)
         assertNull(p.event)
         assertEquals(at(100.0, 0.0), p.toward)
@@ -47,7 +46,7 @@ class RouteGuideTest {
         assertEquals(at(100.0, 100.0), guide.update(at(97.0, 0.0), 5f, 3_000).toward)
         val after = guide.update(at(100.0, 10.0), 5f, 4_000)
         assertEquals(1, after.step)
-        assertEquals(90, after.toStepM)
+        assertEquals(90, after.remainingM)
     }
 
     @Test
@@ -82,7 +81,49 @@ class RouteGuideTest {
         assertTrue(there.arrived)
         assertEquals(GuideEvent.ARRIVED, there.event)
         assertNull(guide.update(at(100.0, 96.0), 3f, 2_000).event)
-        assertTrue(RouteGuide(route).update(at(100.0, 88.0), 15f, 0).arrived)
+        assertTrue(there.close)
+        val vague = RouteGuide(route).update(at(100.0, 88.0), 15f, 0)
+        assertTrue(vague.arrived && !vague.close)
+    }
+
+    @Test
+    fun aVeryVagueFixSaysArrivedNoFartherThanTwentyMetresAndOnlyNear() {
+        assertTrue(!RouteGuide(route).update(at(100.0, 75.0), 60f, 0).arrived)
+        val near = RouteGuide(route).update(at(100.0, 82.0), 60f, 0)
+        assertTrue(near.arrived && !near.close)
+    }
+
+    @Test
+    fun noisyFixesOnALegBesideAnotherDoNotJumpToIt() {
+        // east 100 m, north 20 m, back west 100 m: the two long legs are 20 m apart
+        val hairpin = Route(
+            points = listOf(at(0.0, 0.0), at(100.0, 0.0), at(100.0, 20.0), at(0.0, 20.0)),
+            meters = 220,
+            seconds = 220,
+            steps = listOf(
+                RouteStep(at(100.0, 0.0), 100, Turn.LEFT, Anchor.NONE),
+                RouteStep(at(100.0, 20.0), 120, Turn.LEFT, Anchor.NONE),
+                RouteStep(at(0.0, 20.0), 220, Turn.ARRIVE, Anchor.NONE),
+            ),
+        )
+        val guide = RouteGuide(hairpin)
+        var time = 0L
+        // out: every other fix is nearer the leg back
+        for (x in 0..80 step 10) {
+            val p = guide.update(at(x.toDouble(), if (x % 20 == 0) -4.0 else 12.0), 10f, time)
+            time += 1_000
+            assertEquals(0, p.step, "at $x")
+            assertTrue(abs(p.remainingM - (220 - x)) <= 1, "at $x: ${p.remainingM} m left")
+            assertTrue(!p.offRoute)
+        }
+        guide.update(at(100.0, 10.0), 10f, time)
+        // back: every other fix is nearer the leg out, which is behind
+        for (x in 80 downTo 20 step 10) {
+            time += 1_000
+            val p = guide.update(at(x.toDouble(), if (x % 20 == 0) 8.0 else 26.0), 10f, time)
+            assertEquals(2, p.step, "at $x")
+            assertTrue(abs(p.remainingM - x) <= 1, "at $x: ${p.remainingM} m left")
+        }
     }
 
     @Test
@@ -138,7 +179,7 @@ class WalkNavigationTest {
         val again = guiding(nav.update(off, 5f, 21_000, MapState.OPEN, goal))
         assertNotSame(first, again.route)
         assertEquals(GuideEvent.OFF_ROUTE, again.progress.event)
-        assertTrue(again.progress.offRouteM < 2)
+        assertTrue(!again.progress.offRoute)
     }
 
     @Test

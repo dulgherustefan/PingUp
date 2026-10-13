@@ -6,33 +6,36 @@ import ro.safetyplease.core.venue.radians
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /** The moments worth a vibration on a walk, none of which depends on which way the phone faces. */
 enum class GuideEvent { TURN_SOON, OFF_ROUTE, ARRIVED }
 
 /**
- * Where a person is on a route: the index of the next [step] in [Route.steps], how far it is along the route, what is
- * left, how far off the route the fix is, and [toward], the next point of the route ahead, for the arrow. [event] is
- * set on the update that first sees it; [reroute] asks for a new route.
+ * Where a person is on a route: the index of the next [step] in [Route.steps], what is left, whether the fix is off the
+ * route, and [toward], the next point of the route ahead, for the arrow. [event] is set on the update that first sees
+ * it; [reroute] asks for a new route. [arrived] within [RouteGuide.ARRIVE_M] of the end is [close]; farther, the fix was
+ * only good enough to say the person is near.
  */
 data class Progress(
     val step: Int,
-    val toStepM: Int,
     val remainingM: Int,
     val remainingSec: Int,
-    val offRouteM: Int,
     val offRoute: Boolean,
     val toward: GeoPoint,
     val event: GuideEvent?,
     val reroute: Boolean,
     val arrived: Boolean,
+    val close: Boolean,
 )
 
 /**
  * Follows a walk along [route] as the fixes come. A fix farther from the route than max([OFF_ROUTE_M], twice its
  * accuracy) is off it; off it for [OFF_ROUTE_MS] asks for a new route, so a GNSS jump doesn't. Arrival is within the
- * fix's accuracy of the end, at least [ARRIVE_M].
+ * fix's accuracy of the end, at least [ARRIVE_M] and at most [ARRIVE_MAX_M]. The fix is matched to the route ahead of
+ * where the walk already got, so a leg running beside another doesn't make the progress jump between them. The times
+ * are from a monotonic clock.
  */
 class RouteGuide(val route: Route) {
     private val lat0 = route.points.first().lat
@@ -47,32 +50,30 @@ class RouteGuide(val route: Route) {
     private var offSinceMs = -1L
     private var offWarned = false
     private var arrived = false
+    private var close = false
+
+    /** The farthest the walk got along the route, in metres. */
+    private var reached = 0.0
 
     fun update(at: GeoPoint, accuracyM: Float, nowMs: Long): Progress {
         val px = (at.lon - lon0) * metersPerLon
         val py = (at.lat - lat0) * METERS_PER_LAT
-        var segment = 0
-        var off = Double.MAX_VALUE
-        var position = 0.0
-        for (i in 0 until xs.size - 1) {
-            val dx = xs[i + 1] - xs[i]
-            val dy = ys[i + 1] - ys[i]
-            val length2 = dx * dx + dy * dy
-            val t = if (length2 == 0.0) 0.0 else (((px - xs[i]) * dx + (py - ys[i]) * dy) / length2).coerceIn(0.0, 1.0)
-            val d = hypot(px - xs[i] - t * dx, py - ys[i] - t * dy)
-            // at a shared corner the later segment wins: the turn there is behind
-            if (d <= off) {
-                off = d
-                segment = i
-                position = along[i] + t * (along[i + 1] - along[i])
-            }
-        }
+        val limit = max(OFF_ROUTE_M, 2.0 * accuracyM)
+        // the route just behind and ahead first; anywhere on it only when the fix is off that stretch
+        var match = nearest(px, py, reached - BEHIND_M, reached + AHEAD_M)
+        if (match.off > limit) match = nearest(px, py, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+        val segment = match.segment
+        val off = match.off
+        val position = match.position
+        val offRoute = off > limit
+        if (!offRoute) reached = max(reached, position)
         var event: GuideEvent? = null
-        if (!arrived && distanceMeters(at, route.end) <= max(ARRIVE_M, accuracyM.toDouble())) {
+        val toEnd = distanceMeters(at, route.end).toDouble()
+        if (!arrived && toEnd <= max(ARRIVE_M, min(accuracyM.toDouble(), ARRIVE_MAX_M))) {
             arrived = true
+            close = toEnd <= ARRIVE_M
             event = GuideEvent.ARRIVED
         }
-        val offRoute = off > max(OFF_ROUTE_M, 2.0 * accuracyM)
         var reroute = false
         if (offRoute && !arrived) {
             if (offSinceMs < 0) offSinceMs = nowMs
@@ -96,16 +97,39 @@ class RouteGuide(val route: Route) {
         val seconds = if (route.meters > 0) route.seconds * remaining / route.meters else 0.0
         return Progress(
             step = stepIndex,
-            toStepM = toStep.roundToInt(),
             remainingM = remaining.roundToInt(),
             remainingSec = seconds.roundToInt(),
-            offRouteM = off.roundToInt(),
             offRoute = offRoute,
             toward = toward(segment, px, py),
             event = event,
             reroute = reroute,
             arrived = arrived,
+            close = close,
         )
+    }
+
+    private class Match(val segment: Int, val off: Double, val position: Double)
+
+    /** The point of the route nearest the fix among the segments that reach into [from]..[to] metres along it. */
+    private fun nearest(px: Double, py: Double, from: Double, to: Double): Match {
+        var segment = 0
+        var off = Double.MAX_VALUE
+        var position = 0.0
+        for (i in 0 until xs.size - 1) {
+            if (along[i + 1] < from || along[i] > to) continue
+            val dx = xs[i + 1] - xs[i]
+            val dy = ys[i + 1] - ys[i]
+            val length2 = dx * dx + dy * dy
+            val t = if (length2 == 0.0) 0.0 else (((px - xs[i]) * dx + (py - ys[i]) * dy) / length2).coerceIn(0.0, 1.0)
+            val d = hypot(px - xs[i] - t * dx, py - ys[i] - t * dy)
+            // at a shared corner the later segment wins: the turn there is behind
+            if (d <= off) {
+                off = d
+                segment = i
+                position = along[i] + t * (along[i + 1] - along[i])
+            }
+        }
+        return Match(segment, off, position)
     }
 
     /** The end of the segment the fix is on, or the one after when that end is only a few metres away. */
@@ -119,6 +143,13 @@ class RouteGuide(val route: Route) {
         const val OFF_ROUTE_M = 25.0
         const val OFF_ROUTE_MS = 20_000L
         const val ARRIVE_M = 8.0
+
+        /** However vague the fix, arrival is never said farther than this from the end. */
+        const val ARRIVE_MAX_M = 20.0
+
+        /** The stretch of route a fix is first matched to: a little behind the farthest point reached, more ahead. */
+        private const val BEHIND_M = 10.0
+        private const val AHEAD_M = 60.0
 
         /** A turn this close ahead is about to come: one vibration, once. */
         const val TURN_SOON_M = 20.0

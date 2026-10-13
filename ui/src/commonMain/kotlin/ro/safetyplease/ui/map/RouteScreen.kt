@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
+import ro.safetyplease.core.position.Guide
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.route.AnchorKind
 import ro.safetyplease.core.venue.route.Route
@@ -88,6 +89,7 @@ import ro.safetyplease.ui.resources.route_incident
 import ro.safetyplease.ui.resources.route_landmark
 import ro.safetyplease.ui.resources.route_last
 import ro.safetyplease.ui.resources.route_left
+import ro.safetyplease.ui.resources.route_near
 import ro.safetyplease.ui.resources.route_no_goal
 import ro.safetyplease.ui.resources.route_no_position
 import ro.safetyplease.ui.resources.route_off
@@ -151,10 +153,16 @@ fun RouteScreen(vm: AppViewModel, target: NavTarget) {
             val spots = FriendSpot.of(vm.friendPositions.value, vm.friends.value, now, vm.venue)
             val goal = target.goal(vm.venue, spots, vm.incidents.value.staff, closedPoints(vm.c.points.value, now))
             val state = vm.c.mapState.value
-            val next = withContext(Dispatchers.Default) { nav.update(at, fix?.accuracyM ?: 0f, now, state, goal) }
+            val mono = vm.c.clock.monoMs()
+            val next = withContext(Dispatchers.Default) { nav.update(at, fix?.accuracyM ?: 0f, mono, state, goal) }
             accuracy = fix?.accuracyM ?: 0f
             walk = next
             (next as? WalkState.Guiding)?.progress?.event?.let { beacon.vibrate(buzz(it)) }
+            // there: the fast fixes and the guidance stop, the screen keeps the arrival
+            if ((next as? WalkState.Guiding)?.progress?.arrived == true) {
+                vm.phone.urgentLocation(false)
+                break
+            }
             delay(TICK_MS)
         }
     }
@@ -210,7 +218,11 @@ private fun Guidance(vm: AppViewModel, walk: WalkState.Guiding, label: String, m
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    if (progress.arrived) stringResource(Res.string.route_arrived) else stepText(route.steps[progress.step], label),
+                    when {
+                        !progress.arrived -> stepText(route.steps[progress.step], label)
+                        progress.close -> stringResource(Res.string.route_arrived)
+                        else -> stringResource(Res.string.route_near)
+                    },
                     style = MaterialTheme.typography.title2, fontWeight = FontWeight.SemiBold, color = colors.label,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
@@ -260,14 +272,18 @@ private fun turnDeg(turn: Turn): Float? = when (turn) {
     Turn.ARRIVE -> null
 }
 
-/** Points towards the route from where the phone faces or the person walks; without either, a walker, never a guessed north. */
+/**
+ * Points towards the route from where the phone faces or the person walks; without either, a walker, never a guessed
+ * north. By a stage the compass can't be trusted either: there the step's landmark tells the way, with no arrow.
+ */
 @Composable
 private fun RouteArrow(vm: AppViewModel, me: GeoPoint?, toward: GeoPoint, arrived: Boolean) {
     val colors = AppTheme.colors
     val fix by vm.c.locationFix.collectAsStateWithLifecycle()
     // the compass turns between fixes
     rememberNow(ARROW_TICK_MS)
-    val angle = if (arrived || me == null) null else routeArrowDeg(me, toward, vm.phone.heading(), fix?.courseDeg)
+    val byStage = me != null && vm.venue.zoneAt(me.lat, me.lon)?.type == Guide.STAGE
+    val angle = if (arrived || me == null || byStage) null else routeArrowDeg(me, toward, vm.phone.heading(), fix?.courseDeg)
     Box(Modifier.size(56.dp).clip(CircleShape).background(colors.accent), contentAlignment = Alignment.Center) {
         when {
             arrived -> Icon(Sym.Flag, null, Modifier.size(28.dp), tint = colors.onAccent)

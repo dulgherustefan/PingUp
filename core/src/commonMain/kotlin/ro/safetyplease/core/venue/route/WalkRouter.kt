@@ -7,9 +7,12 @@ import ro.safetyplease.core.venue.StraightLine
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.WalkDistance
 import ro.safetyplease.core.venue.distanceMeters
+import ro.safetyplease.core.venue.radians
+import kotlin.concurrent.Volatile
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.ceil
+import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
@@ -21,16 +24,29 @@ import kotlin.math.sqrt
  * Walking routes on the site's [WalkGrid], offline: A* over eight neighbours, never through water, a fence (but at a
  * gate) or a blocked area. The console's [MapState] shuts closed zones, except the one the walk starts in, and makes
  * crowded ones cost [CROWD_COST] times as much. The grids are built on first use, one for the public and one for staff.
+ * Building a grid and planning a route take milliseconds to tens of them: call [grid], [route], [nearestOpen] and
+ * [distance]'s walks off the main thread.
  */
 class WalkRouter(val venue: Venue) {
     private val publicGrid by lazy { WalkGrid(venue, staff = false) }
     private val staffGrid by lazy { WalkGrid(venue, staff = true) }
     private val landmarks = venue.pois.filter { it.number in Venue.LANDMARK_NUMBERS }
 
+    // the grid's extent, known without building it
+    private val metersPerLon = WalkGrid.METERS_PER_LAT * cos(radians((venue.bounds.minLat + venue.bounds.maxLat) / 2))
+    private val minLat = venue.bounds.minLat - WalkGrid.MARGIN_M / WalkGrid.METERS_PER_LAT
+    private val maxLat = venue.bounds.maxLat + WalkGrid.MARGIN_M / WalkGrid.METERS_PER_LAT
+    private val minLon = venue.bounds.minLon - WalkGrid.MARGIN_M / metersPerLon
+    private val maxLon = venue.bounds.maxLon + WalkGrid.MARGIN_M / metersPerLon
+
+    @Volatile
+    private var memo = Memo(MapState.OPEN, false, emptyMap())
+
+    /** The grid for the public or for staff; the first call builds it. */
     fun grid(staff: Boolean): WalkGrid = if (staff) staffGrid else publicGrid
 
-    /** Whether [point] is on the routes' map: off it, a phone is outside the site. */
-    fun covers(point: GeoPoint): Boolean = publicGrid.cellAt(point) >= 0
+    /** Whether [point] is on the routes' map: off it, a phone is outside the site. Cheap: builds no grid. */
+    fun covers(point: GeoPoint): Boolean = point.lat >= minLat && point.lat < maxLat && point.lon >= minLon && point.lon < maxLon
 
     /** The walk from [from] to [to], each moved to the nearest walkable cell within [SNAP_M]; null when none joins them. */
     fun route(from: GeoPoint, to: GeoPoint, state: MapState = MapState.OPEN, staff: Boolean = false): Route? {
@@ -69,15 +85,42 @@ class WalkRouter(val venue: Venue) {
         val reached = search.run(start, -1, goals)
         if (reached < 0) return null
         val place = candidates[goals[reached]]
-        return Destination(type, place.name, place.number, place.point, build(grid, costs, search.path(reached), from, place.point))
+        return Destination(place.name, place.number, build(grid, costs, search.path(reached), from, place.point))
     }
 
     /**
      * Metres of walking, with the map state and the access read at each call; in a straight line when a point is off
-     * the grid, null when no walk joins the two.
+     * the grid, null when no walk joins the two. The last [MEMO_SIZE] answers are kept per pair of cells until the map
+     * state or the access changes, so a list or a map layer asking again costs nothing; a new pair plans a whole route.
      */
     fun distance(state: () -> MapState, staff: () -> Boolean): WalkDistance = WalkDistance { from, to ->
-        if (covers(from) && covers(to)) route(from, to, state(), staff())?.meters else StraightLine.meters(from, to)
+        if (!covers(from) || !covers(to)) return@WalkDistance StraightLine.meters(from, to)
+        val mapState = state()
+        val access = staff()
+        val grid = grid(access)
+        val key = (grid.cellAt(from).toLong() shl 32) or (grid.cellAt(to).toLong() and 0xFFFFFFFFL)
+        val known = memo.takeIf { it.state == mapState && it.staff == access } ?: Memo(mapState, access, emptyMap())
+        if (key in known.meters) return@WalkDistance known.meters[key]
+        val meters = route(from, to, mapState, access)?.meters
+        // racing callers may drop each other's answers, never mix them up
+        memo = Memo(mapState, access, if (known.meters.size >= MEMO_SIZE) mapOf(key to meters) else known.meters + (key to meters))
+        meters
+    }
+
+    private class Memo(val state: MapState, val staff: Boolean, val meters: Map<Long, Int?>)
+
+    /** What the search did between two points: its cost in cells, and how many cells it expanded. For tests. */
+    internal class Probe(val start: Int, val goal: Int, val cost: Float, val expanded: Int)
+
+    internal fun probe(from: GeoPoint, to: GeoPoint, state: MapState = MapState.OPEN, staff: Boolean = false): Probe? {
+        val grid = grid(staff)
+        val costs = Costs(grid, state, grid.cellAt(from))
+        val start = snap(grid, costs, from)
+        val goal = snap(grid, costs, to)
+        if (start < 0 || goal < 0) return null
+        val search = Search(grid, costs)
+        if (search.run(start, goal, null) < 0) return null
+        return Probe(start, goal, search.cost(goal), search.expanded)
     }
 
     private class Candidate(val name: String, val number: Int, val point: GeoPoint)
@@ -237,8 +280,14 @@ class WalkRouter(val venue: Venue) {
     }
 
     companion object {
-        /** How much more a step through a crowded zone costs, and how much slower it is walked. */
+        /**
+         * How much more a step through a crowded zone costs, and how much slower it is walked. Must stay at least 1: the
+         * A* heuristic counts every step at its length, so a cheaper step would make it overestimate.
+         */
         const val CROWD_COST = 3f
+
+        /** How many walking distances [distance] remembers. */
+        const val MEMO_SIZE = 256
 
         /** A walking pace inside a festival, in metres per second. */
         const val WALK_MPS = 1.0
@@ -295,6 +344,12 @@ private class Search(private val grid: WalkGrid, private val costs: Costs) {
     private var heap = LongArray(1024)
     private var count = 0
 
+    /** The cells taken off the queue so far. */
+    var expanded = 0
+        private set
+
+    fun cost(cell: Int): Float = g[cell]
+
     /** The cell reached, -1 when none can be. */
     fun run(start: Int, goal: Int, goals: IntArray?): Int {
         val cols = grid.cols
@@ -305,6 +360,7 @@ private class Search(private val grid: WalkGrid, private val costs: Costs) {
             val cell = pop()
             if (done[cell]) continue
             done[cell] = true
+            expanded++
             if (cell == goal || (goals != null && goals[cell] >= 0)) return cell
             val col = cell % cols
             val row = cell / cols

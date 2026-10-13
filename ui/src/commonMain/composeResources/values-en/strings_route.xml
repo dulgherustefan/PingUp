@@ -16,6 +16,7 @@
     <string name="route_turn_back">turn back</string>
     <string name="route_left">%1$d m · ~%2$d–%3$d min</string>
     <string name="route_arrived">You’re there</string>
+    <string name="route_near">You’re close. Look around.</string>
     <string name="route_off">You’ve left the route. Keep going this way and we’ll find another.</string>
     <string name="route_steps">Steps</string>
     <string name="route_no_position">Turn on location to see the way.</string>

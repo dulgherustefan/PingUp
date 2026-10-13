@@ -387,12 +387,13 @@ open class PingUpSession(private val platform: AppPlatform) {
     val mapState: StateFlow<MapState> = combine(notices.board, minuteTicks()) { board, _ -> MapState.of(board, venue, clock.wallMs() / 1000) }
         .stateIn(ioScope, SharingStarted.Eagerly, MapState.of(notices.board.value, venue, clock.wallMs() / 1000))
 
-    /** The walking routes over the venue, built on first use. */
+    /** The walking routes over the venue, built on first use; plan with them off the main thread. */
     val walkRouter = WalkRouter(venue)
 
     /**
      * Metres of walking between two points of the site, around water, fences and the zones the console closed, with
-     * staff access on a staff phone; in a straight line off the site's map.
+     * staff access on a staff phone; in a straight line off the site's map. It may plan a route: call it off the main
+     * thread.
      */
     val walkDistance: WalkDistance = walkRouter.distance({ mapState.value }) { settings.value.role.hasStaffKeys }
 

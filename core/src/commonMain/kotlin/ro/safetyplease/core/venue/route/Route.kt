@@ -29,8 +29,6 @@ data class RouteStep(val point: GeoPoint, val alongM: Int, val turn: Turn, val a
 data class Route(val points: List<GeoPoint>, val meters: Int, val seconds: Int, val steps: List<RouteStep>) {
     val end: GeoPoint get() = points.last()
 
-    fun minutes(): IntRange = minutes(seconds)
-
     companion object {
         private const val SLOW_FACTOR = 1.5
 
@@ -44,4 +42,4 @@ data class Route(val points: List<GeoPoint>, val meters: Int, val seconds: Int, 
 }
 
 /** The place [nearest][WalkRouter.nearestOpen] found: its [name], its landmark [number] (0 for none) and the way there. */
-data class Destination(val type: String, val name: String, val number: Int, val point: GeoPoint, val route: Route)
+data class Destination(val name: String, val number: Int, val route: Route)

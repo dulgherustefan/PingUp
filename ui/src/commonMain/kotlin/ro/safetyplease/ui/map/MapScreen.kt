@@ -55,9 +55,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.data.Conversations
@@ -165,7 +167,7 @@ import kotlin.math.ln
 /** Places the quick chips lead to, in chip order. */
 private val SpotTypes = listOf("medical", "exit", Venue.MEETING, "water", "wc", "info", "charge", Venue.DEA)
 
-/** The chips that walk you there: their distance is on foot to the nearest open one. */
+/** The chips that walk you there from a position on the site: their distance is on foot to the nearest open one. */
 private val WalkTypes = setOf("medical", Venue.EXIT)
 
 private enum class MapFocus { MINE, ZONE, SPOT }
@@ -198,8 +200,12 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val manualZone = settings.manualZone
     val myZoneId = autoZone?.id ?: manualZone
     // away from the venue, distances would run to hundreds of km
-    val origin = onSite(here, vm.venue) ?: vm.venue.zone(manualZone)?.center
-    val walkMeters = rememberWalkMeters(vm, origin, WalkTypes)
+    val onSiteFix = onSite(here, vm.venue)
+    val origin = onSiteFix ?: vm.venue.zone(manualZone)?.center
+    // only from a real position on the site does a chip walk you there
+    val walkMeters = rememberWalkMeters(vm, onSiteFix, WalkTypes)
+    // the walking grid is built once, away from the main thread, before a chip or a pin asks for a route
+    LaunchedEffect(settings.role.hasStaffKeys) { withContext(Dispatchers.Default) { vm.c.walkRouter.grid(settings.role.hasStaffKeys) } }
     val spot = if (focus == MapFocus.SPOT) vm.venue.nearest(spotType, origin) else null
     val requestLocation = rememberLocationRequest(vm)
     val listState = rememberLazyListState()
@@ -420,7 +426,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     QuickChip(Sym.MyLocation, stringResource(Res.string.map_quick_me), null, colors.accent, focus == MapFocus.MINE) { showMine() }
                     quickTypes.forEach { type ->
                         val near = vm.venue.nearest(type, origin) ?: return@forEach
-                        val walks = type in WalkTypes
+                        val walks = type in WalkTypes && onSiteFix != null
                         QuickChip(
                             typeGlyph(type) ?: Sym.Flag, spotLabel(type),
                             if (walks) walkMeters[type] else origin?.let { distanceMeters(it, near.point) },

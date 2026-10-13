@@ -1,12 +1,19 @@
 package ro.safetyplease.core.venue.route
 
+import ro.safetyplease.core.announce.MapState
+import ro.safetyplease.core.announce.ZoneState
+import ro.safetyplease.core.venue.BlockedArea
 import ro.safetyplease.core.venue.Bounds
+import ro.safetyplease.core.venue.Gate
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 import ro.safetyplease.core.venue.pointInPolygon
 import ro.safetyplease.core.venue.radians
 import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sqrt
+import kotlin.random.Random
 import kotlin.math.hypot
 
 /** Test sites laid out in metres east ([x]) and north ([y]) of a corner. */
@@ -56,4 +63,75 @@ internal object Sites {
     /** Metres from [p] to the segment ab. */
     fun distance(p: GeoPoint, a: GeoPoint, b: GeoPoint): Double =
         segmentDistance(x(p), y(p), x(a), y(a), x(b), y(b))
+
+    /** Points [perMeter] times a metre along the route. */
+    fun samples(route: Route, perMeter: Int): List<GeoPoint> = route.points.zipWithNext().flatMap { (a, b) ->
+        val n = maxOf(1, (hypot(x(b) - x(a), y(b) - y(a)) * perMeter).toInt())
+        (0..n).map { at(x(a) + (x(b) - x(a)) * it / n, y(a) + (y(b) - y(a)) * it / n) }
+    }
+
+    /** A 640 m square with fences every 80 m, each with its gate at the other end: the walk zigzags across it all. */
+    fun zigzag(): Venue {
+        val fences = (1..7).map { listOf(at(-40.0, it * 80.0), at(680.0, it * 80.0)) }
+        val gates = (1..7).map { at(if (it % 2 == 1) 620.0 else 20.0, it * 80.0).let { p -> Gate(p.lat, p.lon) } }
+        return empty(640.0, 640.0).copy(barriers = fences, gates = gates)
+    }
+
+    val zigzagEnds = at(10.0, 10.0) to at(630.0, 630.0)
+
+    /** Small sites with random blocks, a pond and two zones, each in a random state. */
+    fun randomSites(seed: Int, count: Int): List<Pair<Venue, MapState>> {
+        val random = Random(seed)
+        fun box(): List<GeoPoint> {
+            val x0 = random.nextDouble(-20.0, 70.0)
+            val y0 = random.nextDouble(-20.0, 55.0)
+            return rect(x0, y0, x0 + random.nextDouble(3.0, 25.0), y0 + random.nextDouble(3.0, 25.0))
+        }
+        val states = ZoneState.entries
+        return List(count) {
+            val zones = listOf("a", "b").map { id ->
+                val x0 = random.nextDouble(-20.0, 50.0)
+                val y0 = random.nextDouble(-20.0, 40.0)
+                zone(id, x0, y0, x0 + random.nextDouble(10.0, 40.0), y0 + random.nextDouble(10.0, 40.0))
+            }
+            val venue = empty(60.0, 45.0).copy(
+                blocked = List(4) { BlockedArea(box(), BlockedArea.NONE) },
+                water = listOf(box()),
+                zones = zones,
+            )
+            venue to MapState(zones.associate { it.id to states[random.nextInt(states.size)] })
+        }
+    }
+
+    fun randomPairs(seed: Int, count: Int): List<Pair<GeoPoint, GeoPoint>> {
+        val random = Random(seed)
+        fun point() = at(random.nextDouble(-25.0, 85.0), random.nextDouble(-25.0, 70.0))
+        return List(count) { point() to point() }
+    }
+
+    /** The cheapest walk's cost in cells by plain Dijkstra, with the router's rules: eight neighbours, no cut corners. */
+    fun dijkstra(grid: WalkGrid, costs: Costs, start: Int, goal: Int): Double {
+        val cost = DoubleArray(grid.size) { Double.POSITIVE_INFINITY }
+        val done = BooleanArray(grid.size)
+        cost[start] = 0.0
+        fun shut(c: Int, r: Int) = costs.of(r * grid.cols + c) == WalkRouter.SHUT
+        while (true) {
+            var cell = -1
+            for (i in 0 until grid.size) if (!done[i] && cost[i] < Double.POSITIVE_INFINITY && (cell < 0 || cost[i] < cost[cell])) cell = i
+            if (cell < 0) return Double.POSITIVE_INFINITY
+            if (cell == goal) return cost[cell]
+            done[cell] = true
+            val col = cell % grid.cols
+            val row = cell / grid.cols
+            for (dc in -1..1) for (dr in -1..1) {
+                val c = col + dc
+                val r = row + dr
+                if ((dc == 0 && dr == 0) || c !in 0 until grid.cols || r !in 0 until grid.rows || shut(c, r)) continue
+                if (dc != 0 && dr != 0 && (shut(c, row) || shut(col, r))) continue
+                val step = if (dc != 0 && dr != 0) sqrt(2.0) else 1.0
+                val next = r * grid.cols + c
+                cost[next] = min(cost[next], cost[cell] + step * costs.of(next))
+            }
+        }
+    }
 }
