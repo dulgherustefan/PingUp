@@ -38,7 +38,7 @@ def http_source(url):
     def get_bytes(offset, length):
         key = (offset, length)
         if key not in cache:
-            request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-{offset + length - 1}"})
+            request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-{offset + length - 1}", "User-Agent": "pingup-map-extract/1.0"})
             with urllib.request.urlopen(request, timeout=60) as response:
                 if response.status != 206:
                     sys.exit(f"{url} does not answer range requests (HTTP {response.status})")
