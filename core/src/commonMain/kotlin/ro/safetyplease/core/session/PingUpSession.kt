@@ -177,7 +177,22 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     val incidentStore = JsonStore(modeFile("incidents.json"), IncidentData.serializer(), IncidentData(), ioScope)
 
-    val venue: Venue = Venue.parse(event?.venue ?: platform.asset("venue.json"), platform.language())
+    private val venueText: String = event?.venue ?: platform.asset("venue.json")
+
+    @Volatile
+    private var named: Pair<String, Venue> = platform.language().let { it to Venue.parse(venueText, it) }
+
+    /**
+     * The event's map with its names in the language the app speaks now: the person may change it while the app runs.
+     * The places and shapes stay the same; only the names follow.
+     */
+    val venue: Venue
+        get() {
+            val language = platform.language()
+            val held = named
+            if (held.first == language) return held.second
+            return Venue.parse(venueText, language).also { named = language to it }
+        }
     val grid = SiteGrid.of(venue.bounds, event?.gridMeters ?: SiteGrid.CELL_METERS)
 
     /** The control console's shift log; written only while this phone is the console. */

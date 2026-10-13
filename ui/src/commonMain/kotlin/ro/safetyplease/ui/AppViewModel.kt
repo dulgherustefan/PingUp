@@ -265,7 +265,8 @@ fun closedIncidents(staff: List<StaffIncident>): List<String> = staff.filter(Sta
 
 /** The screens' state and what they do, over the session; [phone] is what only the phone itself can do. */
 class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
-    val venue = c.venue
+    /** Read at each use: its names follow the app's language. */
+    val venue: Venue get() = c.venue
 
     val settings = c.settings.state
     val mesh = c.engine.state

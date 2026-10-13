@@ -70,7 +70,7 @@ class AndroidPlatform(private val app: Application) : AppPlatform {
     lateinit var notifier: Notifier
         private set
 
-    override fun language(): String = AppLocale.language(app)
+    override fun language(): String = AppLocale.current()
 
     override fun asset(name: String): String = app.assets.open(name).bufferedReader().use { it.readText() }
 

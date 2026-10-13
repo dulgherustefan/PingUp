@@ -7,8 +7,9 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 /**
- * The venue with the names of zones, places, gates, blocked areas and evacuation plans in [language], from the
- * optional "name_<language>" keys of venue.json (e.g. "name_en"). Entries without one keep "name", which is Romanian.
+ * The venue with its own name and those of zones, places, gates, blocked areas and evacuation plans in [language],
+ * from the optional "name_<language>" keys of venue.json (e.g. "name_en"). Entries without one keep "name", which is
+ * Romanian.
  * Ids, shapes and order don't change.
  */
 fun Venue.Companion.parse(text: String, language: String): Venue {
@@ -20,6 +21,7 @@ fun Venue.Companion.parse(text: String, language: String): Venue {
     val blocked = root.entries("blocked")
     val plans = root.entries("evacuation")
     return venue.copy(
+        name = displayName(root, venue.name, language),
         zones = venue.zones.mapIndexed { i, zone -> zone.copy(name = displayName(zones.getOrNull(i), zone.name, language)) },
         pois = venue.pois.mapIndexed { i, poi -> poi.copy(name = displayName(pois.getOrNull(i), poi.name, language)) },
         gates = venue.gates.mapIndexed { i, gate -> gate.copy(name = displayName(gates.getOrNull(i), gate.name, language)) },

@@ -13,7 +13,8 @@ import kotlin.test.assertTrue
 class VenueNamesTest {
     private val text = """
         {
-          "name": "Test",
+          "name": "Festivalul de test",
+          "name_en": "Test festival",
           "bounds": { "minLat": 0, "minLon": 0, "maxLat": 1, "maxLon": 1 },
           "zones": [
             { "id": "stage", "name": "Scena", "name_en": "Stage", "color": "#000000",
@@ -33,6 +34,7 @@ class VenueNamesTest {
     @Test
     fun englishNamesReplaceRomanianOnesWhereGiven() {
         val venue = Venue.parse(text, "en")
+        assertEquals("Test festival", venue.name)
         assertEquals(listOf("Stage", "Bar", "Relaxare"), venue.zones.map { it.name })
         assertEquals(listOf("Exit", ""), venue.pois.map { it.name })
         assertEquals("Stage", venue.zoneName("stage"))
@@ -45,6 +47,7 @@ class VenueNamesTest {
         assertEquals(plain, Venue.parse(text, "ro"))
         assertEquals(plain, Venue.parse(text, "de"))
         assertEquals(listOf("Scena", "Bar", "Relaxare"), plain.zones.map { it.name })
+        assertEquals("Festivalul de test", plain.name)
     }
 
     @Test
@@ -58,5 +61,7 @@ class VenueNamesTest {
             assertTrue(english.isNotBlank() && !english.contains(Regex("[ăâîșțĂÂÎȘȚ]")), entry.toString())
         }
         assertEquals("Main stage", Venue.parse(text, "en").zoneName("main-stage"))
+        assertEquals("Festival demo Costinești", Venue.parse(text, "ro").name)
+        assertEquals("Demo festival Costinești", Venue.parse(text, "en").name)
     }
 }

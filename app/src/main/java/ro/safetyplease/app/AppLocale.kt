@@ -42,6 +42,9 @@ object AppLocale {
         pin(List(config.locales.size()) { config.locales[it] })
     }
 
-    /** "ro" or "en", for a context [wrap] has pinned. */
-    fun language(context: Context): String = context.resources.configuration.locales[0].language
+    /**
+     * "ro" or "en", as the app speaks now: the default [pin] set last. The application's own context keeps the language
+     * it started with, and the person may change the phone's while the app runs.
+     */
+    fun current(): String = pick(listOf(Locale.getDefault())).language
 }

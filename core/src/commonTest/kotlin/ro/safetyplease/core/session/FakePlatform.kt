@@ -56,7 +56,10 @@ class FakePlatform(
     var restarts = 0
     var wipes = 0
 
-    override fun language() = "ro"
+    /** The app's language, which the person may change while the app runs. */
+    var language = "ro"
+
+    override fun language() = language
 
     override fun asset(name: String): String {
         val own = repoFile("$assets/$name")

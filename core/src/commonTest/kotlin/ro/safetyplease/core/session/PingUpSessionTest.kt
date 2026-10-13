@@ -108,6 +108,19 @@ class PingUpSessionTest {
     }
 
     @Test
+    fun theVenueNamesFollowTheLanguageTheAppSpeaksNow() {
+        val platform = FakePlatform(tmp)
+        val s = session(platform)
+        assertEquals("Scena principală", s.venue.zoneName("main-stage"))
+        val ro = s.venue
+        platform.language = "en"
+        assertEquals("Main stage", s.venue.zoneName("main-stage"))
+        assertEquals(ro.zones.map { it.polygon }, s.venue.zones.map { it.polygon }, "only the names change")
+        platform.language = "ro"
+        assertEquals("Scena principală", s.venue.zoneName("main-stage"))
+    }
+
+    @Test
     fun anAnchorKeepsNoSecretKeys() {
         val platform = FakePlatform(tmp)
         val s = session(platform)
