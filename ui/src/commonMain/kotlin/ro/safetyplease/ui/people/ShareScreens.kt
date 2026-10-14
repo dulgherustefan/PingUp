@@ -287,7 +287,7 @@ private fun OptionRow(label: String, selected: Boolean, suggested: Boolean, note
     ) {
         Box(
             Modifier.size(22.dp).clip(CircleShape)
-                .then(if (selected) Modifier.background(colors.accent) else Modifier.border(1.5.dp, colors.tertiaryLabel, CircleShape)),
+                .then(if (selected) Modifier.background(colors.accent) else Modifier.border(1.5.dp, colors.secondaryLabel, CircleShape)),
             contentAlignment = Alignment.Center,
         ) { if (selected) Icon(Sym.Check, null, Modifier.size(13.dp), tint = colors.onAccent) }
         Spacer(Modifier.width(14.dp))

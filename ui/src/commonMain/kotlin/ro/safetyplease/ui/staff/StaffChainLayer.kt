@@ -19,6 +19,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -133,16 +134,16 @@ private fun ManDownQuestion(vm: AppViewModel, untilMs: Long) {
     vm.phone.ShowOverLockScreen()
     Dialog({}, DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false, usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.fillMaxSize().background(colors.red).padding(32.dp),
+            Modifier.fillMaxSize().background(colors.alert).padding(32.dp),
             verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(stringResource(Res.string.mandown_title), style = MaterialTheme.typography.title2, color = colors.onAccent, fontWeight = FontWeight.Bold)
+            Text(stringResource(Res.string.mandown_title), style = MaterialTheme.typography.title2, color = Color.White, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
-            Text(stringResource(Res.string.mandown_text), style = MaterialTheme.typography.headline, color = colors.onAccent, textAlign = TextAlign.Center)
+            Text(stringResource(Res.string.mandown_text), style = MaterialTheme.typography.headline, color = Color.White, textAlign = TextAlign.Center)
             Spacer(Modifier.height(8.dp))
             Text(
                 stringResource(Res.string.mandown_countdown, seconds.toInt()), style = MaterialTheme.typography.subheadline,
-                color = colors.onAccent, textAlign = TextAlign.Center,
+                color = Color.White, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(32.dp))
             AppButton(stringResource(Res.string.mandown_ok), vm.c.staffChain::answerManDown, Modifier.widthIn(max = 360.dp).fillMaxWidth().height(72.dp))

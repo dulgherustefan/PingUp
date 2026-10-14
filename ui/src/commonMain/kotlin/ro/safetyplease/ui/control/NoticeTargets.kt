@@ -101,7 +101,7 @@ fun EvacuationPlanPicker(venue: Venue, plan: PlanChoice?, onChange: (PlanChoice)
     if (rejected.isNotEmpty()) {
         Text(
             stringResource(Res.string.control_plan_rejected, rejected.joinToString(", ") { it.name }),
-            style = MaterialTheme.typography.footnote, color = colors.red,
+            style = MaterialTheme.typography.footnote, color = colors.redInk,
         )
     }
 }

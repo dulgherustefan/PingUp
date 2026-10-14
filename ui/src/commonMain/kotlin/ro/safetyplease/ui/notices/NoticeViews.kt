@@ -101,7 +101,7 @@ private fun NoticeBand(vm: AppViewModel, shown: ShownNotice, modifier: Modifier)
     val notice = shown.notice
     var open by rememberSaveable(notice.topic, notice.seq) { mutableStateOf(false) }
     val (fill, ink) = when {
-        notice.urgent && notice.level == NoticeLevel.EVACUATION -> colors.red to Color.White
+        notice.urgent && notice.level == NoticeLevel.EVACUATION -> colors.alert to Color.White
         notice.urgent -> colors.orange to Color.Black
         else -> colors.cell to colors.label
     }
@@ -158,7 +158,7 @@ fun NoticeAlert(shown: ShownNotice, exercise: Boolean, onRead: () -> Unit) {
     val ink = if (evacuation) Color.White else Color.Black
     // it takes every touch, so nothing underneath is tapped by mistake
     Box(
-        Modifier.fillMaxSize().background(if (evacuation) AppTheme.colors.red else AppTheme.colors.orange)
+        Modifier.fillMaxSize().background(if (evacuation) AppTheme.colors.alert else AppTheme.colors.orange)
             .clickable(remember { MutableInteractionSource() }, indication = null) {},
     ) {
         Column(

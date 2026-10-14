@@ -130,9 +130,9 @@ fun StaffCodesScreen(vm: AppViewModel) {
                 stringResource(Res.string.staff_codes_intro), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
                 modifier = Modifier.padding(horizontal = Gutter, vertical = 4.dp),
             )
-            CodeButton(medic, Sym.Medical, colors.red, Color.White) { send(StaffCode.MEDIC, medic) }
+            CodeButton(medic, Sym.Medical, colors.alert, Color.White) { send(StaffCode.MEDIC, medic) }
             CodeButton(reinforcements, Sym.Groups, colors.orange, Color.Black) { send(StaffCode.REINFORCEMENTS, reinforcements) }
-            CodeButton(danger, Sym.Priority, colors.red, Color.White) { send(StaffCode.STAFF_IN_DANGER, danger) }
+            CodeButton(danger, Sym.Priority, colors.alert, Color.White) { send(StaffCode.STAFF_IN_DANGER, danger) }
 
             Feedback(result, vm)
 

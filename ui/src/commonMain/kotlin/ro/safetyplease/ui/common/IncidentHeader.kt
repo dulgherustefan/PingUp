@@ -45,7 +45,8 @@ fun CategoryCircle(category: Int, urgent: Boolean, size: Dp) {
     val colors = AppTheme.colors
     IconCircle(
         categoryIcon(category), if (urgent) colors.red.copy(alpha = 0.15f) else colors.fill,
-        if (urgent) colors.red else colors.label, size,
+        // the text red: the surface red is under 3:1 on its own pale circle
+        if (urgent) colors.redInk else colors.label, size,
     )
 }
 

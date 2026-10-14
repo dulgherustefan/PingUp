@@ -198,7 +198,7 @@ fun EvacuationBanner(vm: AppViewModel, shown: ShownNotice, zone: String?, status
         else -> stringResource(Res.string.evac_banner, goText(target.exit))
     }
     Row(
-        Modifier.fillMaxWidth().background(AppTheme.colors.red).then(if (statusBar) Modifier.statusBarsPadding() else Modifier)
+        Modifier.fillMaxWidth().background(AppTheme.colors.alert).then(if (statusBar) Modifier.statusBarsPadding() else Modifier)
             .clickable(onClickLabel = shown.title, role = Role.Button, onClick = onOpen)
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
@@ -243,7 +243,7 @@ fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: Evac
     BackHandler(enabled = true) { minimise() }
     // it takes every touch, so nothing underneath is tapped by mistake
     Box(
-        Modifier.fillMaxSize().background(AppTheme.colors.red)
+        Modifier.fillMaxSize().background(AppTheme.colors.alert)
             .clickable(remember { MutableInteractionSource() }, indication = null) {},
     ) {
         Column(

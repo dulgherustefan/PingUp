@@ -118,6 +118,12 @@ class AppColors(
      */
     val redInk: Color get() = if (dark) red else Color(0xFFC4261D)
 
+    /**
+     * Red under white text and icons: the evacuation and the alerts that take the screen, their bands, danger buttons,
+     * badges. 5.8:1 with white in both themes, read in direct sunlight; white on the surface red is only 3.4:1.
+     */
+    val alert: Color get() = Color(0xFFC4261D)
+
     /** Selected option in a group (filter, report category). Not the solid accent, so a choice doesn't compete with the main action. */
     val selection: Color get() = if (dark) sage else brandDeep
     val onSelection: Color get() = if (dark) Night.background else Color.White
@@ -181,7 +187,8 @@ private val LightColors = AppColors(
     grouped = Color(0xFFF1F3EC),
     cell = Color.White,
     label = Color(0xFF0E110F),
-    secondaryLabel = Color(0xB83B4338),
+    // 80%: 5.3:1 on the grouped background, where 72% stayed under 4.5:1
+    secondaryLabel = Color(0xCC3B4338),
     tertiaryLabel = Color(0x4D3B4338),
     separator = Color(0xFFD0D5C8),
     fill = Color(0x1F6F7D67),

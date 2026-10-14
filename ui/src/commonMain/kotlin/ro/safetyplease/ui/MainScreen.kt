@@ -415,7 +415,7 @@ private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> U
                         if (item.badge > 0) {
                             Box(
                                 Modifier.align(Alignment.TopEnd).offset(x = 11.dp, y = (-5).dp).defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
-                                    .clip(CircleShape).background(colors.red).padding(horizontal = 5.dp),
+                                    .clip(CircleShape).background(colors.alert).padding(horizontal = 5.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(

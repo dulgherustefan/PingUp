@@ -414,7 +414,7 @@ private fun IncidentRow(
             ) {
                 IconCircle(
                     categoryIcon(incident.category), if (alarm) colors.red.copy(alpha = 0.15f) else colors.fill,
-                    if (alarm) colors.red else colors.label, size = 44.dp,
+                    if (alarm) colors.redInk else colors.label, size = 44.dp,
                 )
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {

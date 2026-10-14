@@ -35,7 +35,7 @@ fun ModalBanner(ask: ModalAsk, statusBar: Boolean, onOpen: () -> Unit) {
     val red = ask.kind.rank <= ModalKind.RESPONDER.rank
     val ink = if (red) Color.White else Color.Black
     Row(
-        Modifier.fillMaxWidth().background(if (red) AppTheme.colors.red else AppTheme.colors.orange)
+        Modifier.fillMaxWidth().background(if (red) AppTheme.colors.alert else AppTheme.colors.orange)
             .then(if (statusBar) Modifier.statusBarsPadding() else Modifier)
             .clickable(onClickLabel = ask.title, role = Role.Button, onClick = onOpen)
             .padding(horizontal = 16.dp, vertical = 8.dp)

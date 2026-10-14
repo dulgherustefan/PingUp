@@ -144,7 +144,7 @@ fun AppButton(
     val fill = when {
         !enabled -> c.fill
         kind == ButtonKind.Primary -> c.accent
-        kind == ButtonKind.Danger -> c.red
+        kind == ButtonKind.Danger -> c.alert
         else -> c.fill
     }
     val ink = when {
@@ -738,7 +738,7 @@ fun AppMenu(expanded: Boolean, onDismiss: () -> Unit, offset: DpOffset = DpOffse
 @Composable
 fun MenuRow(label: String, onClick: () -> Unit, icon: ImageVector? = null, danger: Boolean = false) {
     val c = AppTheme.colors
-    val color = if (danger) c.red else c.label
+    val color = if (danger) c.redInk else c.label
     Row(
         Modifier.fillMaxWidth().heightIn(min = TouchTarget).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -798,7 +798,7 @@ fun SwipeRow(
 /** Under the dragged row: only the uncovered strip is red, with the action's icon and label at its end. */
 @Composable
 private fun SwipeAction(state: SwipeToDismissBoxState, icon: ImageVector, label: String) {
-    val red = AppTheme.colors.red
+    val red = AppTheme.colors.alert
     Box(
         Modifier.fillMaxSize().clearAndSetSemantics {}.drawWithContent {
             if (state.dismissDirection != SwipeToDismissBoxValue.EndToStart) return@drawWithContent

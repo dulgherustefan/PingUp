@@ -95,7 +95,7 @@ fun ZoneStateEditor(vm: AppViewModel, onDismiss: () -> Unit) {
             Text(stringResource(Res.string.control_map_title), style = MaterialTheme.typography.title2)
             Text(stringResource(Res.string.control_map_hint), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
             if (!c.notices.canSign) {
-                Text(stringResource(Res.string.notice_no_shift), style = MaterialTheme.typography.subheadline, color = colors.red)
+                Text(stringResource(Res.string.notice_no_shift), style = MaterialTheme.typography.subheadline, color = colors.redInk)
             }
             val closes = draft.values.any { it != ZoneState.OPEN }
             val status = when {

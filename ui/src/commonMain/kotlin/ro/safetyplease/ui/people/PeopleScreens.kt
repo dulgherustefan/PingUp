@@ -583,7 +583,8 @@ private fun RoundCheck(checked: Boolean) {
     val colors = AppTheme.colors
     Box(
         Modifier.size(24.dp).clip(CircleShape)
-            .then(if (checked) Modifier.background(colors.accent) else Modifier.border(1.5.dp, colors.tertiaryLabel, CircleShape)),
+            // an empty ring a person can still see in the sun: 3:1 or more, as a control needs
+            .then(if (checked) Modifier.background(colors.accent) else Modifier.border(1.5.dp, colors.secondaryLabel, CircleShape)),
         contentAlignment = Alignment.Center,
     ) { if (checked) Icon(Sym.Check, null, Modifier.size(14.dp), tint = colors.onAccent) }
 }
