@@ -11,8 +11,10 @@ import kotlin.math.cos
 import kotlin.math.roundToLong
 
 /**
- * What two phones must share to read each other's positions (PROTOCOL.md, section 6.6): the grid box and the day
- * start, both from the event pack. Without a box every position travels in degrees.
+ * What two phones must share to read each other's positions (PROTOCOL.md, section 6.6): the day start, from the event
+ * pack, and the grid box, now only to read the grid points older builds send. Positions go out in degrees: a grid
+ * point means something only in the sender's box, which nothing on the wire names, and a phone without the event
+ * pack holds another box than one with it.
  */
 class PositionFrame(val box: PositionBox?, val dayStartMs: Long) {
 
@@ -27,35 +29,30 @@ class PositionFrame(val box: PositionBox?, val dayStartMs: Long) {
     }
 
     /**
-     * The point to send, after masking: exact is to the metre, approximate is the centre of a 128 m cell (the low 7 bits
-     * of each grid axis, or a cell of the same size in micro-degrees outside the box).
+     * The point to send, after masking, always in degrees: exact is the micro-degree, approximate is the centre of a
+     * cell of about 128 m.
      */
     fun point(lat: Double, lon: Double, approximate: Boolean): PositionPoint {
-        box?.toGrid(lat, lon)?.let { (x, y) ->
-            return if (approximate) PositionPoint.Grid(cellCentre(x), cellCentre(y)) else PositionPoint.Grid(x, y)
-        }
         if (!approximate) return PositionPoint.Absolute(lat, lon)
         val latMicro = centre((lat * 1e6).roundToLong(), CELL_MICRO_DEG)
         val lonStep = maxOf(1L, (CELL_MICRO_DEG / cos(radians(latMicro / 1e6))).roundToLong())
         return PositionPoint.Absolute(latMicro / 1e6, centre((lon * 1e6).roundToLong(), lonStep) / 1e6)
     }
 
-    /** Null for a grid point without a box: this phone has no event pack to read it with. */
+    /**
+     * A grid point, which only older builds send, is read in this phone's box, the only one it has: right when both
+     * phones hold the same pack. Null without a box.
+     */
     fun latLon(point: PositionPoint): GeoPoint? = when (point) {
         is PositionPoint.Absolute -> GeoPoint(point.lat, point.lon)
         is PositionPoint.Grid -> box?.toLatLon(point.x, point.y)
     }
-
-    private fun cellCentre(v: Int): Int = (v and CELL_MASK.inv()) or (CELL_MASK + 1) / 2
 
     private fun centre(micro: Long, step: Long): Long = micro.floorDiv(step) * step + step / 2
 
     companion object {
         const val MINUTE_MS = 60_000L
         const val MINUTES = 1 shl 16
-
-        /** Low bits masked for an approximate position: a 128 m cell. */
-        const val CELL_MASK = 0x7F
 
         /** About 128 m of latitude. */
         private const val CELL_MICRO_DEG = 1_150L

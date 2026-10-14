@@ -9,11 +9,10 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.location.LocationRequest
 import android.os.Build
-import android.os.CancellationSignal
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.content.ContextCompat
-import androidx.core.location.LocationManagerCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -22,6 +21,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import ro.safetyplease.app.AppContainer
+import ro.safetyplease.core.location.Accuracy
 import ro.safetyplease.core.location.DutyCycle
 import ro.safetyplease.core.location.FixGate
 import ro.safetyplease.core.location.FixMethod
@@ -33,8 +34,10 @@ import ro.safetyplease.core.venue.GeoPoint
 
 /**
  * Position from GPS_PROVIDER, without Play Services or network: offline the chipset decides the accuracy, not the
- * provider. Fixes heard passively from other apps come for free. How often the chip is asked follows [DutyCycle]; every
- * fix passes [FixGate] before anyone sees it. Runs while a screen is visible ([start]/[stop]) or a share session is on.
+ * provider. Fixes heard passively from other apps come for free. The chip is asked through one periodic request at the
+ * pace [DutyCycle] sets, which Android keeps searching until each fix comes, even when still; every fix passes
+ * [FixGate], reset at each start, before anyone sees it. Runs while a screen is visible ([start]/[stop]) or a share
+ * session is on.
  */
 class LocationSource(private val context: Context) {
     private val manager: LocationManager? = context.getSystemService(LocationManager::class.java)
@@ -67,15 +70,18 @@ class LocationSource(private val context: Context) {
     private var job: Job? = null
     private var cycle: DutyCycle? = null
     private var requested: DutyCycle.Plan? = null
-    private var lastAskMs = 0L
     private var lastFixMs: Long? = null
     private var lastSampleMs = 0L
-    private var oneShot: CancellationSignal? = null
+    private var startedMs = 0L
+    private var firstFix = false
+    private var warmUntil = 0L
+    private var warmFixes = 0
 
     private val listener = LocationListener { onLocation(it, FixMethod.GNSS) }
+
+    // network and fused fixes are coarser than the chip; a GPS fix that also reached our own request is dropped as old
     private val passive = LocationListener { location ->
-        // network and fused fixes are coarser than the chip; with our own request open the same GPS fix arrives here too
-        if (location.provider == LocationManager.GPS_PROVIDER && requested == null) onLocation(location, FixMethod.PASSIVE)
+        if (location.provider == LocationManager.GPS_PROVIDER) onLocation(location, FixMethod.PASSIVE)
     }
 
     /**
@@ -93,7 +99,10 @@ class LocationSource(private val context: Context) {
     /** The phone's location setting: with it off there is no fix, whatever the permission. */
     fun isGpsOn(): Boolean = runCatching { manager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true }.getOrDefault(false)
 
-    /** The event's water, where no fix can be, and the battery level for the diagnostic log; the session knows them once it runs. */
+    /**
+     * The event's water, where a fix is kept but flagged, and the battery level for the diagnostic log; the session knows
+     * them once it runs.
+     */
     fun configure(water: List<List<GeoPoint>>, batteryPct: () -> Int) {
         gate = FixGate(water)
         this.batteryPct = batteryPct
@@ -122,6 +131,17 @@ class LocationSource(private val context: Context) {
         refresh()
     }
 
+    /**
+     * "Prepare for offline": for [ms] the chip tracks without a break while the source runs, long enough to read the
+     * orbits and the time the satellites send, so the first fix offline comes fast. Leaving the screens ends it early.
+     */
+    fun warm(ms: Long) {
+        warmUntil = SystemClock.elapsedRealtime() + ms
+        warmFixes = 0
+        Log.i(AppContainer.TAG, "gnss: preparing for offline, ${ms / 1000} s")
+        refresh()
+    }
+
     private fun refresh() {
         val run = (visible || _shareMaxMs.value != null) && hasPermission() && isGpsOn()
         when {
@@ -136,6 +156,10 @@ class LocationSource(private val context: Context) {
     private fun begin() {
         val manager = manager ?: return
         val now = SystemClock.elapsedRealtime()
+        startedMs = now
+        firstFix = false
+        // another start may be elsewhere, under another sky: nothing the last run learnt holds
+        gate.reset()
         val sensors = motion.start(
             onMotion = {
                 cycle?.onMotion(SystemClock.elapsedRealtime())
@@ -155,8 +179,12 @@ class LocationSource(private val context: Context) {
         diagnostics.start(executor)
         job = scope.launch {
             while (true) {
-                plan()
                 val mono = SystemClock.elapsedRealtime()
+                if (warmUntil != 0L && mono >= warmUntil) {
+                    Log.i(AppContainer.TAG, "gnss: prepared for offline, $warmFixes fixes")
+                    warmUntil = 0L
+                }
+                plan()
                 _searching.value = lastFixMs.let { it == null || mono - it > SEARCHING_AFTER_MS }
                 if (mono - lastSampleMs >= GnssStats.SAMPLE_MS) {
                     if (lastSampleMs != 0L) diagnostics.sample(System.currentTimeMillis(), batteryPct())
@@ -174,8 +202,10 @@ class LocationSource(private val context: Context) {
         requested = null
         lastSampleMs = 0L
         _searching.value = false
-        oneShot?.cancel()
-        oneShot = null
+        if (warmUntil != 0L) {
+            Log.i(AppContainer.TAG, "gnss: offline preparation cut short, $warmFixes fixes")
+            warmUntil = 0L
+        }
         motion.stop()
         diagnostics.stop()
         runCatching {
@@ -184,35 +214,16 @@ class LocationSource(private val context: Context) {
         }
     }
 
+    /** One periodic request at the cycle's pace, made again only when the pace changes. */
     @SuppressLint("MissingPermission")
     private fun plan() {
         val manager = manager ?: return
         val cycle = cycle ?: return
         val now = SystemClock.elapsedRealtime()
-        val plan = cycle.plan(now, urgent > 0, _shareMaxMs.value)
-        runCatching {
-            if (plan.continuous) {
-                if (plan != requested) {
-                    request(manager, plan)
-                    requested = plan
-                }
-            } else {
-                if (requested != null) {
-                    manager.removeUpdates(listener)
-                    requested = null
-                }
-                if (oneShot == null && now - lastAskMs >= plan.intervalMs) {
-                    lastAskMs = now
-                    val signal = CancellationSignal()
-                    oneShot = signal
-                    LocationManagerCompat.getCurrentLocation(manager, LocationManager.GPS_PROVIDER, signal, executor) { location ->
-                        if (oneShot === signal) oneShot = null
-                        // getCurrentLocation may hand back a cached fix; only a recent one counts as "now"
-                        if (location != null && ageMs(location) <= ONE_SHOT_MAX_AGE_MS) onLocation(location, FixMethod.GNSS)
-                    }
-                }
-            }
-        }
+        val plan = cycle.plan(now, urgent > 0 || now < warmUntil, _shareMaxMs.value)
+        val asked = requested
+        if (asked != null && asked.intervalMs == plan.intervalMs && asked.minIntervalMs == plan.minIntervalMs) return
+        runCatching { request(manager, plan) }.onSuccess { requested = plan }
     }
 
     @SuppressLint("MissingPermission")
@@ -231,35 +242,47 @@ class LocationSource(private val context: Context) {
     private fun onLocation(location: Location, method: FixMethod) {
         val age = ageMs(location)
         if (age > GeoFix.FRESH_MS) return
+        val speed = location.speed.takeIf { location.hasSpeed() }
         val fix = LocationFix(
             lat = location.latitude,
             lon = location.longitude,
-            accuracyM = if (location.hasAccuracy()) location.accuracy else 0f,
-            headingDeg = Heading.pick(
-                location.bearing.takeIf { location.hasBearing() }, location.speed.takeIf { location.hasSpeed() },
-                motion.azimuth, motion.compassAccuracy,
-            ),
-            speedMps = location.speed.takeIf { location.hasSpeed() },
+            // no accuracy stays unknown: drawn wide, never as an exact point
+            accuracyM = location.accuracy.takeIf { location.hasAccuracy() } ?: Accuracy.UNKNOWN,
+            headingDeg = Heading.pick(location.bearing.takeIf { location.hasBearing() }, speed, motion.azimuth, motion.compassAccuracy),
+            speedMps = speed,
             method = method,
             timeMs = System.currentTimeMillis() - age,
             elapsedMs = location.elapsedRealtimeNanos / 1_000_000,
             l5 = diagnostics.l5InFix,
+            speedAccuracyMps = location.speedAccuracyMetersPerSecond.takeIf { location.hasSpeedAccuracy() },
+            mock = location.mocked(),
         )
-        if (gate.check(fix) != FixGate.Verdict.ACCEPTED) return
+        if (!gate.check(fix).accepted) return
         lastFixMs = fix.elapsedMs
         _searching.value = false
         cycle?.onFix(SystemClock.elapsedRealtime(), fix)
-        if (method != FixMethod.CACHED) diagnostics.onFix(fix)
+        if (method != FixMethod.CACHED) {
+            diagnostics.onFix(fix)
+            if (warmUntil != 0L) warmFixes++
+            if (!firstFix) {
+                firstFix = true
+                val ttff = (SystemClock.elapsedRealtime() - startedMs) / 100 / 10.0
+                Log.i(AppContainer.TAG, "gnss: first fix $ttff s after the start, ±${fix.accuracyM.toInt()} m${if (fix.mock) ", mock" else ""}")
+            }
+        }
         _located.value = fix
         val course = fix.headingDeg?.takeIf { (fix.speedMps ?: 0f) > Heading.COURSE_MIN_SPEED_MPS }
-        _fix.value = GeoFix(fix.lat, fix.lon, fix.accuracyM, fix.timeMs, course)
+        _fix.value = GeoFix(fix.lat, fix.lon, fix.accuracyM, fix.timeMs, course, fix.mock)
     }
 
     private fun ageMs(location: Location) = SystemClock.elapsedRealtime() - location.elapsedRealtimeNanos / 1_000_000
 
     private companion object {
         const val TICK_MS = 5_000L
-        const val ONE_SHOT_MAX_AGE_MS = 10_000L
         const val SEARCHING_AFTER_MS = 60 * 60_000L
     }
 }
+
+/** Made up by a mock location app: `isMock` from Android 12, `isFromMockProvider` before it. */
+@Suppress("DEPRECATION")
+private fun Location.mocked(): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) isMock else isFromMockProvider

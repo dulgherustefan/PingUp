@@ -25,7 +25,7 @@ data class LandmarkFix(val number: Int, val point: GeoPoint, val setAtMs: Long) 
 
     /** A good GNSS fix far from the landmark: the person has walked off, or picked the wrong number. */
     fun overruledBy(fix: GeoFix): Boolean =
-        fix.accuracyM > 0f && fix.accuracyM <= GOOD_FIX_M && distanceMeters(point, GeoPoint(fix.lat, fix.lon)) > DISAGREE_M
+        Accuracy.known(fix.accuracyM) && fix.accuracyM <= GOOD_FIX_M && distanceMeters(point, GeoPoint(fix.lat, fix.lon)) > DISAGREE_M
 
     fun fix(nowMs: Long): GeoFix = GeoFix(point.lat, point.lon, RADIUS_M, nowMs)
 
@@ -40,8 +40,15 @@ data class LandmarkFix(val number: Int, val point: GeoPoint, val setAtMs: Long) 
 /** One step from the phone's own detector: [lengthM] walked toward [yawDeg], a yaw whose zero is arbitrary. */
 data class Step(val timeMs: Long, val lengthM: Double, val yawDeg: Double)
 
-/** The position the app shows and sends, and how it was made ([PositionMethod]). */
-data class Fused(val fix: GeoFix, val method: Int)
+/**
+ * The position the app shows and sends, and how it was made ([PositionMethod]). [ringM] is the circle drawn around it,
+ * honest about the filter: the fix's own 95% radius plus how far the shown point sits from the fix, a wide guess when
+ * the phone gave no accuracy ([accuracyKnown]). [pdr]: steps moved it since the last fix; it still goes out as GNSS,
+ * since the wire has no method for it, but its radius grew with every step.
+ */
+data class Fused(val fix: GeoFix, val method: Int, val ringM: Float = Accuracy.ring95(fix.accuracyM), val pdr: Boolean = false) {
+    val accuracyKnown: Boolean get() = Accuracy.known(fix.accuracyM)
+}
 
 /**
  * The yaw of the game rotation vector turned into a bearing: it has no north (no magnetometer, which the speakers by
@@ -77,7 +84,7 @@ class Positioning(private val clock: Clock) {
     private val filter = DisplayFilter()
     private val heading = StepHeading()
     private var lastGnss: GeoFix? = null
-    private var lastShown: GeoFix? = null
+    private var lastShown: Fused? = null
     private var lastYaw: Pair<Long, Double>? = null
     private var walked = 0.0
 
@@ -108,10 +115,12 @@ class Positioning(private val clock: Clock) {
         val yaw = lastYaw
         if (fix.courseDeg != null && yaw != null && fix.timeMs - yaw.first <= YAW_FRESH_MS) heading.onCourse(fix.courseDeg.toDouble(), yaw.second)
         val shown = filter.onFix(fix)
-        lastShown = shown
+        val offset = distanceMeters(GeoPoint(shown.lat, shown.lon), GeoPoint(fix.lat, fix.lon))
+        val fused = Fused(shown, PositionMethod.GNSS, Accuracy.ring95(fix.accuracyM) + offset)
+        lastShown = fused
         val mark = _landmark.value
         if (mark != null && (mark.overruledBy(fix) || mark.expired(clock.wallMs()))) _landmark.value = null
-        publish(shown)
+        publish(fused)
     }
 
     fun onStep(step: Step) = synchronized(lock) {
@@ -121,10 +130,12 @@ class Positioning(private val clock: Clock) {
         val bearing = heading.bearing(step.yawDeg) ?: return@synchronized
         walked += step.lengthM
         val r = radians(bearing)
-        val accuracy = gnss.accuracyM + (PDR_DRIFT * walked).toFloat()
+        // a fix of unknown accuracy stays unknown: steps add drift, they can't make it exact
+        val accuracy = if (Accuracy.known(gnss.accuracyM)) gnss.accuracyM + (PDR_DRIFT * walked).toFloat() else Accuracy.UNKNOWN
         val shown = filter.onStep(step.lengthM * sin(r), step.lengthM * cos(r), step.timeMs, accuracy) ?: return@synchronized
-        lastShown = shown
-        publish(shown)
+        val fused = Fused(shown, PositionMethod.GNSS, pdr = true)
+        lastShown = fused
+        publish(fused)
     }
 
     /** "Sunt lângă Reperul [number]", standing at [point]: the position for the next minutes, unless GNSS disagrees. */
@@ -174,13 +185,9 @@ class Positioning(private val clock: Clock) {
     }
 
     /** The landmark while it holds, stamped now so it stays fresh; else [shown], the last fix through the filter. */
-    private fun publish(shown: GeoFix?) {
+    private fun publish(shown: Fused?) {
         val mark = _landmark.value
-        val next = when {
-            mark != null -> Fused(mark.fix(clock.wallMs()), PositionMethod.MANUAL_PIN)
-            shown != null -> Fused(shown, PositionMethod.GNSS)
-            else -> null
-        }
+        val next = if (mark != null) Fused(mark.fix(clock.wallMs()), PositionMethod.MANUAL_PIN) else shown
         _fused.value = next
         _position.value = next?.fix
     }

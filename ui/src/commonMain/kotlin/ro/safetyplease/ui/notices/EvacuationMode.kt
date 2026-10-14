@@ -358,9 +358,13 @@ private fun WayTo(vm: AppViewModel, from: GeoPoint, to: GeoPoint) {
         value = withContext(Dispatchers.Default) { vm.c.walkDistance.meters(from, to) }
     }
     val meters = walked ?: return
+    val heading = vm.phone.heading()
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Sym.Send, null, Modifier.size(32.dp).rotate(Guide.arrowDeg(Guide.bearing(from, to), vm.phone.heading())), tint = Ink)
-        Spacer(Modifier.width(12.dp))
+        // without a compass an arrow would point as if the phone faced north: the words say the way alone
+        if (heading != null) {
+            Icon(Sym.Send, null, Modifier.size(32.dp).rotate(Guide.arrowDeg(Guide.bearing(from, to), heading)), tint = Ink)
+            Spacer(Modifier.width(12.dp))
+        }
         val way = stringResource(Res.string.map_route, Guide.round(meters), directions[compassSector(from, to)])
         Line(way, MaterialTheme.typography.title3, bold = true)
     }

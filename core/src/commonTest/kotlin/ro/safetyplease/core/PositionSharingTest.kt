@@ -6,6 +6,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import okio.Path
 import ro.safetyplease.core.chat.ChatManager
+import ro.safetyplease.core.chat.PositionFrame
 import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.Identity
 import ro.safetyplease.core.crypto.testCrypto
@@ -23,11 +24,14 @@ import ro.safetyplease.core.protocol.NextUpdate
 import ro.safetyplease.core.protocol.PacketCodec
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.PositionMethod
+import ro.safetyplease.core.protocol.PositionPoint
 import ro.safetyplease.core.protocol.Severity
 import ro.safetyplease.core.protocol.SharePrecision
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.PositionBox
 import ro.safetyplease.core.venue.distanceMeters
+import ro.safetyplease.core.venue.radians
+import kotlin.math.cos
 import kotlin.random.Random
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -55,6 +59,9 @@ class PositionSharingTest {
 
     /** [north] and [east] metres inside the test phones' grid box. */
     private fun spot(north: Int, east: Int): GeoPoint = box.toLatLon(east, north)
+
+    /** [meters] east of [from]. */
+    private fun east(from: GeoPoint, meters: Double) = GeoPoint(from.lat, from.lon + meters / (111_320.0 * cos(radians(from.lat))))
 
     private fun TestPhone.fix(w: World, at: GeoPoint, accuracyM: Double = 4.0, headingDeg: Double? = 90.0) =
         chat.onFix(at.lat, at.lon, accuracyM, headingDeg, PositionMethod.GNSS, w.clock.wallMs())
@@ -202,22 +209,44 @@ class PositionSharingTest {
     fun anApproximateShareNeverLeavesThePhoneMorePreciseThanItsCell() = runTest {
         val w = World(this, tmp.root)
         val (a, b) = pair(w)
-        val here = spot(1234, 567)
+        val cell = spot(1234, 567).let { a.positionFrame.point(it.lat, it.lon, approximate = true) as PositionPoint.Absolute }
+        val centre = GeoPoint(cell.lat, cell.lon)
         a.chat.startShare(Conversations.friend(b.nodeId), 30, SharePrecision.APPROXIMATE)
-        a.fix(w, here, headingDeg = 45.0)
+        a.fix(w, east(centre, -30.0), headingDeg = 45.0)
         advanceTimeBy(10_000)
 
         val seen = b.positions.value.records.single()
-        assertEquals(box.toLatLon(576, 1216), GeoPoint(seen.lat, seen.lon), "the centre of the cell")
+        assertEquals(centre, GeoPoint(seen.lat, seen.lon), "the centre of the cell")
         assertEquals(4, seen.accuracy, "no better than 100 m")
         assertNull(seen.headingDeg, "no heading either")
 
         // walking 60 m inside the same cell is no move: nothing new goes
         advanceTimeBy(120_000 - 10_000 - 1_000)
         val sent = a.privateSent()
-        a.fix(w, spot(1194, 530))
+        a.fix(w, east(centre, 30.0))
         advanceTimeBy(500)
         assertEquals(sent, a.privateSent())
+    }
+
+    @Test
+    fun aFriendWithAnotherGridBoxStillSeesUsWhereWeAre() = runTest {
+        // A holds the event pack's box, B only the bundled venue's: a grid point would put A a kilometre off on B's map
+        val w = World(this, tmp.root)
+        val (a, b) = pair(w)
+        b.positionFrame = PositionFrame(PositionBox(BOX_LAT + 0.01, BOX_LON + 0.01), TestEvent.START * 1000)
+        a.chat.startShare(Conversations.friend(b.nodeId), 30, SharePrecision.EXACT)
+        val here = spot(1000, 2000)
+        a.fix(w, here)
+        advanceTimeBy(10_000)
+        val seen = b.positions.value.records.single()
+        assertTrue(distanceMeters(GeoPoint(seen.lat, seen.lon), here) <= 1, "where A is, whatever box B holds")
+
+        b.chat.startShare(Conversations.friend(a.nodeId), 30, SharePrecision.APPROXIMATE)
+        val there = spot(3000, 500)
+        b.fix(w, there)
+        advanceTimeBy(10_000)
+        val back = a.positions.value.records.single()
+        assertTrue(distanceMeters(GeoPoint(back.lat, back.lon), there) <= PositionFrame.APPROXIMATE_RADIUS_M, "and the other way, approximate")
     }
 
     @Test
