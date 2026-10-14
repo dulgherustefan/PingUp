@@ -55,11 +55,13 @@ import kotlin.time.Duration.Companion.minutes
  * By default only [smoke] runs, small and quick. The scenarios run when the system property `mesh.bench` or the
  * environment variable `MESH_BENCH` is `all` or names them (`reports,notice,unicast,mixed,topology`). Other variables:
  * `MESH_BENCH_N` the crowd sizes (`500,1000`), `MESH_BENCH_S` the phones within radio range (`20`), `MESH_BENCH_LOAD`
- * the mixed load factors (`1,2,4`), `MESH_BENCH_SHAPE=strip` a crowd four times as long as wide (a beach),
- * `MESH_BENCH_AIR` the radio ([air]) and `MESH_BENCH_VARIANT` the engine variant ([variantConfig]). Each scenario
- * prints a table and writes it under `core/build/mesh-bench/`. Run one scenario per Gradle call: the test task
- * stops after 15 minutes. Example, from PowerShell:
- * `$env:MESH_BENCH="notice"; $env:MESH_BENCH_N="2000"; .\gradlew.bat :core:jvmTest --tests "*MeshBench.notice"`.
+ * the mixed load factors (`1,2,4`), `MESH_BENCH_GROUPS=1` positions shared both ways in groups of 2 to 4,
+ * `MESH_BENCH_SHAPE=strip` a crowd four times as long as wide (a beach),
+ * `MESH_BENCH_STAFF` one staff phone in how many (`100`), `MESH_BENCH_AIR` the radio ([air]) and
+ * `MESH_BENCH_VARIANT` the engine variant ([variantConfig]). Each scenario prints a table and writes it under
+ * `core/build/mesh-bench/`. Run one scenario per Gradle call, with `--rerun` (the variables aren't task inputs): the
+ * test task stops after 15 minutes. Example, from PowerShell:
+ * `$env:MESH_BENCH="notice"; $env:MESH_BENCH_N="2000"; .\gradlew.bat :core:jvmTest --rerun --tests "*MeshBench.notice"`.
  *
  * The air ([Air]) is a disc of radio range with body shadowing in the RSSI, GATT setup that takes time and sometimes
  * fails, and one transmitter per phone; there is no interference between phones, so these are the engine's limits,
@@ -90,7 +92,7 @@ class MeshBench {
     /** (a) An incident report from a random phone: when the first staff phone has it, and when the reporter sees the ACK. */
     @Test
     fun reports() = scenario("reports") { n, neighbours ->
-        Bench(this, n, neighbours, air(), variant = variant()).use { b ->
+        Bench(this, n, neighbours, air(), staffEvery = staffEvery(), variant = variant()).use { b ->
             b.warm(WARM_MS)
             val before = b.totals()
             val reports = List(12) { b.report(b.randomParticipant()).also { advanceTimeBy(15_000) } }
@@ -102,19 +104,19 @@ class MeshBench {
     /** (b) A notice from the console: the share of phones that have it over time, live flood and store-and-forward. */
     @Test
     fun notice() = scenario("notice") { n, neighbours ->
-        Bench(this, n, neighbours, air(), variant = variant()).use { b ->
+        Bench(this, n, neighbours, air(), staffEvery = staffEvery(), variant = variant()).use { b ->
             b.warm(WARM_MS)
             val before = b.totals()
             val notice = b.notice(b.consoleNode())
-            val curve = b.coverageCurve(notice, listOf(2_000L, 5_000, 10_000, 30_000, 60_000, 120_000, 300_000))
-            b.header("notice") + "\n" + curve + "\n" + b.coverageLine(notice) + "\n" + b.totalsTable(b.totals() - before, 300_000)
+            val curve = b.coverageCurve(notice, listOf(2_000L, 5_000, 10_000, 30_000, 60_000, 120_000, 300_000, 600_000))
+            b.header("notice") + "\n" + curve + "\n" + b.coverageLine(notice) + "\n" + b.totalsTable(b.totals() - before, 600_000)
         }
     }
 
     /** (c) One PRIVATE between phones 1 to 8 hops apart: delivery, latency and what each costs the crowd. */
     @Test
     fun unicast() = scenario("unicast") { n, neighbours ->
-        Bench(this, n, neighbours, air(), variant = variant()).use { b ->
+        Bench(this, n, neighbours, air(), staffEvery = staffEvery(), variant = variant()).use { b ->
             b.warm(WARM_MS)
             val before = b.totals()
             val probes = b.probes(hops = 1..8, perHop = 8, spacingMs = 2_000)
@@ -132,7 +134,7 @@ class MeshBench {
     fun mixed() = scenario("mixed") { n, neighbours ->
         val load = (System.getenv("MESH_BENCH_LOAD") ?: "1,2,4").split(',').map { it.trim().toDouble() }
         load.joinToString("\n") { k ->
-            Bench(this, n, neighbours, air(), variant = variant()).use { b ->
+            Bench(this, n, neighbours, air(), staffEvery = staffEvery(), variant = variant()).use { b ->
                 b.warm(WARM_MS)
                 b.mixed(k, durationMs = 300_000)
             }
@@ -142,7 +144,7 @@ class MeshBench {
     /** The links the policy builds: degree, length, hop progress, and how many phones a TTL of 6 or 7 reaches. */
     @Test
     fun topology() = scenario("topology") { n, neighbours ->
-        Bench(this, n, neighbours, air(), variant = variant()).use { b ->
+        Bench(this, n, neighbours, air(), staffEvery = staffEvery(), variant = variant()).use { b ->
             b.warm(WARM_MS)
             val first = b.topology()
             advanceTimeBy(300_000)
@@ -150,6 +152,9 @@ class MeshBench {
                 "\n" + b.churnLine()
         }
     }
+
+    /** `MESH_BENCH_STAFF`: one phone in this many is staff (100). */
+    private fun staffEvery(): Int = System.getenv("MESH_BENCH_STAFF")?.toInt() ?: 100
 
     /** `MESH_BENCH_AIR`: `walk` (1 m/s), `iphone` (30 % of links at 182-byte frames), `harsh` (30 % of GATT setups fail). */
     private fun air(): Air {
@@ -185,7 +190,8 @@ class MeshBench {
     private fun emit(name: String, text: String) {
         println(text)
         val dir = File("build/mesh-bench").apply { mkdirs() }
-        val tag = listOfNotNull(variant(), System.getenv("MESH_BENCH_AIR")?.takeIf { it.isNotBlank() }).joinToString("-")
+        val air = System.getenv("MESH_BENCH_AIR")?.takeIf { it.isNotBlank() }
+        val tag = listOfNotNull(variant(), air, "groups".takeIf { System.getenv("MESH_BENCH_GROUPS") == "1" }).joinToString("-")
         File(dir, "$name-$tag.txt").writeText(text)
     }
 
@@ -780,9 +786,13 @@ private class Bench(
         r.staffReached++
         if (node.engine.ackStatus(incidentId) != AckStatus.NONE) return
         scope.launch {
-            delay(if ("ackdelay" in variant.split('+')) random.nextLong(ACK_AFTER_MS, 2_000) else ACK_AFTER_MS)
+            // staff within 2 hops answer at once; the others wait long enough for that ACK to reach them first
+            val near = p.hops <= 2
+            val wait = if ("ackdelay" !in variant.split('+') || near) ACK_AFTER_MS else 3_000L + 1_000L * p.hops + random.nextLong(1_000)
+            delay(wait)
             if (node.engine.ackStatus(incidentId) != AckStatus.NONE) return@launch
-            val ack = IncidentAck(incidentId, AckStatus.RECEIVED, clock.wallMs() / 1000, "T${node.index}", ByteArray(IncidentAck.SIGNATURE_SIZE) { 1 })
+            val signature = ByteArray(IncidentAck.SIGNATURE_SIZE) { 1 }
+            val ack = IncidentAck(incidentId, AckStatus.RECEIVED, clock.wallMs() / 1000, "T${node.index}", signature)
             node.engine.publishAck(ack)?.let {
                 follow(it, Kind.ACK, node, r.reporter)
                 r.acks += it.id
@@ -825,7 +835,21 @@ private class Bench(
             while (true) participants[random.nextInt(participants.size)].takeIf { it !== node }?.let { return it }
         }
         val sharers = participants.shuffled(random).take((participants.size * 0.2 * load).roundToInt().coerceAtMost(participants.size))
-        for (s in sharers) share(s, List(1 + random.nextInt(3)) { friendOf(s) }.distinct(), 30_000L..60_000L)
+        if (System.getenv("MESH_BENCH_GROUPS") == "1") {
+            // groups of 2 to 4 where everyone shares with everyone, together in 70 % of them, as friends at a festival
+            val free = sharers.toMutableList()
+            while (free.size >= 2) {
+                val first = free.removeAt(0)
+                val near = random.nextDouble() < NEAR_FRIENDS
+                val others = free.filter { !near || hypot(it.radio.x - first.radio.x, it.radio.y - first.radio.y) <= 50.0 }
+                    .take(1 + random.nextInt(3))
+                free -= others.toSet()
+                val group = listOf(first) + others
+                for (member in group) if (group.size > 1) share(member, group - member, 30_000L..60_000L)
+            }
+        } else {
+            for (s in sharers) share(s, List(1 + random.nextInt(3)) { friendOf(s) }.distinct(), 30_000L..60_000L)
+        }
         val chatters = participants.shuffled(random).take((participants.size * 0.05 * load).roundToInt().coerceAtMost(participants.size))
         for (c in chatters) {
             val friend = friendOf(c)
@@ -862,11 +886,13 @@ private class Bench(
         test.advanceTimeBy(60_000)
         val delta = totals() - before
         return buildString {
-            appendLine(header("mixed load x$load: ${sharers.size} sharing positions, ${chatters.size} chatting, a report every ${reportEvery / 1000} s"))
+            val title = "mixed load x$load: ${sharers.size} sharing positions, ${chatters.size} chatting"
+            appendLine(header("$title, a report every ${reportEvery / 1000} s"))
             appendLine(classTable(start, end))
             appendLine(reportTable(reportList))
             appendLine(coverageLine(notice))
-            appendLine("positions: ${positionsTried} tried, ${positionsRefused} refused by PositionBudget (${pct(positionsRefused, positionsTried)})")
+            val refused = pct(positionsRefused, positionsTried)
+            appendLine("positions: $positionsTried tried, $positionsRefused refused by PositionBudget ($refused)")
             append(totalsTable(delta, durationMs + 60_000))
         }
     }
@@ -898,7 +924,8 @@ private class Bench(
     }
 
     fun header(name: String): String =
-        "== $name: $n phones over ${width.roundToInt()} x ${height.roundToInt()} m, ${fmt(neighbours, 0)} in range (${air.range.roundToInt()} m), " +
+        "== $name: $n phones over ${width.roundToInt()} x ${height.roundToInt()} m, " +
+            "${fmt(neighbours, 0)} in range (${air.range.roundToInt()} m), " +
             "${staffIds.size} staff, variant $variant; ${fmt(totals().links, 1)} ready links per phone"
 
     fun adjacency(): Array<IntArray> {
@@ -967,14 +994,18 @@ private class Bench(
             )
             appendLine("hops            " + (1..10).joinToString("") { "%7d".format(it) })
             appendLine("phones within   " + (1..10).joinToString("") { "%7d".format(within[it].average().roundToInt()) })
-            append("mean distance m " + (1..10).joinToString("") { "%7.1f".format(Locale.ROOT, progress[it].average().takeIf { v -> !v.isNaN() } ?: 0.0) })
+            val distances = (1..10).joinToString("") {
+                "%7.1f".format(Locale.ROOT, progress[it].average().takeIf { v -> !v.isNaN() } ?: 0.0)
+            }
+            append("mean distance m $distances")
         }
     }
 
     fun churnLine(): String {
         val t = totals()
         val minutes = (clock.monoMs() - warmedAt) / 60_000.0
-        return "links opened ${t.opened}, closed ${t.closed} since the start; ${fmt((t.closed - closedAtWarm) / n.toDouble() / minutes, 2)} closed per phone per minute after the warm-up"
+        val perPhone = fmt((t.closed - closedAtWarm) / n.toDouble() / minutes, 2)
+        return "links opened ${t.opened}, closed ${t.closed} since the start; $perPhone closed per phone per minute after the warm-up"
     }
 
     fun coverage(packetId: Long): Double = (arrivals[packetId]?.size ?: 0) / (n - 1).toDouble()
@@ -995,7 +1026,8 @@ private class Bench(
         val start = sent.getValue(packetId).at
         val times = arrivals[packetId]?.values?.map { it - start }.orEmpty()
         val tx = crowd.followed[packetId]?.get(0) ?: 0L
-        return "notice: ${pct(times.size.toLong(), (n - 1).toLong())} of phones, p50 ${sec(times.quantile(0.5))}, p95 ${sec(times.quantile(0.95))}, " +
+        return "notice: ${pct(times.size.toLong(), (n - 1).toLong())} of phones, " +
+            "p50 ${sec(times.quantile(0.5))}, p95 ${sec(times.quantile(0.95))}, " +
             "$tx transmissions (${fmt(tx.toDouble() / maxOf(1, times.size), 2)} per phone reached)"
     }
 
@@ -1009,14 +1041,16 @@ private class Bench(
         return buildString {
             appendLine(
                 "reports ${list.size}: at a staff phone ${toStaff.size} (within 10 s ${toStaff.count { it <= 10_000 }}, " +
-                    "60 s ${toStaff.count { it <= 60_000 }}), p50 ${sec(toStaff.quantile(0.5))}, p95 ${sec(toStaff.quantile(0.95))}, max ${sec(toStaff.maxOrNull())}",
+                    "60 s ${toStaff.count { it <= 60_000 }}), p50 ${sec(toStaff.quantile(0.5))}, " +
+                    "p95 ${sec(toStaff.quantile(0.95))}, max ${sec(toStaff.maxOrNull())}",
             )
             appendLine(
                 "  ACK back at the reporter ${confirmed.size} (within 30 s ${confirmed.count { it <= 30_000 }}), " +
                     "p50 ${sec(confirmed.quantile(0.5))}, p95 ${sec(confirmed.quantile(0.95))}; ${ackTx.size} ACKs written",
             )
             appendLine(
-                "  nearest staff (graph hops) ${list.map { it.staffHops ?: -1 }.sorted()}, hops at first staff ${list.map { it.hopsAtStaff ?: -1 }.sorted()}",
+                "  nearest staff (graph hops) ${list.map { it.staffHops ?: -1 }.sorted()}, " +
+                    "hops at first staff ${list.map { it.hopsAtStaff ?: -1 }.sorted()}",
             )
             append(
                 "  staff phones holding it at the end ${pct((staffShare.average() * 1000).roundToInt().toLong(), 1000)}; " +
@@ -1058,7 +1092,8 @@ private class Bench(
             }
             appendLine(
                 "%-9s %8d %8d %7s   %-7s %-7s %10s %11s".format(
-                    Locale.ROOT, kind.name.lowercase(), ids.size, arrived, pct(arrived.toLong(), ids.size.toLong()), sec(times.quantile(0.5)),
+                    Locale.ROOT, kind.name.lowercase(), ids.size, arrived, pct(arrived.toLong(), ids.size.toLong()),
+                    sec(times.quantile(0.5)),
                     sec(times.quantile(0.95)), fmt(tx.toDouble() / ids.size, 0), fmt(tx.toDouble() / maxOf(1, arrived), 0),
                 ),
             )
@@ -1068,8 +1103,10 @@ private class Bench(
             val arrived = chat.mapNotNull { m -> m.arrived?.let { it - m.at } }
             val confirmed = chat.mapNotNull { m -> m.confirmed?.let { it - m.at } }
             append(
-                "chat messages ${chat.size}: arrived ${arrived.size} (p50 ${sec(arrived.quantile(0.5))}, p95 ${sec(arrived.quantile(0.95))}), " +
-                    "confirmed ${confirmed.size} (p50 ${sec(confirmed.quantile(0.5))}), attempts per message ${fmt(chat.map { it.attempts }.average(), 2)}",
+                "chat messages ${chat.size}: arrived ${arrived.size} " +
+                    "(p50 ${sec(arrived.quantile(0.5))}, p95 ${sec(arrived.quantile(0.95))}), " +
+                    "confirmed ${confirmed.size} (p50 ${sec(confirmed.quantile(0.5))}), " +
+                    "attempts per message ${fmt(chat.map { it.attempts }.average(), 2)}",
             )
         }
     }.trimEnd()
@@ -1086,10 +1123,11 @@ private class Bench(
                 "radio busy ${pct(t.airMs, (windowMs * n))} of the time on average",
         )
         appendLine(
-            "  drops " + (if (t.drops.isEmpty()) "none" else t.drops.entries.sortedByDescending { it.value }.joinToString(", ") { "${it.key.label} ${it.value}" }) +
+            "  drops " + dropsText(t) +
                 "; queue full ${t.queueFull}; store-and-forward replies ${t.storeAndForward}",
         )
-        append("  links opened ${t.opened}, closed ${t.closed} (${fmt(t.closed / n.toDouble() / (windowMs / 60_000.0), 2)} per phone per minute)")
+        val churn = fmt(t.closed / n.toDouble() / (windowMs / 60_000.0), 2)
+        append("  links opened ${t.opened}, closed ${t.closed} ($churn per phone per minute)")
     }
 
     private companion object {
@@ -1120,6 +1158,9 @@ private class Bench(
         }
     }
 }
+
+private fun dropsText(t: Totals): String =
+    if (t.drops.isEmpty()) "none" else t.drops.entries.sortedByDescending { it.value }.joinToString(", ") { "${it.key.label} ${it.value}" }
 
 private fun List<Long>.quantile(p: Double): Long? = if (isEmpty()) null else sorted()[((size - 1) * p).roundToInt()]
 
