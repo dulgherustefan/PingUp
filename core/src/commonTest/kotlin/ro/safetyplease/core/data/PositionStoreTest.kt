@@ -75,6 +75,25 @@ class PositionStoreTest {
     }
 
     @Test
+    fun aFixFromAClockAheadCountsAsItsArrivalAndHoldsNothingBack() {
+        val now = 10_000_000L
+        val ahead = PositionData().withPosition(record(now + 30 * 60_000L, 5, receivedAt = now))
+        assertEquals(now, ahead.records.single().fixAtMs, "as if taken when it came")
+        val next = ahead.withPosition(record(now + 60_000, 6, receivedAt = now + 60_000))
+        assertEquals(6, next.records.single().seq, "the next fix, from a clock put right, is newer")
+    }
+
+    @Test
+    fun anOlderLookingFixIsDroppedOnlyWhileTwoCopiesCanCross() {
+        val now = 10_000_000L
+        val data = PositionData().withPosition(record(now, 5, receivedAt = now))
+        assertSame(data, data.withPosition(record(now - 10 * 60_000L, 6, receivedAt = now + 30_000)))
+        // the sender's clock went back: what comes well after is its latest all the same
+        val later = data.withPosition(record(now - 10 * 60_000L, 7, receivedAt = now + PositionData.REORDER_MS + 1_000))
+        assertEquals(7, later.records.single().seq)
+    }
+
+    @Test
     fun theMeetingSeqIsKeptWithThePositions() = runTest {
         val file = tmp.root / "seq.json"
         val store = PositionStore.open(file, backgroundScope)

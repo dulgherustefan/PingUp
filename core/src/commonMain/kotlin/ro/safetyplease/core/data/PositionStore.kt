@@ -92,11 +92,17 @@ data class PositionData(
         )
     }
 
-    /** Keeps [record] unless the one we have is newer: a later fix, or the same minute with a later [PositionRecord.seq]. */
+    /**
+     * Keeps [record] unless the one we have is newer: a later fix, or the same minute with a later [PositionRecord.seq].
+     * A fix from a clock running ahead counts as taken when it arrived, so it can't hold back the ones after it.
+     */
     fun withPosition(record: PositionRecord): PositionData {
+        val capped = record.copy(
+            fixAtMs = minOf(record.fixAtMs, record.receivedAtMs),
+            expiresAtMs = minOf(record.expiresAtMs, record.receivedAtMs + MAX_RECORD_MS),
+        )
         val old = records.firstOrNull { it.sender == record.sender }
-        if (old != null && !isNewer(record, old)) return this
-        val capped = record.copy(expiresAtMs = minOf(record.expiresAtMs, record.receivedAtMs + MAX_RECORD_MS))
+        if (old != null && !isNewer(capped, old)) return this
         return copy(records = records.filterNot { it.sender == record.sender } + capped)
     }
 
@@ -129,6 +135,8 @@ data class PositionData(
     private fun seen(record: PositionRecord): List<LastSeen> = lastSeen.filterNot { it.sender == record.sender } + LastSeen(record.sender, record.fixAtMs)
 
     private fun isNewer(new: PositionRecord, old: PositionRecord): Boolean = when {
+        // copies cross on the way only for a moment: what comes later than that was sent later, whatever its clock says
+        new.receivedAtMs - old.receivedAtMs > REORDER_MS -> true
         new.fixAtMs != old.fixAtMs -> new.fixAtMs > old.fixAtMs
         // seq is a byte that wraps: the later of two is at most half the circle ahead
         else -> ((new.seq - old.seq) and 0xFF) in 1..127
@@ -138,6 +146,9 @@ data class PositionData(
         /** The longest a session may last, and the longest a position is kept. */
         const val MAX_SHARE_MIN = 120
         const val MAX_RECORD_MS = MAX_SHARE_MIN * 60_000L
+
+        /** Positions are never retried: two of a sender's arrive out of order only within this long. */
+        const val REORDER_MS = 60_000L
 
         /**
          * Where the meeting seq starts on a phone that kept none: an older version numbered from 1 after each start, so
