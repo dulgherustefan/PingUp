@@ -31,7 +31,8 @@ import ro.safetyplease.core.data.Role
 /**
  * Keeps the mesh running with the screen off. Android requires a connectedDevice foreground service
  * with a persistent notification for that. While a location share session runs the service also holds the location
- * type, added only from a visible screen ([shareLocation]); there is no background location permission.
+ * type, asked for from a visible screen ([shareLocation]); on Android 10 and 11 it holds it whenever location is allowed,
+ * since scanning needs it there ([meshServiceTypes]). There is no background location permission.
  */
 class MeshService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -50,7 +51,7 @@ class MeshService : Service() {
         super.onCreate()
         container = (application as App).container
         try {
-            goForeground(location = false)
+            goForeground(sharing = false)
         } catch (e: Exception) {
             // Android 12+ forbids starting it from the background after the process was killed, unless battery
             // optimization is off; the user brings it back by opening the app
@@ -78,12 +79,19 @@ class MeshService : Service() {
         }
     }
 
-    private fun goForeground(location: Boolean) {
+    /** In the foreground, sharing the location ([sharing]) or not; a refused location type leaves the mesh its own. */
+    private fun goForeground(sharing: Boolean) {
         val anchor = container.settings.value.role == Role.ANCHOR
-        var type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
-        if (location && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
         val notification = container.notifier.foreground(container.engine.state.value.readyLinks, anchor, container.sharing.value)
-        ServiceCompat.startForeground(this, Notifier.FOREGROUND_ID, notification, type)
+        val types = meshServiceTypes(Build.VERSION.SDK_INT, sharing, container.location.hasPermission())
+        try {
+            ServiceCompat.startForeground(this, Notifier.FOREGROUND_ID, notification, types)
+        } catch (e: Exception) {
+            // Android refuses the location type to an app it doesn't see on screen, or once the permission went
+            val plain = meshServiceTypes(Build.VERSION.SDK_INT, sharing = false, locationAllowed = false)
+            if (types == plain) throw e
+            ServiceCompat.startForeground(this, Notifier.FOREGROUND_ID, notification, plain)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -95,11 +103,10 @@ class MeshService : Service() {
         }
         if (running && intent?.action == ACTION_STOP_SHARING) {
             container.stopAllShares()
-            runCatching { goForeground(location = false) }
+            runCatching { goForeground(sharing = false) }
         } else if (running && intent?.hasExtra(EXTRA_LOCATION) == true) {
-            val location = intent.getBooleanExtra(EXTRA_LOCATION, false) && container.location.hasPermission()
-            // Android refuses the location type when the app is not visible; the mesh keeps its own type then
-            runCatching { goForeground(location) }.onFailure { runCatching { goForeground(location = false) } }
+            // said from a visible screen: on Android 11 that also gives the scans the location a boot start couldn't
+            runCatching { goForeground(intent.getBooleanExtra(EXTRA_LOCATION, false) && container.location.hasPermission()) }
         }
         return START_STICKY
     }
@@ -150,4 +157,17 @@ class MeshService : Service() {
 
         private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     }
+}
+
+/**
+ * The foreground service types of the mesh on Android [sdk]: connectedDevice always, location while a share runs
+ * ([sharing]). On Android 10 and 11 also location whenever it is allowed ([locationAllowed]): there a Bluetooth scan
+ * started with the screen off finds nothing without location access, which an app with no background location only
+ * has as a location service. From Android 12 scanning needs no location.
+ */
+fun meshServiceTypes(sdk: Int, sharing: Boolean, locationAllowed: Boolean): Int {
+    if (sdk < Build.VERSION_CODES.Q) return 0
+    val scanNeedsLocation = sdk < Build.VERSION_CODES.S && locationAllowed
+    val location = if (sharing || scanNeedsLocation) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
+    return ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or location
 }

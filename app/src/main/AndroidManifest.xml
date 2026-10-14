@@ -19,7 +19,11 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <!-- Only while a location share session the user started runs; never background location. -->
+    <!--
+        While a location share session the user started runs and, on Android 10 and 11 only, while the mesh runs: a
+        Bluetooth scan there needs location access, and with the screen off only a location service has it. Never
+        background location.
+    -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- Asks the GNSS chip to download its predicted orbits while there is internet, so the first fix offline is fast. -->
     <uses-permission android:name="android.permission.ACCESS_LOCATION_EXTRA_COMMANDS" />
