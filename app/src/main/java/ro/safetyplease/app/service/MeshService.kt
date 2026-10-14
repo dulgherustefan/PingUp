@@ -1,5 +1,6 @@
 package ro.safetyplease.app.service
 
+import android.annotation.SuppressLint
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -163,6 +164,8 @@ class MeshService : Service() {
  * started with the screen off finds nothing without location access, which an app with no background location only
  * has as a location service. From Android 12 scanning needs no location.
  */
+// the types are plain numbers, and below Android 10, where they don't exist, none is returned
+@SuppressLint("InlinedApi")
 fun meshServiceTypes(sdk: Int, sharing: Boolean, locationAllowed: Boolean): Int {
     if (sdk < Build.VERSION_CODES.Q) return 0
     val scanNeedsLocation = sdk < Build.VERSION_CODES.S && locationAllowed
