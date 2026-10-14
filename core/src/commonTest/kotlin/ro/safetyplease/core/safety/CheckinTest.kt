@@ -3,6 +3,7 @@ package ro.safetyplease.core.safety
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
@@ -71,9 +72,12 @@ class CheckinTest {
         val store = JsonStore(dir.root / "$name.json", CheckinData.serializer(), CheckinData(), life).also { s -> seed?.let { d -> s.update { d } } }
         val manager = CheckinManager(
             life, store, clock, friends = { friends }, lastFix = { fix },
+            // it suspends as ChatManager's does, handing the work to the same thread, so other coroutines run meanwhile
             alert = { id, to, deadline, lastFix, label ->
-                sent += Sent(id, to, deadline, lastFix, label, clock.monoMs())
-                accepted(to)
+                life.async {
+                    sent += Sent(id, to, deadline, lastFix, label, clock.monoMs())
+                    accepted(to)
+                }.await()
             },
             withdraw = { id ->
                 withdrawn += id
@@ -117,6 +121,19 @@ class CheckinTest {
 
         advanceTimeBy(5 * 60 * MINUTE)
         assertEquals(1, r.sent.size, "exactly one, however long the silence lasts")
+    }
+
+    @Test
+    fun theQueuedAlertStaysQueued() = runTest {
+        val r = Rig(this, tmp)
+        r.manager.begin("Gară", 20, listOf(1, 2))
+        advanceTimeBy(31 * MINUTE)
+        assertEquals(1, r.sent.size)
+        assertTrue(r.withdrawn.isEmpty(), "the watch that starts on the state the alert wrote takes nothing back")
+        assertEquals(CheckinPhase.ALERTED, r.current?.phase)
+        assertTrue(r.current!!.queued)
+        assertEquals(listOf(1L, 2L), r.current?.alerted)
+        assertEquals(1, r.notices.count { it is SafetyNotice.CheckinAlerted })
     }
 
     @Test
@@ -166,6 +183,18 @@ class CheckinTest {
         assertEquals(listOf(CheckinManager.alertId(started)), r.withdrawn, "the copy still waiting for friend 3 is taken out of the outbox")
         assertEquals(listOf(listOf(1L, 2L) to "Am ajuns la Gară, sunt bine."), r.told, "only those who got the alert hear the end of it")
         assertNull(r.current)
+    }
+
+    @Test
+    fun anAnswerWhileTheAlertIsBeingQueuedTakesItBack() = runTest {
+        val r = Rig(this, tmp)
+        r.manager.begin("Gară", 5, listOf(1))
+        val id = CheckinManager.alertId(r.current!!.startedAt)
+        r.accepted = { to -> to.also { r.manager.arrived() } }
+        advanceTimeBy(20 * MINUTE)
+        assertNull(r.current)
+        assertEquals(id, r.withdrawn.last(), "what reached the outbox meanwhile is taken out")
+        assertTrue(r.notices.none { it is SafetyNotice.CheckinAlerted })
     }
 
     @Test

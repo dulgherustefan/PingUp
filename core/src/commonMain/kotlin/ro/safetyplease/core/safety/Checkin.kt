@@ -181,9 +181,12 @@ class CheckinManager(
     /** Writes the state now, for a caller that may not live until the debounced write (a notification's action). */
     fun flush() = store.flush()
 
-    /** Waits for the next moment of [checkin] and acts on it; the state it writes starts the next watch. */
+    /**
+     * Waits for the next moment of [checkin] and acts on it; the state it writes starts the next watch. A watch that
+     * starts after the state moved on (it waited for the one before, which wrote it) does nothing: the next one will.
+     */
     private suspend fun watch(checkin: Checkin?) {
-        if (checkin == null) return
+        if (checkin == null || store.value.current != checkin) return
         if (checkin.phase == CheckinPhase.ALERTED) {
             if (!checkin.queued) withContext(NonCancellable) { queue(checkin) }
             return
@@ -215,14 +218,18 @@ class CheckinManager(
         if (swap(checkin, alerted)) queue(alerted)
     }
 
-    /** Hands the alert to the outbox; after a crash it runs again with the same msgId, which a friend keeps only once. */
+    /**
+     * Hands the alert to the outbox; after a crash it runs again with the same msgId, which a friend keeps only once.
+     * The alert is taken back only if the person answered while it was being queued, never because another run of the
+     * same check-in queued it first.
+     */
     private suspend fun queue(checkin: Checkin) {
         val msgId = alertId(checkin.startedAt)
         val fix = lastFix()?.let { LastFix(it.lat, it.lon, (it.timeMs / 1000).coerceIn(0, MAX_SECONDS), AccuracyClass.of(it.accuracyM.toDouble())) }
         val to = alert(msgId, checkin.friends, checkin.deadlineAt / 1000, fix, checkin.label)
         if (!swap(checkin, checkin.copy(alerted = to, queued = true))) {
-            // the person answered while it was being queued
-            withdraw(msgId)
+            val now = store.value.current
+            if (now == null || now.startedAt != checkin.startedAt || now.phase != CheckinPhase.ALERTED) withdraw(msgId)
             return
         }
         notify(SafetyNotice.CheckinAlerted(checkin.label, to.size))
