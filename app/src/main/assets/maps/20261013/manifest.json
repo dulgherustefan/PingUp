@@ -8,5 +8,11 @@
     44.01
   ],
   "maxzoom": 15,
-  "file": "costinesti.pmtiles"
+  "file": "costinesti.pmtiles",
+  "id": "costinesti",
+  "kind": "EVENT",
+  "bytes": 1114474,
+  "minzoom": 0,
+  "attribution": "<a href=\"https://www.openstreetmap.org/copyright\">© OpenStreetMap contributors</a>",
+  "label": "Costinești"
 }
