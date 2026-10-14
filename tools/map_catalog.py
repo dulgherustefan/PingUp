@@ -132,6 +132,8 @@ def pack(entry, base, base_url, max_points=MAX_POINTS):
     path = base / entry["file"]
     beside = path.parent / "manifest.json"
     manifest = json.loads(beside.read_text(encoding="utf-8")) if beside.is_file() else {}
+    if manifest.get("file", path.name) != path.name:
+        manifest = {}
     pack_id = entry.get("id") or manifest.get("id")
     if not pack_id or not PACK_ID.fullmatch(pack_id):
         raise ValueError(f"{path}: the id must be lowercase letters, digits and dashes")
