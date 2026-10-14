@@ -451,6 +451,12 @@ class MeshEngine(
         return packet
     }
 
+    /** Our own positions for [recipients] that still wait in a link's queue don't go: the share ended or got less precise. */
+    fun withdrawPositions(recipients: Set<Long>) {
+        if (recipients.isEmpty()) return
+        for (link in links.values) link.queue.removeOwnPositions(recipients)
+    }
+
     /**
      * Our own report: the cache keeps it until staff confirms receipt, whatever else arrives; a [routine] one, which
      * nobody confirms ([IncidentCache.settle]), only briefly.

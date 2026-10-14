@@ -14,6 +14,7 @@ import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeBoard
 import ro.safetyplease.core.announce.NoticeExtras
 import ro.safetyplease.core.announce.NoticeLevel
+import ro.safetyplease.core.announce.NoticeReach
 import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.announce.ZoneSet
 import ro.safetyplease.core.announce.ZoneState
@@ -277,6 +278,24 @@ class PingUpSessionTest {
         assertEquals(1, platform.shown.posted.count { it.startsWith("notice") }, "a pause stays behind the opt-in")
         s.onNotice(Notice.sign(testCrypto, controlCredential, NoticeTopic.ALERT, NoticeLevel.EVACUATION, 4, now, now + 3600, 0, flags = Notice.CANCEL), own = false)
         assertEquals("notice Anunț ${NoticeTopic.ALERT} NONE", platform.shown.posted.last(), "the withdrawal takes it away")
+    }
+
+    @Test
+    fun friendsAreToldTheZoneTheSessionKnowsWithNoScreenOpen() = runBlocking {
+        val platform = FakePlatform(tmp)
+        val s = session(platform)
+        val (a, b) = s.venue.zones.take(2)
+        val inA = inside(s, 0)
+        s.settings.update { it.copy(simLat = inA.lat, simLon = inA.lon) }
+        eventually { s.chat.zone == a.id }
+
+        s.settings.update { it.copy(simLat = null, simLon = null, manualZone = b.id, manualZoneAt = platform.clock.wallMs()) }
+        eventually { s.chat.zone == b.id }
+
+        // a zone picked by hand that long ago may no longer be where the person is: nothing more is said
+        platform.clock.wall += NoticeReach.MANUAL_ZONE_MS + 60_000
+        s.settings.update { it.copy(nickname = "Ana") }
+        eventually { s.chat.zone == "" }
     }
 
     @Test

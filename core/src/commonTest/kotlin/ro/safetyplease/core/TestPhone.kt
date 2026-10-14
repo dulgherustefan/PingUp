@@ -93,7 +93,10 @@ class TestEvent(private val dayKey: Boolean = false) {
     }
 }
 
-/** A whole phone without Android: mesh engine, chat and incidents over the simulated radio. */
+/**
+ * A whole phone without Android: mesh engine, chat and incidents over the simulated radio. [files] names its files: the
+ * same as another phone's (with its identity) is that phone after a restart.
+ */
 class TestPhone(
     val name: String,
     scope: TestScope,
@@ -105,11 +108,12 @@ class TestPhone(
     val identity: Identity = Identity.generate(testCrypto),
     canAdvertise: Boolean = true,
     nicknameInHello: Boolean = false,
+    files: String = name,
 ) {
     private val bg = scope.backgroundScope
     val nodeId: Long get() = identity.nodeId
     val radio = net.radio(name, nodeId.nodePrefix(), canAdvertise = canAdvertise)
-    val meshCache = JsonStore(dir / "$name-mesh.json", CachedIncidents.serializer(), CachedIncidents(), bg)
+    val meshCache = JsonStore(dir / "$files-mesh.json", CachedIncidents.serializer(), CachedIncidents(), bg)
     val keyChain = event.chain(clock)
     val staffCrypto = StaffCrypto(testCrypto, event.publicKeys, keyChain)
     val engine = MeshEngine(
@@ -117,11 +121,11 @@ class TestPhone(
         keyChain,
     )
 
-    val friends = JsonStore(dir / "$name-friends.json", ListSerializer(Friend.serializer()), emptyList(), bg)
-    val groups = JsonStore(dir / "$name-groups.json", ListSerializer(Group.serializer()), emptyList(), bg)
-    val blocked = JsonStore(dir / "$name-blocked.json", ListSerializer(BlockedPerson.serializer()), emptyList(), bg)
-    val chatStore = ChatStore(dir / "$name-chat", bg)
-    val incidentStore = JsonStore(dir / "$name-incidents.json", IncidentData.serializer(), IncidentData(), bg)
+    val friends = JsonStore(dir / "$files-friends.json", ListSerializer(Friend.serializer()), emptyList(), bg)
+    val groups = JsonStore(dir / "$files-groups.json", ListSerializer(Group.serializer()), emptyList(), bg)
+    val blocked = JsonStore(dir / "$files-blocked.json", ListSerializer(BlockedPerson.serializer()), emptyList(), bg)
+    val chatStore = ChatStore(dir / "$files-chat", bg)
+    val incidentStore = JsonStore(dir / "$files-incidents.json", IncidentData.serializer(), IncidentData(), bg)
 
     var staffSecret: StaffSecretKeys? = null
     var team = "Echipa $name"
@@ -146,7 +150,7 @@ class TestPhone(
     /** Routine crowd levels this phone opened, which never became incidents. */
     val densityReports = mutableListOf<StaffIncident>()
     var sharesZone = true
-    val positions = PositionStore.open(dir / "$name-positions.json", bg)
+    val positions = PositionStore.open(dir / "$files-positions.json", bg)
     var positionFrame = PositionFrame(PositionBox(BOX_LAT, BOX_LON), TestEvent.START * 1000)
 
     val chat = ChatManager(
@@ -168,14 +172,14 @@ class TestPhone(
     )
 
     val revocations = Revocations(
-        bg, engine, keyChain, Revocations.store(dir / "$name-revocations.json", bg),
+        bg, engine, keyChain, Revocations.store(dir / "$files-revocations.json", bg),
         resends = { false },
     )
 
     /** The console's notices; a phone with a control shift signs them, one that [resendsNotices] sends them again. */
     var resendsNotices = false
     val notices = Notices(
-        bg, engine, keyChain, testCrypto, clock, JsonStore(dir / "$name-notices.json", NoticeBoard.serializer(), NoticeBoard(), bg),
+        bg, engine, keyChain, testCrypto, clock, JsonStore(dir / "$files-notices.json", NoticeBoard.serializer(), NoticeBoard(), bg),
         resends = { resendsNotices },
     )
 

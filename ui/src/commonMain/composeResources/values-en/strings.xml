@@ -190,6 +190,7 @@
     <string name="group_pick">Choose friends, up to %1$d</string>
     <string name="group_create">Create group</string>
     <string name="group_no_friends">Add a friend first.</string>
+    <string name="group_member_unverified">Unverified: not one of your friends</string>
     <string name="profile_message">Message</string>
     <string name="profile_added">Added on</string>
     <string name="profile_created">Created on</string>
@@ -431,7 +432,7 @@
     <string name="privacy_sent_title">What leaves your phone</string>
     <string name="privacy_sent_text">Messages to friends are end-to-end encrypted: the phones they pass through can’t read them. When you scan someone’s code, their phone gets your name and public keys, so it lists you too. Reports are encrypted for the event staff and are anonymous unless you choose otherwise; what you write about how to recognise you is seen by staff only. To find each other, phones broadcast over Bluetooth a code that changes about every quarter of an hour, and tell the phones they connect to a technical ID made from your public key. Your name isn’t in either.</string>
     <string name="privacy_location_title">Location</string>
-    <string name="privacy_location_text">We use it on the phone to know which zone you’re in and what’s nearby. Coordinates leave only in a report or for the friends you choose to share them with, as below. Friends learn your zone when it changes or when they ask, while “Tell friends my zone” is on (in Me), and a zone sent in a message is seen by everyone in the conversation. The app doesn’t track your location in the background, except while you share it.</string>
+    <string name="privacy_location_text">We use it on the phone to know which zone you’re in and what’s nearby. Coordinates leave only in a report or for the friends you choose to share them with, as below. Friends learn your zone when it changes or when they ask, while “Tell friends my zone” is on (in Me); someone who added you only by scanning your code learns it once you confirm them or scan their code too, and a zone sent in a message is seen by everyone in the conversation. The app doesn’t track your location in the background, except while you share it.</string>
     <string name="privacy_sharing_title">Sharing your location with friends</string>
     <string name="privacy_sharing_text">It’s off until you turn it on. You pick each friend or group you share it with, for how long (15 minutes, an hour, until the end of the festival day or until you stop it) and how exactly: your exact position, an approximate area of about 100 metres, or just the zone. Your position is end-to-end encrypted for the friends you picked: the phones it passes through and the organiser can’t read it. A friend you share it with may attach the last position you sent them to a lost-person report, which goes to the search team. A friend’s phone keeps only your last position, for at most 2 hours. You can stop it at any time from “Who sees me now” or, on Android, from the notification, and your friend isn’t told. Also in Me you can turn on the automatic answer to “Where are you?”: friends who ask then get your approximate area.</string>
     <string name="privacy_camera_title">Camera</string>
@@ -940,6 +941,9 @@
     <string name="profile_where_asked">Request sent. The answer shows up here if your friend is in range.</string>
     <string name="profile_block">Block</string>
     <string name="profile_report">Report to staff</string>
+    <string name="profile_unconfirmed">Added you with your code</string>
+    <string name="profile_unconfirmed_text">They don’t learn your zone or get an automatic answer to “Where are you?” until you confirm you know them.</string>
+    <string name="profile_confirm">Confirm friend</string>
     <string name="report_contact_friend">Harassment through the app from %1$s.</string>
     <string name="report_contact_group">Harassment through the app in the group %1$s.</string>
     <string name="block_title">Block %1$s?</string>

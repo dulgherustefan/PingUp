@@ -10,8 +10,13 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import ro.safetyplease.core.chat.ChatManager
+import ro.safetyplease.core.data.ChatMessage
+import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.Friend
+import ro.safetyplease.core.data.FriendsFile
 import ro.safetyplease.core.data.JsonStore
+import ro.safetyplease.core.data.MsgKind
+import ro.safetyplease.core.data.MsgStatus
 import ro.safetyplease.core.data.MyReport
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.data.StaffIncident
@@ -278,6 +283,31 @@ class SmallPartsTest {
         assertEquals("Ana", store.value.nickname)
         store.flush()
         assertEquals(2, Json.parseToJsonElement(file.readText()).jsonObject.getValue("schemaVersion").jsonPrimitive.int)
+    }
+
+    @Test
+    fun friendsFromBeforeConsentAreChosenUnlessTheyCameByAnIntro() = runTest {
+        val file = (tmp.root / "friends.json").apply {
+            writeText(
+                """{"schemaVersion":1,"data":[{"nodeId":1,"nickname":"Ana","boxKey":"00","signKey":"00","addedAt":5},""" +
+                    """{"nodeId":2,"nickname":"X","boxKey":"00","signKey":"00","addedAt":6}]}""",
+            )
+        }
+        // the notice X's intro left in their conversation: X scanned our code
+        val intro = ChatMessage(
+            msgId = 9, conversation = Conversations.friend(2), senderId = 2, fromMe = false, kind = MsgKind.SYSTEM, timeMs = 6,
+            status = MsgStatus.RECEIVED,
+        )
+        fun open() = JsonStore(
+            file, ListSerializer(Friend.serializer()), emptyList(), backgroundScope, FriendsFile.SCHEMA_VERSION,
+            migrate = { version, data -> FriendsFile.migrate(version, data, listOf(intro)) },
+        )
+        val store = open()
+        assertFalse(store.unreadable)
+        assertEquals(listOf(true, false), store.value.map { it.confirmed })
+        store.update { list -> list.map { it.copy(confirmed = true) } }
+        store.flush()
+        assertEquals(listOf(true, true), open().value.map { it.confirmed }, "a confirmation made since stays")
     }
 
     @Test

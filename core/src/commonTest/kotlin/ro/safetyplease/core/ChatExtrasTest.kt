@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import okio.Path
+import ro.safetyplease.core.crypto.Identity
 import ro.safetyplease.core.crypto.testCrypto
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.MsgKind
@@ -12,11 +13,14 @@ import ro.safetyplease.core.data.MsgStatus
 import ro.safetyplease.core.mesh.SimNet
 import ro.safetyplease.core.mesh.TestClock
 import ro.safetyplease.core.protocol.Frozen11
+import ro.safetyplease.core.protocol.GroupMemberWire
 import ro.safetyplease.core.protocol.Inner
 import ro.safetyplease.core.protocol.InnerCodec
 import ro.safetyplease.core.protocol.LastFix
 import ro.safetyplease.core.protocol.LostAction
 import ro.safetyplease.core.protocol.PacketType
+import ro.safetyplease.core.protocol.PositionMethod
+import ro.safetyplease.core.util.toHex
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,7 +37,7 @@ class ChatExtrasTest {
 
     private class World(scope: TestScope, dir: Path) {
         val net = SimNet(scope.backgroundScope)
-        private val clock = TestClock(scope.testScheduler)
+        val clock = TestClock(scope.testScheduler)
         private val event = TestEvent()
         private var seed = 700L
         val phone: (String) -> TestPhone = { name -> TestPhone(name, scope, net, clock, dir, event, seed++) }
@@ -313,6 +317,76 @@ class ChatExtrasTest {
     }
 
     @Test
+    fun someoneWhoOnlyScannedOurCodeLearnsWhereWeAreOnlyOnceConfirmed() = runTest {
+        val w = World(this, tmp.root)
+        val a = w.phone("A")
+        val b = w.phone("B")
+        val x = w.phone("X")
+        a.befriend(b)
+        // X photographed A's code: the scan makes X A's friend too, but not one A chose
+        x.chat.addFriend(a.chat.myCard())
+        w.net.start()
+        advanceTimeBy(30_000)
+        assertFalse(a.friends.value.single { it.nodeId == x.nodeId }.confirmed)
+        assertTrue(a.friends.value.single { it.nodeId == b.nodeId }.confirmed)
+
+        a.chat.zoneChanged("bar")
+        a.chat.onFix(BOX_LAT, BOX_LON, 5.0, null, PositionMethod.GNSS, w.clock.wallMs())
+        a.chat.setAutoAnswer(true)
+        advanceTimeBy(5_000)
+        assertEquals("bar", b.friends.value.single().lastZone)
+        x.chat.requestPosition(a.nodeId)
+        advanceTimeBy(5_000)
+        assertEquals("", x.friends.value.single().lastZone, "neither pushed nor answered")
+        assertTrue(x.positions.value.records.isEmpty(), "nor an automatic position")
+
+        a.chat.confirmFriend(x.nodeId)
+        advanceTimeBy(5_000)
+        assertEquals("bar", x.friends.value.single().lastZone, "once the user says they know them")
+    }
+
+    @Test
+    fun scanningTheCodeOfSomeoneWhoAddedUsConfirmsThem() = runTest {
+        val w = World(this, tmp.root)
+        val a = w.phone("A")
+        val x = w.phone("X")
+        x.chat.addFriend(a.chat.myCard())
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.chat.zoneChanged("bar")
+        advanceTimeBy(5_000)
+        assertEquals("", x.friends.value.single().lastZone)
+
+        a.chat.addFriend(x.chat.myCard())
+        advanceTimeBy(5_000)
+        assertTrue(a.friends.value.single().confirmed)
+        assertEquals("bar", x.friends.value.single().lastZone)
+    }
+
+    @Test
+    fun aFriendRemovedAndAddedAgainHearsTheZoneAgain() = runTest {
+        val w = World(this, tmp.root)
+        val a = w.phone("A")
+        val b = w.phone("B")
+        a.befriend(b)
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.chat.zoneChanged("bar")
+        advanceTimeBy(5_000)
+        assertEquals("bar", b.friends.value.single().lastZone)
+
+        a.chat.removeFriend(b.nodeId)
+        advanceTimeBy(1_000)
+        b.friends.update { list -> list.map { it.copy(lastZone = "", lastZoneAt = 0) } }
+        a.chat.addFriend(b.chat.myCard())
+        b.radio.powerOff()
+        advanceTimeBy(1_000)
+        b.radio.powerOn()
+        advanceTimeBy(20_000)
+        assertEquals("bar", b.friends.value.single().lastZone)
+    }
+
+    @Test
     fun aZoneSharedInAChatAlsoCountsAsTheLastOne() = runTest {
         val w = World(this, tmp.root)
         val a = w.phone("A")
@@ -345,5 +419,33 @@ class ChatExtrasTest {
         c.radio.powerOn()
         advanceTimeBy(20_000)
         assertEquals("bar", c.friends.value.single().lastZone)
+    }
+
+    // --- group invites ---
+
+    @Test
+    fun anInviteListsAFriendWithTheKeyWeHoldForThem() = runTest {
+        val w = World(this, tmp.root)
+        val m = w.phone("M")
+        val v = w.phone("V")
+        val c = w.phone("C")
+        m.befriend(v)
+        v.befriend(c)
+        w.net.start()
+        advanceTimeBy(30_000)
+        // M lists V's friend C under M's own key, and a stranger twice
+        val stranger = Identity.generate(testCrypto)
+        val members = listOf(
+            GroupMemberWire(c.nodeId, m.identity.box.publicKey, "C"),
+            GroupMemberWire(stranger.nodeId, stranger.box.publicKey, "S"),
+            GroupMemberWire(stranger.nodeId, m.identity.box.publicKey, "S"),
+        )
+        val invite = InnerCodec.encode(Inner.GroupInvite(77L, 99L, "Capcană", members))
+        m.engine.unicast(PacketType.PRIVATE, v.nodeId, testCrypto.box(invite, v.identity.box.publicKey, m.identity.box.secretKey))
+        advanceTimeBy(10_000)
+
+        val group = v.groups.value.single()
+        assertEquals(c.identity.box.publicKey.toHex(), group.members.single { it.nodeId == c.nodeId }.boxKey, "C's own key")
+        assertEquals(listOf(stranger.box.publicKey.toHex()), group.members.filter { it.nodeId == stranger.nodeId }.map { it.boxKey }, "listed once")
     }
 }

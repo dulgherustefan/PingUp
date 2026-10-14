@@ -127,8 +127,11 @@ class Regasire(
     /** This phone's own lost session while it runs. */
     private class Mine(val conversation: String, val lost: LostShare)
 
-    /** The last group session heard from a (sender, conversation): its seq, its START's msgId, and whether it ended. */
-    private class Heard(val seq: Int, val startId: Long, val ended: Boolean)
+    /**
+     * The last group session heard from a (sender, conversation): its seq, its START's msgId (0 when only its FOUND
+     * came), whether it ended, and until when it counts: a copy of it, or of an older one, can come no later.
+     */
+    private class Heard(val seq: Int, val startId: Long, val ended: Boolean, val untilMs: Long)
 
     private val seen = LinkedHashSet<Pair<Long, Long>>()
     private val heardSessions = HashMap<Pair<Long, String>, Heard>()
@@ -319,26 +322,40 @@ class Regasire(
         if (!seen.add(sender to inner.msgId)) return
         while (seen.size > MAX_SEEN) seen.remove(seen.first())
         if (inner.groupId == null) return onSearch(sender, conversation, inner)
+        val now = clock.wallMs()
+        heardSessions.entries.removeAll { it.value.untilMs <= now }
         val key = sender to conversation
         val last = heardSessions[key]
         when (inner.action) {
             LostAction.START -> {
-                // a copy that comes after the FOUND of its session, or after a later session
-                if (last != null && (if (last.ended) !after(inner.seq, last.seq) else after(last.seq, inner.seq))) return
-                heardSessions[key] = Heard(inner.seq, inner.msgId, ended = false)
+                if (last != null && isLate(inner, last)) return
+                // its copies, and those of an older session, are retried for LOST_TTL_MS at most
+                val until = now + maxOf(inner.minutes * 60_000L, ChatManager.LOST_TTL_MS)
+                heardSessions[key] = Heard(inner.seq, inner.msgId, ended = false, until)
                 holdShare(sender, inner.minutes)
                 if (!heard.tryTake(sender, clock.monoMs())) return
-                val alert = LostAlert(sender, conversation, inner.msgId, inner.seq, inner.landmark, inner.battery, clock.wallMs() + inner.minutes * 60_000L)
+                val alert = LostAlert(sender, conversation, inner.msgId, inner.seq, inner.landmark, inner.battery, now + inner.minutes * 60_000L)
                 _alerts.update { list -> list.filterNot { it.sender == sender && it.conversation == conversation } + alert }
             }
             LostAction.FOUND -> {
                 if (last != null && after(last.seq, inner.seq)) return
-                heardSessions[key] = Heard(inner.seq, last?.startId ?: 0L, ended = true)
+                heardSessions[key] = Heard(inner.seq, last?.startId ?: 0L, ended = true, now + ChatManager.LOST_TTL_MS)
                 _alerts.update { list -> list.filterNot { it.sender == sender && it.conversation == conversation } }
                 if (_target.value?.let { it.conversation == conversation && !it.mine } == true) _target.value = null
                 if (last != null) chat.unpinMeeting(conversation, last.startId)
             }
         }
+    }
+
+    /**
+     * A START that is a late copy of the session [last] holds, or of an older one, judged by its seq. Once that session
+     * ended and its START came here, a START with another msgId is a new session whatever its seq: a phone of an older
+     * version numbers its sessions from 1 again after each restart.
+     */
+    private fun isLate(start: Inner.LostSession, last: Heard): Boolean = when {
+        !last.ended -> after(last.seq, start.seq)
+        last.startId != 0L -> start.msgId == last.startId
+        else -> !after(start.seq, last.seq)
     }
 
     /** A lost session without a group: a friend's lost report looks for us, or the friend we look for is fine. */

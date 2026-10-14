@@ -111,6 +111,7 @@ class CheckinManager(
 
     fun start() {
         scope.launch { store.state.map { it.current }.distinctUntilChanged().collectLatest(::watch) }
+        scope.launch { store.state.map { data -> data.alerts.minOfOrNull { it.receivedAt } }.distinctUntilChanged().collectLatest(::expire) }
     }
 
     /** Starts the check-in, replacing one that runs. False if the place, the time or the friends are not usable. */
@@ -178,12 +179,30 @@ class CheckinManager(
         store.update { it.copy(alerts = it.alerts.filterNot { a -> a.sender == sender && a.msgId == msgId }) }
     }
 
+    /**
+     * A friend's alert goes [ALERT_KEPT_MS] after it came, by the wall clock: by then it is news of another day. Waits
+     * for the oldest, in short steps so a phone that slept is noticed; the state it writes starts the next wait.
+     */
+    private suspend fun expire(oldest: Long?) {
+        if (oldest == null) return
+        while (true) {
+            val left = oldest + ALERT_KEPT_MS - clock.wallMs()
+            if (left <= 0) break
+            delay(left.coerceAtMost(EXPIRY_STEP_MS))
+        }
+        val now = clock.wallMs()
+        store.update { it.copy(alerts = it.alerts.filter { a -> now - a.receivedAt < ALERT_KEPT_MS }) }
+    }
+
     /** Writes the state now, for a caller that may not live until the debounced write (a notification's action). */
     fun flush() = store.flush()
 
-    /** Waits for the next moment of [checkin] and acts on it; the state it writes starts the next watch. */
+    /**
+     * Waits for the next moment of [checkin] and acts on it; the state it writes starts the next watch. A watch that
+     * starts after the state moved on (it waited for the one before, which wrote it) does nothing: the next one will.
+     */
     private suspend fun watch(checkin: Checkin?) {
-        if (checkin == null) return
+        if (checkin == null || store.value.current != checkin) return
         if (checkin.phase == CheckinPhase.ALERTED) {
             if (!checkin.queued) withContext(NonCancellable) { queue(checkin) }
             return
@@ -215,14 +234,18 @@ class CheckinManager(
         if (swap(checkin, alerted)) queue(alerted)
     }
 
-    /** Hands the alert to the outbox; after a crash it runs again with the same msgId, which a friend keeps only once. */
+    /**
+     * Hands the alert to the outbox; after a crash it runs again with the same msgId, which a friend keeps only once.
+     * The alert is taken back only if the person answered while it was being queued, never because another run of the
+     * same check-in queued it first.
+     */
     private suspend fun queue(checkin: Checkin) {
         val msgId = alertId(checkin.startedAt)
         val fix = lastFix()?.let { LastFix(it.lat, it.lon, (it.timeMs / 1000).coerceIn(0, MAX_SECONDS), AccuracyClass.of(it.accuracyM.toDouble())) }
         val to = alert(msgId, checkin.friends, checkin.deadlineAt / 1000, fix, checkin.label)
         if (!swap(checkin, checkin.copy(alerted = to, queued = true))) {
-            // the person answered while it was being queued
-            withdraw(msgId)
+            val now = store.value.current
+            if (now == null || now.startedAt != checkin.startedAt || now.phase != CheckinPhase.ALERTED) withdraw(msgId)
             return
         }
         notify(SafetyNotice.CheckinAlerted(checkin.label, to.size))
@@ -250,6 +273,10 @@ class CheckinManager(
         const val MAX_MINUTES = 12 * 60
         const val MAX_PLACES = 5
         const val MAX_ALERTS = 10
+
+        /** How long a friend's missed check-in is kept here. */
+        const val ALERT_KEPT_MS = 24 * 60 * MINUTE_MS
+        private const val EXPIRY_STEP_MS = 15 * MINUTE_MS
         private const val STEP_MS = 15_000L
         private const val MAX_SECONDS = 0xFFFF_FFFFL
 

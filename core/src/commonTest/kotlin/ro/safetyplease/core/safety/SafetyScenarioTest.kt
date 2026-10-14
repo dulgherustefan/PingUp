@@ -240,6 +240,46 @@ class SafetyScenarioTest {
     }
 
     @Test
+    fun aMissedCheckinQueuedWithoutALinkReachesTheFriendLater() = runTest {
+        val clock = TestClock(testScheduler)
+        val net = SimNet(backgroundScope)
+        val event = TestEvent()
+        val a = TestPhone("A", this, net, clock, tmp.root, event, 870)
+        val b = TestPhone("B", this, net, clock, tmp.root, event, 871)
+        a.befriend(b)
+        a.ignore(b)
+        b.ignore(a)
+        net.start()
+        advanceTimeBy(30_000)
+        val withdrawn = mutableListOf<Long>()
+        val notices = mutableListOf<SafetyNotice>()
+        val mine = CheckinManager(
+            backgroundScope, JsonStore(tmp.root / "a-checkin.json", CheckinData.serializer(), CheckinData(), backgroundScope), clock,
+            friends = { a.friends.value }, lastFix = { null },
+            alert = a.chat::sendCheckinMissed,
+            withdraw = { id -> withdrawn += id; a.chat.withdrawCheckinMissed(id) },
+            tell = { _, _ -> }, notify = { notices += it },
+        ).also { it.start() }
+
+        // alone on the way to the station: nobody in range when the alert is due
+        assertTrue(mine.begin("Gară", 20, listOf(b.nodeId)))
+        advanceTimeBy(31 * 60_000L)
+        val current = mine.state.value.current!!
+        assertEquals(CheckinPhase.ALERTED, current.phase)
+        assertTrue(current.queued)
+        assertEquals(listOf(b.nodeId), current.alerted)
+        assertTrue(withdrawn.isEmpty(), "nothing takes the alert back")
+        assertEquals(1, a.alertsInOutbox(), "it waits for a link")
+        assertEquals(SafetyNotice.CheckinAlerted("Gară", 1), notices.last())
+
+        a.ignore()
+        b.ignore()
+        advanceTimeBy(5 * 60_000L)
+        assertEquals(1, b.checkinAlerts.size, "the friend gets it once a link comes up")
+        assertEquals(0, a.alertsInOutbox())
+    }
+
+    @Test
     fun aFriendWeNeverAddedIsNotBelieved() = runTest {
         val clock = TestClock(testScheduler)
         val net = SimNet(backgroundScope)

@@ -17,7 +17,10 @@ import ro.safetyplease.core.mesh.V10Node
 import ro.safetyplease.core.protocol.AccuracyClass
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.IncidentCategory
+import ro.safetyplease.core.protocol.Inner
+import ro.safetyplease.core.protocol.InnerCodec
 import ro.safetyplease.core.protocol.NextUpdate
+import ro.safetyplease.core.protocol.PacketCodec
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.PositionMethod
 import ro.safetyplease.core.protocol.Severity
@@ -98,6 +101,62 @@ class PositionSharingTest {
         assertEquals(a.nodeId, b.positions.value.lastSeen.single().sender)
         assertTrue(b.messages.isEmpty() && b.incoming.isEmpty(), "silently: no message, no notification")
         assertTrue(a.chat.activeShares.value.isEmpty())
+    }
+
+    @Test
+    fun stoppingTheExactOfTwoSharesLeavesTheFriendOnlyTheApproximateOne() = runTest {
+        val w = World(this, tmp.root)
+        val a = w.phone("A")
+        val b = w.phone("B")
+        val c = w.phone("C")
+        a.befriend(b)
+        a.befriend(c)
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.chat.createGroup("Gașca", listOf(b.nodeId, c.nodeId))
+        advanceTimeBy(5_000)
+        val group = Conversations.group(a.groups.value.single().id)
+        val here = spot(1234, 567)
+        a.chat.startShare(group, 60, SharePrecision.APPROXIMATE)
+        a.chat.startShare(Conversations.friend(b.nodeId), 60, SharePrecision.EXACT)
+        a.fix(w, here)
+        advanceTimeBy(10_000)
+        assertTrue(distanceMeters(b.positions.value.records.single().let { GeoPoint(it.lat, it.lon) }, here) <= 1)
+
+        a.chat.stopShare(Conversations.friend(b.nodeId))
+        advanceTimeBy(2_000)
+        assertTrue(b.positions.value.records.isEmpty(), "the exact point goes at once, not when the group's share ends")
+        advanceTimeBy(20_000)
+        val seen = b.positions.value.records.single()
+        assertEquals(box.toLatLon(576, 1216), GeoPoint(seen.lat, seen.lon), "the group's share goes on, at its precision")
+        assertEquals(SharePrecision.APPROXIMATE, b.positions.value.sessionOf(a.nodeId, w.clock.wallMs())?.precision)
+        assertEquals(1, c.positions.value.records.size, "C, who had only the group's, sees no change")
+    }
+
+    @Test
+    fun aPositionStillQueuedWhenTheShareStopsNeverGoes() = runTest {
+        val w = World(this, tmp.root)
+        val (a, b) = pair(w)
+        a.chat.startShare(Conversations.friend(b.nodeId), 30, SharePrecision.EXACT)
+        a.fix(w, spot(300, 300))
+        // past the minute between positions, before the two-minute heartbeat: a move is due at once
+        advanceTimeBy(90_000)
+        assertEquals(1, b.positions.value.records.size)
+        val positions = mutableListOf<Inner.Position>()
+        a.radio.tamper = { frame ->
+            PacketCodec.decode(frame)?.packet?.takeIf { it.type == PacketType.PRIVATE && it.recipient == b.nodeId }
+                ?.let { testCrypto.boxOpen(it.payload, a.identity.box.publicKey, b.identity.box.secretKey) }
+                ?.let { InnerCodec.decode(it) as? Inner.Position }
+                ?.let { positions += it }
+            frame
+        }
+
+        // the new position waits in the queue when the user stops
+        a.fix(w, spot(500, 300))
+        a.chat.stopShare(Conversations.friend(b.nodeId))
+        advanceTimeBy(30_000)
+        assertTrue(positions.isEmpty(), "nothing more of where A is: ${positions.size}")
+        assertTrue(b.positions.value.records.isEmpty())
     }
 
     @Test

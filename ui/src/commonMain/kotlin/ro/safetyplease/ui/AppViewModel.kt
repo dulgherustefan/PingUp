@@ -323,15 +323,6 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
         reportSpot(s, fix, c.clock.wallMs(), venue)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), spotNow())
 
-    init {
-        // friends learn the zone as the app learns it; no GPS runs for this alone
-        viewModelScope.launch {
-            combine(c.settings.state, c.locationFix, ticker) { _, _, _ -> currentZoneId() }
-                .distinctUntilChanged()
-                .collect(c.chat::zoneChanged)
-        }
-    }
-
     var tab by mutableStateOf(Tab.MESSAGES)
     val stack = mutableStateListOf<Dest>()
 
@@ -563,6 +554,9 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
     fun createGroup(name: String, members: List<Long>) = c.chat.createGroup(name, members)
 
     fun removeFriend(friend: Friend) = c.chat.removeFriend(friend.nodeId)
+
+    /** A friend who added us with our code: the user knows them, so they may learn our zone. */
+    fun confirmFriend(friend: Friend) = c.chat.confirmFriend(friend.nodeId)
 
     fun leaveGroup(groupId: Long) = c.chat.leaveGroup(groupId)
 

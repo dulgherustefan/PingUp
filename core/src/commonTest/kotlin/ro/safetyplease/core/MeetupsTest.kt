@@ -45,6 +45,11 @@ class MeetupsTest {
         private var seed = 1300L
         val phone: (String) -> TestPhone = { name -> TestPhone(name, scope, net, clock, dir, event, seed++) }
 
+        /** A phone after a restart: its identity and its files, a new process. */
+        val restarted: (TestPhone) -> TestPhone = { old ->
+            TestPhone("${old.name}2", scope, net, clock, dir, event, seed++, identity = old.identity, files = old.name)
+        }
+
         /** The test clock [minutes] from now, in Unix seconds: the time of a meeting point, whatever zone this machine is in. */
         fun inMinutes(minutes: Int): Long = clock.wallMs() / 1000 + minutes * 60L
     }
@@ -220,6 +225,24 @@ class MeetupsTest {
         a.chat.withdrawMeeting(conversation)
         advanceTimeBy(5_000)
         assertTrue(listOf(a, b, c).all { it.chat.meetings.value.isEmpty() })
+    }
+
+    @Test
+    fun aMeetingPointFromAPhoneThatRestartedReplacesItsLastOne() = runTest {
+        val w = World(this, tmp.root)
+        val (a, b, c) = group(w)
+        val conversation = Conversations.group(a.groups.value.single().id)
+        assertTrue(a.chat.proposeMeeting(conversation, MeetingPlace.landmark(3), null, 720))
+        advanceTimeBy(5_000)
+        assertEquals(3, b.chat.meetings.value.single().place.landmark)
+
+        // the battery dies; the phone comes back with its identity and its files
+        a.radio.powerOff()
+        val again = w.restarted(a)
+        advanceTimeBy(30_000)
+        assertTrue(again.chat.proposeMeeting(conversation, MeetingPlace.landmark(4), null, 60))
+        advanceTimeBy(10_000)
+        for (phone in listOf(b, c)) assertEquals(4, phone.chat.meetings.value.single().place.landmark, "on ${phone.name}")
     }
 
     @Test

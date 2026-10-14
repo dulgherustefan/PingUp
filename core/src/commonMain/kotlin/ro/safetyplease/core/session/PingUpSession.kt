@@ -74,6 +74,7 @@ import ro.safetyplease.core.data.BlockedPerson
 import ro.safetyplease.core.data.ChatStore
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.Friend
+import ro.safetyplease.core.data.FriendsFile
 import ro.safetyplease.core.data.Group
 import ro.safetyplease.core.data.IncidentData
 import ro.safetyplease.core.data.JsonStore
@@ -155,10 +156,13 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     private val dataDir = platform.filesDir / "data"
     val settings = JsonStore(dataDir / "settings.json", Settings.serializer(), Settings(), ioScope)
-    val friends = JsonStore(dataDir / "friends.json", ListSerializer(Friend.serializer()), emptyList(), ioScope)
+    val chatStore = ChatStore(dataDir, ioScope)
+    val friends = JsonStore(
+        dataDir / "friends.json", ListSerializer(Friend.serializer()), emptyList(), ioScope, FriendsFile.SCHEMA_VERSION,
+        migrate = { version, data -> FriendsFile.migrate(version, data, chatStore.value.messages) },
+    )
     val groups = JsonStore(dataDir / "groups.json", ListSerializer(Group.serializer()), emptyList(), ioScope)
     val blocked = JsonStore(dataDir / "blocked.json", ListSerializer(BlockedPerson.serializer()), emptyList(), ioScope)
-    val chatStore = ChatStore(dataDir, ioScope)
 
     /** The event packs loaded on this phone and the one in use. */
     val events = JsonStore(dataDir / "events.json", EventShelf.serializer(), EventShelf(), ioScope)
@@ -393,13 +397,9 @@ open class PingUpSession(private val platform: AppPlatform) {
         }
         val due = kept.filter { ShareTime.reminderDue(it, now) }
         if (due.isNotEmpty()) sharing.value?.let { notifications.shareReminder(it.people) }
-        val updated = kept.map { if (it in due) it.copy(remindedAtMs = now) else it }
-        if (updated == plans) return
-        settings.update { s ->
-            // a share started while this ran stays as it was written
-            val fresh = s.sharePlans.filter { it !in plans }
-            s.copy(sharePlans = updated.filter { u -> fresh.none { it.conversation == u.conversation } } + fresh)
-        }
+        if (kept == plans && due.isEmpty()) return
+        // on the plans as they are now: one the user stopped or started meanwhile stays as they left it
+        settings.update { s -> s.copy(sharePlans = SharingNow.keep(s.sharePlans, active, now, due)) }
     }
 
     private fun minuteTicks() = flow {
@@ -572,6 +572,12 @@ open class PingUpSession(private val platform: AppPlatform) {
         meshScope.launch {
             // the first value is where the phone was when the notices it holds came: they were decided then
             combine(settings.state, platform.location) { _, _ -> whereabouts() }.distinctUntilChanged().drop(1).collect { soundOnArrival() }
+        }
+        meshScope.launch {
+            // friends learn the zone as the phone learns it, with or without a screen; nothing runs the GPS for this alone
+            combine(settings.state, locationFix, minuteTicks()) { s, fix, _ -> NoticeReach.zone(venue, s, fix, clock.wallMs()).orEmpty() }
+                .distinctUntilChanged()
+                .collect(chat::zoneChanged)
         }
         meshScope.launch {
             settings.state.map { it.role == Role.CONTROL }.distinctUntilChanged().collectLatest { control ->
