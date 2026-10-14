@@ -76,6 +76,14 @@ class Notifier(private val context: Context, private val venue: Venue, private v
                     },
                 NotificationChannel(CHANNEL_INCIDENT, context.getString(R.string.channel_incident), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_STATUS, context.getString(R.string.channel_status), NotificationManager.IMPORTANCE_DEFAULT),
+                // a discreet report's news: no sound, no vibration, no badge, nothing on the lock screen
+                NotificationChannel(CHANNEL_QUIET, context.getString(R.string.channel_quiet), NotificationManager.IMPORTANCE_LOW)
+                    .apply {
+                        setSound(null, null)
+                        enableVibration(false)
+                        setShowBadge(false)
+                        lockscreenVisibility = Notification.VISIBILITY_SECRET
+                    },
                 NotificationChannel(CHANNEL_CHAT, context.getString(R.string.channel_chat), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_SHARING, context.getString(R.string.channel_sharing_reminder), NotificationManager.IMPORTANCE_DEFAULT),
                 NotificationChannel(CHANNEL_PROGRAM, context.getString(R.string.layers_channel_program), NotificationManager.IMPORTANCE_DEFAULT),
@@ -422,46 +430,48 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         val escalate = report.needsEscalation(nowMs)
         if (status == null && !escalate) return
         val id = report.incidentId.hashCode() xor 0x5a5a
-        val builder = NotificationCompat.Builder(context, CHANNEL_STATUS)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setAutoCancel(true)
+        val look = reportLook(report, if (escalate) R.string.report_escalate_title else R.string.notif_report_title)
+        val builder = reportBuilder(look)
             .setContentIntent(open(MainActivity.OPEN_REPORT_PREFIX + report.incidentId, id))
         if (escalate) {
             val advice = context.getString(R.string.report_escalate_text)
             val call = PendingIntent.getActivity(
                 context, id, Emergency.dialIntent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE,
             )
-            builder.setContentTitle(marked(context.getString(R.string.report_escalate_title)))
-                .setContentText(advice)
+            builder.setContentText(advice)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(listOfNotNull(advice, status).joinToString("\n")))
                 .addAction(R.drawable.ic_phone, context.getString(R.string.emergency_call), call)
         } else {
-            builder.setContentTitle(marked(context.getString(R.string.notif_report_title))).setContentText(status)
+            builder.setContentText(status)
         }
-        // a discreet report is answered as quietly as it was sent: no sound, no vibration, nothing on the lock screen
-        if (Discreet.isDiscreet(report.description)) builder.setSilent(true).setVisibility(NotificationCompat.VISIBILITY_SECRET)
         manager.notify(id, builder.build())
     }
 
     /**
      * The console's latest answer to your report, in the foreground too: it is what you are waiting for, so it sounds
-     * and vibrates on the status channel.
+     * and vibrates on the status channel. A discreet report's answer makes no sound and stays off the lock screen.
      */
     override fun reportResponse(report: MyReport) {
         val response = report.responses.lastOrNull() ?: return
         if (!canPost()) return
         val id = report.incidentId.hashCode() xor 0x2b2b
         val text = context.text(Replies.response(response.code), Replies.landmarkName(venue, response.landmark))
-        val notification = NotificationCompat.Builder(context, CHANNEL_STATUS)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.notif_response_title))
+        val notification = reportBuilder(reportLook(report, R.string.notif_response_title))
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setAutoCancel(true)
             .setContentIntent(open(MainActivity.OPEN_REPORT_PREFIX + report.incidentId, id))
             .build()
         manager.notify(id, notification)
     }
+
+    /** A notification about your own report as [look] says; a quiet one is titled with the app's name only. */
+    private fun reportBuilder(look: ReportLook): NotificationCompat.Builder =
+        NotificationCompat.Builder(context, look.channel)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(marked(context.getString(look.title ?: R.string.app_name)))
+            .setAutoCancel(true)
+            .setSilent(look.silent)
+            .setVisibility(look.visibility)
 
     override fun chatMessage(message: ChatMessage, senderName: String) {
         if (!canPost()) return
@@ -521,7 +531,8 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         private const val CHANNEL_ALARM = "incident_alarm"
         private const val CHANNEL_VIBRATE = "incident_vibrate"
         private const val CHANNEL_INCIDENT = "incident"
-        private const val CHANNEL_STATUS = "report_status"
+        internal const val CHANNEL_STATUS = "report_status"
+        internal const val CHANNEL_QUIET = "report_quiet"
         private const val CHANNEL_CHAT = "chat"
         private const val CHANNEL_SHARING = "sharing_reminder"
         private const val SHARING_REMINDER_ID = 3
@@ -544,3 +555,18 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         private val EVACUATION_VIBRATION = longArrayOf(0, 1000, 200, 1000, 200, 1000, 200, 1000)
     }
 }
+
+/** How a notification about your own report shows: its channel, its title (null: the app's name), sound and lock screen. */
+internal data class ReportLook(val channel: String, val title: Int?, val silent: Boolean, val visibility: Int)
+
+/**
+ * A discreet report ("Mă simt în nesiguranță", "Nu sunt bine") hears back as quietly as it was sent: on the quiet
+ * channel, without sound or vibration, under the app's name and never on the lock screen. The others go on the status
+ * channel under [title].
+ */
+internal fun reportLook(report: MyReport, title: Int): ReportLook =
+    if (Discreet.isDiscreet(report.description)) {
+        ReportLook(Notifier.CHANNEL_QUIET, null, silent = true, NotificationCompat.VISIBILITY_SECRET)
+    } else {
+        ReportLook(Notifier.CHANNEL_STATUS, title, silent = false, NotificationCompat.VISIBILITY_PRIVATE)
+    }

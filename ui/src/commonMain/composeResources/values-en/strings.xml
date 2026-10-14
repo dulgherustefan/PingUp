@@ -475,6 +475,7 @@
     <string name="channel_vibrate">Assignments and urgencies in your zone</string>
     <string name="channel_incident">Incidents</string>
     <string name="channel_status">My report’s status</string>
+    <string name="channel_quiet">Silent updates</string>
     <string name="channel_chat">Messages</string>
     <string name="notif_mesh_title">The network is on</string>
     <string name="notif_mesh_title_anchor">Anchor active</string>

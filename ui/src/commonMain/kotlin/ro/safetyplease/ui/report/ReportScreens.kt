@@ -74,6 +74,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.incidents.Discreet
 import ro.safetyplease.core.incidents.ESCALATE_AFTER_MS
 import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.Priority
@@ -940,8 +941,8 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
     val haptics = rememberHaptics()
     var heard by rememberSaveable(incidentId) { mutableIntStateOf(report.responses.size) }
     LaunchedEffect(report.responses.size) {
-        // the notification sounds; on this screen the phone also gives a nudge
-        if (report.responses.size > heard) haptics.confirm()
+        // the notification sounds; on this screen the phone also gives a nudge, but never for a discreet report
+        if (report.responses.size > heard && nudgesOnAnswer(report)) haptics.confirm()
         heard = report.responses.size
     }
     Box(Modifier.fillMaxSize()) {
@@ -1034,6 +1035,9 @@ fun ReportSentScreen(vm: AppViewModel, incidentId: String, onStartMesh: () -> Un
 }
 
 private enum class Confirm { CANCEL, DELETE }
+
+/** The screen vibrates when the console answers, except for a discreet report, which promised the phone stays still. */
+fun nudgesOnAnswer(report: MyReport): Boolean = !Discreet.isDiscreet(report.description)
 
 /** True from the moment an urgent report has waited [ESCALATE_AFTER_MS] for a person on staff, until one confirms it. */
 @Composable

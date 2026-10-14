@@ -172,11 +172,17 @@ class IosNotifications(private val venue: Venue, private val exercise: Boolean, 
         }
     }
 
-    /** The console's latest answer to your report: what you are waiting for, so it sounds in the foreground too. */
+    /**
+     * The console's latest answer to your report: what you are waiting for, so it sounds in the foreground too. A discreet
+     * report's answer makes no sound and says nothing in front of others, like its status.
+     */
     override fun reportResponse(report: MyReport) = later {
         val response = report.responses.lastOrNull() ?: return@later
+        val id = "response-${report.incidentId}"
+        val open = OpenTarget.REPORT_PREFIX + report.incidentId
+        if (Discreet.isDiscreet(report.description)) return@later post(id, appName, "", open, Level.PASSIVE, sound = false)
         val text = getString(Replies.response(response.code), Replies.landmarkName(venue, response.landmark))
-        post("response-${report.incidentId}", getString(Res.string.notif_response_title), text, OpenTarget.REPORT_PREFIX + report.incidentId)
+        post(id, getString(Res.string.notif_response_title), text, open)
     }
 
     override fun chatMessage(message: ChatMessage, senderName: String) = later {

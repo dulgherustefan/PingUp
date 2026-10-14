@@ -488,6 +488,7 @@
     <string name="channel_vibrate">Alocări și urgențe din zona ta</string>
     <string name="channel_incident">Incidente</string>
     <string name="channel_status">Starea raportului meu</string>
+    <string name="channel_quiet">Actualizări fără sunet</string>
     <string name="channel_chat">Mesaje</string>
     <string name="notif_mesh_title">Rețeaua e pornită</string>
     <string name="notif_mesh_title_anchor">Ancoră activă</string>
