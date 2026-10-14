@@ -111,6 +111,7 @@ class CheckinManager(
 
     fun start() {
         scope.launch { store.state.map { it.current }.distinctUntilChanged().collectLatest(::watch) }
+        scope.launch { store.state.map { data -> data.alerts.minOfOrNull { it.receivedAt } }.distinctUntilChanged().collectLatest(::expire) }
     }
 
     /** Starts the check-in, replacing one that runs. False if the place, the time or the friends are not usable. */
@@ -176,6 +177,21 @@ class CheckinManager(
 
     fun dismissAlert(sender: Long, msgId: Long) {
         store.update { it.copy(alerts = it.alerts.filterNot { a -> a.sender == sender && a.msgId == msgId }) }
+    }
+
+    /**
+     * A friend's alert goes [ALERT_KEPT_MS] after it came, by the wall clock: by then it is news of another day. Waits
+     * for the oldest, in short steps so a phone that slept is noticed; the state it writes starts the next wait.
+     */
+    private suspend fun expire(oldest: Long?) {
+        if (oldest == null) return
+        while (true) {
+            val left = oldest + ALERT_KEPT_MS - clock.wallMs()
+            if (left <= 0) break
+            delay(left.coerceAtMost(EXPIRY_STEP_MS))
+        }
+        val now = clock.wallMs()
+        store.update { it.copy(alerts = it.alerts.filter { a -> now - a.receivedAt < ALERT_KEPT_MS }) }
     }
 
     /** Writes the state now, for a caller that may not live until the debounced write (a notification's action). */
@@ -257,6 +273,10 @@ class CheckinManager(
         const val MAX_MINUTES = 12 * 60
         const val MAX_PLACES = 5
         const val MAX_ALERTS = 10
+
+        /** How long a friend's missed check-in is kept here. */
+        const val ALERT_KEPT_MS = 24 * 60 * MINUTE_MS
+        private const val EXPIRY_STEP_MS = 15 * MINUTE_MS
         private const val STEP_MS = 15_000L
         private const val MAX_SECONDS = 0xFFFF_FFFFL
 

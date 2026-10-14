@@ -447,6 +447,16 @@ class CheckinTest {
     }
 
     @Test
+    fun aFriendsAlertGoesADayAfterItCame() = runTest {
+        val r = Rig(this, tmp)
+        r.manager.onFriendMissed(2, missed(7))
+        advanceTimeBy(23 * 60 * MINUTE)
+        assertEquals(1, r.store.value.alerts.size)
+        advanceTimeBy(90 * MINUTE)
+        assertTrue(r.store.value.alerts.isEmpty(), "not shown days later")
+    }
+
+    @Test
     fun onlyTheLastTenAlertsAreKept() = runTest {
         val r = Rig(this, tmp)
         for (i in 1L..15L) r.manager.onFriendMissed(1, missed(i))
