@@ -25,6 +25,7 @@ import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MsgKind
 import ro.safetyplease.core.data.MyReport
+import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.event.ScheduleItem
 import ro.safetyplease.core.incidents.AlertLevel
 import ro.safetyplease.core.incidents.AlertPost
@@ -142,8 +143,13 @@ class Notifier(private val context: Context, private val venue: Venue, private v
 
     private fun marked(title: String): String = if (exercise) context.getString(R.string.exercise_title, title) else title
 
-    /** While [sharing] runs the notification says so first, with "Oprește", which ends every share without a word to anyone. */
-    fun foreground(links: Int, anchor: Boolean, sharing: SharingNow? = null): Notification {
+    /**
+     * While [sharing] runs the notification says so first, with "Oprește partajarea", which ends every share without a
+     * word to anyone. A participant may also turn the network off from here; staff, the console and anchors only from
+     * the app, so nobody passing by a team's phone switches it off. Both stops ask for the phone to be unlocked first.
+     */
+    fun foreground(links: Int, role: Role, sharing: SharingNow? = null): Notification {
+        val anchor = role == Role.ANCHOR
         val text = when {
             links == 0 -> context.getString(R.string.notif_mesh_searching)
             else -> context.resources.getQuantityString(R.plurals.notif_mesh_links, links, links)
@@ -161,24 +167,29 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             val stop = PendingIntent.getService(
                 context, RequestCodes.STOP_SHARING, MeshService.stopSharingIntent(context), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            builder.addAction(R.drawable.ic_notification, context.getString(R.string.sharing_stop), stop)
+            builder.addAction(unlockedAction(R.drawable.ic_notification, R.string.notif_sharing_stop, stop))
         }
-        // an anchor only relays; its screen has no report tab, and nobody passing by should be able to switch it off
-        if (!anchor) {
-            val report = open(MainActivity.OPEN_REPORT, RequestCodes.REPORT_ACTION)
-            builder.addAction(R.drawable.ic_report, context.getString(R.string.action_report), report)
+        // the console has no report tab, and an anchor only relays
+        if (role == Role.PARTICIPANT || role == Role.STAFF) {
+            builder.addAction(R.drawable.ic_report, context.getString(R.string.action_report), open(MainActivity.OPEN_REPORT, RequestCodes.REPORT_ACTION))
+        }
+        if (role == Role.PARTICIPANT) {
             val stop = PendingIntent.getService(
                 context, RequestCodes.STOP_MESH, Intent(context, MeshService::class.java).setAction(MeshService.ACTION_STOP),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            builder.addAction(0, context.getString(R.string.notif_mesh_stop), stop)
+            builder.addAction(unlockedAction(0, R.string.notif_mesh_stop, stop))
         }
         return builder.build()
     }
 
-    fun updateForeground(links: Int, anchor: Boolean, sharing: SharingNow?) {
-        if (canPost()) manager.notify(FOREGROUND_ID, foreground(links, anchor, sharing))
+    fun updateForeground(links: Int, role: Role, sharing: SharingNow?) {
+        if (canPost()) manager.notify(FOREGROUND_ID, foreground(links, role, sharing))
     }
+
+    /** An action that works only once the phone is unlocked, from Android 12 on: on the lock screen it asks for that first. */
+    private fun unlockedAction(icon: Int, label: Int, intent: PendingIntent): NotificationCompat.Action =
+        NotificationCompat.Action.Builder(icon, context.getString(label), intent).setAuthenticationRequired(true).build()
 
     private fun sharingText(sharing: SharingNow): String {
         val people = sharing.people
@@ -232,7 +243,8 @@ class Notifier(private val context: Context, private val venue: Venue, private v
                     .setStyle(NotificationCompat.BigTextStyle().bigText(text))
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setContentIntent(open(OpenTarget.CHECKIN, RequestCodes.CHECKIN_OPEN))
-                    .addAction(0, context.getString(R.string.checkin_arrived), answer(0, RequestCodes.CHECKIN_ARRIVED))
+                    // the check-in is for when its owner can't answer: whoever holds the locked phone can't call off the alert
+                    .addAction(unlockedAction(0, R.string.checkin_arrived, answer(0, RequestCodes.CHECKIN_ARRIVED)))
                     .addAction(0, context.getString(R.string.checkin_extend, 15), answer(15, RequestCodes.CHECKIN_EXTEND_15))
                     .addAction(0, context.getString(R.string.checkin_extend, 30), answer(30, RequestCodes.CHECKIN_EXTEND_30))
                     .build()

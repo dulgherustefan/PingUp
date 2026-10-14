@@ -26,7 +26,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import ro.safetyplease.app.App
 import ro.safetyplease.app.AppContainer
-import ro.safetyplease.core.data.Role
 
 /**
  * Keeps the mesh running with the screen off. Android requires a connectedDevice foreground service
@@ -71,18 +70,17 @@ class MeshService : Service() {
         scope.launch {
             val links = container.engine.state.map { it.readyLinks }.distinctUntilChanged()
             val role = container.settings.state.map { it.role }.distinctUntilChanged()
-            combine(links, role, container.sharing) { count, r, sharing -> Triple(count, r == Role.ANCHOR, sharing) }.collectLatest { (count, isAnchor, sharing) ->
+            combine(links, role, container.sharing) { count, r, sharing -> Triple(count, r, sharing) }.collectLatest { (count, r, sharing) ->
                 // links come and go often; the notification shouldn't flicker with them
                 delay(1_000)
-                container.notifier.updateForeground(count, isAnchor, sharing)
+                container.notifier.updateForeground(count, r, sharing)
             }
         }
     }
 
     /** In the foreground, sharing the location ([sharing]) or not; a refused location type leaves the mesh its own. */
     private fun goForeground(sharing: Boolean) {
-        val anchor = container.settings.value.role == Role.ANCHOR
-        val notification = container.notifier.foreground(container.engine.state.value.readyLinks, anchor, container.sharing.value)
+        val notification = container.notifier.foreground(container.engine.state.value.readyLinks, container.settings.value.role, container.sharing.value)
         val types = meshServiceTypes(Build.VERSION.SDK_INT, sharing, container.location.hasPermission())
         try {
             ServiceCompat.startForeground(this, Notifier.FOREGROUND_ID, notification, types)
