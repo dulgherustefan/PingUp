@@ -6,7 +6,6 @@ import ro.safetyplease.core.TempDir
 import ro.safetyplease.core.crypto.QrCodes
 import ro.safetyplease.core.crypto.StaffCard
 import ro.safetyplease.core.crypto.StaffRole
-import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.delete
@@ -272,7 +271,7 @@ class ConsoleLogTest {
 
     @Test
     fun recorderAppendsTheReportBeforeTheAckSignedWhileOpeningIt() = runTest {
-        val store = JsonStore(tmp.root / "console.json", ConsoleLog.serializer(), ConsoleLog(), backgroundScope)
+        val store = ConsoleLogStore(tmp.root / "console.json", backgroundScope)
         val clock = FixedClock(t0 + 20_000)
         var stored: StaffIncident? = null
         val recorder = ConsoleRecorder(store, grid, clock) { stored }
@@ -297,14 +296,14 @@ class ConsoleLogTest {
 
         // a restart doesn't log the same report twice
         store.flush()
-        val again = JsonStore(tmp.root / "console.json", ConsoleLog.serializer(), ConsoleLog(), backgroundScope)
+        val again = ConsoleLogStore(tmp.root / "console.json", backgroundScope)
         ConsoleRecorder(again, grid, clock) { stored }.sawIncidents(listOf(incident()))
         assertEquals(5, again.value.entries.size)
     }
 
     @Test
     fun recorderLogsEachCancelToCheckOncePerEpochAndWhatTheReportSaid() = runTest {
-        val store = JsonStore(tmp.root / "console.json", ConsoleLog.serializer(), ConsoleLog(), backgroundScope)
+        val store = ConsoleLogStore(tmp.root / "console.json", backgroundScope)
         val recorder = ConsoleRecorder(store, grid, FixedClock(t0 + 20_000)) { null }
         val staffReport = incident().copy(
             responds = Answer.NO, breathes = Answer.UNKNOWN, fromStaff = true, nickname = "Medical 1", people = 2, dangerContinues = true,

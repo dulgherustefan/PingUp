@@ -12,3 +12,6 @@ fun Path.withSuffix(suffix: String): Path = parent?.div(name + suffix) ?: (name 
  * fcntl(F_BARRIERFSYNC) on Apple, where fsync alone lets the drive reorder writes.
  */
 expect fun writeSynced(path: Path, bytes: ByteArray)
+
+/** Adds [bytes] at the end of [path], made if missing, on disk before this returns as with [writeSynced]. */
+expect fun appendSynced(path: Path, bytes: ByteArray)
