@@ -17,6 +17,7 @@ import ro.safetyplease.core.protocol.InnerCodec
 import ro.safetyplease.core.protocol.LastFix
 import ro.safetyplease.core.protocol.LostAction
 import ro.safetyplease.core.protocol.PacketType
+import ro.safetyplease.core.protocol.PositionMethod
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,7 +34,7 @@ class ChatExtrasTest {
 
     private class World(scope: TestScope, dir: Path) {
         val net = SimNet(scope.backgroundScope)
-        private val clock = TestClock(scope.testScheduler)
+        val clock = TestClock(scope.testScheduler)
         private val event = TestEvent()
         private var seed = 700L
         val phone: (String) -> TestPhone = { name -> TestPhone(name, scope, net, clock, dir, event, seed++) }
@@ -310,6 +311,76 @@ class ChatExtrasTest {
         x.chat.requestZone(a.nodeId)
         advanceTimeBy(10_000)
         assertEquals("", x.friends.value.single().lastZone)
+    }
+
+    @Test
+    fun someoneWhoOnlyScannedOurCodeLearnsWhereWeAreOnlyOnceConfirmed() = runTest {
+        val w = World(this, tmp.root)
+        val a = w.phone("A")
+        val b = w.phone("B")
+        val x = w.phone("X")
+        a.befriend(b)
+        // X photographed A's code: the scan makes X A's friend too, but not one A chose
+        x.chat.addFriend(a.chat.myCard())
+        w.net.start()
+        advanceTimeBy(30_000)
+        assertFalse(a.friends.value.single { it.nodeId == x.nodeId }.confirmed)
+        assertTrue(a.friends.value.single { it.nodeId == b.nodeId }.confirmed)
+
+        a.chat.zoneChanged("bar")
+        a.chat.onFix(BOX_LAT, BOX_LON, 5.0, null, PositionMethod.GNSS, w.clock.wallMs())
+        a.chat.setAutoAnswer(true)
+        advanceTimeBy(5_000)
+        assertEquals("bar", b.friends.value.single().lastZone)
+        x.chat.requestPosition(a.nodeId)
+        advanceTimeBy(5_000)
+        assertEquals("", x.friends.value.single().lastZone, "neither pushed nor answered")
+        assertTrue(x.positions.value.records.isEmpty(), "nor an automatic position")
+
+        a.chat.confirmFriend(x.nodeId)
+        advanceTimeBy(5_000)
+        assertEquals("bar", x.friends.value.single().lastZone, "once the user says they know them")
+    }
+
+    @Test
+    fun scanningTheCodeOfSomeoneWhoAddedUsConfirmsThem() = runTest {
+        val w = World(this, tmp.root)
+        val a = w.phone("A")
+        val x = w.phone("X")
+        x.chat.addFriend(a.chat.myCard())
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.chat.zoneChanged("bar")
+        advanceTimeBy(5_000)
+        assertEquals("", x.friends.value.single().lastZone)
+
+        a.chat.addFriend(x.chat.myCard())
+        advanceTimeBy(5_000)
+        assertTrue(a.friends.value.single().confirmed)
+        assertEquals("bar", x.friends.value.single().lastZone)
+    }
+
+    @Test
+    fun aFriendRemovedAndAddedAgainHearsTheZoneAgain() = runTest {
+        val w = World(this, tmp.root)
+        val a = w.phone("A")
+        val b = w.phone("B")
+        a.befriend(b)
+        w.net.start()
+        advanceTimeBy(30_000)
+        a.chat.zoneChanged("bar")
+        advanceTimeBy(5_000)
+        assertEquals("bar", b.friends.value.single().lastZone)
+
+        a.chat.removeFriend(b.nodeId)
+        advanceTimeBy(1_000)
+        b.friends.update { list -> list.map { it.copy(lastZone = "", lastZoneAt = 0) } }
+        a.chat.addFriend(b.chat.myCard())
+        b.radio.powerOff()
+        advanceTimeBy(1_000)
+        b.radio.powerOn()
+        advanceTimeBy(20_000)
+        assertEquals("bar", b.friends.value.single().lastZone)
     }
 
     @Test

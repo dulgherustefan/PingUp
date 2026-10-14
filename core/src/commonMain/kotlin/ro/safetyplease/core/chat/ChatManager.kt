@@ -55,6 +55,7 @@ import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.truncateUtf8
 import ro.safetyplease.core.venue.GeoPoint
+import kotlin.concurrent.Volatile
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -97,7 +98,8 @@ class ChatManager(
     /** When we last confirmed each (sender, msgId), so copies of one message don't each cost a DELIVERED flood. */
     private val confirmedAt = LinkedHashMap<Pair<Long, Long>, Long>()
 
-    /** Where this phone says it is, as the app last told us, and the zone each friend has been sent. */
+    /** Where this phone says it is, as the session last told us, and the zone each friend has been sent. */
+    @Volatile
     private var myZone = ""
     private val zoneTold = HashMap<Long, String>()
 
@@ -166,21 +168,33 @@ class ChatManager(
     fun myCard(): FriendCard = FriendCard(myNickname(), identity.box.publicKey, identity.sign.publicKey)
 
     /**
-     * Returns false for our own code. An existing friend only gets their nickname updated. Scanning the code of
-     * someone blocked is a decision to talk to them again. Either way our card goes to them, so they have us too.
+     * Returns false for our own code. An existing friend only gets their nickname updated, and counts as confirmed:
+     * the user scanned them. Scanning the code of someone blocked is a decision to talk to them again. Either way our
+     * card goes to them, so they have us too.
      */
     fun addFriend(card: FriendCard): Boolean {
         val nodeId = card.nodeId
         if (nodeId == identity.nodeId) return false
         unblock(nodeId)
-        val friend = Friend(nodeId, card.nickname, card.boxKey.toHex(), card.signKey.toHex(), clock.wallMs())
+        val known = isFriend(nodeId)
+        val friend = Friend(nodeId, card.nickname, card.boxKey.toHex(), card.signKey.toHex(), clock.wallMs(), confirmed = true)
         friends.update { list ->
-            if (list.any { it.nodeId == nodeId }) list.map { if (it.nodeId == nodeId) it.copy(nickname = card.nickname) else it }
+            if (list.any { it.nodeId == nodeId }) list.map { if (it.nodeId == nodeId) it.copy(nickname = card.nickname, confirmed = true) else it }
             else list + friend
         }
-        scope.launch { introduce(nodeId) }
+        scope.launch {
+            introduce(nodeId)
+            // one who added us before already has our card, so the zone opens there
+            if (known) announceZone()
+        }
         ping(nodeId)
         return true
+    }
+
+    /** The user knows this friend, who added us with our code: from now on they may learn our zone. */
+    fun confirmFriend(nodeId: Long) {
+        friends.update { list -> list.map { if (it.nodeId == nodeId && !it.confirmed) it.copy(confirmed = true) else it } }
+        scope.launch { announceZone() }
     }
 
     /** Our card, signed for [recipient], through the outbox like a message; it replaces an intro still waiting for them. */
@@ -204,6 +218,8 @@ class ChatManager(
                 outbox = data.outbox.filterNot { it.recipient == nodeId },
             )
         }
+        // the mesh context's own map; added again, they hear the zone afresh
+        scope.launch { zoneTold.remove(nodeId) }
     }
 
     /**
@@ -217,7 +233,6 @@ class ChatManager(
         removeFriend(nodeId)
         groups.update { list -> list.map { group -> group.copy(members = group.members.filterNot { it.nodeId == nodeId }) } }
         chat.update { data -> data.copy(outbox = data.outbox.filterNot { it.recipient == nodeId }) }
-        zoneTold.remove(nodeId)
     }
 
     fun unblock(nodeId: Long) {
@@ -250,8 +265,8 @@ class ChatManager(
     }
 
     /**
-     * The app's word that this phone is now in [zone] (empty: nowhere known). Friends hear it once each, straight from
-     * here, and not again until it changes or they ask: there is no timer.
+     * The session's word that this phone is now in [zone] (empty: nowhere known). Confirmed friends hear it once each,
+     * straight from here, and not again until it changes or they ask: there is no timer.
      */
     fun zoneChanged(zone: String) {
         scope.launch {
@@ -261,13 +276,21 @@ class ChatManager(
         }
     }
 
+    /** The zone as [zoneChanged] last set it. */
+    internal val zone: String get() = myZone
+
+    /** Only to friends the user confirmed: one who just scanned our code learns nothing of where we are by this. */
     private fun announceZone() {
         if (myZone.isEmpty() || !shareZone()) return
         for (friend in friends.value) {
-            if (zoneTold[friend.nodeId] == myZone) continue
+            if (!friend.confirmed || zoneTold[friend.nodeId] == myZone) continue
             if (sendDirect(friend.nodeId, Inner.ZoneUpdate(newId(), myZone))) zoneTold[friend.nodeId] = myZone
         }
     }
+
+    /** A share we started is consent for its recipients; otherwise the friend must be confirmed and the setting on. */
+    private fun mayTellZone(friend: Long): Boolean =
+        friend in shareTargets(clock.wallMs()) || (shareZone() && isConfirmed(friend))
 
     // --- positions (PROTOCOL.md, section 6.6) ---
 
@@ -452,15 +475,18 @@ class ChatManager(
 
     private fun answerWhereAreYou(friend: Long) {
         if (answerWithPosition(friend)) return
-        if (myZone.isNotEmpty() && shareZone()) sendDirect(friend, Inner.ZoneUpdate(newId(), myZone))
+        if (myZone.isNotEmpty() && mayTellZone(friend)) sendDirect(friend, Inner.ZoneUpdate(newId(), myZone))
     }
 
-    /** True when the question is dealt with: a position went, or one already went to this friend in the last minute. */
+    /**
+     * True when the question is dealt with: a position went, or one already went to this friend in the last minute. The
+     * automatic answer is only for a confirmed friend.
+     */
     private fun answerWithPosition(friend: Long): Boolean {
         val data = positions.value
         if (friend !in data.readers) return false
         val now = clock.wallMs()
-        val precision = shareTargets(now)[friend] ?: SharePrecision.APPROXIMATE.takeIf { data.autoAnswer } ?: return false
+        val precision = shareTargets(now)[friend] ?: SharePrecision.APPROXIMATE.takeIf { data.autoAnswer && isConfirmed(friend) } ?: return false
         if (precision == SharePrecision.ZONE) return false
         val fix = lastFix?.takeIf { now - it.timeMs < ANSWER_FIX_MAX_AGE_MS } ?: return false
         if (!answered.tryTake(friend, clock.monoMs())) return true
@@ -1275,6 +1301,8 @@ class ChatManager(
     // --- helpers ---
 
     private fun isFriend(nodeId: Long) = friends.value.any { it.nodeId == nodeId }
+
+    private fun isConfirmed(nodeId: Long) = friends.value.any { it.nodeId == nodeId && it.confirmed }
 
     /** A friend, or someone in a group with us: who may share a position with us. */
     private fun knows(nodeId: Long) = isFriend(nodeId) || groups.value.any { group -> group.members.any { it.nodeId == nodeId } }

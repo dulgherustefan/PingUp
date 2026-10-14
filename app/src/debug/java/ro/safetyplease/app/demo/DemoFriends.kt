@@ -88,7 +88,7 @@ object DemoFriends {
         val simulated = settings.simLat?.let { lat -> settings.simLon?.let { GeoPoint(lat, it) } }
         val center = center(c.venue, simulated)
         val friends = specs.mapIndexed { i, spec ->
-            Friend(ID_BASE + i, spec.nickname, c.crypto.boxKeyPair().publicKey.toHex(), c.crypto.signKeyPair().publicKey.toHex(), now)
+            Friend(ID_BASE + i, spec.nickname, c.crypto.boxKeyPair().publicKey.toHex(), c.crypto.signKeyPair().publicKey.toHex(), now, confirmed = true)
         }
         c.friends.update { list -> list.filterNot { isDemo(it.nodeId) } + friends }
         c.positions.update { positions(it, center, now, fresh) }

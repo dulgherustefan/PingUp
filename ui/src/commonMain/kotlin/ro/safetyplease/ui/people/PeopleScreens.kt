@@ -164,6 +164,7 @@ import ro.safetyplease.ui.resources.pos_title
 import ro.safetyplease.ui.resources.presence_never
 import ro.safetyplease.ui.resources.profile_added
 import ro.safetyplease.ui.resources.profile_block
+import ro.safetyplease.ui.resources.profile_confirm
 import ro.safetyplease.ui.resources.profile_created
 import ro.safetyplease.ui.resources.profile_last_seen
 import ro.safetyplease.ui.resources.profile_last_zone
@@ -173,6 +174,8 @@ import ro.safetyplease.ui.resources.profile_message
 import ro.safetyplease.ui.resources.profile_remove_friend
 import ro.safetyplease.ui.resources.profile_report
 import ro.safetyplease.ui.resources.profile_share_mine
+import ro.safetyplease.ui.resources.profile_unconfirmed
+import ro.safetyplease.ui.resources.profile_unconfirmed_text
 import ro.safetyplease.ui.resources.profile_where_are_you
 import ro.safetyplease.ui.resources.profile_where_asked
 import ro.safetyplease.ui.resources.remove
@@ -669,6 +672,20 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                     )
                 } else if (group != null) {
                     GroupRow(stringResource(Res.string.profile_created), value = dateText(group.createdAt), icon = Sym.Clock)
+                }
+            }
+            // added by scanning our code: nothing of where we are goes to them until the user says they know them
+            if (friend != null && !friend.confirmed) {
+                InsetGroup(Modifier.padding(top = 24.dp)) {
+                    GroupRow(
+                        stringResource(Res.string.profile_unconfirmed), subtitle = stringResource(Res.string.profile_unconfirmed_text),
+                        icon = Sym.Info,
+                    )
+                    GroupDivider()
+                    GroupRow(
+                        stringResource(Res.string.profile_confirm), icon = Sym.CheckCircle, tint = colors.accent,
+                        onClick = { vm.confirmFriend(friend) },
+                    )
                 }
             }
             if (friend != null) FriendLocation(vm, friend)

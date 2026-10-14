@@ -435,7 +435,7 @@
     <string name="privacy_sent_title">Ce pleacă din telefon</string>
     <string name="privacy_sent_text">Mesajele către prieteni sunt criptate cap-coadă: telefoanele prin care trec nu le pot citi. Când scanezi codul cuiva, telefonul lui primește numele tău și cheile tale publice, ca să te aibă și el în listă. Rapoartele sunt criptate pentru staff-ul evenimentului și sunt anonime dacă nu alegi altfel; ce scrii despre cum te recunoaștem vede doar staff-ul. Ca să se găsească între ele, telefoanele transmit prin Bluetooth un cod care se schimbă cam la un sfert de oră, iar celor cu care se conectează le spun un identificator tehnic făcut din cheia ta publică. Numele tău nu apare în ele.</string>
     <string name="privacy_location_title">Locația</string>
-    <string name="privacy_location_text">O folosim pe telefon ca să știm în ce zonă ești și ce e aproape. Coordonatele pleacă doar într-un raport sau la prietenii cu care alegi să le împarți, cum scrie mai jos. Prietenii află zona în care ești când se schimbă sau când te întreabă, cât timp e pornit „Spune prietenilor zona mea” (în Eu), iar o zonă trimisă într-un mesaj o văd cei din conversație. Aplicația nu îți urmărește locația în fundal decât cât timp o partajezi.</string>
+    <string name="privacy_location_text">O folosim pe telefon ca să știm în ce zonă ești și ce e aproape. Coordonatele pleacă doar într-un raport sau la prietenii cu care alegi să le împarți, cum scrie mai jos. Prietenii află zona în care ești când se schimbă sau când te întreabă, cât timp e pornit „Spune prietenilor zona mea” (în Eu); cine te-a adăugat doar scanându-ți codul o află abia după ce îl confirmi sau îi scanezi și tu codul, iar o zonă trimisă într-un mesaj o văd cei din conversație. Aplicația nu îți urmărește locația în fundal decât cât timp o partajezi.</string>
     <string name="privacy_sharing_title">Partajarea locației cu prietenii</string>
     <string name="privacy_sharing_text">E oprită până o pornești tu. Alegi fiecare prieten sau grup cu care o împarți, cât timp (15 minute, o oră, până la sfârșitul zilei de festival sau până o oprești) și cât de exact: poziția exactă, o zonă aproximativă de vreo 100 de metri sau doar zona. Poziția e criptată cap-coadă pentru prietenii aleși: telefoanele prin care trece și organizatorul nu o pot citi. Un prieten cu care o împarți poate atașa ultima poziție pe care i-ai trimis-o la un raport de persoană pierdută, care ajunge la echipa care caută. Telefonul unui prieten păstrează doar ultima ta poziție, cel mult 2 ore. O oprești oricând, din „Cine mă vede acum” sau, pe Android, din notificare, iar prietenul nu e anunțat. Tot în Eu poți porni răspunsul automat la „Unde ești?”: prietenii care te întreabă primesc atunci zona ta aproximativă.</string>
     <string name="privacy_camera_title">Camera</string>
@@ -954,6 +954,9 @@
     <string name="profile_where_asked">Cerere trimisă. Răspunsul apare aici dacă prietenul e în rază.</string>
     <string name="profile_block">Blochează</string>
     <string name="profile_report">Raportează la staff</string>
+    <string name="profile_unconfirmed">Te-a adăugat cu codul tău</string>
+    <string name="profile_unconfirmed_text">Nu îi spunem zona ta și nu îi răspundem singuri la „Unde ești?” până nu confirmi că îl cunoști.</string>
+    <string name="profile_confirm">Confirmă prietenul</string>
     <string name="report_contact_friend">Hărțuire prin aplicație de la %1$s.</string>
     <string name="report_contact_group">Hărțuire prin aplicație în grupul %1$s.</string>
     <string name="block_title">Blochezi pe %1$s?</string>

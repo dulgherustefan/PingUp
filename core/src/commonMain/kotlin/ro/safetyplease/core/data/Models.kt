@@ -1,6 +1,11 @@
 package ro.safetyplease.core.data
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import ro.safetyplease.core.position.SeenAt
 import ro.safetyplease.core.position.SharePlan
 import ro.safetyplease.core.util.toHex
@@ -77,7 +82,33 @@ data class Friend(
     /** The last zone the friend told us (or shared in a chat), and when it arrived here; empty until then. */
     val lastZone: String = "",
     val lastZoneAt: Long = 0,
+    /**
+     * The user chose them: scanned their code or confirmed them. One who only scanned ours (an intro) isn't, and learns
+     * where we are only from a share we start.
+     */
+    val confirmed: Boolean = false,
 )
+
+/**
+ * `friends.json` says whom the user chose since version 2 ([Friend.confirmed]). A friend from before is taken as chosen
+ * unless their conversation still holds the notice an intro leaves: then they scanned our code, not we theirs.
+ */
+object FriendsFile {
+    const val SCHEMA_VERSION = 2
+
+    fun migrate(fromVersion: Int, data: JsonElement, messages: List<ChatMessage>): JsonElement {
+        if (fromVersion >= 2 || data !is JsonArray) return data
+        val introduced = messages.filter { it.kind == MsgKind.SYSTEM && it.conversation == Conversations.friend(it.senderId) }
+            .mapTo(HashSet()) { it.senderId }
+        return JsonArray(
+            data.map { friend ->
+                val fields = friend as? JsonObject ?: return@map friend
+                val nodeId = (fields["nodeId"] as? JsonPrimitive)?.longOrNull ?: return@map friend
+                JsonObject(fields + ("confirmed" to JsonPrimitive(nodeId !in introduced)))
+            },
+        )
+    }
+}
 
 @Serializable
 enum class MsgKind {
