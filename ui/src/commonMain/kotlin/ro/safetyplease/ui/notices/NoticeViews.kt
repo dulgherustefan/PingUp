@@ -47,6 +47,7 @@ import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.common.BackHandler
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
@@ -156,6 +157,8 @@ private fun topicTint(topic: Int): Color = when (topic) {
 fun NoticeAlert(shown: ShownNotice, exercise: Boolean, onRead: () -> Unit) {
     val evacuation = shown.notice.level == NoticeLevel.EVACUATION
     val ink = if (evacuation) Color.White else Color.Black
+    // back reads it, as the button does, instead of moving the screens hidden under it
+    BackHandler(enabled = true, onBack = onRead)
     // it takes every touch, so nothing underneath is tapped by mistake
     Box(
         Modifier.fillMaxSize().background(if (evacuation) AppTheme.colors.alert else AppTheme.colors.orange)
