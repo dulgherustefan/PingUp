@@ -118,8 +118,9 @@ class IosApp {
         val refused = CBManager.authorization.let { it == CBManagerAuthorizationDenied || it == CBManagerAuthorizationRestricted }
         if (refused || !c.settings.value.meshEnabled) return
         if (mesh?.isActive == true) c.meshScope.launch { c.radio.retry() } else mesh = scope.launch { c.runMesh(active) }
-        // asks for the position the first time, then follows it
-        location.start()
+        // follows the position once the person allowed it; iOS asks on the screen that needs it, never at launch,
+        // as the onboarding promises
+        if (location.allowed()) location.start()
     }
 
     fun stopMesh() {
