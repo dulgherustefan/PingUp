@@ -150,6 +150,43 @@ class PositioningTest {
     }
 
     @Test
+    fun theRingHoldsTheRawFixAroundTheShownPoint() {
+        val clock = FakeClock()
+        val p = Positioning(clock)
+        p.onRaw(fix(clock, origin, 5f))
+        assertEquals(8f, p.fused.value!!.ringM, 1e-4f, "the first fix is shown where it is")
+        // standing still, a fix 6 m off: the shown point stays nearer the old ones, and the ring grows by the difference
+        clock.now += 1_000
+        val off = at(6.0, 0.0)
+        p.onRaw(fix(clock, off, 5f))
+        val fused = p.fused.value!!
+        val gap = distanceMeters(p.shownAt(), off)
+        assertTrue(gap > 0, "the filter smoothed it")
+        assertEquals(8f + gap, fused.ringM, 1e-4f)
+        assertTrue(distanceMeters(p.shownAt(), off) + 8f <= fused.ringM + 1e-4f, "the fix's own 95% circle is inside the ring")
+        assertFalse(fused.pdr)
+    }
+
+    @Test
+    fun stepsMarkThePositionAndAnUnknownAccuracyStaysUnknown() {
+        val clock = FakeClock()
+        val p = Positioning(clock)
+        p.onStep(Step(clock.now - 500, 0.7, 90.0))
+        p.onRaw(GeoFix(origin.lat, origin.lon, Accuracy.UNKNOWN, clock.now, 0f, mock = true))
+        assertTrue(p.position.value!!.mock, "a fix another app made up stays marked")
+        assertFalse(p.fused.value!!.accuracyKnown)
+        assertEquals(Accuracy.UNKNOWN_RING_M, p.fused.value!!.ringM, "wide, never none")
+        repeat(10) { p.onStep(Step(clock.now + 3_000 + it * 500L, 0.7, 90.0)) }
+        val stepped = p.fused.value!!
+        assertTrue(stepped.pdr, "moved by steps since the fix")
+        assertEquals(PositionMethod.GNSS, stepped.method, "the wire has no method for it")
+        assertFalse(stepped.accuracyKnown, "steps can't make an unknown accuracy exact")
+        assertTrue(stepped.fix.mock)
+        p.onRaw(fix(FakeClock(clock.now + 10_000), origin, 5f))
+        assertFalse(p.fused.value!!.pdr, "a fix again")
+    }
+
+    @Test
     fun stepsAreCountedOnlyWithTheSettingAndSomethingThatNeedsThem() {
         val p = Positioning(FakeClock())
         p.reportOpen(true)

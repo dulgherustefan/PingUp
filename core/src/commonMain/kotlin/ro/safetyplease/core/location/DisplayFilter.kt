@@ -9,7 +9,8 @@ import kotlin.math.hypot
  * Steadies the point drawn for "me": a constant-velocity Kalman filter in local metres, one axis at a time (the
  * noise is the same in every direction, so the axes don't mix). It only smooths the jitter between fixes: the shown
  * point never leaves the raw fix's accuracy circle, so a real move shows up at once, and the accuracy it reports is
- * the raw one, since a bias common to every fix (multipath by a stage) passes through any filter.
+ * the raw one, since a bias common to every fix (multipath by a stage) passes through any filter. A fix another app
+ * made up stays marked as such.
  *
  * Steps ([onStep]) move the state between fixes, for the dead reckoning that bridges a short GNSS gap.
  */
@@ -71,7 +72,7 @@ class DisplayFilter(private val accelerationNoise: Double = ACCELERATION_NOISE) 
             e.x = ze + (e.x - ze) * limit / off
             n.x = zn + (n.x - zn) * limit / off
         }
-        return shown(fix.accuracyM, fix.timeMs, fix.courseDeg).also { last = it }
+        return shown(fix.accuracyM, fix.timeMs, fix.courseDeg, fix.mock).also { last = it }
     }
 
     /**
@@ -86,12 +87,13 @@ class DisplayFilter(private val accelerationNoise: Double = ACCELERATION_NOISE) 
         e.pxx += STEP_VARIANCE
         n.pxx += STEP_VARIANCE
         lastMs = maxOf(lastMs, timeMs)
-        return shown(accuracyM, timeMs, last?.courseDeg).also { last = it }
+        val from = last
+        return shown(accuracyM, timeMs, from?.courseDeg, from?.mock == true).also { last = it }
     }
 
-    private fun shown(accuracyM: Float, timeMs: Long, course: Float?): GeoFix {
+    private fun shown(accuracyM: Float, timeMs: Long, course: Float?, mock: Boolean): GeoFix {
         val (lat, lon) = geo(east!!.x, north!!.x)
-        return GeoFix(lat, lon, accuracyM, timeMs, course)
+        return GeoFix(lat, lon, accuracyM, timeMs, course, mock)
     }
 
     private fun local(lat: Double, lon: Double): Pair<Double, Double> =
