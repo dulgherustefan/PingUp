@@ -741,15 +741,11 @@ open class PingUpSession(private val platform: AppPlatform) {
             while (true) {
                 val now = clock.wallMs()
                 val plan = planner.plan(me, data.staff, own, now, muted)
-                plan.stop.forEach { id ->
-                    notifications.cancelStaffAlert(id)
-                    alertSchedule.stopRepeat(id)
-                }
-                plan.post.forEach { post ->
-                    staffChain.post(post)
-                    alertSchedule.repeated(post)
-                }
-                // muted, nothing rings again; nor does an incident gone from the list
+                plan.stop.forEach(notifications::cancelStaffAlert)
+                plan.post.forEach { staffChain.post(it) }
+                // what rings again while the app sleeps follows: never muted, nor for an incident gone from the list
+                plan.stop.forEach { alertSchedule.stopRepeat(it) }
+                plan.post.forEach { alertSchedule.repeated(it) }
                 alertSchedule.keepRepeats(if (now < muted) emptySet() else data.staff.mapTo(HashSet()) { it.incidentId })
                 val next = plan.nextAt ?: break
                 delay(next - now)
