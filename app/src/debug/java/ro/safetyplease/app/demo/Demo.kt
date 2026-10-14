@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import ro.safetyplease.app.App
@@ -190,7 +191,7 @@ object Demo {
         c.points.update { it + seededPoints }
         c.heard.update { it + DemoScenario.anchors(c.venue, c.grid, now) }
         c.noticeTemplates.forTopic(NoticeTopic.HEAT).firstOrNull { it.level == HEAT_LEVEL }?.let {
-            c.notices.publish(it, emptyList(), "", HEAT_VALID_S)
+            runBlocking { c.notices.publish(it, emptyList(), "", HEAT_VALID_S) }
         }
         return true
     }
@@ -203,7 +204,7 @@ object Demo {
         c.points.update { board -> board.filterNot { (number, report) -> points[number] == report } }
         seededPoints = emptyMap()
         c.heard.update { it - DemoScenario.ANCHOR_PREFIXES.toSet() }
-        c.notices.cancel(NoticeTopic.HEAT)
+        runBlocking { c.notices.cancel(NoticeTopic.HEAT) }
         DemoFriends.remove(c)
     }
 

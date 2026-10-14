@@ -1,6 +1,7 @@
 package ro.safetyplease.core.control
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +20,7 @@ import ro.safetyplease.core.announce.ZoneSet
 import ro.safetyplease.core.announce.ZoneState
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.venue.Venue
+import kotlin.concurrent.Volatile
 
 /**
  * The console's map editor: the operator changes zones one by one, and the changes go out together as one map state
@@ -26,7 +28,7 @@ import ro.safetyplease.core.venue.Venue
  * never sooner than [MIN_GAP_MS] after the map state before, this console's or another's. Phones from before map states
  * show each one as a notice, so they stay rare. A map state that still closes something is signed again
  * [REFRESH_BEFORE_S] before it expires. Edits that couldn't be signed, the shift having lapsed, go out once it is renewed.
- * It runs only while [active] (the console's role).
+ * It runs only while [active] (the console's role), on [scope], the mesh's: the screen's calls are handed to it.
  */
 class MapEditor(
     private val scope: CoroutineScope,
@@ -37,9 +39,14 @@ class MapEditor(
 ) {
     private val pending = MutableStateFlow<Map<String, ZoneState>>(emptyMap())
 
-    // on the monotonic clock: the wall clock may jump
+    // on the monotonic clock: the wall clock may jump; written on the scope only, read by the screen too
+    @Volatile
     private var firstEditMono = 0L
+
+    @Volatile
     private var lastEditMono = 0L
+
+    @Volatile
     private var lastSentMono: Long? = null
 
     /** The zones changed here and not yet sent, by id. */
@@ -83,17 +90,21 @@ class MapEditor(
 
     fun set(zone: String, state: ZoneState) {
         if (!supported || venue.zone(zone) == null) return
-        edited()
-        val base = inForce().state(zone)
-        pending.update { if (state == base) it - zone else it + (zone to state) }
+        scope.launch {
+            edited()
+            val base = inForce().state(zone)
+            pending.update { if (state == base) it - zone else it + (zone to state) }
+        }
     }
 
     /** Opens every zone again: the closures, the crowds and the exit-only zones all end with the next map state. */
     fun openAll() {
         if (!supported) return
-        edited()
-        val base = inForce()
-        pending.value = venue.zones.filter { base.state(it.id) != ZoneState.OPEN }.associate { it.id to ZoneState.OPEN }
+        scope.launch {
+            edited()
+            val base = inForce()
+            pending.value = venue.zones.filter { base.state(it.id) != ZoneState.OPEN }.associate { it.id to ZoneState.OPEN }
+        }
     }
 
     private fun edited() {
@@ -113,7 +124,7 @@ class MapEditor(
      * Sends the edits now, without waiting: before an evacuation, so the phones pick the exits from the zones as they
      * are. False when they couldn't be signed.
      */
-    fun sendNow(): Boolean = flush()
+    suspend fun sendNow(): Boolean = scope.async { flush() }.await()
 
     /** The latest map state this phone took in, sent here or heard, on the monotonic clock; null for none. */
     private fun lastMapStateMono(nowMono: Long): Long? {
@@ -123,7 +134,7 @@ class MapEditor(
     }
 
     /** True once nothing is left to send. */
-    private fun flush(): Boolean {
+    private suspend fun flush(): Boolean {
         val edits = pending.value
         if (edits.isEmpty() || !supported) return true
         val base = inForce()
@@ -137,7 +148,7 @@ class MapEditor(
         return true
     }
 
-    private fun refresh() {
+    private suspend fun refresh() {
         if (!supported || !notices.canSign || pending.value.isNotEmpty()) return
         val nowSec = clock.wallMs() / 1000
         val held = notices.board.value.active(nowSec).firstOrNull { it.second.topic == NoticeTopic.MAP_STATE }?.second ?: return

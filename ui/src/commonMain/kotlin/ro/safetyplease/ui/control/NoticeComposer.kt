@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -29,9 +30,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.announce.Evacuations
+import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeExtras
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.announce.NoticeTemplate
@@ -105,6 +108,8 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     val withdrawnText = stringResource(Res.string.notice_withdrawn)
     val board by c.notices.board.collectAsStateWithLifecycle()
     val now = rememberNow()
+    val scope = rememberCoroutineScope()
+    var sending by remember { mutableStateOf(false) }
     var topic by rememberSaveable { mutableIntStateOf(NoticeTopic.ALERT) }
     // the parameters live with the template, so neither outlives the dialog
     var templateId by remember { mutableIntStateOf(0) }
@@ -115,11 +120,11 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     var minutes by rememberSaveable { mutableIntStateOf(60) }
     var confirm by remember { mutableStateOf(false) }
     var second by remember { mutableStateOf(false) }
-    var withdraw by remember { mutableStateOf<Int?>(null) }
+    var withdraw by remember { mutableStateOf<Notice?>(null) }
     val template = c.noticeTemplates.byId(templateId)?.takeIf { it.topic == topic }
     val evacuation = template?.let { it.topic == NoticeTopic.ALERT && it.level == NoticeLevel.EVACUATION } == true
     val ready = template != null && params.size == template.params.size && params.all { it.isNotBlank() } && c.notices.canSign &&
-        (!evacuation || plan != null)
+        (!evacuation || plan != null) && !sending
     val mapPending by c.mapEditor.edits.collectAsStateWithLifecycle()
 
     fun choose(t: NoticeTemplate) {
@@ -130,13 +135,18 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
 
     fun send() {
         val t = template ?: return
-        // one zone also goes in the zone field, which phones from before zone sets read
-        // the phones pick the exits from the zones as the console left them: the map state goes first
-        if (evacuation) c.mapEditor.sendNow()
-        val extras = if (evacuation) Evacuations.extras(vm.venue, plan?.id, zones) else NoticeExtras(zones = ZoneSet.target(vm.venue, zones))
-        val sent = extras?.let { c.notices.publish(t, params.map { it.trim() }, zones.singleOrNull().orEmpty(), minutes * 60L, it) }
-        vm.phone.toast(if (sent != null) sentText else notSentText, long = true)
-        if (sent != null) onDismiss()
+        val words = params.map { it.trim() }
+        sending = true
+        scope.launch {
+            // the phones pick the exits from the zones as the console left them: the map state goes first
+            if (evacuation) c.mapEditor.sendNow()
+            val extras = if (evacuation) Evacuations.extras(vm.venue, plan?.id, zones) else NoticeExtras(zones = ZoneSet.target(vm.venue, zones))
+            // one zone also goes in the zone field, which phones from before zone sets read
+            val sent = extras?.let { c.notices.publish(t, words, zones.singleOrNull().orEmpty(), minutes * 60L, it) }
+            sending = false
+            vm.phone.toast(if (sent != null) sentText else notSentText, long = true)
+            if (sent != null) onDismiss()
+        }
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -158,7 +168,7 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
                         GroupRow(
                             noticeTitle(notice), subtitle = noticeBody(c.noticeTemplates, vm.venue, notice, language),
                             trailing = {
-                                AppButton(stringResource(Res.string.notice_withdraw), { withdraw = notice.topic }, kind = ButtonKind.Danger, compact = true, enabled = c.notices.canSign)
+                                AppButton(stringResource(Res.string.notice_withdraw), { withdraw = notice }, kind = ButtonKind.Danger, compact = true, enabled = c.notices.canSign)
                             },
                         )
                     }
@@ -222,12 +232,12 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
         second = false
         send()
     }
-    withdraw?.let { t ->
+    withdraw?.let { notice ->
         ConfirmDialog(
-            stringResource(Res.string.notice_withdraw_title, noticeTitle(t, board.notices.firstOrNull { it.topic == t }?.notice()?.level ?: 0)),
+            stringResource(Res.string.notice_withdraw_title, noticeTitle(notice)),
             stringResource(Res.string.notice_withdraw_text), { withdraw = null }, stringResource(Res.string.notice_withdraw), destructive = true,
         ) {
-            vm.phone.toast(if (c.notices.cancel(t) != null) withdrawnText else notSentText, long = true)
+            scope.launch { vm.phone.toast(if (c.notices.withdraw(notice) != null) withdrawnText else notSentText, long = true) }
         }
     }
 }

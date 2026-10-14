@@ -17,8 +17,9 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
 
-class TestClock(private val scheduler: TestCoroutineScheduler) : Clock {
-    override fun wallMs(): Long = 1_760_000_000_000L + scheduler.currentTime
+/** The test's clock; [offsetMs] sets one phone's wall clock off from the others'. */
+class TestClock(private val scheduler: TestCoroutineScheduler, var offsetMs: Long = 0) : Clock {
+    override fun wallMs(): Long = 1_760_000_000_000L + scheduler.currentTime + offsetMs
     override fun monoMs(): Long = scheduler.currentTime
 }
 

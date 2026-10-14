@@ -39,6 +39,7 @@ import ro.safetyplease.core.announce.MapState
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeBoard
 import ro.safetyplease.core.announce.NoticeAlarm
+import ro.safetyplease.core.announce.NoticeOrder
 import ro.safetyplease.core.announce.NoticeReach
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.announce.Notices
@@ -419,9 +420,10 @@ open class PingUpSession(private val platform: AppPlatform) {
         meshScope, engine, keyChain,
         revokedStore,
         resends = { settings.value.role == Role.CONTROL },
-    ) {
+    ) { ids ->
         // a revoked shift signs nothing any more; the phone goes back to being a participant's
         if (keyChain.credential?.let { keyChain.status(it.certificate) == CertStatus.REVOKED } == true) leaveStaff()
+        notices.revoked(ids)
     }
 
     /** The texts the console's notices name: the pack's, or the app's own. */
@@ -472,7 +474,7 @@ open class PingUpSession(private val platform: AppPlatform) {
         modeFile("density.json"), modeFile("handover.json"), dataDir / "staff_chain.json", exportDir, foreground,
     )
 
-    /** The alerts that already sounded here, by topic: the seq of the last. */
+    /** The alarms that already sounded here, by slot ([NoticeOrder.slot]): the seq of the last. */
     private val sounded = mutableMapOf<Int, Long>()
 
     private fun whereabouts(): Whereabouts = NoticeReach.whereabouts(venue, settings.value, locationFix.value, clock.wallMs())
@@ -480,17 +482,21 @@ open class PingUpSession(private val platform: AppPlatform) {
     /**
      * The console logs every notice it sends or hears; a phone that shows them notifies, unless it signed the notice or
      * the notice has no words (the map state). An alarm sounds only where the notice is for this phone's zone. An
-     * evacuation for this phone's zone, and its withdrawal, come through even with the notices turned off.
+     * evacuation for this phone's zone, and its withdrawal, come through even with the notices turned off. A notice that
+     * [renews] others (signed again, or an evacuation that takes in one this phone already followed) only updates the
+     * words, and counts as sounded where they did.
      */
-    internal fun onNotice(notice: Notice, own: Boolean) {
+    internal fun onNotice(notice: Notice, own: Boolean, renews: Set<Long> = emptySet()) {
         val title = platform.noticeTitle(notice)
         val text = platform.noticeBody(noticeTemplates, venue, notice)
         if (settings.value.role == Role.CONTROL) console.notice(notice, if (notice.cancelled) title else "$title: $text", own)
         if (own) return
-        val alarm = NoticeReach.alarmAt(notice, venue, whereabouts(), exercise)
+        val slot = NoticeOrder.slot(notice)
+        if (sounded[slot] in renews) sounded[slot] = notice.seq
+        val alarm = if (renews.isNotEmpty()) NoticeAlarm.NONE else NoticeReach.alarmAt(notice, venue, whereabouts(), exercise)
         if (!NoticeReach.posts(notice, alarm, showsNotices(settings.value), showsEvacuation(settings.value))) return
         notifications.notice(notice, title, text, alarm)
-        if (alarm != NoticeAlarm.NONE) sounded[notice.topic] = notice.seq
+        if (alarm != NoticeAlarm.NONE) sounded[slot] = notice.seq
     }
 
     /**
@@ -502,11 +508,12 @@ open class PingUpSession(private val platform: AppPlatform) {
         if (!showsNotices(s) && !showsEvacuation(s)) return
         val here = whereabouts()
         for ((held, notice) in notices.board.value.active(clock.wallMs() / 1000)) {
-            if (held.own || held.alerted || !NoticeReach.isEvacuation(notice) || sounded[notice.topic] == notice.seq) continue
+            val slot = NoticeOrder.slot(notice)
+            if (held.own || held.alerted || !NoticeReach.isEvacuation(notice) || sounded[slot] == notice.seq) continue
             val alarm = NoticeReach.alarmAt(notice, venue, here, exercise)
             if (alarm == NoticeAlarm.NONE) continue
             notifications.notice(notice, platform.noticeTitle(notice), platform.noticeBody(noticeTemplates, venue, notice), alarm)
-            sounded[notice.topic] = notice.seq
+            sounded[slot] = notice.seq
         }
     }
 

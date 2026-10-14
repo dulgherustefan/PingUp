@@ -13,6 +13,7 @@ import platform.UserNotifications.UNNotificationSound
 import platform.UserNotifications.UNUserNotificationCenter
 import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeAlarm
+import ro.safetyplease.core.announce.NoticeOrder
 import ro.safetyplease.core.data.ChatMessage
 import ro.safetyplease.core.data.MsgKind
 import ro.safetyplease.core.data.MyReport
@@ -193,11 +194,12 @@ class IosNotifications(private val venue: Venue, private val exercise: Boolean, 
     override fun cancelConversation(conversation: String) = cancel(chat(conversation))
 
     /**
-     * A notice from the organiser, one per topic: a newer one replaces it, a withdrawn one takes it away. A pause or an
-     * evacuation for this phone breaks through Focus; elsewhere, or in an exercise, it doesn't.
+     * A notice from the organiser, one per slot (a topic; the evacuations apart from the other alerts): a newer one
+     * replaces it, a withdrawn one takes it away. A pause or an evacuation for this phone breaks through Focus;
+     * elsewhere, or in an exercise, it doesn't.
      */
     override fun notice(notice: Notice, title: String, text: String, alarm: NoticeAlarm) {
-        val id = "notice-${notice.topic}"
+        val id = "notice-${NoticeOrder.slot(notice)}"
         if (notice.cancelled) return cancel(id)
         later { post(id, marked(title), text, OpenTarget.HOME, if (alarm == NoticeAlarm.LOUD) Level.TIME_SENSITIVE else Level.ACTIVE) }
     }

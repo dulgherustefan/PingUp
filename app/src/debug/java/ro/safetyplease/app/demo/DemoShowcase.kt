@@ -1,6 +1,7 @@
 package ro.safetyplease.app.demo
 
 import android.content.Context
+import kotlinx.coroutines.runBlocking
 import ro.safetyplease.app.AppContainer
 import ro.safetyplease.core.announce.Evacuations
 import ro.safetyplease.core.announce.NoticeLevel
@@ -111,14 +112,15 @@ object DemoShowcase {
         if (c.settings.value.role != Role.CONTROL && !Demo.becomeControl(context, c)) {
             return "the demo exercise refused the console's shift"
         }
-        c.notices.publishMapState(states(c.venue, zones), VALID_S) ?: return "the map state was not signed"
+        runBlocking { c.notices.publishMapState(states(c.venue, zones), VALID_S) } ?: return "the map state was not signed"
         if (evacuate) {
             val template = c.noticeTemplates.forTopic(NoticeTopic.ALERT).filter { it.level == NoticeLevel.EVACUATION }.minByOrNull { it.params.size }
                 ?: return "no evacuation template"
             val extras = Evacuations.extras(c.venue, c.venue.evacuation.firstOrNull()?.id, setOf(zones.evacuated)) ?: return "no usable plan"
-            c.notices.publish(template, template.params.map { "EXERCIȚIU" }, zones.evacuated, VALID_S, extras) ?: return "the evacuation was not signed"
+            runBlocking { c.notices.publish(template, template.params.map { "EXERCIȚIU" }, zones.evacuated, VALID_S, extras) }
+                ?: return "the evacuation was not signed"
         } else {
-            c.notices.cancel(NoticeTopic.ALERT)
+            runBlocking { c.notices.cancel(NoticeTopic.ALERT) }
         }
         if (!Demo.becomeStaff(context, c, TEAM, zones.evacuated, lead = true)) return "the demo exercise refused the team's shift"
 
@@ -148,8 +150,10 @@ object DemoShowcase {
     /** Takes back what [seed] put on the phone: the console's notices, friends, group, alerts and simulated position. */
     fun clear(context: Context, c: AppContainer) {
         if (c.exercise && (c.settings.value.role == Role.CONTROL || Demo.becomeControl(context, c))) {
-            c.notices.cancel(NoticeTopic.ALERT)
-            c.notices.cancel(NoticeTopic.MAP_STATE)
+            runBlocking {
+                c.notices.cancel(NoticeTopic.ALERT)
+                c.notices.cancel(NoticeTopic.MAP_STATE)
+            }
         }
         c.incidentStore.update { data -> data.copy(staff = data.staff.filterNot { it.incidentId == incidentId }) }
         c.regasire.alerts.value.filter { DemoFriends.isDemo(it.sender) }.forEach(c.regasire::dismiss)

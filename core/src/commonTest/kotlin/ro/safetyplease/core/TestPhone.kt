@@ -98,7 +98,7 @@ class TestPhone(
     val name: String,
     scope: TestScope,
     net: SimNet,
-    clock: TestClock,
+    val clock: TestClock,
     dir: Path,
     event: TestEvent,
     seed: Long,
@@ -170,7 +170,7 @@ class TestPhone(
     val revocations = Revocations(
         bg, engine, keyChain, Revocations.store(dir / "$name-revocations.json", bg),
         resends = { false },
-    )
+    ) { notices.revoked(it) }
 
     /** The console's notices; a phone with a control shift signs them, one that [resendsNotices] sends them again. */
     var resendsNotices = false
