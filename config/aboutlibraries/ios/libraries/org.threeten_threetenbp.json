@@ -1,0 +1,9 @@
+{
+  "uniqueId": "org.threeten:threetenbp",
+  "name": "ThreeTen backport",
+  "description": "Date and time code that kotlinx-datetime derives from.",
+  "website": "https://www.threeten.org/threetenbp/",
+  "licenses": [
+    "threetenbp-bsd"
+  ]
+}

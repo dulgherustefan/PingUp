@@ -1,4 +1,6 @@
 # PingUp
+*In English: [summary below](#english).*
+
 O aplicație pentru Android și iPhone pentru raportarea incidentelor și mesajelor, care merge fără internet, fără date mobile, fără Wi-Fi, fără server.
 Ideea de la care am pornit:  In timpul unui festival sau a unui eveniment aglomerat, trimiterea mesajelor este aproape imposibila din cauza lipsei de semnal.
 
@@ -123,6 +125,30 @@ Copyright © 2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, 
 - **Numele „Ping Up”, logo-ul și mascota** nu intră sub aceste licențe: [TRADEMARKS.md](TRADEMARKS.md). O versiune modificată are alt nume și alt logo.
 - **Ce e făcut de alții** își păstrează licența: fonturile Inter și Noto Sans (OFL-1.1), iconițele Phosphor și cele ale hărții, desenate de Mapzen (MIT), datele hărții, de la OpenStreetMap (ODbL-1.0), scripturile Gradle (Apache-2.0) și bibliotecile din Gradle.
 
-Licența fiecărui fișier e în [REUSE.toml](REUSE.toml), iar textele licențelor în [LICENSES/](LICENSES). Pentru alte condiții, de exemplu Ping Up într-o aplicație care nu e open source, scrie-ne: contactul e în [PRIVACY.md](PRIVACY.md).
+Licența fiecărui fișier e în [REUSE.toml](REUSE.toml), iar textele licențelor în [LICENSES/](LICENSES). În aplicație, „Eu › Licențe open source” arată licența Ping Up și tot ce folosește, cu textul fiecărei licențe; listele le rescrie `./gradlew exportLicenses`. Pentru alte condiții, de exemplu Ping Up într-o aplicație care nu e open source, scrie-ne: contactul e în [PRIVACY.md](PRIVACY.md).
 
 Ping Up nu e un serviciu de urgență și nu înlocuiește 112. E oferit fără nicio garanție (GPL, secțiunile 15 și 16).
+
+## English
+
+**Ping Up is a free Android and iPhone app for festivals and crowded events that keeps messages and safety reports moving when the mobile network fails. It needs no internet, no servers and no accounts.**
+
+Phones connect to each other over Bluetooth Low Energy and form a mesh: a message hops from phone to phone until it reaches its recipient, and a phone that is out of range gets it when it comes back. Everything personal is end-to-end encrypted with libsodium.
+
+**What it does**
+- **Incident reports to the festival staff** in two taps (category, then send), with optional severity, zone and description. The reporter follows the state: on its way, reached the staff, taken, resolved.
+- **Staff roles without a server:** shift certificates signed by the organiser's keys, a control console for the control room, and fixed anchors that relay and keep messages.
+- **Chat with friends**, added by scanning a QR code once, and groups of up to 8.
+- **An offline map** of the event's zones and landmarks; on Android, an OpenStreetMap base map drawn with MapLibre.
+- **Location only by choice:** in a report, or shared with chosen friends for a set time.
+- **Offline first-aid sheets and information pages**, in Romanian and English.
+
+**Status:** Android releases are on [GitHub Releases](https://github.com/dulgherustefan/PingUp/releases) and [ping-up.org](https://ping-up.org) (latest v0.4.0). The iPhone app shares the same code and runs on the simulator; the mesh still needs testing on real phones and in the field.
+
+**Build:** with JDK 21 (or Android Studio's), `./gradlew assembleDebug test` builds the Android app and runs the tests. On a Mac with Xcode 26 or newer, `brew install xcodegen`, then `cd iosApp && xcodegen && open PingUp.xcodeproj`; `./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test` runs the tests on iOS.
+
+**Code:** `core/` holds the protocol, the mesh, the cryptography, chat and incidents in shared Kotlin; `ui/` holds the screens (Compose Multiplatform) for both phones; `app/` is the Android app and `iosApp/` the iPhone one. The wire protocol, with golden test vectors for other implementations, is specified in [PROTOCOL.md](PROTOCOL.md).
+
+**Licence:** the code is under [GPL-3.0-or-later](LICENSE); the documentation, the protocol and the texts in the app are under [CC BY 4.0](LICENSES/CC-BY-4.0.txt); the name, logo and mascot are not licensed ([TRADEMARKS.md](TRADEMARKS.md)). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Privacy: [PRIVACY.md](PRIVACY.md).
+
+Ping Up is not an emergency service and does not replace 112.

@@ -1,0 +1,9 @@
+{
+  "uniqueId": "org.libpng:libpng",
+  "name": "libpng",
+  "description": "PNG images, inside Skia.",
+  "website": "http://www.libpng.org",
+  "licenses": [
+    "libpng"
+  ]
+}

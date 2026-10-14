@@ -1,0 +1,9 @@
+{
+  "uniqueId": "org.unicode:icu",
+  "name": "ICU",
+  "description": "Unicode text handling, inside Skia.",
+  "website": "https://icu.unicode.org",
+  "licenses": [
+    "icu-unicode"
+  ]
+}

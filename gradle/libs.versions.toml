@@ -25,6 +25,8 @@ navigationEvent = "1.1.0"
 qrcode = "4.5.0"
 # Lifecycle for Compose Multiplatform, the same release as androidx's lifecycle above
 lifecycleMultiplatform = "2.11.0"
+# the Gradle plugin that writes the open source licences lists (a build tool only: the app reads the JSON itself)
+aboutLibraries = "15.2.0"
 
 [libraries]
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -72,3 +74,4 @@ android-kmp-library = { id = "com.android.kotlin.multiplatform.library", version
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+aboutlibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "aboutLibraries" }

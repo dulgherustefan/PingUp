@@ -9,6 +9,7 @@ Mulțumim că vrei să ajuți la Ping Up. Pe scurt:
 3. Înainte, rulează ce rulează și CI-ul: `./gradlew assembleDebug test lint` și, pe un Mac, `./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test` (vezi „Cum rulezi proiectul” în README).
 4. Mesajele commiturilor sunt scurte, în engleză, cu literă mică, și spun ce face schimbarea.
 5. Nu pune în git chei, coduri de staff sau date personale.
+6. Dacă adaugi sau schimbi o dependență, rulează `./gradlew exportLicenses`: rescrie listele din ecranul „Licențe open source” (CI-ul verifică). Ce nu vede Gradle (fonturi, iconițe, date, cod nativ) se adaugă în `config/aboutlibraries`.
 
 Codul e sub [GPL-3.0-or-later](LICENSE), documentația sub [CC BY 4.0](LICENSES/CC-BY-4.0.txt) (vezi „Licență” în README). Numele, logo-ul și mascota: [TRADEMARKS.md](TRADEMARKS.md).
 
@@ -36,6 +37,7 @@ Thank you for wanting to help with Ping Up. In short:
 3. Before that, run what CI runs: `./gradlew assembleDebug test lint` and, on a Mac, `./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test` (see "Cum rulezi proiectul" in the README).
 4. Commit messages are short, in English, lowercase, and say what the change does.
 5. Don't put keys, staff codes or personal data in git.
+6. If you add or change a dependency, run `./gradlew exportLicenses`: it rewrites the lists of the "Open source licences" screen (CI checks it). What Gradle can't see (fonts, icons, data, native code) goes in `config/aboutlibraries`.
 
 The code is under [GPL-3.0-or-later](LICENSE), the documentation under [CC BY 4.0](LICENSES/CC-BY-4.0.txt) (see "Licență" in the README). The name, the logo and the mascot: [TRADEMARKS.md](TRADEMARKS.md).
 

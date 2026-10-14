@@ -1,0 +1,9 @@
+{
+  "uniqueId": "org.webmproject:libwebp",
+  "name": "libwebp",
+  "description": "WebP images, inside Skia.",
+  "website": "https://developers.google.com/speed/webp",
+  "licenses": [
+    "libwebp-bsd"
+  ]
+}

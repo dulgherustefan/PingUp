@@ -433,6 +433,12 @@
     <string name="me_version">Versiune</string>
     <string name="me_privacy">Confidențialitate</string>
     <string name="privacy_title">Politica de confidențialitate</string>
+    <string name="me_licenses">Licențe open source</string>
+    <string name="licenses_intro">Ping Up e software liber: codul lui e sub GPL-3.0-or-later. Îl poți folosi, studia, modifica și distribui; o versiune modificată pe care o distribui rămâne tot sub GPL, cu codul ei sursă. Textele din aplicație sunt sub CC BY 4.0. Numele, logo-ul și mascota nu sunt sub aceste licențe. Ping Up vine fără nicio garanție.</string>
+    <string name="licenses_source">Codul sursă: github.com/dulgherustefan/PingUp</string>
+    <string name="licenses_copyright">Copyright © 2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver</string>
+    <string name="licenses_components">Ce folosește Ping Up</string>
+    <string name="licenses_version">Versiunea %1$s</string>
     <string name="privacy_intro">Ping Up nu are server și nu are conturi. Ce faci în aplicație rămâne pe telefonul tău sau pleacă, criptat, spre telefoanele din jur. Nouă nu ne ajunge nimic.</string>
     <string name="privacy_kept_title">Ce rămâne pe telefon</string>
     <string name="privacy_kept_text">Numele tău, prietenii (numele, cheile lor publice și ultima zonă pe care ți-au spus-o), mesajele, rapoartele, setările și metricile pilotului. Cheia ta de criptare e protejată de sistemul telefonului: Android Keystore pe Android, Keychain pe iPhone. Aplicația nu face copii de rezervă în cloud.</string>
@@ -1038,7 +1044,7 @@
     <string name="map_quick_shade">Umbră</string>
     <string name="map_about">Despre hartă</string>
     <string name="map_about_subtitle">© OpenStreetMap și licențe</string>
-    <string name="map_about_text">Harta de bază: © OpenStreetMap contributors, date sub Open Database License (ODbL 1.0), prin Protomaps. Fonturile Noto Sans: SIL Open Font License 1.1. Afișarea hărții: MapLibre Native, licență BSD-2-Clause. Zonele, punctele și grila sunt ale organizatorului.</string>
+    <string name="map_about_text">Harta de bază: © OpenStreetMap contributors, date sub Open Database License (ODbL 1.0), prin Protomaps. Fonturile Noto Sans: SIL Open Font License 1.1. Iconițele locurilor: Mapzen, licență MIT. Afișarea hărții: MapLibre Native, licență BSD-2-Clause. Zonele, punctele și grila sunt ale organizatorului. Toate licențele: Eu › Licențe open source.</string>
     <string name="me_notices">Anunțurile organizatorilor</string>
     <string name="me_notices_text">Alerte de vreme, căldură și schimbări de program sau transport, chiar fără semnal. Evacuările pentru zona ta apar mereu, chiar și cu anunțurile oprite.</string>
     <string name="notice_composer_title">Anunț</string>

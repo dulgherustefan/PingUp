@@ -119,6 +119,7 @@ import ro.safetyplease.ui.resources.me_ping_auto
 import ro.safetyplease.ui.resources.me_ping_auto_text
 import ro.safetyplease.ui.resources.me_ping_sound
 import ro.safetyplease.ui.resources.me_ping_white
+import ro.safetyplease.ui.resources.me_licenses
 import ro.safetyplease.ui.resources.me_privacy
 import ro.safetyplease.ui.resources.me_role_lead
 import ro.safetyplease.ui.resources.me_role_lead_text
@@ -352,6 +353,8 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
                 InsetGroup(Modifier.padding(bottom = 24.dp)) {
                     GroupRow(stringResource(Res.string.me_privacy), icon = Sym.Hidden, chevron = true, onClick = { vm.open(Dest.Privacy) })
+                    GroupDivider()
+                    GroupRow(stringResource(Res.string.me_licenses), icon = Sym.Notes, chevron = true, onClick = { vm.open(Dest.Licenses) })
                     GroupDivider()
                     GroupRow(
                         stringResource(Res.string.me_version), icon = Sym.Info,

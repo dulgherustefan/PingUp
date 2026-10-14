@@ -1,0 +1,9 @@
+{
+  "uniqueId": "org.openstreetmap:data",
+  "name": "OpenStreetMap",
+  "description": "The base map: © OpenStreetMap contributors. It contains information from OpenStreetMap, which is made available here under the Open Database License (ODbL), cut from a Protomaps daily build. https://www.openstreetmap.org/copyright",
+  "website": "https://www.openstreetmap.org/copyright",
+  "licenses": [
+    "osm-odbl"
+  ]
+}

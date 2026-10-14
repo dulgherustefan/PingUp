@@ -1,0 +1,6 @@
+{
+  "uniqueId": "org.jetbrains.kotlinx:kotlinx-serialization-core",
+  "name": "kotlinx.serialization",
+  "description": "NOTICE (Apache License 2.0, section 4 d):\nkotlinx.serialization library.\nCopyright 2017-2019 JetBrains s.r.o and respective authors and developers",
+  "website": "https://github.com/Kotlin/kotlinx.serialization"
+}

@@ -1,0 +1,9 @@
+{
+  "uniqueId": "com.google:piex",
+  "name": "piex",
+  "description": "Preview images in RAW photos, inside Skia. Copyright 2015 Google Inc.",
+  "website": "https://github.com/google/piex",
+  "licenses": [
+    "Apache-2.0"
+  ]
+}

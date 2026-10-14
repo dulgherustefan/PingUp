@@ -1,0 +1,6 @@
+{
+  "uniqueId": "io.github.g0dkar:qrcode-kotlin",
+  "name": "qrcode-kotlin",
+  "description": "QR codes drawn in the app. Based on the QR Code generator by Kazuhiko Arase, Copyright (c) 2009 Kazuhiko Arase, MIT License.",
+  "website": "https://github.com/g0dkar/qrcode-kotlin"
+}

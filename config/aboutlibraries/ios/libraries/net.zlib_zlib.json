@@ -1,0 +1,9 @@
+{
+  "uniqueId": "net.zlib:zlib",
+  "name": "zlib",
+  "description": "Compression, inside Skia.",
+  "website": "https://zlib.net",
+  "licenses": [
+    "zlib"
+  ]
+}

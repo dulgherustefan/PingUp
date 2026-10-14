@@ -1,0 +1,9 @@
+{
+  "uniqueId": "org.sourceware:libffi",
+  "name": "libffi",
+  "description": "Inside JNA's native library, which lazysodium-android uses to call libsodium.",
+  "website": "https://sourceware.org/libffi/",
+  "licenses": [
+    "libffi-mit"
+  ]
+}

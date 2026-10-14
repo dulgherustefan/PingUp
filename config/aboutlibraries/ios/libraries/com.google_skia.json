@@ -1,0 +1,9 @@
+{
+  "uniqueId": "com.google:skia",
+  "name": "Skia",
+  "description": "The 2D graphics library inside Skiko, with the libraries below linked into it.",
+  "website": "https://skia.org",
+  "licenses": [
+    "skia-bsd"
+  ]
+}

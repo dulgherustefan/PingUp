@@ -1,0 +1,9 @@
+{
+  "uniqueId": "com.adobe:dng-sdk",
+  "name": "DNG SDK",
+  "description": "This product includes DNG technology under license by Adobe Systems Incorporated. Inside Skia.",
+  "website": "https://helpx.adobe.com/camera-raw/digital-negative.html",
+  "licenses": [
+    "dng-sdk"
+  ]
+}

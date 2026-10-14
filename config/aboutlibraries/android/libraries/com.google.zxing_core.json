@@ -1,0 +1,6 @@
+{
+  "uniqueId": "com.google.zxing:core",
+  "name": "ZXing Core",
+  "description": "Reads the QR codes the camera sees.\n\nNOTICE (Apache License 2.0, section 4 d):\nBarcode4J\nCopyright 2002-2010 Jeremias Märki\nCopyright 2005-2006 Dietmar Bürkle\nPortions of this software were contributed under section 5 of the Apache License. Contributors are listed under: http://barcode4j.sourceforge.net/contributors.html",
+  "website": "https://github.com/zxing/zxing"
+}

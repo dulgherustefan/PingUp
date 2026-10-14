@@ -1,0 +1,6 @@
+{
+  "uniqueId": "org.jetbrains.kotlinx:kotlinx-coroutines-core",
+  "name": "kotlinx.coroutines",
+  "description": "NOTICE (Apache License 2.0, section 4 d):\nkotlinx.coroutines library.\nCopyright 2016-2025 JetBrains s.r.o and contributors",
+  "website": "https://github.com/Kotlin/kotlinx.coroutines"
+}

@@ -1,0 +1,9 @@
+{
+  "uniqueId": "tangrams:icons",
+  "name": "Map icons",
+  "description": "The icons of the map's places, from protomaps/basemaps-assets, drawn from Mapzen's tangrams/icons.",
+  "website": "https://github.com/tangrams/icons",
+  "licenses": [
+    "mapzen-mit"
+  ]
+}
