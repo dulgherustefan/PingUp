@@ -135,7 +135,8 @@ class PositionSharingTest {
         assertTrue(b.positions.value.records.isEmpty(), "the exact point goes at once, not when the group's share ends")
         advanceTimeBy(20_000)
         val seen = b.positions.value.records.single()
-        assertEquals(box.toLatLon(576, 1216), GeoPoint(seen.lat, seen.lon), "the group's share goes on, at its precision")
+        val cell = a.positionFrame.point(here.lat, here.lon, approximate = true) as PositionPoint.Absolute
+        assertEquals(GeoPoint(cell.lat, cell.lon), GeoPoint(seen.lat, seen.lon), "the group's share goes on, at its precision")
         assertEquals(SharePrecision.APPROXIMATE, b.positions.value.sessionOf(a.nodeId, w.clock.wallMs())?.precision)
         assertEquals(1, c.positions.value.records.size, "C, who had only the group's, sees no change")
     }
