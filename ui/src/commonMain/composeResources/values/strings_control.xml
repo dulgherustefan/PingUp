@@ -22,6 +22,16 @@
     <string name="control_plan_exits">Ieșiri: %1$s</string>
     <string name="control_plan_rejected">Nu trec verificarea și nu pot fi pornite: %1$s</string>
     <string name="control_map_before_evacuation">Schimbările de zone încă netrimise pleacă înaintea evacuării.</string>
+    <string name="notice_alert_keeps_evacuation">Evacuarea în vigoare rămâne: acest anunț nu o oprește. Telefoanele cu versiuni mai vechi ale aplicației păstrează doar evacuarea și îl vor arăta abia după ce o retragi.</string>
+    <string name="notice_evacuation_joins">Evacuarea în vigoare (%1$s) rămâne. Cea nouă o cuprinde: merge pentru %2$s, cu planul ales, și ține cel puțin cât ea.</string>
+    <string name="notice_withdraw_evacuations">Evacuarea se oprește în toate zonele în care e în vigoare. Spune și pe stație, la scenă și pe ecrane.</string>
+    <string name="notice_held_none">Niciun telefon din jur nu l-a confirmat încă.</string>
+    <plurals name="notice_held_around">
+        <item quantity="one">Îl are un telefon din jur</item>
+        <item quantity="few">Îl au %1$d telefoane din jur</item>
+        <item quantity="other">Îl au %1$d de telefoane din jur</item>
+    </plurals>
+    <string name="notice_not_taken">Anunțul nu a plecat: telefonul ține deja unul mai nou pe același subiect, de la altă consolă. Încearcă din nou peste un minut.</string>
     <string name="control_confirm_zones">Zonele: %1$s</string>
     <string name="control_confirm_plan">Planul: %1$s</string>
     <string name="control_body_zones">În %1$s: %2$s</string>
