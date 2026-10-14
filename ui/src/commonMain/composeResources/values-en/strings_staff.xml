@@ -114,9 +114,9 @@
     <string name="mandown_text">The phone felt a fall and then no movement.</string>
     <string name="mandown_countdown">With no answer in %1$d s, the console gets “Staff in danger” with your position.</string>
     <string name="mandown_ok">I’m OK</string>
-    <string name="mandown_notification">Tap to answer. With no answer, the console gets the alert.</string>
+    <string name="mandown_notification">Tap “I’m OK” if you don’t need help. With no answer, the console gets the alert.</string>
     <string name="mandown_setting">Man down</string>
-    <string name="mandown_setting_text">After a fall followed by no movement, the phone asks “Are you OK?” for 30 seconds. With no answer, it sends “Staff in danger” with the last position. With notifications off it asks only while the app is open; otherwise it sends nothing.</string>
+    <string name="mandown_setting_text">After a fall followed by no movement, the phone asks “Are you OK?” for one minute. You can answer “I’m OK” from the notification too, without unlocking the phone. With no answer, it sends “Staff in danger” with the last position. With notifications off it asks only while the app is open; otherwise it sends nothing.</string>
     <string name="responder_title">Unconscious or not breathing</string>
     <string name="responder_distance">%1$d m from you</string>
     <string name="responder_zone">In %1$s</string>

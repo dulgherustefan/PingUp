@@ -397,17 +397,24 @@ class Notifier(private val context: Context, private val venue: Venue, private v
     }
 
     /**
-     * "Ești OK?": the alarm sound again and again until an answer or [untilMs]; tapping it opens the question. In an
-     * exercise it neither takes over the screen nor rings as an alarm. False when notifications aren't allowed.
+     * "Ești OK?": the alarm sound again and again until an answer or [untilMs]; tapping it opens the question, and its
+     * "Sunt OK" answers right from the lock screen. In an exercise it neither takes over the screen nor rings as an
+     * alarm. False when notifications aren't allowed.
      */
     override fun manDownCheck(untilMs: Long): Boolean {
         if (!canPost() || !manager.areNotificationsEnabled()) return false
         val open = open(MainActivity.OPEN_HOME, RequestCodes.MAN_DOWN)
+        val ok = PendingIntent.getBroadcast(
+            context, RequestCodes.MAN_DOWN_OK, ManDownReceiver.intent(context), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         val builder = NotificationCompat.Builder(context, if (exercise) CHANNEL_VIBRATE else CHANNEL_ALARM)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(marked(context.getString(R.string.mandown_title)))
             .setContentText(context.getString(R.string.mandown_notification))
             .setContentIntent(open)
+            .addAction(NotificationCompat.Action.Builder(0, context.getString(R.string.mandown_ok), ok).setAuthenticationRequired(false).build())
+            // the question and its answer show on the lock screen even where the person hides notification contents
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setTimeoutAfter((untilMs - System.currentTimeMillis()).coerceAtLeast(1_000))
@@ -537,7 +544,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         private const val CHANNEL_SHARING = "sharing_reminder"
         private const val SHARING_REMINDER_ID = 3
         private const val CHANNEL_PROGRAM = "program"
-        private const val MAN_DOWN_ID = 4
+        internal const val MAN_DOWN_ID = 4
         private const val CHECKIN_ID = 5
         private const val LOCATION_112_ID = 6
         private const val CHANNEL_112 = "card112"

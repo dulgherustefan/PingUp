@@ -158,7 +158,8 @@ class ManDownWatch {
     }
 
     companion object {
-        const val ASK_MS = 30_000L
+        /** Time to find the phone in a pocket, in the noise, and answer, from the notification or the app. */
+        const val ASK_MS = 60_000L
         const val REST_AFTER_ANSWER_MS = 2 * 60_000L
 
         /** The console has the report by then; another fall would only say the same. */

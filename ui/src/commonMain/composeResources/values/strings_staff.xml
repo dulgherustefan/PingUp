@@ -114,9 +114,9 @@
     <string name="mandown_text">Telefonul a simțit o cădere și apoi nicio mișcare.</string>
     <string name="mandown_countdown">Fără răspuns în %1$d s, consola primește „Staff în pericol” cu poziția ta.</string>
     <string name="mandown_ok">Sunt OK</string>
-    <string name="mandown_notification">Atinge ca să răspunzi. Fără răspuns, consola primește alerta.</string>
+    <string name="mandown_notification">Apasă „Sunt OK” dacă nu ai nevoie de ajutor. Fără răspuns, consola primește alerta.</string>
     <string name="mandown_setting">Om la pământ</string>
-    <string name="mandown_setting_text">După o cădere urmată de nemișcare, telefonul te întreabă 30 de secunde „Ești OK?”. Fără răspuns, trimite „Staff în pericol” cu ultima poziție. Cu notificările oprite întreabă doar cu aplicația deschisă; altfel nu trimite nimic.</string>
+    <string name="mandown_setting_text">După o cădere urmată de nemișcare, telefonul te întreabă un minut „Ești OK?”. Poți răspunde „Sunt OK” și din notificare, fără să deblochezi telefonul. Fără răspuns, trimite „Staff în pericol” cu ultima poziție. Cu notificările oprite întreabă doar cu aplicația deschisă; altfel nu trimite nimic.</string>
     <string name="responder_title">Inconștient sau nu respiră</string>
     <string name="responder_distance">La %1$d m de tine</string>
     <string name="responder_zone">În %1$s</string>

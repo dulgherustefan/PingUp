@@ -114,6 +114,11 @@
             android:name=".service.CheckinReceiver"
             android:exported="false" />
 
+        <!-- "Sunt OK" in the man-down notification, answered from the lock screen -->
+        <receiver
+            android:name=".service.ManDownReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".service.BootReceiver"
             android:exported="false">
