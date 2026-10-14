@@ -1,0 +1,18 @@
+{
+  "id": "world",
+  "kind": "OVERVIEW",
+  "buildDate": "20261013",
+  "file": "world.pmtiles",
+  "sha256": "58b352170d32e0fc03ff93617638dad589a6034ba66181afd7830cc266744300",
+  "bytes": 15056996,
+  "bbox": [
+    -180.0,
+    -85.0511287,
+    180.0,
+    85.0511287
+  ],
+  "minzoom": 0,
+  "maxzoom": 5,
+  "attribution": "<a href=\"https://www.openstreetmap.org/copyright\">© OpenStreetMap contributors</a> <a href=\"https://esa-worldcover.org/\">© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium</a>",
+  "label": "Lumea"
+}

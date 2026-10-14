@@ -65,6 +65,11 @@ android {
         unitTests.isReturnDefaultValues = true
     }
 
+    // MapLibre reads the map packs in place from the APK, a range at a time: stored, not deflated, that is a seek.
+    androidResources {
+        noCompress += "pmtiles"
+    }
+
     // JNA also ships armeabi, mips and mips64, which no supported phone runs and libsodium doesn't have.
     packaging {
         jniLibs {

@@ -66,6 +66,15 @@ path = "app/src/main/assets/maps/**/*.pmtiles"
 SPDX-FileCopyrightText = "OpenStreetMap contributors (https://www.openstreetmap.org/copyright)"
 SPDX-License-Identifier = "ODbL-1.0"
 
+# the world overview (tools/map_overview.py): OpenStreetMap data, with ESA WorldCover's landcover up to zoom 7
+[[annotations]]
+path = "app/src/main/assets/maps/overview/*.pmtiles"
+SPDX-FileCopyrightText = [
+    "OpenStreetMap contributors (https://www.openstreetmap.org/copyright)",
+    "ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium",
+]
+SPDX-License-Identifier = "ODbL-1.0 AND CC-BY-4.0"
+
 # the map's glyphs, made from Noto Sans by protomaps/basemaps-assets
 [[annotations]]
 path = "app/src/main/assets/maps/**/fonts/**"
