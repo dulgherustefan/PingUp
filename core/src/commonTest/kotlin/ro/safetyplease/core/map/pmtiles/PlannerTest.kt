@@ -190,6 +190,73 @@ class PlannerTest {
     }
 
     @Test
+    fun leafDirectoriesUnderLeafDirectoriesAreFollowed() = runTest {
+        // the shipped area's ids in leaves of 20 entries, under middle leaves of three each, under the root
+        val ids = AreaTiles(COSTINESTI).ids()
+        val tiles = DirectoryBuilder()
+        var dataLength = 0L
+        for (id in ids) {
+            val length = 10 + (id % 13).toInt()
+            tiles.add(id, 1, dataLength, length)
+            dataLength += length
+        }
+        val all = tiles.build()
+        val leaves = ByteOutput()
+        val bottom = DirectoryBuilder()
+        for (from in 0 until all.size step 20) {
+            val leaf = deflate(all.encode(from, minOf(from + 20, all.size)), Compression.GZIP)
+            bottom.add(all.tileId(from), 0, leaves.size.toLong(), leaf.size)
+            leaves.write(leaf)
+        }
+        val pointers = bottom.build()
+        val root = DirectoryBuilder()
+        for (from in 0 until pointers.size step 3) {
+            val middle = deflate(pointers.encode(from, minOf(from + 3, pointers.size)), Compression.GZIP)
+            root.add(pointers.tileId(from), 0, leaves.size.toLong(), middle.size)
+            leaves.write(middle)
+        }
+        val rootBytes = deflate(root.build().encode(), Compression.GZIP)
+        val metadata = deflate("{}".encodeToByteArray(), Compression.GZIP)
+        val leafBytes = leaves.toByteArray()
+        val leafStart = PmtilesHeader.LENGTH.toLong() + rootBytes.size + metadata.size
+        val header = areaHeader(COSTINESTI, 0, 15, TileType.MVT, Compression.NONE).copy(
+            rootOffset = PmtilesHeader.LENGTH.toLong(), rootLength = rootBytes.size.toLong(),
+            metadataOffset = PmtilesHeader.LENGTH.toLong() + rootBytes.size, metadataLength = metadata.size.toLong(),
+            leafDirectoryOffset = leafStart, leafDirectoryLength = leafBytes.size.toLong(),
+            tileDataOffset = leafStart + leafBytes.size, tileDataLength = dataLength,
+            addressedTiles = 183, tileEntries = 183, tileContents = 183,
+        )
+        val nested = tmp.root / "nested.pmtiles"
+        val data = PatternSource(dataLength).read(0, dataLength.toInt())
+        fs.write(nested) {
+            write(header.encode())
+            write(rootBytes)
+            write(metadata)
+            write(leafBytes)
+            write(data)
+        }
+        FileRangeSource(fs, nested).use { file ->
+            val reader = PmtilesReader.open(file)
+            for (i in 0 until all.size) {
+                assertEquals(TileLocation(header.tileDataOffset + all.offset(i), all.length(i)), reader.find(all.tileId(i)))
+            }
+            assertEquals(null, reader.find(ids.last() + 1))
+            val whole = reader.plan(COSTINESTI)
+            assertEquals(183L, whole.tiles)
+            assertEquals(dataLength, whole.bytes)
+            val sub = MapArea(listOf(28.60, 43.95, 28.64, 43.99), 0, 15, "sub")
+            assertEquals(AreaTiles(sub).ids().toSet(), reader.plan(sub).entries.allTiles().keys)
+            // written again, with uncompressed directories: one level, the same tiles
+            val flat = PmtilesWriter(fs, Compression.NONE).write(tmp.root / "flat.pmtiles", whole, file, reader.metadata())
+            assertEquals(Compression.NONE, flat.header.internalCompression)
+            FileRangeSource(fs, flat.path).use { out ->
+                val copy = PmtilesReader.open(out)
+                for (id in ids) assertTrue(reader.tile(id)!!.contentEquals(copy.tile(id)), "tile $id")
+            }
+        }
+    }
+
+    @Test
     fun spansKeptElsewhereComeBack() {
         val spans = Spans.of(longArrayOf(10, 100, 5000), intArrayOf(20, 50, 7))
         assertEquals(77L, spans.bytes)
