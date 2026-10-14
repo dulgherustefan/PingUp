@@ -96,6 +96,8 @@ import ro.safetyplease.core.incidents.IncidentManager
 import ro.safetyplease.core.incidents.Routing
 import ro.safetyplease.core.incidents.nextEscalation
 import ro.safetyplease.core.location.Positioning
+import ro.safetyplease.core.map.MapDownloads
+import ro.safetyplease.core.map.PackRegistry
 import ro.safetyplease.core.mesh.AnchorHeartbeat
 import ro.safetyplease.core.mesh.BatteryWatch
 import ro.safetyplease.core.mesh.CachedIncidents
@@ -273,6 +275,12 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     /** The phone's position as the app shows and sends it; null without permission or a fix. */
     val locationFix: StateFlow<GeoFix?> = positioning.position
+
+    /** The offline map downloads; null while this phone has no pack store. */
+    open val maps: MapDownloads? get() = null
+
+    /** The map packs on this phone; null while it has no pack store. */
+    open val packs: PackRegistry? get() = null
 
     /** The battery, with the power profile in force and how long it lasts at that profile's pace. */
     val battery = BatteryWatch(clock) { percent, charging ->

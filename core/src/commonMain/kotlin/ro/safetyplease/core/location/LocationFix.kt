@@ -6,6 +6,7 @@ enum class FixMethod { GNSS, PASSIVE, CACHED }
 /**
  * One position as the phone measured it. [accuracyM] is Android's 68% radius, 0 when it gives none; [elapsedMs] is
  * the monotonic time of the fix, [timeMs] the wall clock. [l5] says the receiver used an L5/E5a signal around then.
+ * [speedAccuracyMps] is the 68% error of [speedMps], null when unknown; [mock] says another app made the fix up.
  */
 data class LocationFix(
     val lat: Double,
@@ -17,6 +18,8 @@ data class LocationFix(
     val timeMs: Long,
     val elapsedMs: Long,
     val l5: Boolean,
+    val speedAccuracyMps: Float? = null,
+    val mock: Boolean = false,
 ) {
     /** The radius to draw: 95% of fixes fall inside it, against 68% for the raw accuracy. */
     val ring95M: Float get() = accuracyM * RING_95

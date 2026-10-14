@@ -91,6 +91,12 @@ interface PingMapEngine {
 
     /** A finger held on the map, where it was held; null stops listening. */
     fun setOnLongPress(onLongPress: ((GeoPoint) -> Unit)?)
+
+    /** The part of the world on screen; null while unknown. */
+    fun visibleBounds(): Bounds? = null
+
+    /** The camera stopped moving, at this centre and zoom; null stops listening. */
+    fun setOnCameraIdle(onIdle: ((GeoPoint, Double) -> Unit)?) = Unit
 }
 
 /**

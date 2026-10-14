@@ -23,6 +23,9 @@ interface GnssView {
     /** The phone has internet, so the chip can fetch its orbit data now. */
     val online: StateFlow<Boolean>
 
+    /** While online: fetches the orbit data and keeps the chip on a while, so the first fix offline comes fast. */
+    fun prepareOffline() = Unit
+
     /** Writes the per-minute log into [dir] and gives the file. */
     fun writeCsv(dir: Path, nowMs: Long): Path
 }
