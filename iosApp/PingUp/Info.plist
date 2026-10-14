@@ -38,6 +38,27 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Poziția arată în ce zonă ești. Ajunge la echipe doar într-un raport, ca să te găsească, și la prietenii cu care alegi să o împarți.</string>
+	<key>PingUpCriticalAlerts</key>
+	<string>$(PINGUP_CRITICAL_ALERTS)</string>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>exclamationmark.bubble</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Raportează</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>report</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>hand.raised</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Ajutor discret</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>discreet</string>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>

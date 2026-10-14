@@ -29,6 +29,7 @@ import platform.Foundation.create
 import platform.Foundation.dataTaskWithRequest
 import platform.Network.nw_interface_type_cellular
 import platform.Network.nw_interface_type_wifi
+import platform.Network.nw_path_monitor_cancel
 import platform.Network.nw_path_get_status
 import platform.Network.nw_path_monitor_create
 import platform.Network.nw_path_monitor_set_queue
@@ -55,8 +56,9 @@ class IosNetwork {
 
     @Volatile private var usable = false
 
+    private val monitor = nw_path_monitor_create()
+
     init {
-        val monitor = nw_path_monitor_create()
         nw_path_monitor_set_update_handler(monitor) { path ->
             usable = nw_path_get_status(path) == nw_path_status_satisfied
             transport = when {
@@ -69,6 +71,9 @@ class IosNetwork {
         nw_path_monitor_set_queue(monitor, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT.toLong(), 0u))
         nw_path_monitor_start(monitor)
     }
+
+    /** Stops following the network, with the session that asked. */
+    fun cancel() = nw_path_monitor_cancel(monitor)
 
     suspend fun sample(at: Long, grid: String): NetworkSample {
         val via = transport

@@ -78,6 +78,12 @@ path = "app/src/main/assets/maps/**/sprites/**"
 SPDX-FileCopyrightText = "2017 Mapzen"
 SPDX-License-Identifier = "MIT"
 
+# the iPhone app's alarm tones, made from sine waves by tools/make_alarm_sounds.py
+[[annotations]]
+path = "iosApp/Sounds/*.caf"
+SPDX-FileCopyrightText = "2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver"
+SPDX-License-Identifier = "CC-BY-4.0"
+
 # the Gradle wrapper; gradlew and gradlew.bat also say it in their own headers, which take precedence
 [[annotations]]
 path = ["gradlew", "gradlew.bat", "gradle/wrapper/**"]

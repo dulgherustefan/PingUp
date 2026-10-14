@@ -51,6 +51,7 @@ import platform.Foundation.create
 import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_queue_create
+import platform.darwin.dispatch_sync
 import ro.safetyplease.core.ble.AdvertData
 import ro.safetyplease.core.ble.BleLayout
 import ro.safetyplease.core.ble.ScanCycle
@@ -155,18 +156,15 @@ class IosRadio(
         front = inFront.value
         sightings.start()
         val madeBefore = Managers.central != null
-        val central = Managers.central ?: CBCentralManager(
-            centralEvents, Managers.queue,
-            mapOf<Any?, Any?>(CBCentralManagerOptionShowPowerAlertKey to false, CBCentralManagerOptionRestoreIdentifierKey to CENTRAL_ID),
-        ).also { Managers.central = it }
-        val server = Managers.server ?: CBPeripheralManager(
-            peripheralEvents, Managers.queue,
-            mapOf<Any?, Any?>(CBPeripheralManagerOptionShowPowerAlertKey to false, CBPeripheralManagerOptionRestoreIdentifierKey to SERVER_ID),
-        ).also { Managers.server = it }
+        val central = Managers.central ?: Managers.newCentral(centralEvents).also { Managers.central = it }
+        val server = Managers.server ?: Managers.newServer(peripheralEvents).also { Managers.server = it }
         this.central = central
         this.server = server
         central.delegate = centralEvents
         server.delegate = peripheralEvents
+        // the links iOS handed back before any radio was made: they close once Bluetooth is on
+        restored += Managers.restored
+        Managers.restored.clear()
         if (madeBefore) {
             // an earlier radio's managers have nothing new to say: this one starts from the state they're in
             centralEvents.centralManagerDidUpdateState(central)
@@ -699,8 +697,6 @@ class IosRadio(
     }
 
     private companion object {
-        const val CENTRAL_ID = "ro.safetyplease.central"
-        const val SERVER_ID = "ro.safetyplease.server"
         const val FORGET_EVERY_MS = 30_000L
         const val MAX_EARLY_FRAMES = 8
 
@@ -720,9 +716,55 @@ class IosRadio(
  */
 @OptIn(ExperimentalForeignApi::class)
 private object Managers {
+    const val CENTRAL_ID = "ro.safetyplease.central"
+    const val SERVER_ID = "ro.safetyplease.server"
+
     val queue = dispatch_queue_create("ro.safetyplease.ble", null)
     var central: CBCentralManager? = null
     var server: CBPeripheralManager? = null
+
+    /** Links iOS handed back before any radio was made ([restoreBluetooth]); the first radio takes them. */
+    val restored = ArrayList<CBPeripheral>()
+
+    /** The delegate of managers made before any radio; iOS holds a delegate weakly. */
+    var waiting: Waiting? = null
+
+    fun newCentral(delegate: CBCentralManagerDelegateProtocol) = CBCentralManager(
+        delegate, queue, mapOf<Any?, Any?>(CBCentralManagerOptionShowPowerAlertKey to false, CBCentralManagerOptionRestoreIdentifierKey to CENTRAL_ID),
+    )
+
+    fun newServer(delegate: CBPeripheralManagerDelegateProtocol) = CBPeripheralManager(
+        delegate, queue, mapOf<Any?, Any?>(CBPeripheralManagerOptionShowPowerAlertKey to false, CBPeripheralManagerOptionRestoreIdentifierKey to SERVER_ID),
+    )
+}
+
+/**
+ * iOS started the app again for Bluetooth, to restore its [central], its [server] or both: Apple wants the managers
+ * back with the same identifiers as the first thing the app does. They are made here, before the session, with a
+ * stand-in delegate that keeps the links iOS hands back; the session's first radio takes them over.
+ */
+@OptIn(ExperimentalForeignApi::class)
+fun restoreBluetooth(central: Boolean, server: Boolean) {
+    if (!central && !server) return
+    dispatch_sync(Managers.queue) {
+        val waiting = Managers.waiting ?: Waiting().also { Managers.waiting = it }
+        if (central && Managers.central == null) Managers.central = Managers.newCentral(waiting)
+        if (server && Managers.server == null) Managers.server = Managers.newServer(waiting)
+    }
+}
+
+/** Stands in for the radio from a relaunch until the first one starts: what it hears now, the radio asks again. */
+private class Waiting : NSObject(), CBCentralManagerDelegateProtocol, CBPeripheralManagerDelegateProtocol {
+    override fun centralManagerDidUpdateState(central: CBCentralManager) = Unit
+
+    override fun centralManager(central: CBCentralManager, willRestoreState: Map<Any?, *>) {
+        val peripherals = willRestoreState[CBCentralManagerRestoredStatePeripheralsKey] as? List<*> ?: return
+        Managers.restored += peripherals.filterIsInstance<CBPeripheral>()
+    }
+
+    override fun peripheralManagerDidUpdateState(peripheral: CBPeripheralManager) = Unit
+
+    override fun peripheralManager(peripheral: CBPeripheralManager, willRestoreState: Map<Any?, *>) = Unit
 }
 
 @OptIn(ExperimentalForeignApi::class)

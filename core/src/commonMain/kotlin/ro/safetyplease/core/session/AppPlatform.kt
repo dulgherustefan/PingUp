@@ -156,6 +156,16 @@ interface Notifications {
 
     /** The check-in on the way, and a friend's missed one; [SafetyNotice.CheckinCleared] takes the check-in's notice away. */
     fun safety(notice: SafetyNotice)
+
+    /**
+     * Has the phone show [alert] at its time even if the app doesn't run then, replacing one with the same id; a time
+     * already past shows nothing. The session calls it from any thread, in order. Nothing to do where the app keeps
+     * running (Android's foreground service), so the default does nothing.
+     */
+    fun scheduleAlert(alert: ScheduledAlert) = Unit
+
+    /** Takes back what [scheduleAlert] set under [id], and takes it off the screen if it showed already. */
+    fun cancelScheduled(id: String) = Unit
 }
 
 /** The Bluetooth radio as the session drives it: on while the mesh runs, at the power the plan asks for. */

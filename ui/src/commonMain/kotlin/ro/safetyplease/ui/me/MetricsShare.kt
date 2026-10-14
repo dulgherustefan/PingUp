@@ -60,10 +60,13 @@ fun PingUpSession.phoneMetrics(): PhoneMetrics {
     return PhoneMetrics(role, venue.name, grid, reports, metricsLog.value.snapshots, networkLog.value.samples, delivery)
 }
 
-/** Writes the metrics to the export folder, replacing the last export's files, and opens the share sheet. */
+/**
+ * Writes the metrics to the export folder, replacing the last export's files, and opens the share sheet, with the
+ * phone's own diagnostic reports where it keeps some.
+ */
 suspend fun shareMetrics(phone: PhoneUi, c: PingUpSession) {
     val files = withContext(Dispatchers.IO) {
-        c.phoneMetrics().writeTo(freshExportDir(c.exportDir), c.clock.wallMs(), TimeZone.currentSystemDefault())
+        c.phoneMetrics().writeTo(freshExportDir(c.exportDir), c.clock.wallMs(), TimeZone.currentSystemDefault()) + phone.diagnosticFiles()
     }
     phone.shareFiles(files)
 }

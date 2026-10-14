@@ -30,10 +30,26 @@ expect val RadioNeedsLocation: Boolean
 expect val UnfindableIsAProblem: Boolean
 
 /**
- * What the network switch says when on. On an iPhone it also asks not to close the app in the app switcher: iOS
- * doesn't start an app closed that way again for Bluetooth.
+ * What the network switch says when on. On an iPhone it also asks not to close the app in the app switcher and to leave
+ * Bluetooth on: iOS doesn't start an app closed either way again for Bluetooth (Apple's TN3115).
  */
 expect val MeshOnText: StringResource
+
+/** Onboarding's word on keeping the app running in the background, where the phone needs one; null on Android. */
+expect val KeepRunningHint: StringResource?
+
+/**
+ * The check-in's limit on this phone, if any: an iPhone asks on time from the background, but the alert to the friends
+ * leaves only while the app is awake. Null on Android, whose mesh service keeps it running.
+ */
+expect val CheckinWakeNote: StringResource?
+
+/**
+ * Whether an urgent staff alarm is heard, asked again each time the app comes back to the front: on an iPhone the
+ * person may turn off its sound or Time Sensitive delivery for the app. Always true on Android, where its channels say it.
+ */
+@Composable
+expect fun rememberAlarmsAudible(): Boolean
 
 /** Why the app asks for notifications; on Android one of them also stays while the mesh runs. */
 expect val NotificationsReason: StringResource

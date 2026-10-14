@@ -1,3 +1,7 @@
+/* The quick actions on the app's icon, by their Romanian title in Info.plist. */
+"Raportează" = "Report";
+"Ajutor discret" = "Discreet help";
+
 /* Why the app asks for each permission, as iOS shows it. */
 "NSCameraUsageDescription" = "The camera reads a friend's QR code or a staff code. Pictures aren't saved and never leave the phone.";
 "NSBluetoothAlwaysUsageDescription" = "Ping Up passes messages and reports from phone to phone over Bluetooth, without signal, even with the phone in your pocket.";

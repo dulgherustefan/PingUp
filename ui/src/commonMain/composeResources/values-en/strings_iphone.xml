@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What only the iPhone app says: iOS runs it in the background only while Bluetooth wakes it -->
+    <string name="iphone_mesh_on">On. You get messages and pass them on for others. Don’t swipe Ping Up away in the app switcher, and leave Bluetooth on, in Airplane Mode too: otherwise the iPhone won’t start it again by itself.</string>
+    <string name="iphone_background_hint">On an iPhone, Ping Up keeps working locked in your pocket. To keep it so, don’t swipe it away in the app switcher, and leave Bluetooth on, in Airplane Mode too.</string>
+    <string name="iphone_checkin_note">On an iPhone, the question comes on time even with the app in the background. The alert to your friends, though, leaves only while Ping Up is awake: open, or near other phones with Ping Up.</string>
+    <string name="iphone_closed_title">%1$s has closed</string>
+    <string name="iphone_closed_text">Open it to get alerts.</string>
+    <string name="iphone_bluetooth_off_title">%1$s isn’t getting alerts</string>
+    <string name="iphone_bluetooth_off_text">Bluetooth is off. Turn it on in Control Center or in Settings.</string>
+    <string name="iphone_alerts_quiet_title">Staff alarms won’t be heard</string>
+    <string name="iphone_alerts_quiet_text">Turn on sounds and Time Sensitive Notifications for Ping Up, so alarms get through Focus. With the phone on silent, they only vibrate.</string>
+    <string name="iphone_metrics_diagnostics">The iPhone’s own reports on the app (crashes, energy use) go too, with nothing about you.</string>
+    <plurals name="iphone_last_phone">
+        <item quantity="one">The last Ping Up phone nearby was a minute ago.</item>
+        <item quantity="other">The last Ping Up phone nearby was %1$d minutes ago.</item>
+    </plurals>
+    <plurals name="iphone_no_phone">
+        <item quantity="one">No Ping Up phone nearby for a minute.</item>
+        <item quantity="other">No Ping Up phone nearby for %1$d minutes.</item>
+    </plurals>
+</resources>

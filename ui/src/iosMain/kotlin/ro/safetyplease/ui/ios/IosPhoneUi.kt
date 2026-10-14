@@ -29,6 +29,7 @@ import ro.safetyplease.ui.common.Torch
 import ro.safetyplease.ui.common.topViewController
 import ro.safetyplease.ui.map.OfflineMap
 import ro.safetyplease.ui.me.GnssView
+import ro.safetyplease.ui.text.wallNowMs
 
 /**
  * What the screens need from an iPhone: the mesh as the app runs it, Bluetooth and the position, iOS's own screens and
@@ -70,12 +71,13 @@ class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val
 
     override fun dial112() = open("tel:112")
 
-    // as IosNotifications posts; iOS has no expiry for a delivered notification, so it stays until dismissed or replaced
+    // as IosNotifications posts; iOS has no expiry for a delivered notification, so the app takes it away after 30 minutes
     override fun location112(title: String, text: String) {
         val content = UNMutableNotificationContent()
         content.setTitle(title)
         content.setBody(text)
-        content.setUserInfo(mapOf<Any?, Any?>(IosApp.OPEN to OpenTarget.CARD_112))
+        val until = wallNowMs() + LOCATION_112_MS
+        content.setUserInfo(mapOf<Any?, Any?>(IosApp.OPEN to OpenTarget.CARD_112, IosNotifications.UNTIL to until.toString()))
         content.setInterruptionLevel(UNNotificationInterruptionLevel.UNNotificationInterruptionLevelActive)
         UNUserNotificationCenter.currentNotificationCenter()
             .addNotificationRequest(UNNotificationRequest.requestWithIdentifier(LOCATION_112, content, null), null)
@@ -114,14 +116,7 @@ class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val
 
     override fun torch(): Torch = IosTorch()
 
-    // the torch alone does it here
-    override fun beacon(sound: Boolean): Beacon = object : Beacon {
-        override fun vibrate(pattern: LongArray) = Unit
-
-        override fun beep(ms: Int) = Unit
-
-        override fun release() = Unit
-    }
+    override fun beacon(sound: Boolean): Beacon = IosBeacon(sound)
 
     @Composable
     override fun KeepScreenOn() {
@@ -143,6 +138,8 @@ class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val
 
     override val demoAvailable = false
 
+    override fun diagnosticFiles(): List<Path> = IosDiagnostics.files()
+
     private fun open(link: String) = onMain {
         val url = NSURL.URLWithString(link) ?: return@onMain
         UIApplication.sharedApplication.openURL(url, options = emptyMap<Any?, Any>(), completionHandler = null)
@@ -154,5 +151,8 @@ class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val
 
     private companion object {
         const val LOCATION_112 = "location-112"
+
+        /** As long as Android keeps it: a call to 112 is over by then. */
+        const val LOCATION_112_MS = 30 * 60_000L
     }
 }

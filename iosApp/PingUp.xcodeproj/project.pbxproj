@@ -8,23 +8,31 @@
 
 /* Begin PBXBuildFile section */
 		0106B4EACA1ACFE79E68FB0E /* PingUpApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */; };
+		1A53CC9381795B9475B29B27 /* pingup_pause.caf in Resources */ = {isa = PBXBuildFile; fileRef = D89C534FFFC55993563B00EE /* pingup_pause.caf */; };
 		1F174F750DB8933AB3123434 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EA86D8801676F739A4738B33 /* PrivacyInfo.xcprivacy */; };
 		3017ECA219C868B35D27E8E6 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 71B5785356A0F8914AB7DD5F /* assets */; };
 		465DE5A687FB6D976F42F31E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 11693A333C3375DEE8694C9A /* Assets.xcassets */; };
+		6E49F0795B361CA2169B6356 /* pingup_evacuation.caf in Resources */ = {isa = PBXBuildFile; fileRef = 87E92A96580D917DC8137B68 /* pingup_evacuation.caf */; };
 		B40911DAB3835CF043AA3473 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6398700908A499B5420D225D /* InfoPlist.strings */; };
+		B8886FC33E0FDD9C9E19B08E /* pingup_alarm.caf in Resources */ = {isa = PBXBuildFile; fileRef = 2F801E39332FF479F6052CE8 /* pingup_alarm.caf */; };
+		D6210E49250547B965ABF84F /* pingup_silence.caf in Resources */ = {isa = PBXBuildFile; fileRef = FBE2D2F47AAA0522886B490A /* pingup_silence.caf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		11693A333C3375DEE8694C9A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2BF05116436C360A237D2D81 /* ro */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ro; path = ro.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		2F801E39332FF479F6052CE8 /* pingup_alarm.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = pingup_alarm.caf; sourceTree = "<group>"; };
 		6D82221C73CA4EAE2D81B56D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		71B5785356A0F8914AB7DD5F /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = assets; path = ../app/src/main/assets; sourceTree = SOURCE_ROOT; };
+		87E92A96580D917DC8137B68 /* pingup_evacuation.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = pingup_evacuation.caf; sourceTree = "<group>"; };
 		AD80B33C55B538CF3FD3A1DA /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		CBBE556015D106F2E073FB7F /* PingUp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PingUp.entitlements; sourceTree = "<group>"; };
 		D36ED98DF41588AF3FAA629E /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		D89C534FFFC55993563B00EE /* pingup_pause.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = pingup_pause.caf; sourceTree = "<group>"; };
 		EA86D8801676F739A4738B33 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		F254425B1A6F3FAD5CBF58D2 /* PingUp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PingUp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA13D30A13B43F04CFDBB294 /* PingUpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingUpApp.swift; sourceTree = "<group>"; };
+		FBE2D2F47AAA0522886B490A /* pingup_silence.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = pingup_silence.caf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -32,6 +40,7 @@
 			isa = PBXGroup;
 			children = (
 				83BA925686D6F095C4193006 /* PingUp */,
+				C4B4A1580BCED2FC6E7193A7 /* Sounds */,
 				366818782A2A570C2DFF40B8 /* pingup */,
 				140804B90A20B822A23FC2E1 /* Products */,
 			);
@@ -90,6 +99,17 @@
 				D36ED98DF41588AF3FAA629E /* Signing.xcconfig */,
 			);
 			path = iosApp;
+			sourceTree = "<group>";
+		};
+		C4B4A1580BCED2FC6E7193A7 /* Sounds */ = {
+			isa = PBXGroup;
+			children = (
+				2F801E39332FF479F6052CE8 /* pingup_alarm.caf */,
+				87E92A96580D917DC8137B68 /* pingup_evacuation.caf */,
+				D89C534FFFC55993563B00EE /* pingup_pause.caf */,
+				FBE2D2F47AAA0522886B490A /* pingup_silence.caf */,
+			);
+			path = Sounds;
 			sourceTree = "<group>";
 		};
 		DE540C602A18448E24D11D0A /* app */ = {
@@ -167,6 +187,10 @@
 				B40911DAB3835CF043AA3473 /* InfoPlist.strings in Resources */,
 				1F174F750DB8933AB3123434 /* PrivacyInfo.xcprivacy in Resources */,
 				3017ECA219C868B35D27E8E6 /* assets in Resources */,
+				B8886FC33E0FDD9C9E19B08E /* pingup_alarm.caf in Resources */,
+				6E49F0795B361CA2169B6356 /* pingup_evacuation.caf in Resources */,
+				1A53CC9381795B9475B29B27 /* pingup_pause.caf in Resources */,
+				D6210E49250547B965ABF84F /* pingup_silence.caf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -278,6 +302,7 @@
 					"-framework",
 					PingUpUi,
 				);
+				PINGUP_CRITICAL_ALERTS = NO;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -423,6 +448,7 @@
 					"-framework",
 					PingUpUi,
 				);
+				PINGUP_CRITICAL_ALERTS = NO;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
 			};

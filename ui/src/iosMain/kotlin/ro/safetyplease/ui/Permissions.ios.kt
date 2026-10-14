@@ -22,16 +22,23 @@ import platform.UIKit.UIWindowSceneGeometryPreferencesIOS
 import platform.UIKit.setNeedsUpdateOfSupportedInterfaceOrientations
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
+import platform.UserNotifications.UNAuthorizationOptionCriticalAlert
 import platform.UserNotifications.UNAuthorizationOptionSound
 import platform.UserNotifications.UNAuthorizationStatusDenied
+import platform.UserNotifications.UNNotificationSettingDisabled
 import platform.UserNotifications.UNUserNotificationCenter
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.common.topViewController
+import ro.safetyplease.ui.ios.IosNotifications
+import ro.safetyplease.ui.ios.LocationAsk
+import ro.safetyplease.ui.ios.PRECISE_LOCATION_PURPOSE
 import ro.safetyplease.ui.resources.Res
-import ro.safetyplease.ui.resources.mesh_switch_on_kept
+import ro.safetyplease.ui.resources.iphone_background_hint
+import ro.safetyplease.ui.resources.iphone_checkin_note
+import ro.safetyplease.ui.resources.iphone_mesh_on
 import ro.safetyplease.ui.resources.perm_notifications_text_short
 
 /**
@@ -58,11 +65,37 @@ actual fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: 
     )
 }
 
+/**
+ * iOS asks the person once; the answer comes back to [onResult] when they give it. After a refusal only the app's page
+ * in Settings can change it, and an approximate position is asked to be precise for as long as the app is in use.
+ */
 @Composable
-actual fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit): () -> Unit = {
-    // the system asks the person the first time; the answer comes back through the position itself
-    vm.phone.startLocation()
-    onResult(vm.phone.locationAllowed())
+actual fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit): () -> Unit {
+    val result by rememberUpdatedState(onResult)
+    val ask = remember { LocationAsk() }
+    return {
+        fun precise(granted: Boolean) {
+            if (granted) vm.phone.startLocation()
+            result(granted)
+        }
+        fun answered(answer: LocationAsk.Answer) {
+            vm.locationBlocked = answer == LocationAsk.Answer.REFUSED
+            when (answer) {
+                LocationAsk.Answer.PRECISE -> precise(true)
+                LocationAsk.Answer.APPROXIMATE -> ask.askPrecise(PRECISE_LOCATION_PURPOSE, ::precise)
+                LocationAsk.Answer.REFUSED, LocationAsk.Answer.NOT_ASKED -> result(false)
+            }
+        }
+        when (val now = ask.answer()) {
+            LocationAsk.Answer.NOT_ASKED -> ask.ask(::answered)
+            LocationAsk.Answer.REFUSED -> {
+                vm.locationBlocked = true
+                vm.phone.openAppSettings()
+                result(false)
+            }
+            else -> answered(now)
+        }
+    }
 }
 
 /** Notifications at the end of onboarding; the position and Bluetooth are asked as the mesh first starts, one after the other. */
@@ -70,7 +103,9 @@ actual fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit
 actual fun rememberStartPermissions(onDone: () -> Unit): () -> Unit {
     val done by rememberUpdatedState(onDone)
     return {
-        val options = UNAuthorizationOptionAlert or UNAuthorizationOptionSound or UNAuthorizationOptionBadge
+        // Critical Alerts only once Apple granted them and the build turned them on
+        val critical = if (IosNotifications.criticalAlerts) UNAuthorizationOptionCriticalAlert else 0uL
+        val options = UNAuthorizationOptionAlert or UNAuthorizationOptionSound or UNAuthorizationOptionBadge or critical
         UNUserNotificationCenter.currentNotificationCenter().requestAuthorizationWithOptions(options) { _, _ ->
             dispatch_async(dispatch_get_main_queue()) { done() }
         }
@@ -81,7 +116,11 @@ actual val RadioNeedsLocation = false
 
 actual val UnfindableIsAProblem = false
 
-actual val MeshOnText: StringResource = Res.string.mesh_switch_on_kept
+actual val MeshOnText: StringResource = Res.string.iphone_mesh_on
+
+actual val KeepRunningHint: StringResource? = Res.string.iphone_background_hint
+
+actual val CheckinWakeNote: StringResource? = Res.string.iphone_checkin_note
 
 // no notification has to stay: Bluetooth runs in the background by itself
 actual val NotificationsReason: StringResource = Res.string.perm_notifications_text_short
@@ -98,6 +137,27 @@ actual fun rememberNotificationsAllowed(): Boolean {
         onPauseOrDispose { }
     }
     return allowed
+}
+
+/**
+ * Notifications may be on with the alarm's sound or its Time Sensitive delivery off, which iOS lets the person choose
+ * per app: then a staff alarm neither sounds nor gets through Focus. With Critical Alerts on, those count too.
+ */
+@Composable
+actual fun rememberAlarmsAudible(): Boolean {
+    var audible by remember { mutableStateOf(true) }
+    LifecycleResumeEffect(Unit) {
+        UNUserNotificationCenter.currentNotificationCenter().getNotificationSettingsWithCompletionHandler { settings ->
+            // one not supported (a build without the entitlement) is no setting the person can change
+            val off = settings != null && (
+                settings.soundSetting == UNNotificationSettingDisabled || settings.timeSensitiveSetting == UNNotificationSettingDisabled ||
+                    (IosNotifications.criticalAlerts && settings.criticalAlertSetting == UNNotificationSettingDisabled)
+                )
+            dispatch_async(dispatch_get_main_queue()) { audible = !off }
+        }
+        onPauseOrDispose { }
+    }
+    return audible
 }
 
 @Composable

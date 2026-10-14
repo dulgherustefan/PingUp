@@ -19,6 +19,10 @@ targets:
     scheme: {}
     sources:
       - path: PingUp
+      # the alarm tones iOS plays with a notification, made by tools/make_alarm_sounds.py: in the bundle's root, where
+      # UNNotificationSound looks for them
+      - path: Sounds
+        buildPhase: resources
       # what the app ships with: the Android app's assets, the same files
       - path: ../app/src/main/assets
         type: folder
@@ -42,6 +46,18 @@ targets:
         CADisableMinimumFrameDurationOnPhone: true
         # the mesh keeps going with the app in the background: scanning and connecting, and the server others connect to
         UIBackgroundModes: [bluetooth-central, bluetooth-peripheral]
+        # a long press on the icon, as Android's launcher shortcut and tiles: the report categories, or the discreet
+        # report's confirmation; nothing is sent from here. The titles are worded in <language>.lproj/InfoPlist.strings
+        UIApplicationShortcutItems:
+          - UIApplicationShortcutItemType: report
+            UIApplicationShortcutItemTitle: Raportează
+            UIApplicationShortcutItemIconSymbolName: exclamationmark.bubble
+          - UIApplicationShortcutItemType: discreet
+            UIApplicationShortcutItemTitle: Ajutor discret
+            UIApplicationShortcutItemIconSymbolName: hand.raised
+        # Critical Alerts ring through the silent switch and Focus, but only with an entitlement Apple grants on request:
+        # the build turns them on with PINGUP_CRITICAL_ALERTS (below, and APP_STORE.md says when)
+        PingUpCriticalAlerts: $(PINGUP_CRITICAL_ALERTS)
         # why each permission is asked, in Romanian here and in each language in <language>.lproj/InfoPlist.strings
         NSCameraUsageDescription: Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.
         NSBluetoothAlwaysUsageDescription: Ping Up trimite mesajele și rapoartele din telefon în telefon prin Bluetooth, fără semnal, chiar și cu telefonul în buzunar.
@@ -68,6 +84,8 @@ targets:
         OTHER_LDFLAGS: [$(inherited), -framework, PingUpUi]
         # Gradle writes the framework outside the sandbox Xcode gives build scripts
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+        # YES only once Apple granted the Critical Alerts entitlement and PingUp.entitlements has it (APP_STORE.md)
+        PINGUP_CRITICAL_ALERTS: NO
       configs:
         # urgent alerts break through Focus only with Time Sensitive Notifications, a capability of the paid Apple
         # Developer Program, which a release needs anyway; Debug builds leave it out, so a free account can still run
