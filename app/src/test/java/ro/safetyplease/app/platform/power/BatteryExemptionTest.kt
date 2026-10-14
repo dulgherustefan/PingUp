@@ -20,6 +20,22 @@ class BatteryExemptionTest {
     }
 
     @Test
+    fun fromAndroid12EveryPhoneNeedsTheExemptionToRestartTheMesh() {
+        for (vendor in listOf("motorola", "Google", "Nokia", "Sony", "TCL", "Fairphone", "samsung")) {
+            assertTrue(vendor, needsExemption(31, vendor))
+            assertTrue(vendor, needsExemption(36, vendor))
+        }
+    }
+
+    @Test
+    fun beforeAndroid12OnlyTheVendorsThatKillBackgroundAppsNeedIt() {
+        assertTrue(needsExemption(30, "Xiaomi"))
+        assertTrue(needsExemption(26, "HUAWEI"))
+        assertFalse(needsExemption(30, "motorola"))
+        assertFalse(needsExemption(29, "Google"))
+    }
+
+    @Test
     fun subBrandsGetTheirParentVendorsSteps() {
         assertEquals(BatteryVendor.XIAOMI, batteryVendor("POCO"))
         assertEquals(BatteryVendor.XIAOMI, batteryVendor("Redmi"))

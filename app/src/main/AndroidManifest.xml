@@ -31,7 +31,11 @@
         and an evacuation. Android 14+ may refuse it; the app then shows where to allow it.
     -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <!-- Keeping the mesh alive in the pocket: restart after a reboot, and a direct ask to skip battery optimization. -->
+    <!--
+        Keeping the mesh alive in the pocket: restart after a reboot, and a direct ask, from a tap, to skip battery
+        optimization on Android 12+ (which can't start the mesh again after a kill without it) and on older phones whose
+        makers stop background apps.
+    -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!--

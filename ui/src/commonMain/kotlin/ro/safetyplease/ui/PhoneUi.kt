@@ -104,7 +104,10 @@ interface PhoneUi {
     @Composable
     fun KeepScreenOn()
 
-    /** The phone's maker stops apps like this one in the background unless the person exempts it. */
+    /**
+     * The phone may stop the app in the background, or not start it again after it did, unless the person exempts it
+     * from battery saving: every Android 12+ phone, and the makers known for it on older ones. False once exempted.
+     */
     fun batteryHintNeeded(): Boolean
 
     /** What to do on this phone to keep the app running, when its maker needs steps of its own. */

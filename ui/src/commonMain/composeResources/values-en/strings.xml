@@ -413,6 +413,7 @@
         <item quantity="other">%1$d packets from others have passed through your phone.</item>
     </plurals>
     <string name="me_battery">Battery</string>
+    <string name="me_battery_text">Short of memory, Android may stop the network and not start it again. Take the app out of battery optimization so the network can restart.</string>
     <string name="battery_samsung">Samsung stops apps in the background. Settings › Battery › Background usage limits, then remove Ping Up from “Sleeping apps”.</string>
     <string name="battery_xiaomi">Xiaomi stops apps in the background. Settings › Apps › Ping Up › Battery saver › No restrictions, then turn on Autostart too.</string>
     <string name="battery_huawei">Huawei and Honor stop apps in the background. Settings › Battery › App launch › Ping Up: turn off “Manage automatically” and turn on all three switches.</string>

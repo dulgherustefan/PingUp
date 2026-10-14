@@ -50,6 +50,7 @@ import ro.safetyplease.ui.common.FullScreenAlertsBanner
 import ro.safetyplease.ui.common.MAX_NAME
 import ro.safetyplease.ui.common.QrBadge
 import ro.safetyplease.ui.common.networkText
+import ro.safetyplease.ui.common.rememberBatteryHint
 import ro.safetyplease.ui.common.rememberFilePicker
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
@@ -97,6 +98,7 @@ import ro.safetyplease.ui.resources.layers_saved_place
 import ro.safetyplease.ui.resources.me_auto_answer
 import ro.safetyplease.ui.resources.me_auto_answer_text
 import ro.safetyplease.ui.resources.me_battery
+import ro.safetyplease.ui.resources.me_battery_text
 import ro.safetyplease.ui.resources.me_edit_name
 import ro.safetyplease.ui.resources.me_leave_staff
 import ro.safetyplease.ui.resources.me_leave_staff_text
@@ -155,7 +157,8 @@ private const val DEMO_UNLOCK_TAPS = 7
 
 /**
  * Your profile: your code large at the top with your name (tap to change it), then only what someone at a festival
- * might change: the staff code and, on phones that kill background apps, battery settings; then the first-aid sheets.
+ * might change: the staff code and, where the phone may stop the app in the background, battery settings; then the
+ * first-aid sheets.
  * Technical tools (network, ID, demo mode) unlock after 7 taps on Version.
  */
 @Composable
@@ -233,12 +236,14 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     } else {
                         GroupRow(stringResource(Res.string.me_leave_staff), icon = Sym.Logout, tint = colors.redInk, onClick = { confirmLeave = true })
                     }
+                    // the maker's own steps where it has some; elsewhere the exemption Android needs to start the mesh again
                     val steps = vm.phone.batterySteps
-                    if (steps != null) {
+                    val batteryHint = rememberBatteryHint(vm.phone)
+                    if (steps != null || batteryHint) {
                         GroupDivider()
                         GroupRow(
-                            stringResource(Res.string.me_battery), subtitle = stringResource(steps), icon = Sym.Battery, chevron = true,
-                            onClick = vm.phone::requestBatteryExemption,
+                            stringResource(Res.string.me_battery), subtitle = stringResource(steps ?: Res.string.me_battery_text), icon = Sym.Battery,
+                            chevron = true, onClick = vm.phone::requestBatteryExemption,
                         )
                     }
                 }

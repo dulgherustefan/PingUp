@@ -43,19 +43,24 @@ fun batteryVendor(manufacturer: String): BatteryVendor? = when (manufacturer.low
 fun killsBackgroundApps(manufacturer: String): Boolean = batteryVendor(manufacturer) != null
 
 /**
+ * Whether a phone running Android [sdk], made by [manufacturer], needs the exemption: every phone from Android 12 on,
+ * which can't start the mesh again after it killed the process without it; before that, the vendors that kill
+ * background apps.
+ */
+fun needsExemption(sdk: Int, manufacturer: String): Boolean = sdk >= Build.VERSION_CODES.S || killsBackgroundApps(manufacturer)
+
+/**
  * The exemption from battery optimization, asked for from one place. Besides keeping vendors from killing the mesh,
  * it is what lets Android 12+ restart the service after the process was killed.
  */
 object BatteryExemption {
-    fun vendorKillsBackgroundApps(): Boolean = killsBackgroundApps(Build.MANUFACTURER)
-
     /** This phone's vendor, if it is one that needs the steps. */
     fun vendor(): BatteryVendor? = batteryVendor(Build.MANUFACTURER)
 
     fun granted(context: Context): Boolean =
         context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true
 
-    fun hintNeeded(context: Context): Boolean = vendorKillsBackgroundApps() && !granted(context)
+    fun hintNeeded(context: Context): Boolean = needsExemption(Build.VERSION.SDK_INT, Build.MANUFACTURER) && !granted(context)
 
     /**
      * Asks directly while the exemption is missing: safety apps are among the cases Android accepts for that.

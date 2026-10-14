@@ -28,7 +28,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
@@ -61,6 +64,7 @@ import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.common.RadioProblemBanner
 import ro.safetyplease.ui.common.networkText
 import ro.safetyplease.ui.common.problem
+import ro.safetyplease.ui.common.rememberBatteryHint
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Avatar
@@ -251,15 +255,28 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 /** The first thing keeping the mesh from working, with the button that fixes it. */
 @Composable
 private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate, batteryDismissed: Boolean, modifier: Modifier) {
+    val battery = rememberBatteryHint(vm.phone)
+    // a "no" in the phone's own dialog is the person's choice: the banner doesn't come back, Me keeps the way there
+    var askedBattery by remember { mutableStateOf(false) }
+    LifecycleResumeEffect(Unit) {
+        if (askedBattery) {
+            askedBattery = false
+            if (vm.phone.batteryHintNeeded()) vm.dismissBatteryHint()
+        }
+        onPauseOrDispose { }
+    }
     when {
         gate.problem() != null -> RadioProblemBanner(gate, modifier)
         radio.bluetoothOn && !radio.canAdvertise && UnfindableIsAProblem -> Banner(
             stringResource(Res.string.problem_leaf_title), stringResource(Res.string.problem_leaf_text), modifier,
         )
-        !batteryDismissed && vm.phone.batteryHintNeeded() -> Banner(
+        !batteryDismissed && battery -> Banner(
             stringResource(Res.string.problem_battery_title), stringResource(Res.string.problem_battery_text), modifier,
             action = stringResource(Res.string.problem_battery_action),
-            onAction = vm.phone::requestBatteryExemption,
+            onAction = {
+                askedBattery = true
+                vm.phone.requestBatteryExemption()
+            },
             dismiss = stringResource(Res.string.problem_dismiss), onDismiss = { vm.dismissBatteryHint() },
         )
     }

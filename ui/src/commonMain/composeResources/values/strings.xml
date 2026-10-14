@@ -424,6 +424,7 @@
         <item quantity="other">%1$d de pachete ale altora au trecut prin telefonul tău.</item>
     </plurals>
     <string name="me_battery">Baterie</string>
+    <string name="me_battery_text">Fără memorie, Android poate opri rețeaua și nu o mai pornește singur. Scoate aplicația din optimizarea bateriei, ca rețeaua să repornească.</string>
     <string name="battery_samsung">Samsung oprește aplicațiile din fundal. Setări › Baterie › Limite de utilizare în fundal, apoi scoate Ping Up din „Aplicații în repaus”.</string>
     <string name="battery_xiaomi">Xiaomi oprește aplicațiile din fundal. Setări › Aplicații › Ping Up › Economisire baterie › Fără restricții, apoi pornește și Pornire automată.</string>
     <string name="battery_huawei">Huawei și Honor opresc aplicațiile din fundal. Setări › Baterie › Lansare aplicații › Ping Up: oprește „Gestionează automat” și pornește toate cele trei comutatoare.</string>
