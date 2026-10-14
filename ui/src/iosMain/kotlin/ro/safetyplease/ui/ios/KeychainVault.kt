@@ -28,7 +28,9 @@ import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.SecItemDelete
+import platform.Security.SecItemUpdate
 import platform.Security.errSecInteractionNotAllowed
+import platform.Security.errSecItemNotFound
 import platform.Security.errSecSuccess
 import platform.Security.kSecAttrAccessible
 import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
@@ -48,30 +50,41 @@ import ro.safetyplease.core.session.Vault
  */
 @OptIn(ExperimentalForeignApi::class)
 class KeychainVault(private val service: String) : Vault {
+    /**
+     * The secret, or null only when there is none: saying it's gone after any other answer (the Keychain still locked
+     * before the first unlock, or a passing failure) would make the session replace the identity. Those throw.
+     */
     override fun load(name: String): ByteArray? = memScoped {
         val result = alloc<CFTypeRefVar>()
         val status = query(name, kSecReturnData to kCFBooleanTrue, kSecMatchLimit to kSecMatchLimitOne) { SecItemCopyMatching(it, result.ptr) }
-        // before the first unlock nothing opens: saying the secret is gone would make the session replace the identity
-        check(status != errSecInteractionNotAllowed) { "the Keychain is locked until the phone is unlocked once" }
-        val data: CFDataRef = result.value?.reinterpret() ?: return@memScoped null
+        val data: CFDataRef? = result.value?.reinterpret()
         try {
-            if (status != errSecSuccess) return@memScoped null
+            check(status != errSecInteractionNotAllowed) { "the Keychain is locked until the phone is unlocked once" }
+            check(status == errSecSuccess || status == errSecItemNotFound) { "the Keychain didn't open $name: $status" }
+            if (status == errSecItemNotFound || data == null) return@memScoped null
             val length = CFDataGetLength(data).toInt()
             if (length == 0) ByteArray(0) else CFDataGetBytePtr(data)!!.readBytes(length)
         } finally {
-            CFRelease(data)
+            data?.let(::CFRelease)
         }
     }
 
+    /** In place, so a failure keeps the secret there was; added only where there was none. */
     override fun save(name: String, secret: ByteArray) {
-        delete(name)
         val data = secret.usePinned { pinned ->
             CFDataCreate(null, if (secret.isEmpty()) null else pinned.addressOf(0).reinterpret(), secret.size.convert())
         }
+        val changes = CFDictionaryCreateMutable(null, 0, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
         try {
-            val status = query(name, kSecValueData to data, kSecAttrAccessible to kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly) { SecItemAdd(it, null) }
+            CFDictionaryAddValue(changes, kSecValueData, data)
+            CFDictionaryAddValue(changes, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
+            var status = query(name) { SecItemUpdate(it, changes) }
+            if (status == errSecItemNotFound) {
+                status = query(name, kSecValueData to data, kSecAttrAccessible to kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly) { SecItemAdd(it, null) }
+            }
             check(status == errSecSuccess) { "the Keychain didn't keep $name: $status" }
         } finally {
+            CFRelease(changes)
             CFRelease(data)
         }
     }
