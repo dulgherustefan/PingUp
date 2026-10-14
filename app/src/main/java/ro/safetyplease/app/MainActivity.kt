@@ -64,7 +64,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_ALERT, false)) alertLaunch = true
+        // recreated under an alert (a rotation over the lock screen), it stays there until the alert shows again
+        alertLaunch = savedInstanceState?.getBoolean(STATE_ALERT) ?: intent.getBooleanExtra(EXTRA_ALERT, false)
         showOverLockScreen()
         // follow the system theme; system bar icons flip with it
         enableEdgeToEdge(
@@ -125,6 +126,11 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_ALERT, alertLaunch || alertsShown > 0)
+    }
+
     /** An alert that may show over the lock screen came on screen ([shown]) or left it. */
     fun alertShown(shown: Boolean) {
         alertsShown = (alertsShown + if (shown) 1 else -1).coerceAtLeast(0)
@@ -181,6 +187,7 @@ class MainActivity : ComponentActivity() {
 
         /** How long an alert's launch keeps the app over the lock screen when no alert shows. */
         private const val ALERT_LAUNCH_MS = 3_000L
+        private const val STATE_ALERT = "alert"
     }
 }
 
