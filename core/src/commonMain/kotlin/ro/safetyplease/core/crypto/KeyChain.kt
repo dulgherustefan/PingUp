@@ -174,13 +174,14 @@ class KeyChain(
     /**
      * Only a control shift signs a notice, and only within its shift: the certificate is checked at the notice's issue,
      * so one issued just before the shift ends still holds for the phones that get it later, at most
-     * [Notice.MAX_VALID_S] from its issue. A revoked certificate refuses it whenever it comes. Whether it is still in
-     * force, and newer than the one kept, is the cache's to decide.
+     * [Notice.MAX_VALID_S] from its issue. A revoked certificate refuses it whenever it comes. One issued past this
+     * phone's clock isn't refused: a phone whose clock runs behind still gets the evacuation, which
+     * [ro.safetyplease.core.announce.NoticeOrder] marks as of uncertain time and orders no later than the clock plus the
+     * skew. Whether it is still in force, and newer than the one kept, is the cache's to decide.
      */
     private fun checkNotice(payload: ByteArray): Verdict {
         val notice = Notice.decode(payload) ?: return Verdict.INVALID
         val cert = notice.certificate
-        if (notice.issued > nowSec() + SKEW_S) return Verdict.REFUSED
         when (status(cert, notice.issued)) {
             CertStatus.VALID -> Unit
             CertStatus.FORGED -> return Verdict.INVALID
