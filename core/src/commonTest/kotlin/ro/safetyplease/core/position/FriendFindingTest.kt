@@ -201,4 +201,17 @@ class FriendFindingTest {
         assertEquals(listOf(running, justStarted), SharingNow.keptPlans(listOf(running, justStarted, stopped), active, now))
         assertEquals(emptyList<SharePlan>(), SharingNow.keptPlans(listOf(over), active, now))
     }
+
+    @Test
+    fun keepingThePlansStartsFromHowTheyAreNow() {
+        val now = 1_000_000L
+        val active = listOf(OutgoingShare("f1", SharePrecision.EXACT, now + 30 * min, 1), OutgoingShare("f2", SharePrecision.EXACT, now + 30 * min, 2))
+        val first = SharePlan("f1", null, now - ShareTime.REMINDER_MS)
+        val second = SharePlan("f2", null, now - 10 * min)
+        // read before the user stopped f2 and started f3; what is written back starts from what holds now
+        val reminded = listOf(first)
+        val started = SharePlan("f3", null, now)
+        assertEquals(listOf(first.copy(remindedAtMs = now), started), SharingNow.keep(listOf(first, started), active, now, reminded))
+        assertEquals(listOf(second), SharingNow.keep(listOf(second), active, now, reminded), "a plan replaced meanwhile isn't marked")
+    }
 }

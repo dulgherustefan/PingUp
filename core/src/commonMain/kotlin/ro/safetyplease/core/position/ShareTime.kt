@@ -87,6 +87,10 @@ data class SharingNow(val shares: List<MyShare>) {
             (running || nowMs - plan.startedAtMs < START_GRACE_MS) && (plan.endAtMs == null || plan.endAtMs > nowMs)
         }
 
+        /** [plans] as they are now, without those that ended and with the [reminded] ones marked at [nowMs]. */
+        fun keep(plans: List<SharePlan>, active: List<OutgoingShare>, nowMs: Long, reminded: List<SharePlan>): List<SharePlan> =
+            keptPlans(plans, active, nowMs).map { if (it in reminded) it.copy(remindedAtMs = nowMs) else it }
+
         const val START_GRACE_MS = 60_000L
     }
 }
