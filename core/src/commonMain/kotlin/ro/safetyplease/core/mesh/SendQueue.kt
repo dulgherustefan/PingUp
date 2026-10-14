@@ -45,6 +45,18 @@ class SendQueue(private val capacity: Int = 128, private val onFull: () -> Unit 
         return before - queue.size
     }
 
+    /** Takes out every queued copy of the packet with this dedup key; how many went. */
+    fun removeCopies(dedupKey: Long): Int {
+        var removed = 0
+        for (q in levels) {
+            val before = q.size
+            q.removeAll { it.packet.dedupKey == dedupKey }
+            removed += before - q.size
+        }
+        size -= removed
+        return removed
+    }
+
     /** Highest-priority item right now; call it after the pacing wait, not before. */
     fun poll(): Outbound? {
         for (q in levels) {

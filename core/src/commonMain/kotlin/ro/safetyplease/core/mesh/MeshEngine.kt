@@ -94,6 +94,22 @@ data class MeshConfig(
     val chatFanOut: Boolean = MeshEngine.CHAT_FAN_OUT,
     /** A participant that had a link with staff or an anchor lately becomes a leaf ([LinkMode.LEAF]). */
     val leaves: Boolean = MeshEngine.LEAVES,
+    /**
+     * Experiment, off: a relay passes on what its cache takes as new (reports, ACKs, responses, updates, notices) even
+     * with the TTL spent. The cache already stops a second relay of the same one, so the TTL only slowed them.
+     */
+    val cachedPastTtl: Boolean = false,
+    /** Experiment, off: a copy that comes from a link takes the same packet out of that link's send queue. */
+    val dropQueuedCopies: Boolean = false,
+    /**
+     * Experiment, off: a PRIVATE goes only on the link the recipient's own packets last came from while that route is
+     * fresh ([routeFreshMs]), and floods where there is none.
+     */
+    val routedUnicast: Boolean = false,
+    /** Experiment, off: a copy with more TTL left that comes during the relay delay raises the TTL relayed. */
+    val bestTtl: Boolean = false,
+    /** How long a route learned from a phone's packet is followed ([routedUnicast]). */
+    val routeFreshMs: Long = MeshEngine.ROUTE_FRESH_MS,
 )
 
 sealed interface MeshEvent {
@@ -295,8 +311,15 @@ class MeshEngine(
         }
     }
 
-    /** Packets waiting out the relay jitter, with the links that already gave us a copy. */
-    private val relaying = HashMap<Long, MutableSet<Int>>()
+    /** A packet waiting out the relay jitter: the links that already gave us a copy, and the TTL it will go with. */
+    private class Pending(val delivered: MutableSet<Int>, var ttl: Int, val maxTtl: Int)
+
+    private val relaying = HashMap<Long, Pending>()
+
+    /** With [MeshConfig.routedUnicast]: by nodeId, the link its last packet came from, its hops then, and when. */
+    private class Route(val link: Int, val hops: Int, val atMs: Long)
+
+    private val routes = LinkedHashMap<Long, Route>()
 
     /** The neighbours' clocks, from their notice summaries; notices are read on them when this phone's disagrees. */
     private val peerClocks = PeerClocks()
@@ -608,9 +631,10 @@ class MeshEngine(
     }
 
     private fun flood(packet: Packet, except: Set<Int> = emptySet(), own: Boolean, position: Boolean = false): Int {
-        val targets = links.values.filter { it.ready && it.id !in except && canSend(it, packet) }
+        val route = routeFor(packet, except)
+        val targets = if (route != null) listOf(route) else links.values.filter { it.ready && it.id !in except && canSend(it, packet) }
         var count = 0
-        for (link in fanOut(packet, targets, own)) {
+        for (link in if (route != null) targets else fanOut(packet, targets, own)) {
             if (link.queue.offer(Outbound(packet, own, position))) count++ else drop(packet, link, DropReason.QUEUE_FULL)
         }
         return count
@@ -623,6 +647,21 @@ class MeshEngine(
     private fun fanOut(packet: Packet, targets: List<Link>, own: Boolean): List<Link> {
         if (own || !config.chatFanOut || packet.type != PacketType.PRIVATE) return targets
         return FanOut.pick(targets, targets.firstOrNull { it.peerId == packet.recipient }, random)
+    }
+
+    /** With [MeshConfig.routedUnicast], the one link a PRIVATE takes toward its recipient; null to flood it. */
+    private fun routeFor(packet: Packet, except: Set<Int>): Link? {
+        if (!config.routedUnicast || packet.type != PacketType.PRIVATE) return null
+        val recipient = packet.recipient?.takeIf { it != ControlChannel.ID } ?: return null
+        val route = routes[recipient]?.takeIf { clock.monoMs() - it.atMs <= config.routeFreshMs } ?: return null
+        return links[route.link]?.takeIf { it.ready && it.id !in except && canSend(it, packet) }
+    }
+
+    private fun learnRoute(peer: Long, link: Link, hops: Int, now: Long) {
+        if (!config.routedUnicast || peer == 0L || peer == nodeId || link.peerId == 0L) return
+        routes.remove(peer)
+        routes[peer] = Route(link.id, hops, now)
+        if (routes.size > MAX_ROUTES) routes.remove(routes.keys.first())
     }
 
     /** Nothing goes to a 1.0 peer that it would count as malformed. */
@@ -838,7 +877,11 @@ class MeshEngine(
     /** The link that sent it already has it, so a pending relay skips that link. */
     private fun isDuplicate(link: Link, packet: Packet, now: Long): Boolean {
         if (PacketType.isLinkLocal(packet.type) || !dedup.contains(packet.dedupKey, now)) return false
-        relaying[packet.dedupKey]?.add(link.id)
+        relaying[packet.dedupKey]?.let { pending ->
+            pending.delivered.add(link.id)
+            if (config.bestTtl) pending.ttl = minOf(maxOf(pending.ttl, packet.ttl - 1), pending.maxTtl)
+        }
+        if (config.dropQueuedCopies) link.queue.removeCopies(packet.dedupKey)
         return true
     }
 
@@ -869,6 +912,7 @@ class MeshEngine(
         }
         link.peerId = hello.nodeId
         link.syncMs = clock.monoMs()
+        learnRoute(hello.nodeId, link, 1, clock.monoMs())
         setPeer(link, hello)
         if (link.spare && !ConnectionPolicy.isSpareSession(mode, hello.flags)) {
             log.link(clock.wallMs(), link.label, "the anchor slot is for anchors")
@@ -1005,6 +1049,8 @@ class MeshEngine(
         positionBudget.onUnique(now)
         // what we keep for store-and-forward is relayed with one hop less
         val forwardable = packet.withTtl(maxOf(packet.ttl - 1, 1))
+        // taken as new by the cache, which stops a second relay of it whatever the TTL says
+        var cached = false
         when (packet.type) {
             PacketType.INCIDENT_REPORT -> {
                 if (!IncidentReportCodec.isWellFormed(packet.payload)) return malformed(link, "invalid report")
@@ -1013,6 +1059,7 @@ class MeshEngine(
                 link.newReports.tryAdd(now)
                 reportHops.bump(packet.hops)
                 saveCache()
+                cached = true
             }
             PacketType.INCIDENT_ACK -> {
                 val ack = IncidentAck.decode(packet.payload) ?: return malformed(link, "ACK invalid")
@@ -1026,6 +1073,7 @@ class MeshEngine(
                 if (!cache.offerAck(ack, forwardable, now)) return drop(packet, link, DropReason.STALE_ACK)
                 ackHops.bump(packet.hops)
                 saveCache()
+                cached = true
             }
             PacketType.INCIDENT_CANCEL -> {
                 if (packet.payload.size < IncidentCancel.SIZE) return malformed(link, "invalid CANCEL")
@@ -1039,6 +1087,7 @@ class MeshEngine(
                 }
                 if (!cache.offerResponse(response, forwardable, now)) return drop(packet, link, DropReason.STALE_ACK)
                 saveCache()
+                cached = true
             }
             // a revocation goes on as it is; a notice only if its slot takes it and it still holds
             PacketType.ANNOUNCEMENT -> {
@@ -1046,13 +1095,17 @@ class MeshEngine(
                 if (notice != null) {
                     if (!cache.offerNotice(notice, forwardable, now, noticeWallMs(now))) return drop(packet, link, DropReason.STALE_ACK)
                     saveCache()
+                    cached = true
                 }
             }
             // relays can't check an update, so an older one still goes on live; only the latest is kept
             PacketType.INCIDENT_UPDATE -> {
                 if (!IncidentUpdateCodec.isWellFormed(packet.payload)) return malformed(link, "invalid UPDATE")
                 val id = IncidentUpdateCodec.incidentId(packet.payload)
-                if (cache.offerUpdate(id, IncidentUpdateCodec.seq(packet.payload), forwardable, now)) saveCache()
+                if (cache.offerUpdate(id, IncidentUpdateCodec.seq(packet.payload), forwardable, now)) {
+                    saveCache()
+                    cached = true
+                }
             }
             PacketType.PRIVATE -> {
                 if (packet.recipient == null || packet.sender == 0L || !packet.encrypted) {
@@ -1062,6 +1115,7 @@ class MeshEngine(
         }
         link.lastActivityMs = now
         link.lastInboundMs = now
+        learnRoute(packet.sender, link, packet.hops, now)
         val mine = packet.recipient == nodeId
         if (packet.recipient == null || mine) {
             receivedCount++
@@ -1071,7 +1125,7 @@ class MeshEngine(
             // for the console, which also passes it on, in case it isn't the only one
             _events.tryEmit(MeshEvent.Received(packet, link.peerId))
         }
-        relayOnward(link, packet)
+        relayOnward(link, packet, cached)
         publishState()
     }
 
@@ -1119,25 +1173,27 @@ class MeshEngine(
             return drop(packet, link, DropReason.OPAQUE_LIMIT)
         }
         dedup.add(packet.dedupKey, now)
-        relay(packet.withTtl(minOf(packet.ttl - 1, PacketType.OPAQUE_MAX_TTL)), link)
+        relay(packet.withTtl(minOf(packet.ttl - 1, PacketType.OPAQUE_MAX_TTL)), link, PacketType.OPAQUE_MAX_TTL)
         publishState()
     }
 
-    private fun relayOnward(from: Link, packet: Packet) {
-        if (packet.recipient != nodeId && packet.ttl > 1) relay(packet.withTtl(packet.ttl - 1), from)
+    private fun relayOnward(from: Link, packet: Packet, cached: Boolean = false) {
+        if (packet.recipient == nodeId) return
+        if (packet.ttl > 1) relay(packet.withTtl(packet.ttl - 1), from)
+        else if (cached && config.cachedPastTtl) relay(packet, from)
     }
 
-    private fun relay(packet: Packet, from: Link) {
+    private fun relay(packet: Packet, from: Link, maxTtl: Int = PacketCodec.MAX_TTL) {
         if (!ConnectionPolicy.relays(mode, packet)) return
         relayedCount++
         val jitter = random.nextLong(config.relayJitterMinMs, config.relayJitterMaxMs + 1)
         val key = packet.dedupKey
-        val delivered = mutableSetOf(from.id)
-        relaying[key] = delivered
+        val pending = Pending(mutableSetOf(from.id), packet.ttl, maxTtl)
+        relaying[key] = pending
         scope.launch {
             delay(jitter)
             relaying.remove(key)
-            flood(packet, except = delivered, own = false)
+            flood(if (pending.ttl == packet.ttl) packet else packet.withTtl(pending.ttl), except = pending.delivered, own = false)
         }
     }
 
@@ -1201,6 +1257,7 @@ class MeshEngine(
         shutOutAddressesUntil.values.removeAll { it <= now }
         shutOutPrefixesUntil.values.removeAll { it <= now }
         unprovenUntil.values.removeAll { it <= now }
+        routes.values.removeAll { now - it.atMs > config.routeFreshMs }
         if (rotatingPrefix.isDue(now)) renewPrefix(now)
         sessionEnds.values.removeAll { now - it > ConnectionPolicy.SELF_SESSION_MS + ConnectionPolicy.SESSION_SPREAD_MS }
         updateMode(now)
@@ -1386,5 +1443,9 @@ class MeshEngine(
 
         /** What a 1.1 peer gets summaries of besides incidents. */
         private val HELD_KINDS = listOf(SummaryKind.RESPONSES, SummaryKind.UPDATES)
+
+        /** How long a route learned from a phone's packet is followed by default ([MeshConfig.routeFreshMs]). */
+        const val ROUTE_FRESH_MS = 120_000L
+        private const val MAX_ROUTES = 4_096
     }
 }
