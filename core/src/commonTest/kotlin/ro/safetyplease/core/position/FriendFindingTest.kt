@@ -50,12 +50,16 @@ class FriendFindingTest {
     @Test
     fun ringGrowsHalfAMetreASecondUpToItsCaps() {
         assertEquals(16.0, FriendRing.accuracy95(AccuracyClass.of(8.0)), 1e-6)
-        assertEquals(FriendRing.MAX_M, FriendRing.accuracy95(AccuracyClass.UNKNOWN), 1e-6)
-        assertEquals(FriendRing.MAX_M, FriendRing.accuracy95(AccuracyClass.OVER_200), 1e-6)
+        assertEquals(FriendRing.WIDE_M, FriendRing.accuracy95(AccuracyClass.UNKNOWN), 1e-6)
+        assertEquals(FriendRing.WIDE_M, FriendRing.accuracy95(AccuracyClass.OVER_200), 1e-6)
         assertEquals(16.0, FriendRing.radiusM(16.0, 0, here, null), 1e-6)
         // 8 minutes: 16 + 0.5 x 480
         assertEquals(256.0, FriendRing.radiusM(16.0, 8 * min, here, null), 1e-6)
-        assertEquals(FriendRing.MAX_M, FriendRing.radiusM(16.0, 40 * min, here, null), 1e-6)
+        // an hour-old position off the site keeps its whole growth, well past the 300 m it used to stop at
+        assertEquals(1_816.0, FriendRing.radiusM(16.0, 60 * min, here, null), 1e-6)
+        val farFromSite = Bounds(44.5, 26.0, 44.51, 26.01)
+        assertEquals(1_816.0, FriendRing.radiusM(16.0, 60 * min, here, farFromSite), 1e-6)
+        assertEquals(FriendRing.MAX_M, FriendRing.radiusM(16.0, 4 * 60 * min, here, null), 1e-6)
         // a small site: the ring stops where the whole site is inside it
         val site = Bounds(here.lat - 0.0005, here.lon - 0.0005, here.lat + 0.0005, here.lon + 0.0005)
         val edge = FriendRing.radiusM(16.0, 40 * min, here, site)
@@ -102,7 +106,7 @@ class FriendFindingTest {
 
     @Test
     fun arrowTurnsWithTheHeading() {
-        assertEquals(45f, Guide.arrowDeg(45.0, null), 1e-4f)
+        assertEquals(45f, Guide.arrowDeg(45.0, 0f), 1e-4f)
         assertEquals(315f, Guide.arrowDeg(45.0, 90f), 1e-4f)
         assertEquals(10f, Guide.arrowDeg(350.0, 340f), 1e-4f)
     }

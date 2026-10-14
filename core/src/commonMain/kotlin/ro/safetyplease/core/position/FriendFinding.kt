@@ -50,14 +50,20 @@ enum class FriendPace {
 object FriendRing {
     /** How far a person may have walked, on average, for each second the position is old. */
     const val DRIFT_MPS = 0.5
-    const val MAX_M = 300.0
 
-    /** The 95% radius of a received accuracy class; past 200 m or unknown, the largest ring there is. */
-    fun accuracy95(accuracyClass: Int): Double = AccuracyClass.meters(accuracyClass)?.let { it * LocationFix.RING_95.toDouble() } ?: MAX_M
+    /** The 95% radius of a fix past 200 m or of unknown accuracy. */
+    const val WIDE_M = 300.0
+
+    /** Close to three hours of walking: a wider ring says nothing more of where to look. */
+    const val MAX_M = 5_000.0
+
+    /** The 95% radius of a received accuracy class; past 200 m or unknown, [WIDE_M]. */
+    fun accuracy95(accuracyClass: Int): Double = AccuracyClass.meters(accuracyClass)?.let { it * LocationFix.RING_95.toDouble() } ?: WIDE_M
 
     /**
      * The ring drawn around a friend: the 95% radius grown by [DRIFT_MPS] for each second of age, at most [MAX_M] and
-     * at most as far as the site reaches from [at], past which a larger ring adds nothing.
+     * at most as far as the site reaches from [at], past which a larger ring adds nothing. An hour-old position far
+     * from the site keeps its whole growth: the friend may be well over a kilometre away from it.
      */
     fun radiusM(accuracy95M: Double, ageMs: Long, at: GeoPoint, site: Bounds?): Double {
         val grown = accuracy95M + DRIFT_MPS * maxOf(0L, ageMs) / 1000.0
@@ -106,8 +112,11 @@ object Guide {
         return (degrees(atan2(dLon, dLat)) + 360) % 360
     }
 
-    /** The arrow's angle on screen, clockwise: from the way the phone faces, or from north when that is unknown. */
-    fun arrowDeg(bearingDeg: Double, headingDeg: Float?): Float = (((bearingDeg - (headingDeg ?: 0f)) % 360 + 360) % 360).toFloat()
+    /**
+     * The arrow's angle on screen, clockwise from the way the phone faces. Without a heading there is no arrow: one drawn
+     * as if the phone faced north points the wrong way for anyone who doesn't.
+     */
+    fun arrowDeg(bearingDeg: Double, headingDeg: Float): Float = (((bearingDeg - headingDeg) % 360 + 360) % 360).toFloat()
 }
 
 /** "Unde ești?" once a minute per friend: the limit the chat already holds, for the button to show. */

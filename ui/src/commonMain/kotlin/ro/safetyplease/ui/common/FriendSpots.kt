@@ -109,12 +109,15 @@ fun guideText(guide: FriendGuide): String = when (guide) {
         else stringResource(Res.string.pos_landmark, guide.distanceM, guide.landmark ?: 0)
 }
 
-/** Which way and how far, with an arrow only when [Guide] allows one; [headingDeg] turns it with the phone. */
+/**
+ * Which way and how far, with an arrow only when [Guide] allows one and the phone knows which way it faces
+ * ([headingDeg], which turns it); otherwise the words alone say the way.
+ */
 @Composable
 fun FriendGuideRow(guide: FriendGuide, headingDeg: Float?, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     Row(modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (guide is FriendGuide.Arrow) {
+        if (guide is FriendGuide.Arrow && headingDeg != null) {
             Icon(Sym.Send, null, Modifier.size(28.dp).rotate(Guide.arrowDeg(guide.bearingDeg, headingDeg)), tint = colors.accent)
         } else {
             Icon(Sym.Place, null, Modifier.size(28.dp), tint = colors.accent)
