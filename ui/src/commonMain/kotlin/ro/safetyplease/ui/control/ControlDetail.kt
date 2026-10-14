@@ -129,6 +129,7 @@ import ro.safetyplease.ui.resources.control_reopen
 import ro.safetyplease.ui.resources.control_reopen_text
 import ro.safetyplease.ui.resources.control_reopen_title
 import ro.safetyplease.ui.resources.control_respond_coming
+import ro.safetyplease.ui.resources.control_respond_failed
 import ro.safetyplease.ui.resources.control_respond_landmark
 import ro.safetyplease.ui.resources.control_respond_medical
 import ro.safetyplease.ui.resources.control_respond_send
@@ -335,9 +336,14 @@ private fun ReplyPanel(vm: AppViewModel, incident: StaffIncident?, near: Int) {
         Text(stringResource(Res.string.control_respond_unavailable), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
         return
     }
+    val failed = stringResource(Res.string.control_respond_failed)
     fun send(code: Int, landmark: Int = 0) {
-        vm.respond(incident.incidentId, code, landmark)
-        haptics.confirm()
+        if (vm.respond(incident.incidentId, code, landmark)) {
+            haptics.confirm()
+        } else {
+            haptics.reject()
+            vm.phone.toast(failed, long = true)
+        }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val wide = Modifier.fillMaxWidth()

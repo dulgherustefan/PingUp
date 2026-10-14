@@ -180,7 +180,7 @@ class KeyChainTest {
     @Test
     fun reportsAreSealedToTheDaysKeyAndOnlyItsHoldersOpenThem() {
         assertContentEquals(dayBox.publicKey, chain.reportKey())
-        val sealed = staff.sealReport("body".encodeToByteArray())
+        val sealed = staff.sealReport("body".encodeToByteArray())!!
         val medic = shift(CertRole.STAFF, "Medical 1")
         assertNull(staff.openReport(sealed, medic.secret()))
         assertNull(staff.openReport(sealed, StaffSecretKeys(legacyBox, legacySign)))
@@ -189,7 +189,7 @@ class KeyChainTest {
         // outside the planned days the build's key takes over, and the lead's copy of it still opens
         clock.sec = t0 + 3 * 3600
         assertNull(chain.reportKey())
-        assertEquals("late", staff.openReport(staff.sealReport("late".encodeToByteArray()), lead)!!.decodeToString())
+        assertEquals("late", staff.openReport(staff.sealReport("late".encodeToByteArray())!!, lead)!!.decodeToString())
     }
 
     @Test

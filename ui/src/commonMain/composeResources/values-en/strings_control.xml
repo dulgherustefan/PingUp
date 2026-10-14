@@ -45,4 +45,5 @@
     <string name="evac_banner_closed">Evacuation. Your exit is in a closed area: ask the staff.</string>
     <string name="evac_pin_exit">Your exit</string>
     <string name="evac_exit_number">Exit %1$d</string>
+    <string name="control_respond_failed">The reply didn’t go: the report’s reply key isn’t usable.</string>
 </resources>

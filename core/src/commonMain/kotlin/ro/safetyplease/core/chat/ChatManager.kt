@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import ro.safetyplease.core.crypto.BoxKeys
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.FriendCard
 import ro.safetyplease.core.crypto.Identity
@@ -440,7 +441,8 @@ class ChatManager(
     private fun sendPosition(recipient: Long, position: Inner.Position): Boolean {
         if (engine.state.value.readyLinks == 0) return false
         val key = boxKeyOf(recipient) ?: return false
-        return engine.unicastPosition(recipient, crypto.box(InnerCodec.encode(position), key, identity.box.secretKey)) != null
+        val boxed = crypto.box(InnerCodec.encode(position), key, identity.box.secretKey) ?: return false
+        return engine.unicastPosition(recipient, boxed) != null
     }
 
     /** K in [PositionPolicy.intervalMs]: the positions this phone holds, its own included while it shares. */
@@ -924,7 +926,7 @@ class ChatManager(
         val key = item.boxKey.takeIf { it.isNotEmpty() }?.hexToBytes() ?: boxKeyOf(item.recipient) ?: return
         if (!sendLimit.tryAdd(clock.monoMs())) return
         val inner = item.innerHex.hexToBytes()
-        val payload = if (item.sealed) crypto.seal(inner, key) else crypto.box(inner, key, identity.box.secretKey)
+        val payload = (if (item.sealed) crypto.seal(inner, key) else crypto.box(inner, key, identity.box.secretKey)) ?: return failNow(item)
         val packet = engine.unicast(PacketType.PRIVATE, item.recipient, payload)
         attempts[packet.id] = item.msgId to item.recipient
         while (attempts.size > 512) attempts.remove(attempts.keys.first())
@@ -937,12 +939,28 @@ class ChatManager(
         }
     }
 
-    /** False if it didn't go: no link, no key, or over the chat budget. */
+    /**
+     * A key libsodium refuses (a small-order point some older version kept) can never be written to: the item fails
+     * now instead of being retried, as one that ran out of time does.
+     */
+    private fun failNow(item: OutboxItem) {
+        chat.update { data ->
+            data.copy(
+                outbox = data.outbox.filterNot { it.msgId == item.msgId && it.recipient == item.recipient },
+                messages = data.messages.map {
+                    if (it.fromMe && it.msgId == item.msgId && it.status != MsgStatus.DELIVERED) it.copy(status = MsgStatus.FAILED) else it
+                },
+            )
+        }
+    }
+
+    /** False if it didn't go: no link, no key (or one libsodium refuses), or over the chat budget. */
     private fun sendDirect(recipient: Long, inner: Inner): Boolean {
         if (engine.state.value.readyLinks == 0) return false
         val key = boxKeyOf(recipient) ?: return false
         if (!sendLimit.tryAdd(clock.monoMs())) return false
-        engine.unicast(PacketType.PRIVATE, recipient, crypto.box(InnerCodec.encode(inner), key, identity.box.secretKey))
+        val boxed = crypto.box(InnerCodec.encode(inner), key, identity.box.secretKey) ?: return false
+        engine.unicast(PacketType.PRIVATE, recipient, boxed)
         return true
     }
 
@@ -1153,6 +1171,8 @@ class ChatManager(
      */
     private fun onIntro(packet: Packet, intro: Inner.Intro) {
         val sender = packet.sender
+        // nothing could ever be boxed to a small-order key: such an intro is only made to break the phone
+        if (!BoxKeys.acceptable(intro.boxKey)) return
         if (Identity.nodeIdOf(intro.signKey, intro.boxKey) != sender) return
         val signed = InnerCodec.introSignedBytes(identity.nodeId, intro.msgId, intro.boxKey, intro.signKey, intro.nickname)
         if (!crypto.verify(intro.signature, signed, intro.signKey)) return
@@ -1238,7 +1258,8 @@ class ChatManager(
         confirm(sender, invite.msgId)
         if (groups.value.any { it.id == invite.groupId }) return
         val me = GroupMember(identity.nodeId, myNickname(), identity.box.publicKey.toHex())
-        val others = invite.members.filter { it.nodeId != identity.nodeId && it.nodeId != sender && !isBlocked(it.nodeId) }
+        val others = invite.members
+            .filter { it.nodeId != identity.nodeId && it.nodeId != sender && !isBlocked(it.nodeId) && BoxKeys.acceptable(it.boxKey) }
             .map { GroupMember(it.nodeId, it.nickname, it.boxKey.toHex()) }
         val members = listOf(GroupMember(sender, inviter.nickname, inviter.boxKey), me) + others
         groups.update { it + Group(invite.groupId, invite.name, members, clock.wallMs()) }

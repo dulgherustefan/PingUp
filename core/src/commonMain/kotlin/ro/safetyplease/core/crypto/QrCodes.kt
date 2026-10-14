@@ -70,11 +70,13 @@ object QrCodes {
         return FRIEND_PREFIX + base64.encode(bytes)
     }
 
+    /** Null also for a box key nothing could be sent to ([BoxKeys.acceptable]). */
     fun decodeFriend(text: String): FriendCard? {
         val bytes = payload(text, FRIEND_PREFIX) ?: return null
         return parseOrNull {
             val r = WireReader(bytes)
             val boxKey = r.bytes(Crypto.BOX_PUBLIC)
+            if (!BoxKeys.acceptable(boxKey)) throw MalformedException("box key")
             val signKey = r.bytes(Crypto.SIGN_PUBLIC)
             val nick = r.string(r.u8(), Limits.NICK_BYTES)
             r.expectEnd()

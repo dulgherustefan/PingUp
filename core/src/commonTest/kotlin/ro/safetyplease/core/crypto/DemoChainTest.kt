@@ -96,14 +96,14 @@ class DemoChainTest {
         assertEquals(Verdict.VALID, chain.checkPoint(staff.signPoint(5, PointLevel.BUSY, t0, "Medical 1", medic).encode()))
 
         val reply = testCrypto.boxKeyPair()
-        assertEquals(Verdict.VALID, chain.checkResponse(staff.signResponse(id, t0, ResponseBody(1), reply.publicKey, control).encode()))
+        assertEquals(Verdict.VALID, chain.checkResponse(staff.signResponse(id, t0, ResponseBody(1), reply.publicKey, control)!!.encode()))
         val notice = Notice.sign(testCrypto, controlCred, NoticeTopic.HEAT, 2, 1, t0, t0 + 3600, 11)
         assertEquals(Verdict.VALID, chain.checkAnnouncement(notice.encode()))
 
         // every demo team opens the day's reports, and those sealed to the debug build's key
         chain.addReportKey(day)
-        assertNotNull(staff.openReport(staff.sealReport(byteArrayOf(1, 2, 3)), medic))
-        assertNotNull(staff.openReport(testCrypto.seal(byteArrayOf(4), publicKeys.box), medic))
+        assertNotNull(staff.openReport(staff.sealReport(byteArrayOf(1, 2, 3))!!, medic))
+        assertNotNull(staff.openReport(testCrypto.seal(byteArrayOf(4), publicKeys.box)!!, medic))
     }
 
     @Test

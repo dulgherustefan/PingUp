@@ -50,7 +50,9 @@ class SodiumCrypto(private val randomSource: ((Int) -> ByteArray)? = null) : Cry
         return pinned(seed) { s -> keyPair(Crypto.SIGN_PUBLIC, Crypto.SIGN_SECRET) { pk, sk -> crypto_sign_seed_keypair(pk, sk, s) } }
     }
 
-    override fun box(plain: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray {
+    override fun box(plain: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray? {
+        // libsodium reads 32 bytes from each key, whatever the array holds
+        if (theirPublic.size != Crypto.BOX_PUBLIC || mySecret.size != Crypto.BOX_SECRET) return null
         val nonce = random(Crypto.BOX_NONCE)
         val cipher = ByteArray(plain.size + Crypto.BOX_MAC)
         val result = pinned(cipher) { c ->
@@ -58,8 +60,8 @@ class SodiumCrypto(private val randomSource: ((Int) -> ByteArray)? = null) : Cry
                 pinned(nonce) { n -> pinned(theirPublic) { pk -> pinned(mySecret) { sk -> crypto_box_easy(c, m, plain.size.convert(), n, pk, sk) } } }
             }
         }
-        check(result == 0)
-        return nonce + cipher
+        // libsodium refuses a small-order key: the shared secret would be all zeros
+        return if (result == 0) nonce + cipher else null
     }
 
     override fun boxOpen(data: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray? {
@@ -75,11 +77,11 @@ class SodiumCrypto(private val randomSource: ((Int) -> ByteArray)? = null) : Cry
         return if (result == 0) plain else null
     }
 
-    override fun seal(plain: ByteArray, recipientPublic: ByteArray): ByteArray {
+    override fun seal(plain: ByteArray, recipientPublic: ByteArray): ByteArray? {
+        if (recipientPublic.size != Crypto.BOX_PUBLIC) return null
         val cipher = ByteArray(plain.size + Crypto.SEAL_OVERHEAD)
         val result = pinned(cipher) { c -> pinned(plain) { m -> pinned(recipientPublic) { pk -> crypto_box_seal(c, m, plain.size.convert(), pk) } } }
-        check(result == 0)
-        return cipher
+        return if (result == 0) cipher else null
     }
 
     override fun sealOpen(data: ByteArray, recipientPublic: ByteArray, recipientSecret: ByteArray): ByteArray? {

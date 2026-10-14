@@ -38,10 +38,12 @@ class SodiumCrypto(private val sodium: LazySodium) : Crypto {
         return KeyPair(pk, sk)
     }
 
-    override fun box(plain: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray {
+    override fun box(plain: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray? {
+        if (theirPublic.size != Box.PUBLICKEYBYTES || mySecret.size != Box.SECRETKEYBYTES) return null
         val nonce = sodium.randomBytesBuf(Box.NONCEBYTES)
         val cipher = ByteArray(plain.size + Box.MACBYTES)
-        check(sodium.cryptoBoxEasy(cipher, plain, plain.size.toLong(), nonce, theirPublic, mySecret))
+        // libsodium refuses a small-order key: the shared secret would be all zeros
+        if (!sodium.cryptoBoxEasy(cipher, plain, plain.size.toLong(), nonce, theirPublic, mySecret)) return null
         return nonce + cipher
     }
 
@@ -54,9 +56,10 @@ class SodiumCrypto(private val sodium: LazySodium) : Crypto {
         return if (ok) plain else null
     }
 
-    override fun seal(plain: ByteArray, recipientPublic: ByteArray): ByteArray {
+    override fun seal(plain: ByteArray, recipientPublic: ByteArray): ByteArray? {
+        if (recipientPublic.size != Box.PUBLICKEYBYTES) return null
         val cipher = ByteArray(plain.size + Box.SEALBYTES)
-        check(sodium.cryptoBoxSeal(cipher, plain, plain.size.toLong(), recipientPublic))
+        if (!sodium.cryptoBoxSeal(cipher, plain, plain.size.toLong(), recipientPublic)) return null
         return cipher
     }
 

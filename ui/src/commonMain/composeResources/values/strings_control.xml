@@ -45,4 +45,5 @@
     <string name="evac_banner_closed">Evacuare. Ieșirea ta e într-o zonă închisă: întreabă staff-ul.</string>
     <string name="evac_pin_exit">Ieșirea ta</string>
     <string name="evac_exit_number">Ieșirea %1$d</string>
+    <string name="control_respond_failed">Răspunsul nu a plecat: cheia de răspuns a raportului nu e bună.</string>
 </resources>

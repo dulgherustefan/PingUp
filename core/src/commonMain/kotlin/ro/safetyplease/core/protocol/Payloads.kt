@@ -1,5 +1,6 @@
 package ro.safetyplease.core.protocol
 
+import ro.safetyplease.core.crypto.BoxKeys
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.util.sha256
 import ro.safetyplease.core.util.utf8
@@ -534,7 +535,8 @@ class IncidentBody(
             val triage = if (flags and FLAG_TRIAGE != 0) r.u8().let { Triage(it and 0x03, (it shr 2) and 0x03) } else null
             val staff = if (flags and FLAG_STAFF != 0) StaffFields(r.u8(), r.u8() and STAFF_DANGER != 0) else null
             val location = if (flags and FLAG_LOCATION != 0) LocationFields(r.u8(), r.u8()) else null
-            val replyKey = if (flags and FLAG_REPLY != 0) r.bytes(REPLY_KEY_SIZE) else null
+            // a key nothing can be sealed to counts as none: the console then has nothing to answer to
+            val replyKey = if (flags and FLAG_REPLY != 0) r.bytes(REPLY_KEY_SIZE).takeIf { BoxKeys.acceptable(it) } else null
             val extras = if (flags and FLAG_EXTRAS != 0) ReportExtras.decode(r.rest()) else ReportExtras.NONE
             IncidentBody(category, severity, timestamp, zone, lat, lon, description, nick, cancelHash, triage, staff, location, replyKey, extras)
         }

@@ -275,10 +275,10 @@ class EventPackTest {
         assertEquals(Verdict.REFUSED, drill.chain().checkAck(realAck))
 
         val body = "exercițiu".encodeToByteArray()
-        val sealed = drillCrypto.sealReport(body)
+        val sealed = drillCrypto.sealReport(body)!!
         assertContentEquals(body, drillCrypto.openReport(sealed, drillMedic))
         assertNull(realCrypto.openReport(sealed, realMedic))
-        assertNull(drillCrypto.openReport(realCrypto.sealReport(body), drillMedic))
+        assertNull(drillCrypto.openReport(realCrypto.sealReport(body)!!, drillMedic))
     }
 
     @Test

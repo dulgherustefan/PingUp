@@ -238,9 +238,9 @@ class DecoderFuzzTest {
         val secret = StaffSecretKeys(staffBox, staffSign)
         val alice = Identity.generate(crypto)
         val bob = Identity.generate(crypto)
-        val sealed = staff.sealReport(random.body().encode())
+        val sealed = staff.sealReport(random.body().encode())!!
         val ack = staff.signAck(random.nextBytes(16), AckStatus.RESOLVED, 1L, "Medical 1", secret).encode()
-        val boxed = crypto.box(InnerCodec.encode(random.inner()), bob.box.publicKey, alice.box.secretKey)
+        val boxed = crypto.box(InnerCodec.encode(random.inner()), bob.box.publicKey, alice.box.secretKey)!!
         val root = crypto.signKeyPair()
         val organiser = crypto.signKeyPair()
         val event = crypto.signKeyPair()

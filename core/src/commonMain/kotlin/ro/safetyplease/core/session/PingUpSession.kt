@@ -1,5 +1,6 @@
 package ro.safetyplease.core.session
 
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -141,10 +142,16 @@ import kotlin.time.Instant
  */
 open class PingUpSession(private val platform: AppPlatform) {
     val clock: Clock = platform.clock
-    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * What a run of the session threw goes to the log, and only that run ends: one bad packet or stored item doesn't
+     * take the app down, nor bring it down again at every start. Cancellation never comes here.
+     */
+    private val uncaught = CoroutineExceptionHandler { _, e -> platform.log("uncaught in the session: ${e.stackTraceToString()}") }
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + uncaught)
 
     /** One thread for mesh, radio, chat and incidents, so network state needs no locks. */
-    val meshScope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1))
+    val meshScope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1) + uncaught)
 
     val crypto: Crypto = platform.crypto
     private val vault = platform.vault
@@ -688,7 +695,8 @@ open class PingUpSession(private val platform: AppPlatform) {
     /** An anchor's heartbeat, to whichever console the mesh reaches. */
     fun sendHeartbeat(beat: Heartbeat) {
         meshScope.launch {
-            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, ControlMessages.seal(staffCrypto, beat.encode()))
+            val sealed = ControlMessages.seal(staffCrypto, beat.encode()) ?: return@launch
+            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, sealed)
         }
     }
 
@@ -704,7 +712,8 @@ open class PingUpSession(private val platform: AppPlatform) {
         sentPoints.update { it + (point to SentPoint(level, now)) }
         if (settings.value.role == Role.CONTROL) offerPoint(status)
         meshScope.launch {
-            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, ControlMessages.seal(staffCrypto, status.encode()))
+            val sealed = ControlMessages.seal(staffCrypto, status.encode()) ?: return@launch
+            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, sealed)
         }
         return true
     }

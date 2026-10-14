@@ -11,7 +11,7 @@ import ro.safetyplease.core.protocol.PacketType
  * phones that open reports read them.
  */
 object ControlMessages {
-    fun seal(staff: StaffCrypto, plain: ByteArray): ByteArray = staff.sealReport(plain)
+    fun seal(staff: StaffCrypto, plain: ByteArray): ByteArray? = staff.sealReport(plain)
 
     /** The plaintext, whose first byte is the kind; null for anything else or what this phone's staff keys don't open. */
     fun open(staff: StaffCrypto, secret: StaffSecretKeys, packet: Packet): ByteArray? {

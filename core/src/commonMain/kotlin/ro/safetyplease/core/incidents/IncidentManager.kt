@@ -6,6 +6,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ro.safetyplease.core.control.StaffDensity
+import ro.safetyplease.core.crypto.BoxKeys
 import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.StaffCrypto
 import ro.safetyplease.core.crypto.StaffSecretKeys
@@ -168,7 +169,7 @@ class IncidentManager(
         // with every other field full, the reply key leaves the longest descriptions a few bytes short
         val room = minOf(Limits.DESCRIPTION_BYTES, IncidentBody.MAX_SIZE - body("").encode().size)
         val description = Recognition.join(draft.recognition, draft.description.trim().take(Limits.DESCRIPTION_CHARS)).truncateUtf8(room)
-        val sealed = staffCrypto.sealReport(body(description).encode())
+        val sealed = staffCrypto.sealReport(body(description).encode()) ?: return false
         val report = MyReport(
             incidentId = incidentId.toHex(), category = draft.category, severity = draft.severity, zone = zone,
             lat = draft.lat, lon = draft.lon, description = description, anonymous = nickname == null,
@@ -243,7 +244,7 @@ class IncidentManager(
         val zone = draft.zone?.truncateUtf8(Limits.ZONE_BYTES)
         val seq = report.updates.size + 1
         val body = UpdateBody(draft.kind, now / 1000, report.cancelToken.hexToBytes(), zone, draft.lat, draft.lon, draft.location)
-        val sealed = staffCrypto.sealReport(body.encode())
+        val sealed = staffCrypto.sealReport(body.encode()) ?: return false
         val entry = IncidentUpdate(
             seq, draft.kind, now, zone, draft.lat, draft.lon, draft.location?.accuracyM ?: 0, draft.location?.landmark ?: 0,
         )
@@ -287,15 +288,20 @@ class IncidentManager(
     /**
      * Answers the reporter with a predefined [ResponseCode][ro.safetyplease.core.protocol.ResponseCode], sealed to the
      * report's reply key and signed like an ACK. Only a control shift's certificate signs one that relays accept
-     * (the build's shared key still can). Nothing goes out for a report without a reply key.
+     * (the build's shared key still can). False when nothing can go, so the screen says so: no staff keys, no reply key,
+     * or one libsodium refuses, which a report can carry on purpose.
      */
-    fun respond(incidentId: String, code: Int, landmark: Int = 0) {
+    fun respond(incidentId: String, code: Int, landmark: Int = 0): Boolean {
+        if (staffSecret() == null) return false
+        val stored = store.value.staff.firstOrNull { it.incidentId == incidentId } ?: return false
+        if (!BoxKeys.acceptable(stored.replyKey.takeIf { it.isNotEmpty() }?.hexToBytes())) return false
         scope.launch {
             val secret = staffSecret() ?: return@launch
             val incident = store.value.staff.firstOrNull { it.incidentId == incidentId }?.takeIf { it.replyKey.isNotEmpty() } ?: return@launch
             // relays keep the latest response by its second, so two never share one
             val time = maxOf(clock.wallMs() / 1000, (incident.responses.lastOrNull()?.at ?: 0) / 1000 + 1)
             val response = staffCrypto.signResponse(incidentId.hexToBytes(), time, ResponseBody(code, landmark), incident.replyKey.hexToBytes(), secret)
+                ?: return@launch
             if (engine.publishResponse(response) == null) return@launch
             val sent = ReportResponse(code, landmark, time * 1000, clock.wallMs())
             store.update { data ->
@@ -304,6 +310,7 @@ class IncidentManager(
             // a console that wrote the report itself never receives the response from the network
             onResponse(response)
         }
+        return true
     }
 
     /** Removes the incident from this phone's list only, without sending anything. */
