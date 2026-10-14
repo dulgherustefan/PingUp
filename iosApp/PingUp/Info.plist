@@ -31,6 +31,11 @@
 	<string>Ping Up trimite mesajele și rapoartele din telefon în telefon prin Bluetooth, fără semnal, chiar și cu telefonul în buzunar.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.</string>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>PreciseLocation</key>
+		<string>Echipele te găsesc după poziția din raport, iar una aproximativă poate fi greșită cu kilometri. Poziția exactă se folosește doar cât e aplicația deschisă.</string>
+	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Poziția arată în ce zonă ești. Ajunge la echipe doar într-un raport, ca să te găsească, și la prietenii cu care alegi să o împarți.</string>
 	<key>UIBackgroundModes</key>

@@ -46,6 +46,10 @@ targets:
         NSCameraUsageDescription: Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.
         NSBluetoothAlwaysUsageDescription: Ping Up trimite mesajele și rapoartele din telefon în telefon prin Bluetooth, fără semnal, chiar și cu telefonul în buzunar.
         NSLocationWhenInUseUsageDescription: Poziția arată în ce zonă ești. Ajunge la echipe doar într-un raport, ca să te găsească, și la prietenii cu care alegi să o împarți.
+        # the exact position for the screens that need it, asked for a while when only an approximate one is allowed;
+        # the key is the one IosLocation passes, and InfoPlist.strings translates it under the same key
+        NSLocationTemporaryUsageDescriptionDictionary:
+          PreciseLocation: Echipele te găsesc după poziția din raport, iar una aproximativă poate fi greșită cu kilometri. Poziția exactă se folosește doar cât e aplicația deschisă.
     # the bundle id and the team, which a Local.xcconfig of your own can change (Signing.xcconfig says how)
     configFiles:
       Debug: Signing.xcconfig

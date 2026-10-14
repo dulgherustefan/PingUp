@@ -36,6 +36,11 @@ import ro.safetyplease.ui.me.GnssView
  */
 @OptIn(ExperimentalForeignApi::class)
 class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val toasts: Toasts) : PhoneUi {
+    init {
+        // read at each fix: the venue changes with the session the app runs now
+        location.water = { app.model.venue.water }
+    }
+
     override fun startMesh() = app.startMesh()
 
     override fun stopMesh() = app.stopMesh()
@@ -46,16 +51,17 @@ class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val
 
     override fun locationOn(): Boolean = location.on()
 
-    override fun startLocation() = location.start()
+    // the screens that ask need the exact position: where only an approximate one is allowed, iOS is asked once for it
+    override fun startLocation() = location.start(askPrecise = true)
 
-    // CoreLocation paces itself; the position comes as often as it moves
+    // CoreLocation gives about a fix a second already
     override fun urgentLocation(on: Boolean) = Unit
 
     // the app shares only while it's in front, so there is nothing to keep running
     override fun sharingLocation(on: Boolean) = Unit
 
-    // the arrow to a friend is drawn from north
-    override fun heading(): Float? = null
+    // the course while walking, else the compass, which runs only while a guiding screen keeps asking
+    override fun heading(): Float? = location.heading()
 
     // the drawn venue map stands in
     override val offlineMap: OfflineMap? = null
