@@ -36,7 +36,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from map_extract import OSM_ATTRIBUTION, ROOT  # noqa: E402
+from map_extract import ROOT, attribution  # noqa: E402
 from map_overview import Archive, file_source  # noqa: E402
 
 FORMAT = "pingup-maps"
@@ -156,7 +156,7 @@ def pack(entry, base, base_url, max_points=MAX_POINTS):
         "minzoom": header["min_zoom"],
         "maxzoom": header["max_zoom"],
         "buildDate": built,
-        "attribution": entry.get("attribution") or manifest.get("attribution") or OSM_ATTRIBUTION,
+        "attribution": entry.get("attribution") or manifest.get("attribution") or attribution(header["min_zoom"]),
     }
 
 

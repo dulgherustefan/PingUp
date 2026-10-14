@@ -40,7 +40,7 @@ Every pack has a `manifest.json` beside it: `PackManifest` in `core/.../map/MapP
 | `file`, `sha256`, `bytes` | the PMTiles file beside it, its SHA-256 in hex and its size |
 | `bbox` | west, south, east, north; west past east crosses the antimeridian |
 | `minzoom`, `maxzoom` | the zooms the file holds |
-| `attribution` | what the map credits, HTML: `<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>` |
+| `attribution` | what the map credits, HTML links: OpenStreetMap's always, ESA WorldCover's too when the file holds zooms 0-7 (`attribution()` in `map_extract.py`) |
 | `label` | the name the app lists |
 | `source`, `etag` | only for a pack cut on the phone: the archive it came from and its ETag then |
 
@@ -104,8 +104,11 @@ change `BaseLayers.kt` too: `MapStyleBuilderTest` compares the two, and its gold
 (`ui/src/commonTest/resources/golden/`) show the whole composed style.
 
 Credit: "© OpenStreetMap contributors", linked to openstreetmap.org/copyright, in the styles, the manifests and the
-archives `map_overview.py` writes. MapLibre Native may take a source's credit from the PMTiles metadata rather than
-from the style; the festival pack's metadata still says Protomaps' "© OpenStreetMap" until it is rebuilt.
+archives `map_overview.py` writes. The landcover layer of zooms 0-7 is ESA WorldCover (CC BY 4.0), so a pack that
+holds those zooms credits it as well; the composed style takes each source's credit from its manifest, and
+`MapStyleBuilder.credits` lists them for "About the map". MapLibre Native may take a source's credit from the PMTiles
+metadata rather than from the style; the festival pack's metadata still says Protomaps' "© OpenStreetMap" until it
+is rebuilt.
 
 ## Fonts
 

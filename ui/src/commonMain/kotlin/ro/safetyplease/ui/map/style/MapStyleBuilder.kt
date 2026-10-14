@@ -60,6 +60,7 @@ class MapStyleBuilder(private val assets: Path, private val urls: MapUrls = MapU
         outlines: Map<String, List<GeoPoint>> = emptyMap(),
     ): String = style(packs, dark, language, palette, selectedZone, overlayData, outlines).toString()
 
+    /** [build]'s style as a JSON object. */
     fun style(
         packs: List<InstalledPack>,
         dark: Boolean,
@@ -110,7 +111,7 @@ class MapStyleBuilder(private val assets: Path, private val urls: MapUrls = MapU
     }
 
     companion object {
-        /** About 25 layers each: past this many areas MapLibre has too many layers to draw smoothly. */
+        /** Each area adds the template's 21 layers: eight keep the whole style near 200 layers. */
         const val MAX_AREAS = 8
 
         const val BACKGROUND = "background"
@@ -146,10 +147,17 @@ class MapStyleBuilder(private val assets: Path, private val urls: MapUrls = MapU
         /** What a pack's source credits: its manifest's attribution, OpenStreetMap's when the manifest has none. */
         fun attribution(manifest: PackManifest): String = manifest.attribution.ifBlank { OSM_ATTRIBUTION }
 
-        /** Each pack's credit once, as plain text, for "About the map". */
-        fun credits(packs: List<InstalledPack>): List<String> = packs.map { pack ->
-            attribution(pack.manifest).replace(Regex("<[^>]*>"), "").replace("&copy;", "©").replace("&amp;", "&").trim()
-        }.filter { it.isNotEmpty() }.distinct()
+        /** The packs' credits as plain text, each link a line of its own, once each: the list "About the map" shows. */
+        fun credits(packs: List<InstalledPack>): List<String> = packs.asSequence()
+            .flatMap { attribution(it.manifest).split(LINK_END).asSequence().flatMap { part -> part.split(LINK_START) } }
+            .map { it.replace(TAG, "").replace("&copy;", "©").replace("&amp;", "&").trim() }
+            .filter { piece -> piece.any { it.isLetterOrDigit() } }
+            .distinct()
+            .toList()
+
+        private val LINK_START = Regex("<a\\b[^>]*>", RegexOption.IGNORE_CASE)
+        private val LINK_END = Regex("</a>", RegexOption.IGNORE_CASE)
+        private val TAG = Regex("<[^>]*>")
 
         private fun background(color: String): JsonObject = buildJsonObject {
             put("id", BACKGROUND)

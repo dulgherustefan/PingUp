@@ -138,11 +138,15 @@ class OverviewTest(Workspace):
         self.assertEqual(flat.entries(), copy.entries())
         self.assertSameTiles(copy, [e.tile_id for e in copy.entries()][::7])
 
-    def test_the_metadata_credits_contributors(self):
+    def test_the_metadata_credits_contributors_and_the_landcover(self):
         _, copy = self.written(mo.plan(source(), 0, 3))
         meta = copy.metadata()
-        self.assertEqual(map_extract.OSM_ATTRIBUTION, meta["attribution"])
+        self.assertEqual(map_extract.OSM_ATTRIBUTION + " " + map_extract.ESA_ATTRIBUTION, meta["attribution"])
+        self.assertIn(">© OpenStreetMap contributors<", meta["attribution"])
         self.assertEqual(source().metadata()["vector_layers"], meta["vector_layers"])
+        # past zoom 7 there is no landcover to credit
+        _, deep = self.written(mo.plan(source(), 8, 9), "deep.pmtiles")
+        self.assertEqual(map_extract.OSM_ATTRIBUTION, deep.metadata()["attribution"])
 
 
 class HttpTest(Workspace):
@@ -211,7 +215,7 @@ class CliTest(Workspace):
         # the day of the build's OpenStreetMap data
         self.assertEqual("20261013", manifest["buildDate"])
         self.assertEqual([28.59, 43.92, 28.675, 44.01], manifest["bbox"])
-        self.assertEqual(map_extract.OSM_ATTRIBUTION, manifest["attribution"])
+        self.assertEqual(map_extract.attribution(0), manifest["attribution"])
 
     def test_a_box_needs_an_id_and_makes_an_area(self):
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):

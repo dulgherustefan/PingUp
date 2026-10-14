@@ -29,6 +29,17 @@ STYLES = ROOT / "tools" / "map_styles"
 # what the map host sees instead of Python's default agent, which some hosts refuse
 USER_AGENT = "pingup-map-tools/1.0"
 OSM_ATTRIBUTION = '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>'
+# the landcover layer, zooms 0 to 7, comes from ESA WorldCover (CC BY 4.0)
+ESA_ATTRIBUTION = (
+    '<a href="https://esa-worldcover.org/">© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021)'
+    " processed by ESA WorldCover consortium</a>"
+)
+LANDCOVER_MAX_ZOOM = 7
+
+
+def attribution(min_zoom):
+    """What a pack from min_zoom up credits: OpenStreetMap always, ESA WorldCover when it holds the landcover zooms."""
+    return OSM_ATTRIBUTION + (" " + ESA_ATTRIBUTION if min_zoom <= LANDCOVER_MAX_ZOOM else "")
 
 
 def http_source(url, user_agent=USER_AGENT):
@@ -125,7 +136,7 @@ def main():
     manifest = {
         "buildDate": args.date, "sha256": digest, "bbox": list(BBOX), "maxzoom": max_zoom, "file": TILES,
         "id": "costinesti", "kind": "EVENT", "bytes": target.stat().st_size, "minzoom": header["min_zoom"],
-        "attribution": OSM_ATTRIBUTION, "label": "Costinești",
+        "attribution": attribution(header["min_zoom"]), "label": "Costinești",
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for style in ("style-light.json", "style-dark.json"):

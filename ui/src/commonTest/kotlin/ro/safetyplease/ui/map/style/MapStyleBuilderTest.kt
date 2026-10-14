@@ -27,7 +27,6 @@ import ro.safetyplease.ui.readText
 import ro.safetyplease.ui.repoFile
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -280,7 +279,9 @@ class MapStyleBuilderTest {
             }
             val oldSource = sources(today).getValue("protomaps").jsonObject
             val newSource = sources(style).getValue("event-costinesti").jsonObject
-            for (key in listOf("type", "url", "minzoom", "maxzoom", "attribution")) assertEquals(oldSource[key], newSource[key], key)
+            for (key in listOf("type", "url", "minzoom", "maxzoom")) assertEquals(oldSource[key], newSource[key], key)
+            // the credit comes from the manifest: today's, then ESA WorldCover's for the landcover of zooms 0-7
+            assertTrue(newSource.text("attribution").startsWith(oldSource.text("attribution") + " "), newSource.text("attribution"))
             for (key in listOf("version", "glyphs", "sprite")) assertEquals(today[key], style[key], key)
         }
     }
@@ -291,11 +292,15 @@ class MapStyleBuilderTest {
         val sources = sources(style(listOf(world, credited, festival)))
         fun attribution(source: String) = sources.getValue(source).jsonObject.text("attribution")
         assertEquals(MapStyleBuilder.OSM_ATTRIBUTION, attribution("overview-world"), "a manifest without one gets OpenStreetMap's")
-        assertEquals(MapStyleBuilder.OSM_ATTRIBUTION, attribution("event-costinesti"), "the bundled manifest names it")
+        assertEquals(festival.manifest.attribution, attribution("event-costinesti"), "the bundled manifest's")
         assertTrue("href=\"https://www.openstreetmap.org/copyright\"" in MapStyleBuilder.OSM_ATTRIBUTION)
         assertTrue(">© OpenStreetMap contributors<" in MapStyleBuilder.OSM_ATTRIBUTION)
         assertEquals("© Someone &amp; co", attribution("area-credited"))
-        assertEquals(listOf("© OpenStreetMap contributors", "© Someone & co"), MapStyleBuilder.credits(listOf(world, festival, credited)))
+        assertEquals(
+            listOf("© OpenStreetMap contributors", ESA, "© Someone & co"),
+            MapStyleBuilder.credits(listOf(world, festival, credited)),
+            "each link once, as text",
+        )
     }
 
     @Test
@@ -415,6 +420,11 @@ class MapStyleBuilderTest {
         val tiles = bundled / manifest.file
         assertEquals(FileSystem.SYSTEM.metadata(tiles).size, manifest.bytes)
         assertEquals(FileSystem.SYSTEM.read(tiles) { readByteString() }.sha256().hex(), manifest.sha256)
-        assertFalse(manifest.attribution.isBlank())
+        // zooms 0-7 hold the landcover, from ESA WorldCover
+        assertEquals(listOf("© OpenStreetMap contributors", ESA), MapStyleBuilder.credits(listOf(festival)))
+    }
+
+    private companion object {
+        const val ESA = "© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium"
     }
 }

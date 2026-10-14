@@ -97,7 +97,7 @@
       "url": "pmtiles://file:///data/user/0/org.pingup.app/files/maps/20261013/costinesti.pmtiles",
       "minzoom": 0,
       "maxzoom": 15,
-      "attribution": "<a href=\"https://www.openstreetmap.org/copyright\">© OpenStreetMap contributors</a>"
+      "attribution": "<a href=\"https://www.openstreetmap.org/copyright\">© OpenStreetMap contributors</a> <a href=\"https://esa-worldcover.org/\">© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium</a>"
     },
     "pingup-zones": {
       "type": "geojson",
@@ -2325,8 +2325,8 @@
       ],
       "paint": {
         "line-color": "#0E110F",
-        "line-opacity": 0.18,
-        "line-width": 1
+        "line-width": 1,
+        "line-opacity": 0.18
       }
     },
     {

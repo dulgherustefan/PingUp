@@ -14,8 +14,9 @@ count and the exact size of the archive it would write, from the directories alo
 The tiles are copied unchanged, in the same schema, so one style draws them all; tiles the source stores once are
 stored once here too. A box is its own pack: the overview's source must stop at one zoom everywhere, or MapLibre
 draws nothing where a deeper tile is missing. Point --source at the team's copy of a pinned build: the Protomaps
-docs ask for a copy, not hotlinks to build.protomaps.com. The data is OpenStreetMap, ODbL; the archive's metadata and
-the manifest credit "© OpenStreetMap contributors". No dependencies: a PMTiles v3 reader and writer are below.
+docs ask for a copy, not hotlinks to build.protomaps.com. The data is OpenStreetMap, ODbL, and its landcover up to
+zoom 7 is ESA WorldCover, CC BY 4.0; the archive's metadata and the manifest credit "© OpenStreetMap contributors",
+and ESA WorldCover when those zooms are in. No dependencies: a PMTiles v3 reader and writer are below.
 """
 
 import argparse
@@ -30,7 +31,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from map_extract import OSM_ATTRIBUTION, ROOT, http_source, tile_range  # noqa: E402
+from map_extract import ROOT, attribution, http_source, tile_range  # noqa: E402
 
 HEADER = struct.Struct("<7sB11Q6B4iB2i")
 FIELDS = (
@@ -325,7 +326,7 @@ def plan(archive, minzoom, maxzoom, bbox=None, root_limit=FIRST_BYTES - HEADER.s
     entries, spans, size = layout(found)
     root, leaves = directories(entries, root_limit, leaf_size)
     meta = {k: v for k, v in archive.metadata().items() if k not in ("bounds", "center", "minzoom", "maxzoom")}
-    meta["attribution"] = OSM_ATTRIBUTION
+    meta["attribution"] = attribution(minzoom)
     metadata = deflate(json.dumps(meta, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
     if bbox is None:
         west, south, east, north = (source[k] / 1e7 for k in ("min_lon_e7", "min_lat_e7", "max_lon_e7", "max_lat_e7"))
@@ -395,7 +396,7 @@ def manifest(pack_id, label, day, file, digest, plan, bbox):
     return {
         "id": pack_id, "kind": "OVERVIEW" if bbox is None else "AREA", "buildDate": day, "file": file, "sha256": digest,
         "bytes": plan.size, "bbox": bounds, "minzoom": h["min_zoom"], "maxzoom": h["max_zoom"],
-        "attribution": OSM_ATTRIBUTION, "label": label,
+        "attribution": attribution(h["min_zoom"]), "label": label,
     }
 
 
