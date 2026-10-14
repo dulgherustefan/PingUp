@@ -76,6 +76,10 @@ class FriendFindingTest {
         val east = Guide.of(here, 3.0, GeoPoint(here.lat, here.lon + 0.003), 3.0, null) as FriendGuide.Arrow
         assertEquals(2, east.sector)
         assertEquals(90.0, east.bearingDeg, 0.5)
+        // an hour old, its ring 1.8 km: still the way to where they were, not "nearby"
+        val old = FriendRing.radiusM(16.0, 60 * min, here, null)
+        assertTrue(Guide.of(here, 10.0, north(1_000.0), old, null) is FriendGuide.Arrow)
+        assertEquals(FriendGuide.Near, Guide.of(here, 10.0, north(500.0), old, null), "as close as two of the widest fixes: nearby, as before")
     }
 
     @Test

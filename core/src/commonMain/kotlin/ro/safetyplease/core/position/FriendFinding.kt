@@ -90,10 +90,14 @@ sealed interface FriendGuide {
 object Guide {
     const val STAGE = "stage"
 
-    /** An arrow only when the distance is more than twice the two 95% radii together; closer than that, it could point anywhere. */
+    /**
+     * An arrow only when the distance is more than twice the two 95% radii together; closer than that, it could point
+     * anywhere. A ring grown past [FriendRing.WIDE_M] with age says how far someone may have walked since, not that they
+     * are near: the arrow still shows the way to where they were.
+     */
     fun of(me: GeoPoint, my95M: Double, friend: GeoPoint, friend95M: Double, venue: Venue?): FriendGuide {
         val distance = distanceMeters(me, friend)
-        if (distance <= 2 * (my95M + friend95M)) return FriendGuide.Near
+        if (distance <= 2 * (minOf(my95M, FriendRing.WIDE_M) + minOf(friend95M, FriendRing.WIDE_M))) return FriendGuide.Near
         val rounded = round(distance)
         if (venue != null && venue.zoneAt(me.lat, me.lon)?.type == STAGE) {
             val stage = venue.zoneAt(friend.lat, friend.lon)?.takeIf { it.type == STAGE }?.name
