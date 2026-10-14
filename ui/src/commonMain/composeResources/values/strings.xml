@@ -1024,6 +1024,9 @@
     <string name="notice_in_zone">%1$s: %2$s</string>
     <string name="notice_hide">Ascunde anunțul</string>
     <string name="notice_read">Am înțeles</string>
+    <string name="notice_uncertain">%1$s · oră incertă</string>
+    <string name="clock_ahead">Ceasul telefonului e cu %1$d min înainte față de telefoanele din jur. Potrivește ora din Setări: anunțurile organizatorilor depind de ea.</string>
+    <string name="clock_behind">Ceasul telefonului e cu %1$d min în urmă față de telefoanele din jur. Potrivește ora din Setări: anunțurile organizatorilor depind de ea.</string>
     <string name="map_quick_shade">Umbră</string>
     <string name="map_about">Despre hartă</string>
     <string name="map_about_subtitle">© OpenStreetMap și licențe</string>

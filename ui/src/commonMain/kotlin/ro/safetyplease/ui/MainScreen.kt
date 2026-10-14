@@ -190,6 +190,7 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
     val hereZone = Evacuations.zoneFor(mapState, here)
     val evacuationUi = remember { EvacuationUi() }
     val bands = shown.filter { !it.held.dismissed && it !== evacuation }
+    val clockOffset by vm.c.notices.clockOffsetS.collectAsStateWithLifecycle()
     val sharing by vm.sharing.collectAsStateWithLifecycle()
     // back from the dialer after "Sună la 112": the card, to read from
     LifecycleResumeEffect(Unit) {
@@ -214,14 +215,14 @@ fun AppRoot(vm: AppViewModel, onStartMesh: () -> Unit, demo: @Composable () -> U
     CompositionLocalProvider(LocalTextOnly provides textOnly, LocalReduceMotion provides reduce) {
         FullScreen {
             // the bands sit above every screen and take the status bar, so they cover no header
-            val topTaken = vm.c.exercise || bands.isNotEmpty() || sharing != null || evacuation != null || banner != null
+            val topTaken = vm.c.exercise || bands.isNotEmpty() || clockOffset != 0L || sharing != null || evacuation != null || banner != null
             val barFree = !vm.c.exercise && evacuation == null
             Column(Modifier.fillMaxSize()) {
                 if (vm.c.exercise) ExerciseBanner()
                 evacuation?.let { EvacuationBanner(vm, it, hereZone, statusBar = !vm.c.exercise) { evacuationUi.reopened = true } }
                 banner?.let { ModalBanner(it, statusBar = barFree) { modals.reopen(it.key) } }
                 sharing?.let { SharingBar(it, statusBar = barFree && banner == null) { vm.open(Dest.Sharing) } }
-                NoticeBands(vm, bands, statusBar = barFree && banner == null && sharing == null)
+                NoticeBands(vm, bands, statusBar = barFree && banner == null && sharing == null, clockOffsetS = clockOffset)
                 Box(Modifier.weight(1f).then(if (topTaken) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
                     CompositionLocalProvider(LocalStatusBarTop provides if (topTaken) 0.dp else null) {
                         Screens(vm, settings.onboarded, settings.role, onStartMesh, holder, reduce, demo)

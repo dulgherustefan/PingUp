@@ -1001,6 +1001,9 @@
     <string name="notice_in_zone">%1$s: %2$s</string>
     <string name="notice_hide">Hide the notice</string>
     <string name="notice_read">Got it</string>
+    <string name="notice_uncertain">%1$s · time uncertain</string>
+    <string name="clock_ahead">This phone’s clock is %1$d min ahead of the phones around it. Set the time in Settings: the organisers’ notices depend on it.</string>
+    <string name="clock_behind">This phone’s clock is %1$d min behind the phones around it. Set the time in Settings: the organisers’ notices depend on it.</string>
     <string name="map_quick_shade">Shade</string>
     <string name="map_about">About the map</string>
     <string name="map_about_subtitle">© OpenStreetMap and licences</string>

@@ -58,37 +58,61 @@ import ro.safetyplease.ui.designsystem.largeTitle
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title3
 import ro.safetyplease.ui.resources.Res
+import ro.safetyplease.ui.resources.clock_ahead
+import ro.safetyplease.ui.resources.clock_behind
 import ro.safetyplease.ui.resources.exercise_banner
 import ro.safetyplease.ui.resources.map_quick_shade
 import ro.safetyplease.ui.resources.map_quick_water
 import ro.safetyplease.ui.resources.notice_hide
 import ro.safetyplease.ui.resources.notice_read
+import ro.safetyplease.ui.resources.notice_uncertain
 import ro.safetyplease.ui.text.NoticeText
 import ro.safetyplease.ui.text.noticeBody
 import ro.safetyplease.ui.text.noticeTitle
+import kotlin.math.abs
 
 /** A notice in force, with its words in the phone's language. */
 class ShownNotice(val held: HeldNotice, val notice: Notice, val title: String, val text: String)
 
-/** The notices in [active] that have words; the map state goes to the map instead. */
+/** The notices in [active] that have words; the map state goes to the map instead. One of uncertain time says so. */
 @Composable
 fun shownNotices(vm: AppViewModel, active: List<Pair<HeldNotice, Notice>>): List<ShownNotice> {
     val language = vm.c.language()
     return active.filter { !it.second.silent }.map { (held, notice) ->
-        ShownNotice(held, notice, noticeTitle(notice), noticeBody(vm.c.noticeTemplates, vm.venue, notice, language))
+        val title = noticeTitle(notice).let { if (held.uncertain) stringResource(Res.string.notice_uncertain, it) else it }
+        ShownNotice(held, notice, title, noticeBody(vm.c.noticeTemplates, vm.venue, notice, language))
     }
 }
 
 /**
  * The bands of the notices in force, above every screen like the exercise band: one line each, the whole text on a tap.
- * The heat band leads to water and shade. Where [statusBar], the first band takes the status bar's space.
+ * The heat band leads to water and shade. Where [statusBar], the first band takes the status bar's space. A phone whose
+ * clock disagrees with its neighbours' by [clockOffsetS] says so first.
  */
 @Composable
-fun NoticeBands(vm: AppViewModel, notices: List<ShownNotice>, statusBar: Boolean) {
+fun NoticeBands(vm: AppViewModel, notices: List<ShownNotice>, statusBar: Boolean, clockOffsetS: Long = 0) {
     Column(Modifier.fillMaxWidth()) {
+        if (clockOffsetS != 0L) ClockBand(clockOffsetS, Modifier.then(if (statusBar) Modifier.statusBarsPadding() else Modifier))
         notices.forEachIndexed { index, shown ->
-            NoticeBand(vm, shown, Modifier.then(if (statusBar && index == 0) Modifier.statusBarsPadding() else Modifier))
+            val first = index == 0 && clockOffsetS == 0L
+            NoticeBand(vm, shown, Modifier.then(if (statusBar && first) Modifier.statusBarsPadding() else Modifier))
         }
+    }
+}
+
+/** The phone's clock runs ahead of or behind its neighbours' past the skew: notices, ACKs and check-ins depend on it. */
+@Composable
+private fun ClockBand(offsetS: Long, modifier: Modifier) {
+    val minutes = (abs(offsetS) + 30) / 60
+    val text = stringResource(if (offsetS < 0) Res.string.clock_ahead else Res.string.clock_behind, minutes.toInt())
+    Row(
+        modifier.fillMaxWidth().background(AppTheme.colors.orange).padding(horizontal = 16.dp, vertical = 8.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Sym.Clock, null, Modifier.size(18.dp), tint = Color.Black)
+        Spacer(Modifier.width(10.dp))
+        Text(text, style = MaterialTheme.typography.subheadline, color = Color.Black)
     }
 }
 
