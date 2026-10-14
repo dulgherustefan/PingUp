@@ -91,8 +91,9 @@ class IosApp(restoreCentral: Boolean = false, restoreServer: Boolean = false) {
     private lateinit var platform: IosPlatform
     private var mesh: Job? = null
 
-    /** When the mesh last heard another phone; only the main thread touches it. */
+    /** When the mesh last heard another phone, and when the app last left the front; only the main thread touches them. */
     private var silence = PeerSilence(IosClock.monoMs())
+    private var leftAtMs = IosClock.monoMs()
     private var sweptAtMs = 0L
 
     /** The screens' state; a new session brings a new one. */
@@ -107,7 +108,7 @@ class IosApp(restoreCentral: Boolean = false, restoreServer: Boolean = false) {
             NSNotificationCenter.defaultCenter.addObserverForName(event, null, NSOperationQueue.mainQueue) { _ ->
                 active.value = isActive
                 model.c.foreground.value = isActive
-                if (isActive) cameBack()
+                if (isActive) cameBack() else leftAtMs = IosClock.monoMs()
             }
         }
         // a suspended app may be ended without a word: what waits to be written goes before iOS suspends it, off the main
@@ -215,11 +216,15 @@ class IosApp(restoreCentral: Boolean = false, restoreServer: Boolean = false) {
         }
     }
 
-    /** Back in front: what ran out leaves the screen and, after a long while with no phone in reach, the person hears it. */
+    /**
+     * Back in front: what ran out leaves the screen and, after a long while with no phone in reach, the person hears it;
+     * not on a glance at another app.
+     */
     private fun cameBack() {
         platform.notifier.sweep()
-        if (mesh?.isActive != true) return
-        val minutes = silence.silentMinutes(model.c.engine.state.value, IosClock.monoMs()) ?: return
+        val now = IosClock.monoMs()
+        if (mesh?.isActive != true || now - leftAtMs < AWAY_MS) return
+        val minutes = silence.silentMinutes(model.c.engine.state.value, now) ?: return
         val heard = silence.heardAny
         scope.launch {
             val text = IosTexts.plural(if (heard) Res.plurals.iphone_last_phone else Res.plurals.iphone_no_phone, minutes, minutes)
@@ -355,6 +360,7 @@ class IosApp(restoreCentral: Boolean = false, restoreServer: Boolean = false) {
         private const val EXTEND_30 = "checkin-30"
 
         private const val BLUETOOTH_SETTLE_MS = 3_000L
+        private const val AWAY_MS = 60_000L
         private const val TRACK_EVERY_MS = 5_000L
         private const val SWEEP_EVERY_MS = 60_000L
     }

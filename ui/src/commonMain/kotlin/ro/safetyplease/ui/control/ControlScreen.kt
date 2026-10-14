@@ -67,6 +67,7 @@ import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
+import ro.safetyplease.ui.common.AlarmsQuietLine
 import ro.safetyplease.ui.common.CategoryCircle
 import ro.safetyplease.ui.common.FullScreenAlertsLine
 import ro.safetyplease.ui.common.MapCamera
@@ -265,6 +266,8 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
         }
         // a console that locks can't be woken by an unconfirmed urgency's alarm without this
         FullScreenAlertsLine(vm.phone, Modifier.padding(start = PaneGap, end = PaneGap, bottom = PaneGap))
+        // nor heard through Focus, on an iPhone where its sound or Time Sensitive delivery is off
+        AlarmsQuietLine(vm.phone, Modifier.padding(start = PaneGap, end = PaneGap, bottom = PaneGap))
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(start = PaneGap, end = PaneGap, bottom = PaneGap)) {
             val wide = maxWidth >= WideWidth
             val select = { id: String ->
