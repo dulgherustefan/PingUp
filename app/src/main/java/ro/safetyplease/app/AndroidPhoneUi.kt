@@ -5,11 +5,14 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalView
+import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.launch
 import okio.Path
 import ro.safetyplease.app.demo.Demo
@@ -70,6 +73,26 @@ class AndroidPhoneUi(private val app: Application, private val container: AppCon
     override fun openAppSettings() = open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", app.packageName, null)))
 
     override fun openNotificationSettings() = open(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, app.packageName))
+
+    override fun fullScreenAlertsAllowed(): Boolean = NotificationManagerCompat.from(app).canUseFullScreenIntent()
+
+    override fun openFullScreenAlertSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val page = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.fromParts("package", app.packageName, null))
+            if (runCatching { app.startActivity(page.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) return
+        }
+        openNotificationSettings()
+    }
+
+    @Composable
+    override fun ShowOverLockScreen(): Boolean {
+        val activity = LocalActivity.current as? MainActivity ?: return false
+        DisposableEffect(activity) {
+            activity.alertShown(true)
+            onDispose { activity.alertShown(false) }
+        }
+        return activity.keyguardLocked
+    }
 
     override fun toast(text: String, long: Boolean) {
         Toast.makeText(app, text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()

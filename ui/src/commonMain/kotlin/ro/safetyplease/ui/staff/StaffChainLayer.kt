@@ -38,6 +38,7 @@ import ro.safetyplease.ui.ModalAsk
 import ro.safetyplease.ui.ModalKind
 import ro.safetyplease.ui.ModalShow
 import ro.safetyplease.ui.ask
+import ro.safetyplease.ui.common.LockScreenCover
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
@@ -128,6 +129,8 @@ private fun ManDownQuestion(vm: AppViewModel, untilMs: Long) {
     val colors = AppTheme.colors
     val now = rememberNow(1_000)
     val seconds = ((untilMs - now).coerceAtLeast(0) + 999) / 1000
+    // answered without unlocking; the question covers the whole screen
+    vm.phone.ShowOverLockScreen()
     Dialog({}, DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false, usePlatformDefaultWidth = false)) {
         Column(
             Modifier.fillMaxSize().background(colors.red).padding(32.dp),
@@ -168,6 +171,8 @@ private fun ResponderAlert(vm: AppViewModel, alerted: ResponderTarget, onClose: 
         target.deaToPatient != null -> stringResource(Res.string.responder_dea_patient, deaName, target.deaToPatient!!)
         else -> stringResource(Res.string.responder_no_dea)
     }
+    // the responder reads it before unlocking; what was open in the app stays hidden behind it
+    if (vm.phone.ShowOverLockScreen()) LockScreenCover()
     Dialog({ onClose(false) }, DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier.padding(24.dp).widthIn(max = 420.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(colors.dialog).padding(20.dp),

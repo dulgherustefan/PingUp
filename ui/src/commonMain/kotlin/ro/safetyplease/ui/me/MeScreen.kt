@@ -46,6 +46,7 @@ import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.MeshOnText
 import ro.safetyplease.ui.common.BigCodeDialog
+import ro.safetyplease.ui.common.FullScreenAlertsBanner
 import ro.safetyplease.ui.common.MAX_NAME
 import ro.safetyplease.ui.common.QrBadge
 import ro.safetyplease.ui.common.networkText
@@ -84,6 +85,8 @@ import ro.safetyplease.ui.resources.demo_unlocked
 import ro.safetyplease.ui.resources.event_bundled
 import ro.safetyplease.ui.resources.event_title
 import ro.safetyplease.ui.resources.first_aid_title
+import ro.safetyplease.ui.resources.fsi_off_staff_text
+import ro.safetyplease.ui.resources.fsi_off_text
 import ro.safetyplease.ui.resources.gnss_prewarm
 import ro.safetyplease.ui.resources.gnss_prewarm_text
 import ro.safetyplease.ui.resources.gnss_row_text
@@ -206,6 +209,13 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             TextLink(stringResource(Res.string.me_edit_name), { editName = true }, Modifier.padding(top = 4.dp))
 
             Column(Modifier.fillMaxWidth().padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                // an anchor only relays; everyone else may get an evacuation, staff and the console their alarms too
+                if (settings.role != AppRole.ANCHOR) {
+                    FullScreenAlertsBanner(
+                        vm.phone, stringResource(if (settings.role == AppRole.PARTICIPANT) Res.string.fsi_off_text else Res.string.fsi_off_staff_text),
+                        Modifier.padding(horizontal = Gutter),
+                    )
+                }
                 InsetGroup {
                     SwitchRow(
                         stringResource(Res.string.mesh_switch), settings.meshEnabled,

@@ -66,6 +66,7 @@ import ro.safetyplease.ui.common.IncidentHeader
 import ro.safetyplease.ui.common.LastSeenBlock
 import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.FullScreenAlertsBanner
 import ro.safetyplease.ui.common.NotificationsOffBanner
 import ro.safetyplease.ui.common.UpdateTimeline
 import ro.safetyplease.ui.common.VenueMap
@@ -110,6 +111,7 @@ import ro.safetyplease.ui.resources.control_state_reopened
 import ro.safetyplease.ui.resources.control_word_unfounded
 import ro.safetyplease.ui.resources.delete
 import ro.safetyplease.ui.resources.filter_all
+import ro.safetyplease.ui.resources.fsi_off_staff_text
 import ro.safetyplease.ui.resources.filter_for_me
 import ro.safetyplease.ui.resources.filter_resolved
 import ro.safetyplease.ui.resources.incident_accept
@@ -305,6 +307,9 @@ fun IncidentsScreen(vm: AppViewModel) {
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = padding) {
             item(key = "notifications") {
                 NotificationsOffBanner(vm.phone, stringResource(Res.string.notif_off_staff_text), Modifier.padding(start = Gutter, end = Gutter, top = 6.dp, bottom = 10.dp))
+            }
+            item(key = "fullscreen") {
+                FullScreenAlertsBanner(vm.phone, stringResource(Res.string.fsi_off_staff_text), Modifier.padding(start = Gutter, end = Gutter, top = 6.dp, bottom = 10.dp))
             }
             if (staff.isNotEmpty()) {
                 item(key = "filters") {

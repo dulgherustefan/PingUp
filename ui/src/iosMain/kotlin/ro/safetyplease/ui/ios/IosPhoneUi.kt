@@ -83,6 +83,14 @@ class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val
     // straight to the app's notifications page, from iOS 16 on
     override fun openNotificationSettings() = open(UIApplicationOpenNotificationSettingsURLString)
 
+    // iOS has no full-screen alerts for an app to be refused, and shows none over the lock screen
+    override fun fullScreenAlertsAllowed() = true
+
+    override fun openFullScreenAlertSettings() = openNotificationSettings()
+
+    @Composable
+    override fun ShowOverLockScreen(): Boolean = false
+
     override fun toast(text: String, long: Boolean) = toasts.show(text, long)
 
     override fun copyText(text: String) {

@@ -234,6 +234,8 @@ fun EvacuationMode(vm: AppViewModel, shown: ShownNotice, zone: String?, ui: Evac
         ui.reopened = false
     }
     vm.phone.KeepScreenOn()
+    // the way out needs no unlocking; minimised, the phone locks again
+    vm.phone.ShowOverLockScreen()
     BackHandler(enabled = true) { minimise() }
     // it takes every touch, so nothing underneath is tapped by mistake
     Box(

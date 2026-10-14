@@ -65,6 +65,7 @@ import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.CategoryCircle
+import ro.safetyplease.ui.common.FullScreenAlertsBanner
 import ro.safetyplease.ui.common.MapCamera
 import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MeButton
@@ -112,6 +113,7 @@ import ro.safetyplease.ui.resources.crowd_signal
 import ro.safetyplease.ui.resources.edition_open
 import ro.safetyplease.ui.resources.filter_active
 import ro.safetyplease.ui.resources.filter_resolved
+import ro.safetyplease.ui.resources.fsi_off_staff_text
 import ro.safetyplease.ui.resources.hotspots_open
 import ro.safetyplease.ui.resources.incident_informational
 import ro.safetyplease.ui.resources.incident_state_closed
@@ -212,6 +214,8 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             AppButton(stringResource(Res.string.hotspots_open), { showHotspots = true }, kind = ButtonKind.Secondary, compact = true, icon = Sym.Place)
         }
+        // a console that locks can't be woken by an unconfirmed urgency's alarm without this
+        FullScreenAlertsBanner(vm.phone, stringResource(Res.string.fsi_off_staff_text), Modifier.padding(start = PaneGap, end = PaneGap, bottom = PaneGap))
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(start = PaneGap, end = PaneGap, bottom = PaneGap)) {
             val wide = maxWidth >= WideWidth
             val select = { id: String ->

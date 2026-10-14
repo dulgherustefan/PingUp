@@ -129,10 +129,12 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    private fun open(target: String, requestCode: Int): PendingIntent {
+    /** Opens the app at [target]; with [alert] the app shows over the lock screen while the alert's own screen is up. */
+    private fun open(target: String, requestCode: Int, alert: Boolean = false): PendingIntent {
         val intent = Intent(context, MainActivity::class.java)
             .putExtra(MainActivity.EXTRA_OPEN, target)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        if (alert) intent.putExtra(MainActivity.EXTRA_ALERT, true)
         return PendingIntent.getActivity(
             context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -381,7 +383,8 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             else -> context.getString(R.string.responder_dea_patient, deaName, deaToPatient)
         }
         val id = incident.incidentId.hashCode()
-        val open = open(MainActivity.OPEN_INCIDENTS, id)
+        // its alert shows over the lock screen: the responder runs before unlocking
+        val open = open(MainActivity.OPEN_INCIDENTS, id, alert = post.fullScreen && !exercise)
         val builder = NotificationCompat.Builder(context, if (exercise) CHANNEL_VIBRATE else CHANNEL_ALARM)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(marked(title))
@@ -403,7 +406,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
      */
     override fun manDownCheck(untilMs: Long): Boolean {
         if (!canPost() || !manager.areNotificationsEnabled()) return false
-        val open = open(MainActivity.OPEN_HOME, RequestCodes.MAN_DOWN)
+        val open = open(MainActivity.OPEN_HOME, RequestCodes.MAN_DOWN, alert = !exercise)
         val ok = PendingIntent.getBroadcast(
             context, RequestCodes.MAN_DOWN_OK, ManDownReceiver.intent(context), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -516,7 +519,8 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             notice.level == NoticeLevel.EVACUATION -> CHANNEL_NOTICE_EVACUATION
             else -> CHANNEL_NOTICE_PAUSE
         }
-        val open = open(MainActivity.OPEN_HOME, id)
+        // the evacuation's way out shows over the lock screen: nobody should have to unlock to leave
+        val open = open(MainActivity.OPEN_HOME, id, alert = urgent && notice.level == NoticeLevel.EVACUATION)
         val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(marked(title))

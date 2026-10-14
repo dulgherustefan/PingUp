@@ -69,6 +69,23 @@ interface PhoneUi {
     /** This app's notification settings, to turn them back on. */
     fun openNotificationSettings()
 
+    /**
+     * Whether an urgent alert may take the whole screen of a locked phone: Android 14+ lets the person, or the store,
+     * refuse that to an app that isn't an alarm clock or a phone. True where nothing can refuse it.
+     */
+    fun fullScreenAlertsAllowed(): Boolean
+
+    /** The phone's own setting for alerts that take the whole screen; the app's notification settings where it has none. */
+    fun openFullScreenAlertSettings()
+
+    /**
+     * While shown, an alert that needs no unlocking to act on (an evacuation, "Ești OK?", a responder's call) shows over
+     * the lock screen and wakes it. True while it does, so the caller covers what lies behind it; false where the phone
+     * can't, as on the iPhone.
+     */
+    @Composable
+    fun ShowOverLockScreen(): Boolean
+
     /** A short note at the bottom of the screen, gone by itself; [long] keeps it a little longer. */
     fun toast(text: String, long: Boolean = false)
 

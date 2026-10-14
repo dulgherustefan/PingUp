@@ -109,6 +109,10 @@
     <string name="notif_off_report_text">Cu ecranul stins nu afli când răspunde echipa sau când e cazul să cauți ajutor în altă parte.</string>
     <string name="notif_off_staff_text">Cu ecranul stins, rapoartele noi nu te anunță.</string>
     <string name="notif_off_action">Pornește-le</string>
+    <string name="fsi_off_title">Alertele nu pot aprinde ecranul</string>
+    <string name="fsi_off_staff_text">Cu telefonul blocat, alarmele urgente nu apar pe tot ecranul. Permite-i aplicației să afișeze alerte pe tot ecranul.</string>
+    <string name="fsi_off_text">Cu telefonul blocat, o evacuare nu apare pe tot ecranul. Permite-i aplicației să afișeze alerte pe tot ecranul.</string>
+    <string name="fsi_off_action">Permite</string>
     <string name="perm_location_title">Locație</string>
     <string name="perm_location_text">Pe acest Android, Bluetooth nu poate căuta telefoane fără permisiunea de locație.</string>
     <string name="onboarding_permissions_text">Rețeaua se face din telefoanele oamenilor din jur. Ca să meargă, aplicația îți cere:</string>
