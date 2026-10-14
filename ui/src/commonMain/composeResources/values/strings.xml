@@ -192,6 +192,7 @@
     <string name="group_pick">Alege cel mult %1$d prieteni</string>
     <string name="group_create">Creează grupul</string>
     <string name="group_no_friends">Adaugă întâi un prieten.</string>
+    <string name="group_member_unverified">Neverificat: nu e în prietenii tăi</string>
     <string name="profile_message">Mesaj</string>
     <string name="profile_added">Adăugat pe</string>
     <string name="profile_created">Creat pe</string>

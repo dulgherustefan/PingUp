@@ -149,6 +149,7 @@ import ro.safetyplease.ui.resources.friend_remove_title
 import ro.safetyplease.ui.resources.group_create
 import ro.safetyplease.ui.resources.group_leave_text
 import ro.safetyplease.ui.resources.group_leave_title
+import ro.safetyplease.ui.resources.group_member_unverified
 import ro.safetyplease.ui.resources.group_members
 import ro.safetyplease.ui.resources.group_name
 import ro.safetyplease.ui.resources.group_new
@@ -704,7 +705,9 @@ fun ProfileScreen(vm: AppViewModel, conversation: String) {
                         val me = member.nodeId == vm.c.identity.nodeId
                         GroupRow(
                             if (me) stringResource(Res.string.msg_you) else known?.nickname ?: member.nickname,
-                            subtitle = known?.let { friendStatus(it, nearby, now, vm.venue) },
+                            // only the inviter vouches for a member who isn't our friend
+                            subtitle = known?.let { friendStatus(it, nearby, now, vm.venue) }
+                                ?: stringResource(Res.string.group_member_unverified).takeIf { !me },
                             leading = { Avatar(member.nickname, 36.dp, near = known != null && nearby.isInRange(known.nodeId)) },
                             onClick = if (me) null else ({ blocking = member.nodeId to (known?.nickname ?: member.nickname) }),
                             trailing = if (me) null else ({

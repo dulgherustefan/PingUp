@@ -184,6 +184,7 @@
     <string name="group_pick">Choose friends, up to %1$d</string>
     <string name="group_create">Create group</string>
     <string name="group_no_friends">Add a friend first.</string>
+    <string name="group_member_unverified">Unverified: not one of your friends</string>
     <string name="profile_message">Message</string>
     <string name="profile_added">Added on</string>
     <string name="profile_created">Created on</string>

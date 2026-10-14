@@ -1316,7 +1316,7 @@ class ChatManager(
         if (groups.value.any { it.id == invite.groupId }) return
         val me = GroupMember(identity.nodeId, myNickname(), identity.box.publicKey.toHex())
         val others = invite.members.filter { it.nodeId != identity.nodeId && it.nodeId != sender && !isBlocked(it.nodeId) }
-            .map { GroupMember(it.nodeId, it.nickname, it.boxKey.toHex()) }
+            .map(::listedMember).distinctBy { it.nodeId }
         val members = listOf(GroupMember(sender, inviter.nickname, inviter.boxKey), me) + others
         groups.update { it + Group(invite.groupId, invite.name, members, clock.wallMs()) }
         val notice = ChatMessage(
@@ -1325,6 +1325,16 @@ class ChatManager(
         )
         chat.update { it.copy(messages = (it.messages + notice).takeLast(MAX_MESSAGES)) }
         onIncoming(notice, inviter.nickname)
+    }
+
+    /**
+     * A member as an invite lists them, on the inviter's word: an invite carries no sign key, so nothing here can check
+     * that the nodeId is the hash of the keys, and such a member stays unverified. A friend's nodeId was checked when
+     * they became one, so their own key wins over the one listed.
+     */
+    private fun listedMember(wire: GroupMemberWire): GroupMember {
+        val known = friends.value.firstOrNull { it.nodeId == wire.nodeId }?.boxKey
+        return GroupMember(wire.nodeId, wire.nickname, known ?: wire.boxKey.toHex())
     }
 
     /**

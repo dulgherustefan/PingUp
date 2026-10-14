@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import okio.Path
+import ro.safetyplease.core.crypto.Identity
 import ro.safetyplease.core.crypto.testCrypto
 import ro.safetyplease.core.data.Conversations
 import ro.safetyplease.core.data.MsgKind
@@ -12,12 +13,14 @@ import ro.safetyplease.core.data.MsgStatus
 import ro.safetyplease.core.mesh.SimNet
 import ro.safetyplease.core.mesh.TestClock
 import ro.safetyplease.core.protocol.Frozen11
+import ro.safetyplease.core.protocol.GroupMemberWire
 import ro.safetyplease.core.protocol.Inner
 import ro.safetyplease.core.protocol.InnerCodec
 import ro.safetyplease.core.protocol.LastFix
 import ro.safetyplease.core.protocol.LostAction
 import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.protocol.PositionMethod
+import ro.safetyplease.core.util.toHex
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -416,5 +419,33 @@ class ChatExtrasTest {
         c.radio.powerOn()
         advanceTimeBy(20_000)
         assertEquals("bar", c.friends.value.single().lastZone)
+    }
+
+    // --- group invites ---
+
+    @Test
+    fun anInviteListsAFriendWithTheKeyWeHoldForThem() = runTest {
+        val w = World(this, tmp.root)
+        val m = w.phone("M")
+        val v = w.phone("V")
+        val c = w.phone("C")
+        m.befriend(v)
+        v.befriend(c)
+        w.net.start()
+        advanceTimeBy(30_000)
+        // M lists V's friend C under M's own key, and a stranger twice
+        val stranger = Identity.generate(testCrypto)
+        val members = listOf(
+            GroupMemberWire(c.nodeId, m.identity.box.publicKey, "C"),
+            GroupMemberWire(stranger.nodeId, stranger.box.publicKey, "S"),
+            GroupMemberWire(stranger.nodeId, m.identity.box.publicKey, "S"),
+        )
+        val invite = InnerCodec.encode(Inner.GroupInvite(77L, 99L, "Capcană", members))
+        m.engine.unicast(PacketType.PRIVATE, v.nodeId, testCrypto.box(invite, v.identity.box.publicKey, m.identity.box.secretKey))
+        advanceTimeBy(10_000)
+
+        val group = v.groups.value.single()
+        assertEquals(c.identity.box.publicKey.toHex(), group.members.single { it.nodeId == c.nodeId }.boxKey, "C's own key")
+        assertEquals(listOf(stranger.box.publicKey.toHex()), group.members.filter { it.nodeId == stranger.nodeId }.map { it.boxKey }, "listed once")
     }
 }
