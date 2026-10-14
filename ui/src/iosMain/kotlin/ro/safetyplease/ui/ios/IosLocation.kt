@@ -81,6 +81,7 @@ class IosLocation {
         // Bluetooth) would wait for nothing: they stop there and start again on the way back
         NSNotificationCenter.defaultCenter.addObserverForName(UIApplicationDidEnterBackgroundNotification, null, NSOperationQueue.mainQueue) { _ ->
             halt()
+            stopCompass()
             // the temporary precise position ends with the app's use; it may be asked again next time
             askedPrecise = false
         }
@@ -152,11 +153,16 @@ class IosLocation {
         manager.startUpdatingHeading()
         compass = scope.launch {
             while (IosClock.monoMs() < compassUntilMs) delay(COMPASS_LEASE_MS)
-            manager.stopUpdatingHeading()
-            compassDeg = null
-            compassAccuracy = CompassAccuracy.UNRELIABLE
-            compass = null
+            stopCompass()
         }
+    }
+
+    private fun stopCompass() {
+        compass?.cancel()
+        compass = null
+        manager.stopUpdatingHeading()
+        compassDeg = null
+        compassAccuracy = CompassAccuracy.UNRELIABLE
     }
 
     private fun onLocation(location: CLLocation) {
