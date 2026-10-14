@@ -262,7 +262,7 @@ class NoticesTest {
         val expired = IncidentCache()
         expired.restore(saved, 5_000, wall + 2 * 3_600_000L + 1, 60 * 60_000L)
         assertTrue(expired.held(SummaryKind.NOTICES, 5_000).isEmpty())
-        assertFalse(expired.offerNotice(notice, packet, 5_000, wall), "its sequence number stays")
+        assertFalse(expired.offerNotice(notice, packet, 5_000, wall), "its order stays for a day")
     }
 
     @Test

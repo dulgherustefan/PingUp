@@ -10,12 +10,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ro.safetyplease.core.announce.Notice
+import ro.safetyplease.core.announce.NoticeOrder
+import ro.safetyplease.core.crypto.KeyChain
 import ro.safetyplease.core.crypto.ReservedNames
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.protocol.AckStatus
 import ro.safetyplease.core.protocol.Compat10
 import ro.safetyplease.core.protocol.CompatAuth
 import ro.safetyplease.core.protocol.ControlChannel
+import ro.safetyplease.core.protocol.HeldEntry
 import ro.safetyplease.core.protocol.Hello
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.protocol.IncidentCancel
@@ -43,6 +46,7 @@ import ro.safetyplease.core.util.shortHex
 import ro.safetyplease.core.util.toHex
 import ro.safetyplease.core.util.toLong
 import ro.safetyplease.core.util.truncateUtf8
+import kotlin.math.abs
 import kotlin.random.Random
 
 data class MeshConfig(
@@ -255,6 +259,9 @@ class MeshEngine(
         var peerNonce: ByteArray? = null
         var provenRoles = 0
 
+        /** The notices the peer listed in its last SUMMARY2 of them. */
+        var noticesHeld: List<HeldEntry> = emptyList()
+
         val ready: Boolean get() = peerId != 0L && !closing
         val label: String get() = if (peerId != 0L) peerId.shortHex() else address.takeLast(5)
 
@@ -290,6 +297,10 @@ class MeshEngine(
 
     /** Packets waiting out the relay jitter, with the links that already gave us a copy. */
     private val relaying = HashMap<Long, MutableSet<Int>>()
+
+    /** The neighbours' clocks, from their notice summaries; notices are read on them when this phone's disagrees. */
+    private val peerClocks = PeerClocks()
+    private var noticeOffsetMs = 0L
 
     private val addressBlockedUntil = HashMap<String, Long>()
     private val addressFailures = HashMap<String, Int>()
@@ -502,19 +513,47 @@ class MeshEngine(
         return packet
     }
 
-    /** The highest sequence number this phone has seen in the notice [topic], from any console. */
+    /** The highest sequence number this phone holds in the notice [topic], from any console, ended or not. */
     fun noticeSeq(topic: Int): Long = cache.noticeSeq(topic)
 
+    /** The issue time the newest notice of [slot] is ordered by here ([NoticeOrder]); 0 for none. */
+    fun noticeOrder(slot: Int): Long = cache.noticeOrder(slot)
+
     /**
-     * A notice of the console's, kept for store-and-forward until it expires; null if one of its topic with a later
-     * sequence number is known, or it has expired.
+     * A notice of the console's, kept for store-and-forward until it expires; null if its slot holds a newer one, or it
+     * has expired.
      */
     fun publishNotice(notice: Notice): Packet? {
         val packet = newPacket(PacketType.ANNOUNCEMENT, notice.encode(), null, encrypted = false, anonymous = false)
-        if (!cache.offerNotice(notice, packet, clock.monoMs(), clock.wallMs())) return null
+        if (!cache.offerNotice(notice, packet, clock.monoMs(), noticeWallMs(clock.monoMs()))) return null
         saveCache()
         flood(packet, own = true)
         return packet
+    }
+
+    /** Drops the notices kept under certificates [revoked] says were revoked, so what they held is free again. */
+    fun forgetNotices(revoked: (Long) -> Boolean) {
+        cache.forgetNotices(revoked)
+        saveCache()
+    }
+
+    /** The neighbours' clock minus this phone's (ms), as notices are read: 0 while they agree within the skew. */
+    fun noticeClockOffsetMs(): Long = noticeWallMs(clock.monoMs()) - clock.wallMs()
+
+    /** How many neighbours listed [notice] as held in their last summary of notices. */
+    fun noticeHolders(notice: Notice): Int {
+        val extra = NoticeOrder.extraId(notice)
+        return links.values.count { link ->
+            link.ready && link.noticesHeld.any { (it.id8 == notice.topic.toLong() && it.version == notice.seq) || it.id8 == extra }
+        }
+    }
+
+    /** This phone's wall clock as notices are read: the neighbours' when they disagree with it past the skew. */
+    private fun noticeWallMs(now: Long): Long {
+        val offset = peerClocks.offsetMs(now)
+        if (abs(offset - noticeOffsetMs) > KeyChain.SKEW_S * 1000) cache.forgetRefusedNotices()
+        noticeOffsetMs = offset
+        return clock.wallMs() + offset
     }
 
     /** The latest update this phone holds for the incident, as it came. */
@@ -901,6 +940,10 @@ class MeshEngine(
     private fun onHeld(link: Link, packet: Packet, summary: Summary2) {
         log.packet(clock.wallMs(), LogKind.RX, packet, link.label, "${summary.held.size} entries")
         val now = clock.monoMs()
+        if (summary.kind == SummaryKind.NOTICES) {
+            link.noticesHeld = summary.held
+            peerClocks.heard(link.peerId, packet.timestamp * 1000, clock.wallMs(), now)
+        }
         var wanted = cache.missing(summary.kind, summary.held, now)
         if (summary.kind == SummaryKind.UPDATES) wanted = wanted.take(link.newUpdates.remaining(now))
         if (summary.kind == SummaryKind.NOTICES) wanted = wanted.take(link.announcements.remaining(now))
@@ -997,11 +1040,11 @@ class MeshEngine(
                 if (!cache.offerResponse(response, forwardable, now)) return drop(packet, link, DropReason.STALE_ACK)
                 saveCache()
             }
-            // a revocation goes on as it is; a notice only if it is its topic's latest and still holds
+            // a revocation goes on as it is; a notice only if its slot takes it and it still holds
             PacketType.ANNOUNCEMENT -> {
                 val notice = Notice.decode(packet.payload)
                 if (notice != null) {
-                    if (!cache.offerNotice(notice, forwardable, now, clock.wallMs())) return drop(packet, link, DropReason.STALE_ACK)
+                    if (!cache.offerNotice(notice, forwardable, now, noticeWallMs(now))) return drop(packet, link, DropReason.STALE_ACK)
                     saveCache()
                 }
             }
@@ -1041,20 +1084,24 @@ class MeshEngine(
      * One [trust] verifies is delivered and relayed like an incident, within the link's announcement budget, since a
      * signed payload can still be sent again under new packet ids. A forgery of a kind this version reads goes no
      * further, without a malformed mark: an older relay may have passed it on in good faith. Any other goes on as a
-     * type this version only relays. A copy of a notice already held is dropped before it spends the budget, which
-     * also caps the notices asked for at catch-up.
+     * type this version only relays. A notice its slot wouldn't take, a copy of one held included, is dropped before
+     * it spends the budget, which also caps the notices asked for at catch-up; one refused isn't asked for again soon.
      */
     private fun onAnnouncement(link: Link, packet: Packet, now: Long) {
+        val notice = Notice.decode(packet.payload)
         when (trust.checkAnnouncement(packet.payload)) {
             Verdict.VALID -> Unit
-            Verdict.REFUSED -> return onOpaque(link, packet, now)
+            Verdict.REFUSED -> {
+                notice?.let { cache.refuseNotice(it, now) }
+                return onOpaque(link, packet, now)
+            }
             Verdict.INVALID -> {
                 dedup.add(packet.dedupKey, now)
                 return drop(packet, link, DropReason.UNTRUSTED)
             }
         }
-        val notice = Notice.decode(packet.payload)
-        if (notice != null && notice.seq <= cache.noticeSeq(notice.topic)) {
+        if (notice != null && !cache.takesNotice(notice, now, noticeWallMs(now))) {
+            cache.refuseNotice(notice, now)
             dedup.add(packet.dedupKey, now)
             return drop(packet, link, DropReason.STALE_ACK)
         }

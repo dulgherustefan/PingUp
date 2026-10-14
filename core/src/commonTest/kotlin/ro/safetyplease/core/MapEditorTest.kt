@@ -13,6 +13,7 @@ import ro.safetyplease.core.control.MapEditor
 import ro.safetyplease.core.crypto.CertRole
 import ro.safetyplease.core.mesh.SimNet
 import ro.safetyplease.core.mesh.TestClock
+import ro.safetyplease.core.protocol.PacketType
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
@@ -37,7 +38,10 @@ class MapEditorTest {
         (0 until 80).map { i -> Zone("z$i", "Zona $i", "#336699", listOf(GeoPoint(44.0, 26.0), GeoPoint(44.0, 26.001), GeoPoint(44.001, 26.0))) },
     )
 
-    private class Setup(val clock: TestClock, val event: TestEvent, val console: TestPhone, val phone: TestPhone, val editor: MapEditor)
+    private class Setup(val clock: TestClock, val event: TestEvent, val console: TestPhone, val phone: TestPhone, val editor: MapEditor, val net: SimNet) {
+        /** Map states the console wrote to its link with the phone. */
+        val sent: Int get() = net.traffic(PacketType.ANNOUNCEMENT).transmissions
+    }
 
     private fun TestScope.setup(shiftUntil: Long = TestEvent.DAY): Setup {
         val clock = TestClock(testScheduler)
@@ -48,7 +52,7 @@ class MapEditorTest {
         val phone = TestPhone("A", this, net, clock, tmp.root, event, 701)
         net.start()
         advanceTimeBy(30_000)
-        return Setup(clock, event, console, phone, MapEditor(backgroundScope, venue, clock, console.notices))
+        return Setup(clock, event, console, phone, MapEditor(backgroundScope, venue, clock, console.notices), net)
     }
 
     private fun TestPhone.mapStates(clock: TestClock): List<Notice> =
@@ -67,7 +71,7 @@ class MapEditorTest {
         assertTrue(s.console.mapStates(s.clock).isEmpty(), "nothing before the changes settle")
         advanceTimeBy(MapEditor.SETTLE_MS + 500)
         val sent = s.console.mapStates(s.clock).single()
-        assertEquals(1L, sent.seq, "three changes, one map state")
+        assertEquals(1, s.sent, "three changes, one map state")
         assertEquals(80, sent.extras.states!!.size)
         assertTrue(sent.silent)
         val expected = mapOf("z0" to ZoneState.CLOSED, "z5" to ZoneState.CROWDED, "z79" to ZoneState.EXIT_ONLY)
@@ -83,16 +87,17 @@ class MapEditorTest {
         val s = setup()
         s.editor.set("z1", ZoneState.CLOSED)
         advanceTimeBy(MapEditor.SETTLE_MS + 500)
-        assertEquals(1, s.console.mapStates(s.clock).size)
+        val first = s.console.mapStates(s.clock).single()
         advanceTimeBy(2_000)
         s.editor.set("z2", ZoneState.CLOSED)
         s.editor.set("z1", ZoneState.OPEN)
         advanceTimeBy(MapEditor.SETTLE_MS + 500)
-        assertEquals(1L, s.console.mapStates(s.clock).single().seq, "too soon after the first")
+        assertEquals(first.seq, s.console.mapStates(s.clock).single().seq, "too soon after the first")
         assertTrue(s.editor.dueInMs()!! in MapEditor.MIN_GAP_MS - 7_000..MapEditor.MIN_GAP_MS - 5_000, "due 30 s after the first")
         advanceTimeBy(MapEditor.MIN_GAP_MS)
         val second = s.console.mapStates(s.clock).single()
-        assertEquals(2L, second.seq)
+        assertTrue(second.seq > first.seq)
+        assertEquals(2, s.sent)
         assertEquals(mapOf("z2" to ZoneState.CLOSED), s.console.mapState(s.clock).zones)
     }
 
@@ -116,7 +121,7 @@ class MapEditorTest {
         advanceTimeBy(MapEditor.MIN_GAP_MS)
         s.editor.openAll()
         advanceTimeBy(MapEditor.SETTLE_MS + 500)
-        assertEquals(2L, s.console.mapStates(s.clock).single().seq)
+        assertEquals(2, s.sent)
         assertEquals(MapState.OPEN.zones, s.console.mapState(s.clock).zones)
     }
 
@@ -151,7 +156,7 @@ class MapEditorTest {
         assertEquals(first.seq, s.console.mapStates(s.clock).single().seq, "not yet")
         advanceTimeBy(MapEditor.REFRESH_CHECK_MS + 120_000)
         val again = s.console.mapStates(s.clock).single()
-        assertEquals(first.seq + 1, again.seq)
+        assertTrue(again.seq > first.seq)
         assertEquals(first.extras.states, again.extras.states)
         assertTrue(again.issued > first.issued + 10 * 3600 && again.validUntil - again.issued == MapEditor.VALID_S, "a fresh validity")
         assertEquals(mapOf("z2" to ZoneState.CLOSED), s.console.mapState(s.clock).zones)

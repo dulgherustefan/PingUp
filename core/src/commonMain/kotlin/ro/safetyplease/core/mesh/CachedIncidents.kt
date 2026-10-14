@@ -36,6 +36,17 @@ data class CachedIncident(
 @Serializable
 data class CachedPacket(val frame: String, val at: Long, val hops: Int = 0)
 
-/** The latest notice of a [topic], kept until [until] (wall clock, ms); [version] is its sequence number, kept after it expires. */
+/**
+ * A notice of a [topic] with its sequence number [version], served until [until] (wall clock, ms); its [order] (seconds,
+ * `NoticeOrder.orderTime`) counts until [markUntil] (wall clock, ms). Earlier versions saved a [version] without a
+ * [notice] for good; that is let go.
+ */
 @Serializable
-data class CachedNotice(val topic: Long, val notice: CachedPacket? = null, val version: Long = 0, val until: Long = 0)
+data class CachedNotice(
+    val topic: Long,
+    val notice: CachedPacket? = null,
+    val version: Long = 0,
+    val until: Long = 0,
+    val order: Long = 0,
+    val markUntil: Long = 0,
+)

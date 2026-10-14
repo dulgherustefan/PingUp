@@ -33,6 +33,30 @@ object Evacuations {
         return NoticeExtras(zones = ZoneSet.target(venue, zones), plan = plan)
     }
 
+    /**
+     * What an evacuation the console sends while [inForce] hold goes out with: its zone set and zone field joined with
+     * theirs, so a phone that keeps one evacuation, as earlier versions do, misses none; the whole site if any is for it.
+     * Zones that can't be joined without the venue (another zone count, a zone named without a set) stay as given:
+     * phones of this version join the evacuations in force on their own.
+     */
+    fun joined(extras: NoticeExtras, zone: String, inForce: List<Notice>): Pair<NoticeExtras, String> {
+        if (inForce.isEmpty()) return extras to zone
+        val all = listOf(extras.zones to zone) + inForce.map { it.extras.zones to it.zone }
+        if (all.any { (set, field) -> set?.indices.isNullOrEmpty() && field.isEmpty() }) return extras.copy(zones = null) to ""
+        val sets = all.mapNotNull { (set, _) -> set?.takeIf { it.indices.isNotEmpty() } }
+        if (sets.size != all.size || sets.map { it.count }.distinct().size != 1) return extras to zone
+        val indices = sets.flatMap { it.indices }.toSet()
+        if (indices.size >= sets.first().count) return extras.copy(zones = null) to ""
+        val field = if (indices.size == 1) all.map { it.second }.firstOrNull { it.isNotEmpty() }.orEmpty() else ""
+        return extras.copy(zones = ZoneSet(sets.first().count, indices)) to field
+    }
+
+    /** The zones an evacuation for [zones] reaches while [state]'s is in force: both, or the whole site (empty) if either is. */
+    fun joinedZones(state: MapState, zones: Set<String>): Set<String> {
+        val current = state.evacuation ?: return zones
+        return if (current.zones.isEmpty() || zones.isEmpty()) emptySet() else current.zones + zones
+    }
+
     /** The plan of the evacuation in force, when it names one this venue has. */
     fun plan(venue: Venue, state: MapState): EvacuationPlan? = state.evacuation?.plan?.let(venue::evacuationPlan)
 

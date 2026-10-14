@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -29,11 +30,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.announce.Evacuations
+import ro.safetyplease.core.announce.MapState
+import ro.safetyplease.core.announce.Notice
 import ro.safetyplease.core.announce.NoticeExtras
 import ro.safetyplease.core.announce.NoticeLevel
+import ro.safetyplease.core.announce.NoticeOrder
 import ro.safetyplease.core.announce.NoticeTemplate
 import ro.safetyplease.core.announce.NoticeTemplates
 import ro.safetyplease.core.announce.NoticeTopic
@@ -57,15 +63,20 @@ import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.cancel
+import ro.safetyplease.ui.resources.notice_alert_keeps_evacuation
 import ro.safetyplease.ui.resources.notice_composer_title
 import ro.safetyplease.ui.resources.notice_confirm_title
 import ro.safetyplease.ui.resources.notice_duration
+import ro.safetyplease.ui.resources.notice_evacuation_joins
+import ro.safetyplease.ui.resources.notice_held_around
+import ro.safetyplease.ui.resources.notice_held_none
 import ro.safetyplease.ui.resources.notice_hours
 import ro.safetyplease.ui.resources.notice_in_force
 import ro.safetyplease.ui.resources.notice_minutes
 import ro.safetyplease.ui.resources.notice_new
 import ro.safetyplease.ui.resources.notice_no_shift
 import ro.safetyplease.ui.resources.notice_not_sent
+import ro.safetyplease.ui.resources.notice_not_taken
 import ro.safetyplease.ui.resources.notice_preview
 import ro.safetyplease.ui.resources.notice_reach
 import ro.safetyplease.ui.resources.notice_second_text
@@ -79,6 +90,7 @@ import ro.safetyplease.ui.resources.notice_topic_schedule
 import ro.safetyplease.ui.resources.notice_topic_transport
 import ro.safetyplease.ui.resources.control_map_before_evacuation
 import ro.safetyplease.ui.resources.notice_withdraw
+import ro.safetyplease.ui.resources.notice_withdraw_evacuations
 import ro.safetyplease.ui.resources.notice_withdraw_text
 import ro.safetyplease.ui.resources.notice_withdraw_title
 import ro.safetyplease.ui.resources.notice_withdrawn
@@ -91,9 +103,11 @@ import ro.safetyplease.ui.text.rememberNow
 private val Durations = listOf(30, 60, 120, 240, 720)
 
 /**
- * The console's "Anunț": the notices in force, which the operator can withdraw, and a new one from the event's
- * templates, previewed in both languages. Every notice is confirmed; an evacuation also by a second operator, who types
- * the word. The text never claims that everyone was told: it reaches only phones with Ping Up.
+ * The console's "Anunț": the notices in force, which the operator can withdraw, each with how many phones around hold it,
+ * and a new one from the event's templates, previewed in both languages. Every notice is confirmed; an evacuation also
+ * by a second operator, who types the word. An evacuation in force stays whatever else goes out: a new evacuation takes
+ * in its zones, and another alert doesn't end it, which the screen says before sending. "Sent" shows only once the
+ * mesh took the notice. The text never claims that everyone was told: it reaches only phones with Ping Up.
  */
 @Composable
 fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
@@ -102,9 +116,13 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     val language = c.language()
     val sentText = stringResource(Res.string.notice_sent)
     val notSentText = stringResource(Res.string.notice_not_sent)
+    val notTakenText = stringResource(Res.string.notice_not_taken)
     val withdrawnText = stringResource(Res.string.notice_withdrawn)
     val board by c.notices.board.collectAsStateWithLifecycle()
+    val heldAround by c.notices.heldAround.collectAsStateWithLifecycle()
     val now = rememberNow()
+    val scope = rememberCoroutineScope()
+    var sending by remember { mutableStateOf(false) }
     var topic by rememberSaveable { mutableIntStateOf(NoticeTopic.ALERT) }
     // the parameters live with the template, so neither outlives the dialog
     var templateId by remember { mutableIntStateOf(0) }
@@ -115,12 +133,15 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     var minutes by rememberSaveable { mutableIntStateOf(60) }
     var confirm by remember { mutableStateOf(false) }
     var second by remember { mutableStateOf(false) }
-    var withdraw by remember { mutableStateOf<Int?>(null) }
+    var withdraw by remember { mutableStateOf<Notice?>(null) }
     val template = c.noticeTemplates.byId(templateId)?.takeIf { it.topic == topic }
     val evacuation = template?.let { it.topic == NoticeTopic.ALERT && it.level == NoticeLevel.EVACUATION } == true
     val ready = template != null && params.size == template.params.size && params.all { it.isNotBlank() } && c.notices.canSign &&
-        (!evacuation || plan != null)
+        (!evacuation || plan != null) && !sending
     val mapPending by c.mapEditor.edits.collectAsStateWithLifecycle()
+    // the evacuation in force, which every new notice leaves as it is: a new evacuation takes in its zones
+    val evacuating = MapState.of(board, vm.venue, now / 1000).evacuation
+    val targets = if (evacuation) Evacuations.joinedZones(MapState(evacuation = evacuating), zones) else zones
 
     fun choose(t: NoticeTemplate) {
         templateId = t.id
@@ -130,13 +151,18 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
 
     fun send() {
         val t = template ?: return
-        // one zone also goes in the zone field, which phones from before zone sets read
-        // the phones pick the exits from the zones as the console left them: the map state goes first
-        if (evacuation) c.mapEditor.sendNow()
-        val extras = if (evacuation) Evacuations.extras(vm.venue, plan?.id, zones) else NoticeExtras(zones = ZoneSet.target(vm.venue, zones))
-        val sent = extras?.let { c.notices.publish(t, params.map { it.trim() }, zones.singleOrNull().orEmpty(), minutes * 60L, it) }
-        vm.phone.toast(if (sent != null) sentText else notSentText, long = true)
-        if (sent != null) onDismiss()
+        val words = params.map { it.trim() }
+        sending = true
+        scope.launch {
+            // the phones pick the exits from the zones as the console left them: the map state goes first
+            if (evacuation) c.mapEditor.sendNow()
+            val extras = if (evacuation) Evacuations.extras(vm.venue, plan?.id, zones) else NoticeExtras(zones = ZoneSet.target(vm.venue, zones))
+            // one zone also goes in the zone field, which phones from before zone sets read
+            val sent = extras?.let { c.notices.publish(t, words, zones.singleOrNull().orEmpty(), minutes * 60L, it) }
+            sending = false
+            vm.phone.toast(if (sent != null) sentText else if (c.notices.canSign) notTakenText else notSentText, long = true)
+            if (sent != null) onDismiss()
+        }
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -153,12 +179,13 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
             if (active.isNotEmpty()) {
                 Text(stringResource(Res.string.notice_in_force), style = MaterialTheme.typography.headline)
                 InsetGroup {
-                    active.forEachIndexed { i, (_, notice) ->
+                    active.forEachIndexed { i, (held, notice) ->
                         if (i > 0) GroupDivider(start = 16.dp)
+                        val body = noticeBody(c.noticeTemplates, vm.venue, notice, language)
                         GroupRow(
-                            noticeTitle(notice), subtitle = noticeBody(c.noticeTemplates, vm.venue, notice, language),
+                            noticeTitle(notice), subtitle = if (held.own) body + "\n" + heldText(heldAround[NoticeOrder.extraId(notice)]) else body,
                             trailing = {
-                                AppButton(stringResource(Res.string.notice_withdraw), { withdraw = notice.topic }, kind = ButtonKind.Danger, compact = true, enabled = c.notices.canSign)
+                                AppButton(stringResource(Res.string.notice_withdraw), { withdraw = notice }, kind = ButtonKind.Danger, compact = true, enabled = c.notices.canSign)
                             },
                         )
                     }
@@ -189,6 +216,14 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
                         Text(stringResource(Res.string.control_map_before_evacuation), style = MaterialTheme.typography.footnote, color = colors.orange)
                     }
                 }
+                evacuating?.let { current ->
+                    val warning = when {
+                        evacuation -> stringResource(Res.string.notice_evacuation_joins, zonesText(vm.venue, current.zones), zonesText(vm.venue, targets))
+                        template.topic == NoticeTopic.ALERT -> stringResource(Res.string.notice_alert_keeps_evacuation)
+                        else -> null
+                    }
+                    warning?.let { Text(it, style = MaterialTheme.typography.footnote, color = colors.orange) }
+                }
                 Text(stringResource(Res.string.notice_duration), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
                 SegmentedControl(Durations.map { it to durationLabel(it) }, minutes, { minutes = it })
                 Text(stringResource(Res.string.notice_preview), style = MaterialTheme.typography.headline)
@@ -213,7 +248,7 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
     if (confirm && template != null) {
         ConfirmDialog(
             stringResource(Res.string.notice_confirm_title, noticeTitle(template.topic, template.level)),
-            NoticeTemplates.fill(template.text(language), params) + "\n\n" + targetsSummary(vm.venue, zones, plan?.id.takeIf { evacuation }) +
+            NoticeTemplates.fill(template.text(language), params) + "\n\n" + targetsSummary(vm.venue, targets, plan?.id.takeIf { evacuation }) +
                 "\n\n" + stringResource(Res.string.notice_reach),
             { confirm = false }, stringResource(Res.string.notice_send), destructive = evacuation,
         ) { if (evacuation) second = true else send() }
@@ -222,15 +257,22 @@ fun NoticeComposer(vm: AppViewModel, onDismiss: () -> Unit) {
         second = false
         send()
     }
-    withdraw?.let { t ->
+    withdraw?.let { notice ->
+        val evacuations = NoticeOrder.slot(notice) == NoticeOrder.EVACUATIONS
         ConfirmDialog(
-            stringResource(Res.string.notice_withdraw_title, noticeTitle(t, board.notices.firstOrNull { it.topic == t }?.notice()?.level ?: 0)),
-            stringResource(Res.string.notice_withdraw_text), { withdraw = null }, stringResource(Res.string.notice_withdraw), destructive = true,
+            stringResource(Res.string.notice_withdraw_title, noticeTitle(notice)),
+            stringResource(if (evacuations) Res.string.notice_withdraw_evacuations else Res.string.notice_withdraw_text), { withdraw = null },
+            stringResource(Res.string.notice_withdraw), destructive = true,
         ) {
-            vm.phone.toast(if (c.notices.cancel(t) != null) withdrawnText else notSentText, long = true)
+            scope.launch { vm.phone.toast(if (c.notices.withdraw(notice) != null) withdrawnText else notSentText, long = true) }
         }
     }
 }
+
+/** How many phones around listed the notice as held in their last summary; none before the first summary came. */
+@Composable
+private fun heldText(count: Int?): String =
+    if (count == null || count == 0) stringResource(Res.string.notice_held_none) else pluralStringResource(Res.plurals.notice_held_around, count, count)
 
 /** An evacuation goes out only when a second operator types the word, so one tap can't empty a site. */
 @Composable

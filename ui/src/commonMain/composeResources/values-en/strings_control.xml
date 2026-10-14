@@ -22,6 +22,15 @@
     <string name="control_plan_exits">Exits: %1$s</string>
     <string name="control_plan_rejected">These fail the checks and can’t be started: %1$s</string>
     <string name="control_map_before_evacuation">The area changes not sent yet go out before the evacuation.</string>
+    <string name="notice_alert_keeps_evacuation">The evacuation in force stays: this notice doesn’t end it. Phones with older versions of the app keep only the evacuation and will show this notice only after you withdraw it.</string>
+    <string name="notice_evacuation_joins">The evacuation in force (%1$s) stays. The new one takes it in: it goes to %2$s, with the plan you choose, and holds at least as long.</string>
+    <string name="notice_withdraw_evacuations">The evacuation ends in every area where it is in force. Say so on the radio, on stage and on the screens too.</string>
+    <string name="notice_held_none">No phone nearby has confirmed it yet.</string>
+    <plurals name="notice_held_around">
+        <item quantity="one">One phone nearby has it</item>
+        <item quantity="other">%1$d phones nearby have it</item>
+    </plurals>
+    <string name="notice_not_taken">The notice didn’t go out: this phone already holds a newer one on the same subject from another console. Try again in a minute.</string>
     <string name="control_confirm_zones">Areas: %1$s</string>
     <string name="control_confirm_plan">Plan: %1$s</string>
     <string name="control_body_zones">In %1$s: %2$s</string>

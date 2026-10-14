@@ -192,7 +192,7 @@ object Demo {
         c.points.update { it + seededPoints }
         c.heard.update { it + DemoScenario.anchors(c.venue, c.grid, now) }
         c.noticeTemplates.forTopic(NoticeTopic.HEAT).firstOrNull { it.level == HEAT_LEVEL }?.let {
-            c.notices.publish(it, emptyList(), "", HEAT_VALID_S)
+            runBlocking { c.notices.publish(it, emptyList(), "", HEAT_VALID_S) }
         }
         return true
     }
@@ -205,7 +205,7 @@ object Demo {
         c.points.update { board -> board.filterNot { (number, report) -> points[number] == report } }
         seededPoints = emptyMap()
         c.heard.update { it - DemoScenario.ANCHOR_PREFIXES.toSet() }
-        c.notices.cancel(NoticeTopic.HEAT)
+        runBlocking { c.notices.cancel(NoticeTopic.HEAT) }
         DemoFriends.remove(c)
     }
 
