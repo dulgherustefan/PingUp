@@ -2,8 +2,11 @@ package ro.safetyplease.core.incidents
 
 import ro.safetyplease.core.data.StaffIncident
 
-/** One notification to post now. [silent]: no sound or vibration, while the console is muted. */
-data class AlertPost(val incident: StaffIncident, val route: Route, val fullScreen: Boolean, val silent: Boolean)
+/**
+ * One notification to post now. [silent]: no sound or vibration, while the console is muted. [repeat]: an insistent
+ * alert ringing again, with nothing new to say.
+ */
+data class AlertPost(val incident: StaffIncident, val route: Route, val fullScreen: Boolean, val silent: Boolean, val repeat: Boolean = false)
 
 /** What to post, which insistent alerts to take down, and when to look again (null: only on a change). */
 class AlertPlan(val post: List<AlertPost>, val stop: List<String>, val nextAt: Long?)
@@ -57,7 +60,7 @@ class AlertPlanner(private val startMs: Long) {
                 last != null && nowMs - last < wait -> wakes += last + wait
                 else -> {
                     val fullScreen = route.level == AlertLevel.INSISTENT && !s.fullScreenDone && !muted
-                    post += AlertPost(incident, route, fullScreen, muted)
+                    post += AlertPost(incident, route, fullScreen, muted, repeat)
                     s.level = route.level
                     s.reason = route.reason
                     s.lastAt = nowMs

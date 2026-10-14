@@ -31,11 +31,12 @@ data class MyProgram(
 
 /**
  * "Planul meu" and its reminders, rung by the running session through the app's notifications, with the walk from
- * where the phone is now. Nothing is scheduled with the system: on Android the session lives in the mesh's foreground
- * service, so the intent is that a reminder rings while the mesh runs, screen off included (a coroutine, no exact
- * alarm; how Doze treats it is not verified on devices); once the app is closed from the notification or killed,
- * nothing rings until it runs again, and a set that started meanwhile is skipped. On an iPhone the session runs while the app is in front or woken by Bluetooth in the background, so a
- * reminder rings then, or at the next such moment if the set hasn't started yet.
+ * where the phone is now. On Android the session lives in the mesh's foreground service, so the intent is that a
+ * reminder rings while the mesh runs, screen off included (a coroutine, no exact alarm; how Doze treats it is not
+ * verified on devices); once the app is closed from the notification or killed, nothing rings until it runs again, and
+ * a set that started meanwhile is skipped. The session also schedules each reminder with the phone ahead of time
+ * ([ro.safetyplease.core.session.AlertSchedule.sets]), with the walk known then: an iPhone, which runs the session only
+ * in front or woken by Bluetooth, rings it at its time all the same.
  */
 class ProgramReminders(
     scope: CoroutineScope,

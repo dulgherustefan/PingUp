@@ -270,6 +270,9 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     private val notifications = platform.notifications(venue, exercise)
 
+    /** What has to show at its time even while the app sleeps, handed to the phone ahead of time ([scheduleAhead]). */
+    val alertSchedule = AlertScheduler(notifications, clock)
+
     /** GNSS fixes, the landmark the person says they stand by and, on Android with the setting on, steps. */
     val positioning = Positioning(clock)
 
@@ -413,7 +416,10 @@ open class PingUpSession(private val platform: AppPlatform) {
         meshScope, engine, crypto, staffCrypto, incidentStore, clock,
         staffSecret = { staffSecret },
         teamName = { settings.value.teamName },
-        onStaffAlertCleared = { notifications.cancelStaffAlert(it) },
+        onStaffAlertCleared = {
+            notifications.cancelStaffAlert(it)
+            alertSchedule.stopRepeat(it)
+        },
         onReportUpdate = { if (!foreground.value) notifications.reportUpdate(it, clock.wallMs()) },
         onReportSent = { boostUntil.value = clock.monoMs() + PowerPolicy.BOOST_MS },
         onReportResponse = { notifications.reportResponse(it) },
@@ -583,6 +589,7 @@ open class PingUpSession(private val platform: AppPlatform) {
                 }
             }
         }
+        meshScope.launch { scheduleAhead() }
     }
 
     /**
@@ -726,15 +733,57 @@ open class PingUpSession(private val platform: AppPlatform) {
         combine(incidentStore.state, settings.state, mutedUntil, staffChain.position, staffChain.nearIncidents) { data, s, muted, here, near ->
             Triple(data, Routing.profile(s).copy(position = here, near = near).takeIf { s.role.hasStaffKeys }, muted)
         }.collectLatest { (data, me, muted) ->
-            if (me == null) return@collectLatest
+            if (me == null) {
+                alertSchedule.keepRepeats(emptySet())
+                return@collectLatest
+            }
             val own = data.mine.mapTo(HashSet()) { it.incidentId }
             while (true) {
                 val now = clock.wallMs()
                 val plan = planner.plan(me, data.staff, own, now, muted)
-                plan.stop.forEach(notifications::cancelStaffAlert)
-                plan.post.forEach(staffChain::post)
+                plan.stop.forEach { id ->
+                    notifications.cancelStaffAlert(id)
+                    alertSchedule.stopRepeat(id)
+                }
+                plan.post.forEach { post ->
+                    staffChain.post(post)
+                    alertSchedule.repeated(post)
+                }
+                // muted, nothing rings again; nor does an incident gone from the list
+                alertSchedule.keepRepeats(if (now < muted) emptySet() else data.staff.mapTo(HashSet()) { it.incidentId })
                 val next = plan.nextAt ?: break
                 delay(next - now)
+            }
+        }
+    }
+
+    /**
+     * Hands the phone, ahead of time, what has to show at its time even while the app sleeps: an iPhone runs it only
+     * while Bluetooth wakes it. The urgent report's escalation, the check-in's question, the set reminders, the end of
+     * the shift and the share reminder follow the state here; the insistent alerts ring again from [routeAlerts]. The
+     * timers here keep running while the app does, and the phone shows each subject once.
+     */
+    private suspend fun scheduleAhead() = coroutineScope {
+        launch { incidentStore.state.map { it.mine }.distinctUntilChanged().collect { alertSchedule.escalations(it) } }
+        launch { checkin.state.map { it.current }.distinctUntilChanged().collect { alertSchedule.checkin(it) } }
+        launch {
+            settings.state.map { s -> keyChain.credential?.certificate?.validUntil?.takeIf { s.role != Role.PARTICIPANT } }
+                .distinctUntilChanged().collect { alertSchedule.shiftEnd(it) }
+        }
+        launch {
+            combine(settings.state.map { it.sharePlans }, sharing) { plans, now -> plans to (now?.people ?: 0) }
+                .distinctUntilChanged().collect { (plans, people) -> alertSchedule.share(plans, people) }
+        }
+        if (program.schedule.isNotEmpty()) {
+            launch {
+                // the walk to each stage counts from where the phone is as the app leaves the front, the last it may know
+                combine(program.state, foreground) { p, _ -> p }.collectLatest { p ->
+                    val reminders = withContext(Dispatchers.Default) {
+                        val from = program.origin()
+                        AlertSchedule.sets(p, program.schedule, clock.wallMs() / 1000, { program.walkMeters(from, it) }) { venue.zoneName(it.stage) }
+                    }
+                    alertSchedule.sets(reminders)
+                }
             }
         }
     }
