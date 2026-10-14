@@ -65,6 +65,9 @@ class JsonStore<T>(
     // the file on disk is the damaged one: the write that replaces it must not copy it over the good backup
     private var damaged = false
 
+    // what was read isn't what the file holds (migrated, or from the backup): the next flush writes it
+    private var stale = false
+
     private val _state = MutableStateFlow(load() ?: default)
     val state: StateFlow<T> = _state
     val value: T get() = _state.value
@@ -78,16 +81,33 @@ class JsonStore<T>(
     @Volatile
     private var cleared = false
 
-    private val writer = StoreWriter(scope, _health) { write(_state.value) }
+    // how many changes the state had and how many of them are on disk, under [versions], held only for the counting
+    private val versions = SynchronizedObject()
+    private var changes = if (stale) 1L else 0L
+    private var saved = 0L
+
+    private val writer = StoreWriter(scope, _health, ::save)
 
     fun update(transform: (T) -> T) {
         _state.update(transform)
+        synchronized(versions) { changes++ }
         cleared = false
         writer.changed()
     }
 
-    /** Writes now what waits; never throws: a write that fails is tried again later, as one after [update]. */
+    /**
+     * Writes now what waits, and nothing when nothing does: the iPhone app flushes every store each time the phone
+     * locks. Never throws: a write that fails is tried again later, as one after [update].
+     */
     fun flush() = writer.flush()
+
+    /** The state as it is now, if it changed since the last write that went through. */
+    private fun save() {
+        // the count is taken before the state is read: a change in between is written again, never lost
+        val version = synchronized(versions) { if (changes == saved) return else changes }
+        write(_state.value)
+        synchronized(versions) { if (version > saved) saved = version }
+    }
 
     /** Deletes the file and its backup, even an unreadable one, and starts over from [default]. */
     fun reset() {
@@ -104,24 +124,29 @@ class JsonStore<T>(
             damaged = false
             cleared = true
         }
+        synchronized(versions) { saved = changes }
         _health.update { StoreHealth(writeFailed = it.writeFailed) }
     }
 
     private fun load(): T? {
         if (!fs.exists(file)) return null
         return when (val main = read(file)) {
-            is Read.Data -> main.value
+            is Read.Data -> {
+                if (main.version < schemaVersion) stale = true
+                main.value
+            }
             Read.Newer -> {
                 unreadable = true
                 null
             }
             Read.Damaged -> {
                 // only a backup of this version: an older one would be migrated over newer files (the chat's)
-                val saved = if (keepsBackup && fs.exists(backup)) read(backup) else null
-                if (saved is Read.Data && saved.version == schemaVersion) {
+                val kept = if (keepsBackup && fs.exists(backup)) read(backup) else null
+                if (kept is Read.Data && kept.version == schemaVersion) {
                     restored = true
                     damaged = true
-                    saved.value
+                    stale = true
+                    kept.value
                 } else {
                     unreadable = true
                     null

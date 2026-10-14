@@ -55,6 +55,17 @@ class ConsoleLogStoreTest {
     }
 
     @Test
+    fun aPhoneThatIsNoConsoleNeverMakesTheFile() = runTest {
+        val store = ConsoleLogStore(file, backgroundScope)
+        store.flush()
+        advanceTimeBy(1_000)
+        assertFalse(file.exists())
+        store.append(listOf(ack(1)))
+        store.flush()
+        assertEquals(2, lines().size)
+    }
+
+    @Test
     fun theSingleObjectTheLastVersionWroteIsReadAndThenWrittenAsLines() = runTest {
         // console_log.json as 7839871 wrote it, through JsonStore: one object, every field, and its backup
         val old = Json { encodeDefaults = true }.encodeToString(ConsoleLog.serializer(), ConsoleLog(listOf(ack(1), ack(2))))

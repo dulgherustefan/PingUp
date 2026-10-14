@@ -40,9 +40,10 @@ class ConsoleLogStore(private val file: Path, scope: CoroutineScope) {
     var unreadable = false
         private set
 
-    // under the lock: how many entries the file holds, and whether it has to be written whole
+    // under the lock: how many entries the file holds, whether it has to be written whole, and whether it is there at all
     private var written = 0
     private var compact = false
+    private var onDisk = true
 
     private val _state: MutableStateFlow<ConsoleLog>
     val state: StateFlow<ConsoleLog> get() = _state
@@ -57,6 +58,7 @@ class ConsoleLogStore(private val file: Path, scope: CoroutineScope) {
         val read = parse(file)
         unreadable = read.unreadable
         compact = read.compact
+        onDisk = read.onDisk
         written = read.log.entries.size
         _state = MutableStateFlow(read.log)
         _health = MutableStateFlow(StoreHealth(unreadable = read.unreadable, restored = read.restored))
@@ -79,7 +81,7 @@ class ConsoleLogStore(private val file: Path, scope: CoroutineScope) {
         writer.changed()
     }
 
-    /** Writes now what waits; never throws: a write that fails is tried again later. */
+    /** Writes now what waits, and nothing when nothing does; never throws: a write that fails is tried again later. */
     fun flush() = writer.flush()
 
     private fun write() {
@@ -88,9 +90,14 @@ class ConsoleLogStore(private val file: Path, scope: CoroutineScope) {
             val entries = _state.value.entries
             if (!compact && entries.size == written) return
             try {
-                if (compact || entries.size < written) rewrite(entries) else appendSynced(file, lines(entries.subList(written, entries.size)))
+                if (compact || !onDisk || entries.size < written) {
+                    rewrite(entries)
+                } else {
+                    appendSynced(file, lines(entries.subList(written, entries.size)))
+                }
                 written = entries.size
                 compact = false
+                onDisk = true
             } catch (e: IOException) {
                 // an append may have stopped halfway: the next write starts the file over
                 compact = true
@@ -112,7 +119,13 @@ class ConsoleLogStore(private val file: Path, scope: CoroutineScope) {
         }
     }
 
-    private class Parsed(val log: ConsoleLog, val compact: Boolean = false, val unreadable: Boolean = false, val restored: Boolean = false)
+    private class Parsed(
+        val log: ConsoleLog,
+        val compact: Boolean = false,
+        val unreadable: Boolean = false,
+        val restored: Boolean = false,
+        val onDisk: Boolean = true,
+    )
 
     companion object {
         private val fs = FileSystem.SYSTEM
@@ -133,8 +146,8 @@ class ConsoleLogStore(private val file: Path, scope: CoroutineScope) {
             buildString { entries.forEach { append(json.encodeToString(LogEntry.serializer(), it)).append('\n') } }.encodeToByteArray()
 
         private fun parse(file: Path): Parsed {
-            // the first write puts the header in
-            if (!fs.exists(file)) return Parsed(ConsoleLog(), compact = true)
+            // the first entry writes the file, header first; a phone that is no console never makes one
+            if (!fs.exists(file)) return Parsed(ConsoleLog(), onDisk = false)
             val text = try {
                 fs.read(file) { readUtf8() }
             } catch (_: IOException) {

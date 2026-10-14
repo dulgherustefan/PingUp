@@ -63,6 +63,25 @@ class StoreFailureTest {
     }
 
     @Test
+    fun aFlushWithNothingNewWritesNothing() = runTest {
+        // the iPhone app flushes every store each time the phone locks
+        val file = tmp.root / "events.json"
+        val store = JsonStore(file, Settings.serializer(), Settings(), backgroundScope)
+        store.flush()
+        assertFalse(file.exists(), "nothing changed, nothing written")
+        store.update { it.copy(nickname = "Ana") }
+        store.flush()
+        assertTrue(file.exists())
+        FileSystem.SYSTEM.delete(file)
+        store.flush()
+        advanceTimeBy(1_000)
+        assertFalse(file.exists(), "that change is on disk already: neither the flush nor the debounced write repeat it")
+        store.update { it.copy(teamName = "Medical 1") }
+        store.flush()
+        assertEquals("Medical 1", JsonStore(file, Settings.serializer(), Settings(), backgroundScope).value.teamName)
+    }
+
+    @Test
     fun aDamagedFileComesBackFromItsBackupWhichTheNextWriteKeeps() = runTest {
         val file = tmp.root / "friends.json"
         val store = friends(file, backgroundScope)
@@ -76,6 +95,9 @@ class StoreFailureTest {
         assertEquals(listOf(1L), again.value.map { it.nodeId }, "the backup holds the write before")
         assertTrue(again.restored && again.health.value.restored)
         assertFalse(again.unreadable)
+        // the damaged file goes at the next flush, even with nothing new
+        again.flush()
+        assertEquals(listOf(1L), friends(file, backgroundScope).value.map { it.nodeId })
         again.update { it + friend(3) }
         again.flush()
         assertEquals(listOf(1L, 3L), friends(file, backgroundScope).value.map { it.nodeId })
