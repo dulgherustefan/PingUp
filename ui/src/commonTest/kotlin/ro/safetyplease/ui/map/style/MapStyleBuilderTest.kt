@@ -66,7 +66,7 @@ class MapStyleBuilderTest {
         "zones-fill", "zones-line", "zones-selected", "overlay-zones-fill", "overlay-zones-line", "overlay-zones-closed", "grid-line",
         "grid-label", "overlay-route-alternative", "overlay-route-casing", "overlay-route", "pois-circle", "pois-label", "target-circle",
         "markers-circle", "overlay-pins", "overlay-pins-label", "friends-ring", "friends-ring-outline", "friends-dot", "friends-label",
-        "me-ring", "me-dot",
+        "me-ring", "me-ring-dashed", "me-dot",
     )
 
     private fun style(packs: List<InstalledPack>, dark: Boolean = false, language: String = "ro") =
@@ -203,7 +203,7 @@ class MapStyleBuilderTest {
         assertEquals(
             listOf(
                 "zones", "zones", "zones", "zone-styles", "zone-styles", "zone-styles", "grid", "grid", "routes", "routes", "routes",
-                "pois", "pois", "target", "markers", "pins", "pins", "friends", "friends", "friends", "friends", "me", "me",
+                "pois", "pois", "target", "markers", "pins", "pins", "friends", "friends", "friends", "friends", "me", "me", "me",
             ).map { "pingup-$it" },
             overlay.map { it.source },
         )
@@ -222,7 +222,8 @@ class MapStyleBuilderTest {
             "friends-ring-outline" to """["all",$polygons,["to-boolean",["get","outline"]]]""",
             "friends-dot" to points,
             "friends-label" to points,
-            "me-ring" to polygons,
+            "me-ring" to """["all",$polygons,["!",["to-boolean",["get","dashed"]]]]""",
+            "me-ring-dashed" to """["all",$polygons,["to-boolean",["get","dashed"]]]""",
             "me-dot" to points,
         )
         overlay.forEach { layer -> assertEquals(expected[layer.id]?.let(::json), layer["filter"], layer.id) }
@@ -238,7 +239,10 @@ class MapStyleBuilderTest {
         assertEquals(JsonPrimitive("#1a7f37"), paint("overlay-route", "line-color"))
         assertEquals(json("""["case",["get","grey"],"#8E8E93","#30D158"]"""), paint("friends-dot", "circle-color"))
         assertEquals(json("""["*",0.16,["to-number",["get","fade"]]]"""), paint("friends-ring", "fill-opacity"))
-        assertEquals(JsonPrimitive("#1A7F37"), paint("me-ring", "fill-color"))
+        val meColor = json("""["case",["to-boolean",["get","grey"]],"#8E8E93","#1A7F37"]""")
+        assertEquals(meColor, paint("me-ring", "fill-color"))
+        assertEquals(meColor, paint("me-ring-dashed", "line-color"))
+        assertEquals(meColor, paint("me-dot", "circle-color"))
         assertEquals(JsonPrimitive(0), paint("pois-label", "text-halo-width"))
         val pinsLabel = byId.getValue("overlay-pins-label").getValue("layout").jsonObject
         assertEquals(json("""["Noto Sans Medium"]"""), pinsLabel["text-font"])

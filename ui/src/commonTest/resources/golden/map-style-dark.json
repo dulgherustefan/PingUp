@@ -2699,15 +2699,80 @@
       "type": "fill",
       "source": "pingup-me",
       "filter": [
-        "==",
+        "all",
         [
-          "geometry-type"
+          "==",
+          [
+            "geometry-type"
+          ],
+          "Polygon"
         ],
-        "Polygon"
+        [
+          "!",
+          [
+            "to-boolean",
+            [
+              "get",
+              "dashed"
+            ]
+          ]
+        ]
       ],
       "paint": {
-        "fill-color": "#1A7F37",
+        "fill-color": [
+          "case",
+          [
+            "to-boolean",
+            [
+              "get",
+              "grey"
+            ]
+          ],
+          "#8E8E93",
+          "#1A7F37"
+        ],
         "fill-opacity": 0.18
+      }
+    },
+    {
+      "id": "me-ring-dashed",
+      "type": "line",
+      "source": "pingup-me",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "geometry-type"
+          ],
+          "Polygon"
+        ],
+        [
+          "to-boolean",
+          [
+            "get",
+            "dashed"
+          ]
+        ]
+      ],
+      "paint": {
+        "line-color": [
+          "case",
+          [
+            "to-boolean",
+            [
+              "get",
+              "grey"
+            ]
+          ],
+          "#8E8E93",
+          "#1A7F37"
+        ],
+        "line-width": 1.5,
+        "line-dasharray": [
+          2,
+          1.5
+        ]
       }
     },
     {
@@ -2722,7 +2787,18 @@
         "Point"
       ],
       "paint": {
-        "circle-color": "#1A7F37",
+        "circle-color": [
+          "case",
+          [
+            "to-boolean",
+            [
+              "get",
+              "grey"
+            ]
+          ],
+          "#8E8E93",
+          "#1A7F37"
+        ],
         "circle-radius": 8,
         "circle-stroke-color": "#ffffff",
         "circle-stroke-width": 3

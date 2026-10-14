@@ -40,6 +40,9 @@ object OverlayStyle {
     /** Its filter names the selected zone: [selected]. */
     const val SELECTED_LAYER = "zones-selected"
 
+    /** "Me"'s ring where the phone gave no accuracy: a dashed guess. */
+    const val ME_DASHED_LAYER = "me-ring-dashed"
+
     /** A tap looks for a feature's "key" in these two. */
     const val MARKERS_LAYER = "markers-circle"
     const val PINS_LAYER = "overlay-pins"
@@ -69,6 +72,9 @@ object OverlayStyle {
         val friend = JsonArray(
             listOf(JsonPrimitive("case"), json("""["get","grey"]"""), JsonPrimitive(palette.stale), JsonPrimitive(palette.friend)),
         )
+        // "me" grey once the position is old, its ring dashed when the phone gave no accuracy
+        val meColor = JsonArray(listOf(JsonPrimitive("case"), json("""["to-boolean",["get","grey"]]"""), JsonPrimitive(palette.stale), me))
+        val dashed = json("""["to-boolean",["get","dashed"]]""")
         val primary = json("""["==",["get","style"],"${RouteStyle.PRIMARY.name.lowercase()}"]""")
         val closed = json("""["==",["get","style"],"${ZoneStyle.CLOSED.name.lowercase()}"]""")
         val dashes = json("[2,1.5]")
@@ -130,8 +136,9 @@ object OverlayStyle {
                 ),
             ),
             layer("friends-label", "symbol", FRIENDS, points, layout = text(12) + under, paint = textPaint),
-            layer("me-ring", "fill", ME, polygons, paint = mapOf("fill-color" to me, "fill-opacity" to n(0.18))),
-            layer("me-dot", "circle", ME, points, paint = dot(me, 8, 3)),
+            layer("me-ring", "fill", ME, all(polygons, not(dashed)), paint = mapOf("fill-color" to meColor, "fill-opacity" to n(0.18))),
+            layer(ME_DASHED_LAYER, "line", ME, all(polygons, dashed), paint = line(meColor, 1.5) + ("line-dasharray" to dashes)),
+            layer("me-dot", "circle", ME, points, paint = dot(meColor, 8, 3)),
         )
     }
 

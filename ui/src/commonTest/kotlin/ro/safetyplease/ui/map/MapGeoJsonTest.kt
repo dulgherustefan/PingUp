@@ -98,6 +98,30 @@ class MapGeoJsonTest {
         assertEquals(listOf("Polygon", "Point"), me.map { it.type() })
         assertEquals(16.0, distanceMeters(GeoPoint(43.95, 28.635), me[0].ring()[5]).toDouble(), 1.0)
         assertTrue(features(MapGeoJson.me(null)).isEmpty())
+        me.forEach {
+            assertEquals(false, it.prop("grey").boolean)
+            assertEquals(false, it.prop("dashed").boolean)
+        }
+    }
+
+    @Test
+    fun anOldPositionIsGreyWithItsGrownRingAndAnUnknownAccuracyIsADashedGuess() {
+        val old = features(MapGeoJson.me(MapMe(43.95, 28.635, accuracyM = 10f, ringM = 240f, stale = true)))
+        assertEquals(240.0, distanceMeters(GeoPoint(43.95, 28.635), old[0].ring()[5]).toDouble(), 2.0)
+        old.forEach { assertEquals(true, it.prop("grey").boolean) }
+        val unknown = features(MapGeoJson.me(MapMe(43.95, 28.635, accuracyM = 0f)))
+        assertEquals(50.0, distanceMeters(GeoPoint(43.95, 28.635), unknown[0].ring()[5]).toDouble(), 1.0)
+        unknown.forEach { assertEquals(true, it.prop("dashed").boolean) }
+    }
+
+    @Test
+    fun placesOffTheEarthAreNotDrawn() {
+        val off = GeoPoint(95.0, 28.6)
+        assertTrue(features(MapGeoJson.me(MapMe(off.lat, off.lon, 5f))).isEmpty())
+        assertTrue(features(MapGeoJson.target(off)).isEmpty())
+        assertTrue(features(MapGeoJson.markers(listOf(MapMarker("k", off, "#FF0000")))).isEmpty())
+        assertTrue(features(MapGeoJson.friends(listOf(MapFriend("f", off.lat, off.lon, 10f, FriendAge.NOW)))).isEmpty())
+        assertTrue(features(MapGeoJson.routes(listOf(MapRoute(listOf(GeoPoint(43.95, 28.6), off))))).isEmpty())
     }
 
     @Test
@@ -118,10 +142,10 @@ class MapGeoJsonTest {
         assertTrue(friends[1].prop("size").float > friends[3].prop("size").float)
         assertEquals("Ana", friends[1].prop("label").content)
         assertEquals(32.0, distanceMeters(GeoPoint(43.95, 28.635), friends[0].ring()[0]).toDouble(), 1.0)
-        // older than ten minutes: an outline, and a ring the map caps
+        // older than ten minutes: an outline, with the ring's real size
         assertEquals(listOf(false, false, true, true, true, true), friends.map { it.prop("outline").boolean })
         assertEquals(8.0, distanceMeters(GeoPoint(43.949, 28.634), friends[2].ring()[0]).toDouble(), 1.0)
-        assertEquals(MapFriend.STALE_RING_MAX_M.toDouble(), distanceMeters(GeoPoint(43.948, 28.633), friends[4].ring()[0]).toDouble(), 1.0)
+        assertEquals(300.0, distanceMeters(GeoPoint(43.948, 28.633), friends[4].ring()[0]).toDouble(), 1.0)
     }
 
     @Test

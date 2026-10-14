@@ -105,6 +105,7 @@ import ro.safetyplease.ui.designsystem.caption1
 import ro.safetyplease.ui.designsystem.caption2
 import ro.safetyplease.ui.designsystem.rememberLoop
 import ro.safetyplease.ui.map.MapFriend
+import ro.safetyplease.ui.map.MapMe
 import ro.safetyplease.ui.map.MapOverlay
 import ro.safetyplease.ui.map.OverlayColors
 import ro.safetyplease.ui.map.RouteStyle
@@ -259,7 +260,8 @@ private fun rememberGlyphs(): Map<String, Painter> = GlyphTypes.associateWith { 
  * Venue map drawn on a Canvas, no tiles, no internet: the fenced site with its walkways, zones colored by type with
  * what's in them (stage and crowd, tents, trees, stalls), their icon and name, the useful points, a compass and a scale bar.
  * You are the pulsing dot labeled "Tu"; [target] is where you're heading, joined to you by a dotted route. [friends] are
- * drawn as on the real map: ring, dot and name.
+ * drawn as on the real map: ring, dot and name. Given [me] instead of [position], "Tu" has its real ring: the 95% one,
+ * dashed where the phone gave no accuracy, grey and grown once the position is old.
  * With [camera] the map zooms with two fingers, a double tap and the buttons. [compact] is the message bubble variant.
  * [reserved] are the corners the overlay's controls cover: no name or scale bar is drawn under them.
  * [grid] draws the site plan's squares, lettered along the top and numbered down the left side; [squareShades] fill
@@ -273,6 +275,7 @@ fun VenueMap(
     venue: Venue,
     modifier: Modifier = Modifier,
     position: GeoPoint? = null,
+    me: MapMe? = null,
     pins: List<MapPin> = emptyList(),
     friends: List<MapFriend> = emptyList(),
     myZone: String = "",
@@ -325,11 +328,12 @@ fun VenueMap(
     val scope = rememberCoroutineScope()
     val inset = if (compact) CompactInset else MapInset
     val words = rememberMapWords()
-    val nodes = if (compact) emptyList() else remember(venue, words, position, myZone, pins, onPinTap != null) {
-        mapNodes(venue, words, position, myZone, if (onPinTap != null) pins else emptyList())
+    val here = me?.let { GeoPoint(it.lat, it.lon) } ?: position
+    val nodes = if (compact) emptyList() else remember(venue, words, here, myZone, pins, onPinTap != null) {
+        mapNodes(venue, words, here, myZone, if (onPinTap != null) pins else emptyList())
     }
     val summary = pluralStringResource(Res.plurals.map_a11y_summary, venue.zones.size, venue.zones.size)
-    val pulse: State<Float>? = if (!compact && animateMoves && (position != null || target != null)) rememberLoop(1800) else null
+    val pulse: State<Float>? = if (!compact && animateMoves && (here != null || target != null)) rememberLoop(1800) else null
 
     Box(
         modifier.fillMaxWidth().aspectRatio(aspect)
@@ -402,7 +406,7 @@ fun VenueMap(
             val shift = camera?.offset ?: Offset.Zero
             fun at(p: GeoPoint) = projection.project(p) * zoom + shift
             val meter = projection.pxPerMeter * zoom
-            val marker = position?.let(::at)
+            val marker = here?.let(::at)
             val spots = pins.map { at(it.point) }
             val overlaySpots = overlayPins.map { at(it.point) }
             val corner = 7.dp.toPx() * min(zoom, 2f)
@@ -648,9 +652,9 @@ fun VenueMap(
                 val o = at(GeoPoint(f.lat, f.lon))
                 val tone = (if (f.grey) colors.secondaryLabel else colors.green).copy(alpha = f.fade)
                 if (f.outline) {
-                    drawCircle(tone.copy(alpha = MapFriend.OUTLINE_OPACITY), f.drawnRingM * meter, o, style = Stroke(1.dp.toPx()))
+                    drawCircle(tone.copy(alpha = MapFriend.OUTLINE_OPACITY), f.ringM * meter, o, style = Stroke(1.dp.toPx()))
                 } else {
-                    drawCircle(tone.copy(alpha = 0.16f * f.fade), f.drawnRingM * meter, o)
+                    drawCircle(tone.copy(alpha = 0.16f * f.fade), f.ringM * meter, o)
                 }
                 markerDot(o, f.dotRadius.dp.toPx(), tone)
                 if (f.label.isNotEmpty()) {
@@ -660,22 +664,30 @@ fun VenueMap(
             }
 
             marker?.let { o ->
-                pulse?.value?.let { p -> drawCircle(colors.accent.copy(alpha = 0.32f * (1 - p)), 9.dp.toPx() + 26.dp.toPx() * p, o) }
-                drawCircle(colors.accent.copy(alpha = 0.18f), 17.dp.toPx(), o)
-                markerDot(o, 8.dp.toPx(), colors.accent)
+                val tone = if (me?.stale == true) colors.secondaryLabel else colors.accent
+                if (me?.stale != true) pulse?.value?.let { p -> drawCircle(tone.copy(alpha = 0.32f * (1 - p)), 9.dp.toPx() + 26.dp.toPx() * p, o) }
+                when {
+                    me == null -> drawCircle(tone.copy(alpha = 0.18f), 17.dp.toPx(), o)
+                    me.dashed -> drawCircle(
+                        tone.copy(alpha = 0.8f), me.ringM * meter, o,
+                        style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))),
+                    )
+                    else -> drawCircle(tone.copy(alpha = 0.18f), me.ringM * meter, o)
+                }
+                markerDot(o, 8.dp.toPx(), tone)
                 val text = measurer.measure(youLabel, smallStyle.copy(color = colors.onAccent))
                 val w = text.size.width + 14.dp.toPx()
                 val h = text.size.height + 4.dp.toPx()
                 val tl = Offset(o.x - w / 2, o.y - 13.dp.toPx() - 5.dp.toPx() - h)
                 drawRoundRect(MarkerShadow, tl + Offset(0f, 1.dp.toPx()), Size(w, h), CornerRadius(h / 2))
-                drawRoundRect(colors.accent, tl, Size(w, h), CornerRadius(h / 2))
+                drawRoundRect(tone, tl, Size(w, h), CornerRadius(h / 2))
                 val tip = Path().apply {
                     moveTo(o.x - 5.dp.toPx(), tl.y + h - 1f)
                     lineTo(o.x + 5.dp.toPx(), tl.y + h - 1f)
                     lineTo(o.x, tl.y + h + 5.dp.toPx())
                     close()
                 }
-                drawPath(tip, colors.accent)
+                drawPath(tip, tone)
                 drawText(text, topLeft = Offset(o.x - text.size.width / 2f, tl.y + 2.dp.toPx()))
             }
             goal?.let { o ->

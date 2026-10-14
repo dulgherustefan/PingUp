@@ -21,24 +21,30 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import okio.Path
 import org.maplibre.android.MapLibre
-import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
+import ro.safetyplease.app.AppLocale
+import ro.safetyplease.core.map.PackRegistry
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.ui.map.MapKind
 import ro.safetyplease.ui.map.MapPalette
 import ro.safetyplease.ui.map.OfflineMap
 import ro.safetyplease.ui.map.PingMapEngine
+import ro.safetyplease.ui.map.style.MapStyleBuilder
 
 /**
- * The MapLibre view of [pack], kept in step with the screen's lifecycle. [onReady] gets the engine once the map
- * exists; the style follows [dark]. A finger on the map moves the map, not the list around it.
+ * The MapLibre view of every pack in [registry], anywhere on the earth, kept in step with the screen's lifecycle. The
+ * style is composed again ([MapStyleBuilder]) when the packs, the theme or the app's language change; [styleAssets]
+ * holds its fonts and sprites. [onReady] gets the engine once the map exists. A finger on the map moves the map, not
+ * the list around it.
  */
 @SuppressLint("ClickableViewAccessibility")
 @Composable
 fun PingMap(
-    pack: MapPack,
+    registry: PackRegistry,
+    styleAssets: Path,
     dark: Boolean,
     palette: MapPalette,
     modifier: Modifier = Modifier,
@@ -50,6 +56,8 @@ fun PingMap(
     val currentPalette by rememberUpdatedState(palette)
     val currentTap by rememberUpdatedState(onTap)
     val currentReady by rememberUpdatedState(onReady)
+    val packs by registry.packs.collectAsStateWithLifecycle()
+    val language = AppLocale.current()
     var engine by remember { mutableStateOf<MapLibreEngine?>(null) }
     val view = remember {
         MapLibre.getInstance(context)
@@ -84,31 +92,33 @@ fun PingMap(
 
     LaunchedEffect(view) {
         view.getMapAsync { map ->
-            pack.manifest.bbox.takeIf { it.size == 4 }?.let { (west, south, east, north) ->
-                map.setLatLngBoundsForCameraTarget(LatLngBounds.from(north, east, south, west))
-            }
-            val created = MapLibreEngine(map, { currentPalette }) { point, key -> currentTap(point, key) }
+            val detailed = { point: GeoPoint -> registry.detailAt(point.lat, point.lon, MapLibreEngine.FOLLOW_ZOOM) != null }
+            val created = MapLibreEngine(map, { currentPalette }, detailed) { point, key -> currentTap(point, key) }
             engine = created
             currentReady(created)
         }
     }
 
-    LaunchedEffect(engine, dark) {
+    LaunchedEffect(engine, dark, packs, language, palette) {
         val ready = engine ?: return@LaunchedEffect
-        val style = withContext(Dispatchers.IO) { pack.style(dark) }
+        val style = withContext(Dispatchers.Default) {
+            MapStyleBuilder(styleAssets, BundledPacks.urls).build(packs, dark, language, palette)
+        }
         ready.setStyle(style)
     }
 
     AndroidView(factory = { view }, modifier = modifier)
 }
 
-/** The MapLibre base map for the screens; its data is copied out of the APK on first use. */
+/** The MapLibre map for the screens: the world overview and the festival's map from the APK, and downloaded areas. */
 class AndroidOfflineMap(context: Context) : OfflineMap {
     init {
         MapData.start(context)
     }
 
     override val kind: StateFlow<MapKind> = MapData.kind
+
+    override val packs: PackRegistry = MapData.registry
 
     @Composable
     override fun Show(
@@ -118,8 +128,7 @@ class AndroidOfflineMap(context: Context) : OfflineMap {
         onTap: (GeoPoint, String?) -> Unit,
         onReady: (PingMapEngine) -> Unit,
     ) {
-        val state by MapData.state.collectAsStateWithLifecycle()
-        val pack = (state as? MapState.Ready)?.pack ?: return
-        PingMap(pack, dark, palette, modifier, onTap, onReady)
+        val assets = MapData.styleAssets ?: return
+        PingMap(MapData.registry, assets, dark, palette, modifier, onTap, onReady)
     }
 }

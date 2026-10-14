@@ -7,6 +7,7 @@ import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import ro.safetyplease.core.util.validLatLon
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
@@ -17,9 +18,6 @@ import kotlin.math.sin
 
 /** The overlay as GeoJSON FeatureCollections, the strings a MapLibre GeoJSON source takes on both phones. */
 object MapGeoJson {
-    /** Android's accuracy is a 68% radius; 1.6 times it holds the person 95% of the time. */
-    const val RING_95 = 1.6
-
     private const val METERS_PER_DEGREE = 111_320.0
     private const val RING_STEPS = 48
 
@@ -80,10 +78,10 @@ object MapGeoJson {
         ),
     )
 
-    fun target(point: GeoPoint?): String = collection(listOfNotNull(point?.let { feature(point(it)) {} }))
+    fun target(point: GeoPoint?): String = collection(listOfNotNull(point?.takeIf(::onEarth)?.let { feature(point(it)) {} }))
 
     fun markers(markers: List<MapMarker>): String = collection(
-        markers.map { marker ->
+        markers.filter { onEarth(it.point) }.map { marker ->
             feature(point(marker.point)) {
                 put("key", marker.key)
                 put("color", marker.color)
@@ -96,7 +94,7 @@ object MapGeoJson {
      * faded, how large and whether grey by age.
      */
     fun friends(friends: List<MapFriend>): String = collection(
-        friends.flatMap { f ->
+        friends.filter { validLatLon(it.lat, it.lon) }.flatMap { f ->
             val center = GeoPoint(f.lat, f.lon)
             val look: JsonObjectBuilder.() -> Unit = {
                 put("id", f.id)
@@ -105,7 +103,7 @@ object MapGeoJson {
                 put("outline", f.outline)
             }
             listOf(
-                feature(polygon(ring(center, f.drawnRingM.toDouble())), look),
+                feature(polygon(ring(center, f.ringM.toDouble())), look),
                 feature(point(center)) {
                     look()
                     put("size", f.dotRadius)
@@ -117,7 +115,7 @@ object MapGeoJson {
 
     /** The features' routes as lines, each with its style: `primary` or `alternative`. */
     fun routes(routes: List<MapRoute>): String = collection(
-        routes.filter { it.points.size >= 2 }.map { route ->
+        routes.filter { it.points.size >= 2 && it.points.all(::onEarth) }.map { route ->
             feature(line(route.points)) { put("style", route.style.code) }
         },
     )
@@ -137,7 +135,7 @@ object MapGeoJson {
 
     /** The features' pins, with the key a tap reports, the kind, its color and the label. */
     fun overlayPins(pins: List<OverlayPin>, color: (PinKind) -> String): String = collection(
-        pins.map { pin ->
+        pins.filter { onEarth(it.point) }.map { pin ->
             feature(point(pin.point)) {
                 put("key", pin.key)
                 put("kind", pin.kind.code)
@@ -153,13 +151,21 @@ object MapGeoJson {
 
     private val PinKind.code: String get() = name.lowercase()
 
+    /** "Me": the ring, dashed without an accuracy, then the dot; both grey once the position is [MapMe.stale]. */
     fun me(me: MapMe?): String = collection(
-        if (me == null) emptyList()
+        if (me == null || !validLatLon(me.lat, me.lon)) emptyList()
         else {
             val center = GeoPoint(me.lat, me.lon)
-            listOf(feature(polygon(ring(center, me.accuracyM * RING_95))) {}, feature(point(center)) {})
+            val look: JsonObjectBuilder.() -> Unit = {
+                put("grey", me.stale)
+                put("dashed", me.dashed)
+            }
+            listOf(feature(polygon(ring(center, me.ringM.toDouble())), look), feature(point(center), look))
         },
     )
+
+    /** Places from the network may be off the earth; they aren't drawn. */
+    private fun onEarth(p: GeoPoint) = validLatLon(p.lat, p.lon)
 
     private fun coordinate(p: GeoPoint) = buildJsonArray {
         add(p.lon)

@@ -3,13 +3,38 @@ package ro.safetyplease.ui.map
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.flow.StateFlow
+import ro.safetyplease.core.location.Accuracy
+import ro.safetyplease.core.location.MeState
+import ro.safetyplease.core.map.PackRegistry
 import ro.safetyplease.core.position.FriendAge
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 
-/** [accuracyM] is the radius the phone reports for the fix; the ring drawn around the dot is the 95% one. */
-data class MapMe(val lat: Double, val lon: Double, val accuracyM: Float, val headingDeg: Float? = null)
+/**
+ * "Me" on the map: [accuracyM] is the radius the phone reports for the fix, 0 when it gave none; [ringM] is the ring
+ * around the dot, the 95% one, grown with the age once the position is [stale] and drawn grey, like a stale friend.
+ * Without an accuracy the ring is a guess, drawn dashed.
+ */
+data class MapMe(
+    val lat: Double,
+    val lon: Double,
+    val accuracyM: Float,
+    val headingDeg: Float? = null,
+    val ringM: Float = Accuracy.ring95(accuracyM),
+    val stale: Boolean = false,
+) {
+    val dashed: Boolean get() = !Accuracy.known(accuracyM)
+
+    companion object {
+        /** Where [state] puts you: null while the phone searches or location is off. */
+        fun of(state: MeState): MapMe? {
+            val placed = state as? MeState.Placed ?: return null
+            val fix = placed.fused.fix
+            return MapMe(fix.lat, fix.lon, fix.accuracyM, ringM = placed.ringM.toFloat(), stale = placed is MeState.Stale)
+        }
+    }
+}
 
 /**
  * A friend's last shared position: [ringM] is the ring to draw, already grown with the age ([FriendRing]); [age] makes
@@ -32,17 +57,13 @@ data class MapFriend(
     val grey: Boolean get() = age == FriendAge.STALE
 
     /**
-     * Older than ten minutes: the ring is only a thin outline, at most [STALE_RING_MAX_M] across the map, so old rings
-     * don't cover it; the lists still say how large it really is.
+     * Older than ten minutes: the ring is only a thin outline, so old rings don't cover the map; it keeps its real size,
+     * which far from the festival may be kilometres.
      */
     val outline: Boolean get() = age == FriendAge.FADED || age == FriendAge.STALE
 
-    /** The radius the map draws: [ringM], capped for an [outline]. */
-    val drawnRingM: Float get() = if (outline) minOf(ringM, STALE_RING_MAX_M) else ringM
-
     companion object {
         private const val STALE_FADE = 0.5f
-        const val STALE_RING_MAX_M = 150f
 
         /** How visible an [outline] ring is, whatever the dot's fade. */
         const val OUTLINE_OPACITY = 0.35f
@@ -115,6 +136,9 @@ enum class MapKind { PENDING, REAL, FALLBACK }
 interface OfflineMap {
     /** Whether its data is ready, still being installed, or missing. */
     val kind: StateFlow<MapKind>
+
+    /** The packs it draws: where it has detail, and the credits "Despre hartă" lists. */
+    val packs: PackRegistry
 
     /** The map, kept in step with the screen. [onReady] gets the engine once the map exists; [onTap] a point and a marker's key. */
     @Composable
