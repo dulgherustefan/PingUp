@@ -59,4 +59,4 @@ class LocationAsk : NSObject(), CLLocationManagerDelegateProtocol {
 }
 
 /** The purpose in Info.plist's NSLocationTemporaryUsageDescriptionDictionary, worded in InfoPlist.strings. */
-const val PRECISE_LOCATION_PURPOSE = "PingUpPrecise"
+const val PRECISE_LOCATION_PURPOSE = "PreciseLocation"
