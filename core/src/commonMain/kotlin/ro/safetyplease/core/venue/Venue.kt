@@ -15,11 +15,43 @@ data class Bounds(val minLat: Double, val minLon: Double, val maxLat: Double, va
     fun contains(lat: Double, lon: Double) = lat in minLat..maxLat && lon in minLon..maxLon
 }
 
-/** [type] picks the icon and color: stage, food, bar, medical, entrance, camping, chill. */
+/**
+ * [type] picks the icon and color: stage, food, bar, medical, entrance, camping, chill. A zone without a corner is
+ * refused as it is read, so a venue that has one doesn't load.
+ */
 @Serializable
 data class Zone(val id: String, val name: String, val color: String, val polygon: List<GeoPoint>, val type: String = "") {
+    init {
+        require(polygon.isNotEmpty()) { "zone $id has no corners" }
+    }
+
+    /**
+     * A point inside the zone, where a route or a team goes for it: the average of its corners, as for any convex zone,
+     * unless that falls outside, around a bend; then the middle of the widest stretch inside it along a parallel.
+     */
     val center: GeoPoint
-        get() = GeoPoint(polygon.map { it.lat }.average(), polygon.map { it.lon }.average())
+        get() = interiorPoint(polygon)
+}
+
+/** See [Zone.center]; [polygon] has at least one corner. */
+internal fun interiorPoint(polygon: List<GeoPoint>): GeoPoint {
+    val average = GeoPoint(polygon.sumOf { it.lat } / polygon.size, polygon.sumOf { it.lon } / polygon.size)
+    if (polygon.size < 3 || pointInPolygon(average.lat, average.lon, polygon)) return average
+    // the parallel through the average first, then those halfway between the corners' latitudes, which meet no corner
+    val levels = polygon.map { it.lat }.distinct().sorted()
+    val parallels = listOf(average.lat) + levels.zipWithNext { a, b -> (a + b) / 2 }
+    for (lat in parallels) {
+        val crossings = polygon.indices.mapNotNull { i ->
+            val a = polygon[i]
+            val b = polygon[(i + 1) % polygon.size]
+            // the same rule as pointInPolygon's: an edge counts if it goes from one side of the parallel to the other
+            if ((a.lat > lat) != (b.lat > lat)) a.lon + (lat - a.lat) * (b.lon - a.lon) / (b.lat - a.lat) else null
+        }.sorted()
+        val widest = crossings.chunked(2).filter { it.size == 2 }.maxByOrNull { it[1] - it[0] } ?: continue
+        val inside = GeoPoint(lat, (widest[0] + widest[1]) / 2)
+        if (widest[1] > widest[0] && pointInPolygon(inside.lat, inside.lon, polygon)) return inside
+    }
+    return average
 }
 
 /**
