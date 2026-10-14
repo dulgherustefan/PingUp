@@ -109,6 +109,7 @@
     <string name="notif_off_title">Notificările sunt oprite</string>
     <string name="notif_off_report_text">Cu ecranul stins nu afli când răspunde echipa sau când e cazul să cauți ajutor în altă parte.</string>
     <string name="notif_off_staff_text">Cu ecranul stins, rapoartele noi nu te anunță.</string>
+    <string name="notif_off_home_text">Cu ecranul stins nu afli de mesaje noi, de răspunsul echipei sau de o evacuare.</string>
     <string name="notif_off_action">Pornește-le</string>
     <string name="fsi_off_title">Alertele nu pot aprinde ecranul</string>
     <string name="fsi_off_staff_text">Cu telefonul blocat, alarmele urgente nu apar pe tot ecranul. Permite-i aplicației să afișeze alerte pe tot ecranul.</string>

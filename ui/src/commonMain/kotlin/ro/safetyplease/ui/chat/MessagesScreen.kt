@@ -60,6 +60,7 @@ import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.UnfindableIsAProblem
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.NotificationsOffBanner
 import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.common.RadioProblemBanner
 import ro.safetyplease.ui.common.networkText
@@ -99,6 +100,7 @@ import ro.safetyplease.ui.resources.msg_queued
 import ro.safetyplease.ui.resources.msg_sent
 import ro.safetyplease.ui.resources.msg_you
 import ro.safetyplease.ui.resources.msg_zone
+import ro.safetyplease.ui.resources.notif_off_home_text
 import ro.safetyplease.ui.resources.presence_near
 import ro.safetyplease.ui.resources.problem_battery_action
 import ro.safetyplease.ui.resources.problem_battery_text
@@ -227,6 +229,10 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     }
                 }
                 item(key = "problem") { NetworkProblem(vm, nearby.radio, gate, settings.batteryHintDismissed, Modifier.padding(horizontal = Gutter, vertical = 6.dp)) }
+                // with notifications off an evacuation can't reach a phone in a pocket: said where the app opens
+                item(key = "notifications") {
+                    NotificationsOffBanner(vm.phone, stringResource(Res.string.notif_off_home_text), Modifier.padding(horizontal = Gutter, vertical = 6.dp))
+                }
                 when {
                     rows.isEmpty() -> item(key = "empty") {
                         EmptyState(
