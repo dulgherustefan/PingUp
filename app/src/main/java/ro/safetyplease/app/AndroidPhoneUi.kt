@@ -26,6 +26,7 @@ import ro.safetyplease.app.service.MeshService
 import ro.safetyplease.ui.PhoneUi
 import ro.safetyplease.ui.common.Beacon
 import ro.safetyplease.ui.common.Torch
+import ro.safetyplease.ui.holdScreenOn
 import ro.safetyplease.ui.map.OfflineMap
 import ro.safetyplease.ui.me.GnssView
 
@@ -112,8 +113,8 @@ class AndroidPhoneUi(private val app: Application, private val container: AppCon
     override fun KeepScreenOn() {
         val view = LocalView.current
         DisposableEffect(view) {
-            view.keepScreenOn = true
-            onDispose { view.keepScreenOn = false }
+            val release = view.holdScreenOn()
+            onDispose { release() }
         }
     }
 

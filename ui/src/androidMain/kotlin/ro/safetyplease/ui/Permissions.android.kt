@@ -169,9 +169,9 @@ actual fun ConsoleWindow() {
     val view = LocalView.current
     DisposableEffect(activity, view) {
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        view.keepScreenOn = true
+        val screenOn = view.holdScreenOn()
         onDispose {
-            view.keepScreenOn = false
+            screenOn()
             if (activity != null && !activity.isChangingConfigurations) activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
