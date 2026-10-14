@@ -1,5 +1,6 @@
 package ro.safetyplease.core.event
 
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -70,6 +71,8 @@ class EventPack(
     /** The sets on the stages, by start; empty when the pack has none. */
     val schedule: List<ScheduleItem> = emptyList(),
     val plan: SitePlan? = null,
+    /** The offline map the pack names for its venue; null when it names none. */
+    val map: EventMapRef? = null,
 ) {
     val exercise: Boolean get() = kind == EventKind.EXERCISE
 
@@ -91,6 +94,21 @@ data class ScheduleItem(val stage: String, val title: String, val start: Long, v
 class SitePlan(val png: ByteArray, val topLeft: GeoPoint, val topRight: GeoPoint, val bottomRight: GeoPoint, val bottomLeft: GeoPoint) {
     val corners: List<GeoPoint> get() = listOf(topLeft, topRight, bottomRight, bottomLeft)
 }
+
+/**
+ * An event's offline map (the pack's `map`), a PMTiles file too big for the pack: fetched from [url], checked against
+ * [sha256] (hex) and [bytes]. [bbox] is west, south, east, north; [buildDate] is yyyyMMdd.
+ */
+@Serializable
+data class EventMapRef(
+    val url: String,
+    val sha256: String,
+    val bytes: Long,
+    val bbox: List<Double>,
+    val minzoom: Int,
+    val maxzoom: Int,
+    val buildDate: String,
+)
 
 class PackCheck(val status: PackStatus, val pack: EventPack? = null)
 

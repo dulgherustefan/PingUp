@@ -13,6 +13,7 @@ import ro.safetyplease.core.event.ScheduleItem
 import ro.safetyplease.core.incidents.AlertPost
 import ro.safetyplease.core.incidents.MotionSample
 import ro.safetyplease.core.incidents.ResponderTarget
+import ro.safetyplease.core.map.RangeHttp
 import ro.safetyplease.core.mesh.BatteryReading
 import ro.safetyplease.core.mesh.PowerPlan
 import ro.safetyplease.core.mesh.Radio
@@ -88,6 +89,12 @@ interface AppPlatform {
 
     /** What an https link holds, as an organiser publishes an event pack: at most [limit] bytes; null if it can't be had. */
     suspend fun download(url: String, limit: Long): ByteArray?
+
+    /** Byte-range reads for the offline map downloads; null where the phone has none. */
+    val mapHttp: RangeHttp? get() = null
+
+    /** Free bytes on the volume holding [path]; null when unknown. */
+    fun freeBytes(path: Path): Long? = null
 
     /** Starts the app again with a new session, to load the event just chosen. Files are flushed by then. */
     fun restart()
