@@ -2,3 +2,10 @@
 "NSCameraUsageDescription" = "Camera citește codul QR al unui prieten sau un cod de staff. Imaginile nu se salvează și nu pleacă de pe telefon.";
 "NSBluetoothAlwaysUsageDescription" = "Ping Up trimite mesajele și rapoartele din telefon în telefon prin Bluetooth, fără semnal, chiar și cu telefonul în buzunar.";
 "NSLocationWhenInUseUsageDescription" = "Poziția arată în ce zonă ești. Ajunge la echipe doar într-un raport, ca să te găsească, și la prietenii cu care alegi să o împarți.";
+
+/* Asked when only an approximate position is allowed and a report or a route needs the exact one. */
+"PingUpPrecise" = "Raportul și drumul pe jos au nevoie de poziția exactă: cea aproximativă poate fi greșită cu sute de metri.";
+
+/* The quick actions on the app's icon, by their Romanian title in Info.plist. */
+"Raportează" = "Raportează";
+"Ajutor discret" = "Ajutor discret";
