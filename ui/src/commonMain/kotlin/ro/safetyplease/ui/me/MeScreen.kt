@@ -88,12 +88,13 @@ import ro.safetyplease.ui.resources.event_title
 import ro.safetyplease.ui.resources.first_aid_title
 import ro.safetyplease.ui.resources.fsi_off_staff_text
 import ro.safetyplease.ui.resources.fsi_off_text
-import ro.safetyplease.ui.resources.gnss_prewarm
-import ro.safetyplease.ui.resources.gnss_prewarm_text
 import ro.safetyplease.ui.resources.gnss_row_text
 import ro.safetyplease.ui.resources.gnss_searching
 import ro.safetyplease.ui.resources.gnss_searching_text
 import ro.safetyplease.ui.resources.gnss_title
+import ro.safetyplease.ui.resources.maps_prepare
+import ro.safetyplease.ui.resources.maps_prepare_started
+import ro.safetyplease.ui.resources.maps_prepare_text
 import ro.safetyplease.ui.resources.layers_saved_place
 import ro.safetyplease.ui.resources.me_auto_answer
 import ro.safetyplease.ui.resources.me_auto_answer_text
@@ -251,13 +252,23 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
 
                 BatteryGroup(vm)
 
-                // offline the first fix needs the orbit data the chip downloads while there is internet
-                if (online || searching) {
+                // offline the first fix needs the orbit data the chip downloads while there is internet: one tap gets it
+                if (gnss != null && (online || searching)) {
+                    val preparing = stringResource(Res.string.maps_prepare_started)
                     InsetGroup {
                         if (searching) {
                             GroupRow(stringResource(Res.string.gnss_searching), subtitle = stringResource(Res.string.gnss_searching_text), icon = Sym.Place)
-                        } else {
-                            GroupRow(stringResource(Res.string.gnss_prewarm), subtitle = stringResource(Res.string.gnss_prewarm_text), icon = Sym.Place)
+                        }
+                        if (searching && online) GroupDivider()
+                        if (online) {
+                            GroupRow(
+                                stringResource(Res.string.maps_prepare), subtitle = stringResource(Res.string.maps_prepare_text), icon = Sym.Place,
+                                chevron = true,
+                                onClick = {
+                                    gnss.prepareOffline()
+                                    vm.phone.toast(preparing, long = true)
+                                },
+                            )
                         }
                     }
                 }

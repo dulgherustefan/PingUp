@@ -1061,8 +1061,6 @@
     <string name="gnss_mode_auto">automatic</string>
     <string name="gnss_mode_every">every %1$d s</string>
     <string name="gnss_mode_text">Tap to change. While on, GPS keeps running with the screen off until you stop it.</string>
-    <string name="gnss_prewarm">Open Ping Up while you still have internet</string>
-    <string name="gnss_prewarm_text">Your phone is getting satellite data now, so at the festival it finds you in seconds, with no signal.</string>
     <string name="gnss_searching">Looking for satellites, up to 30 s</string>
     <string name="gnss_searching_text">There has been no position for over an hour. It is faster under open sky.</string>
     <string name="share_intro_title">Your location, only for the people you tick.</string>

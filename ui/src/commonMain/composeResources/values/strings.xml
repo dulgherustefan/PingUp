@@ -1084,8 +1084,6 @@
     <string name="gnss_mode_auto">automată</string>
     <string name="gnss_mode_every">la %1$d s</string>
     <string name="gnss_mode_text">Atinge ca să schimbi. Pornită, GPS-ul merge și cu ecranul stins până o oprești.</string>
-    <string name="gnss_prewarm">Deschide Ping Up cât mai ai internet</string>
-    <string name="gnss_prewarm_text">Telefonul ia acum datele sateliților, ca la festival să te găsească în câteva secunde, fără semnal.</string>
     <string name="gnss_searching">Caut sateliți, până la 30 s</string>
     <string name="gnss_searching_text">N-a mai fost o poziție de peste o oră. Sub cerul liber merge mai repede.</string>
     <string name="share_intro_title">Locația ta, doar pentru cine bifezi.</string>
