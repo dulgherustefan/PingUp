@@ -24,7 +24,7 @@ GPL-ul îți dă voie să modifici codul și să publici versiunea ta. Înainte 
 
 1. Dă-i alt nume: `appName` în `gradle.properties`, `CFBundleDisplayName` în `iosApp/project.yml` și textele care spun „Ping Up”.
 2. Dă-i alt identificator: `applicationId` în `app/build.gradle.kts`, `bundleIdPrefix` în `iosApp/project.yml` și `PRODUCT_BUNDLE_IDENTIFIER` în `iosApp/Signing.xcconfig`.
-3. Înlocuiește logo-ul și mascota: `ic_launcher_background.xml`, `ic_launcher_foreground.xml` și `ic_launcher_monochrome.xml` din `app/src/main/res/drawable/`, `icon-1024.png` din `iosApp/PingUp/Assets.xcassets/AppIcon.appiconset/` și `ui/src/commonMain/kotlin/ro/safetyplease/ui/designsystem/Mascot.kt`.
+3. Înlocuiește logo-ul și mascota: `ic_launcher_background.xml`, `ic_launcher_foreground.xml` și `ic_launcher_monochrome.xml` din `app/src/main/res/drawable/`, `icon-1024.png` din `iosApp/PingUp/Assets.xcassets/AppIcon.appiconset/` și `ui/src/commonMain/kotlin/ro/safetyplease/ui/designsystem/BrandArt.kt`.
 
 Apoi poți scrie că versiunea ta e „bazată pe Ping Up”.
 
@@ -56,7 +56,7 @@ The GPL lets you modify the code and publish your version. Before you publish it
 
 1. Give it another name: `appName` in `gradle.properties`, `CFBundleDisplayName` in `iosApp/project.yml`, and the texts that say "Ping Up".
 2. Give it another identifier: `applicationId` in `app/build.gradle.kts`, `bundleIdPrefix` in `iosApp/project.yml` and `PRODUCT_BUNDLE_IDENTIFIER` in `iosApp/Signing.xcconfig`.
-3. Replace the logo and the mascot: `ic_launcher_background.xml`, `ic_launcher_foreground.xml` and `ic_launcher_monochrome.xml` in `app/src/main/res/drawable/`, `icon-1024.png` in `iosApp/PingUp/Assets.xcassets/AppIcon.appiconset/`, and `ui/src/commonMain/kotlin/ro/safetyplease/ui/designsystem/Mascot.kt`.
+3. Replace the logo and the mascot: `ic_launcher_background.xml`, `ic_launcher_foreground.xml` and `ic_launcher_monochrome.xml` in `app/src/main/res/drawable/`, `icon-1024.png` in `iosApp/PingUp/Assets.xcassets/AppIcon.appiconset/`, and `ui/src/commonMain/kotlin/ro/safetyplease/ui/designsystem/BrandArt.kt`.
 
 You may then say that your version is "based on Ping Up".
 

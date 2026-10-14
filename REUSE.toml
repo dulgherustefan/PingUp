@@ -27,14 +27,14 @@ path = [
 SPDX-FileCopyrightText = "2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver"
 SPDX-License-Identifier = "CC-BY-4.0"
 
-# the logo and the mascot, which Mascot.kt draws from the logo's paths (TRADEMARKS.md)
+# the logo and the mascot; BrandArt.kt draws them in the app, from the logo's paths (TRADEMARKS.md)
 [[annotations]]
 path = [
     "app/src/main/res/drawable/ic_launcher_background.xml",
     "app/src/main/res/drawable/ic_launcher_foreground.xml",
     "app/src/main/res/drawable/ic_launcher_monochrome.xml",
     "iosApp/PingUp/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
-    "ui/src/commonMain/kotlin/ro/safetyplease/ui/designsystem/Mascot.kt",
+    "ui/src/commonMain/kotlin/ro/safetyplease/ui/designsystem/BrandArt.kt",
 ]
 SPDX-FileCopyrightText = "2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver"
 SPDX-License-Identifier = "LicenseRef-PingUp-Brand"
