@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the map anywhere: the position as it is, the world overview, distances past the festival -->
+    <string name="maps_searching">Caut sateliți…</string>
+    <string name="maps_location_off">Locația e oprită</string>
+    <string name="maps_stale_min">Poziția de acum %1$d min</string>
+    <string name="maps_stale_hours">Poziția de acum %1$d h</string>
+    <string name="maps_far">La %1$s de festival</string>
+    <string name="maps_picked_zone">Ai ales: %1$s</string>
+    <string name="maps_no_ring">Telefonul n-a spus cât de precisă e poziția.</string>
+    <string name="maps_stale_text">Punctul gri e ultima poziție știută; cercul crește cu cât e mai veche.</string>
+    <string name="maps_off_text">Pornește locația ca să te vezi pe hartă.</string>
+    <string name="maps_far_text">Ești pe harta lumii, în afara festivalului.</string>
+    <string name="maps_overview">Hartă de ansamblu</string>
+    <string name="maps_overview_text">Aici harta are doar drumurile mari și orașele.</string>
+    <string name="maps_credits">Datele hărților din telefon</string>
+    <string name="maps_osm" translatable="false">© OpenStreetMap contributors</string>
+    <string name="maps_km">%1$d km</string>
+    <string name="maps_km_tenths">%1$d,%2$d km</string>
+    <string name="maps_route">%1$s spre %2$s</string>
+    <string name="maps_distance">la %1$s de tine</string>
+    <string name="maps_straight_text">În linie dreaptă. Drumul pe jos îl arăt doar pe harta festivalului.</string>
+    <string name="maps_prepare">Pregătește pentru offline</string>
+    <string name="maps_prepare_text">Cât ai internet: telefonul ia datele sateliților și ține GPS-ul pornit un minut și jumătate, ca fără semnal să te găsească în câteva secunde.</string>
+    <string name="maps_prepare_started">Se pregătește. Ține aplicația deschisă un minut și jumătate, sub cerul liber dacă poți.</string>
+</resources>

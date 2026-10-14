@@ -65,6 +65,8 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.announce.NoticeTopic
 import ro.safetyplease.core.data.Conversations
+import ro.safetyplease.core.location.Accuracy
+import ro.safetyplease.core.location.MeState
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.protocol.AckStatus
@@ -83,6 +85,7 @@ import ro.safetyplease.ui.common.MapReserve
 import ro.safetyplease.ui.common.MeButton
 import ro.safetyplease.ui.common.RegasireMapRows
 import ro.safetyplease.ui.common.VenueMap
+import ro.safetyplease.ui.common.distanceText
 import ro.safetyplease.ui.common.friendSpotText
 import ro.safetyplease.ui.common.incidentPoint
 import ro.safetyplease.ui.common.onSite
@@ -95,6 +98,7 @@ import ro.safetyplease.ui.common.zoneTone
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.caption2
 import ro.safetyplease.ui.designsystem.Avatar
 import ro.safetyplease.ui.designsystem.GlassIconButton
 import ro.safetyplease.ui.designsystem.GroupDivider
@@ -115,6 +119,7 @@ import ro.safetyplease.ui.designsystem.largeFont
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.map.style.MapStyleBuilder
 import ro.safetyplease.ui.notices.shadeType
 import ro.safetyplease.ui.rememberLocationRequest
 import ro.safetyplease.ui.resources.Res
@@ -126,15 +131,12 @@ import ro.safetyplease.ui.resources.map_about
 import ro.safetyplease.ui.resources.map_about_subtitle
 import ro.safetyplease.ui.resources.map_about_text
 import ro.safetyplease.ui.resources.map_center_me
-import ro.safetyplease.ui.resources.map_distance
 import ro.safetyplease.ui.resources.map_friends
 import ro.safetyplease.ui.resources.map_here_at
 import ro.safetyplease.ui.resources.map_meeting_point
-import ro.safetyplease.ui.resources.map_meters
 import ro.safetyplease.ui.resources.map_no_position
 import ro.safetyplease.ui.resources.map_outside
 import ro.safetyplease.ui.resources.map_outside_text
-import ro.safetyplease.ui.resources.map_pick_zone
 import ro.safetyplease.ui.resources.map_pick_zone_text
 import ro.safetyplease.ui.resources.map_pin_outside
 import ro.safetyplease.ui.resources.map_quick_charge
@@ -152,7 +154,6 @@ import ro.safetyplease.ui.resources.map_source_gps
 import ro.safetyplease.ui.resources.map_source_manual
 import ro.safetyplease.ui.resources.map_source_simulated
 import ro.safetyplease.ui.resources.map_title
-import ro.safetyplease.ui.resources.map_where_tap
 import ro.safetyplease.ui.resources.map_you_are_here
 import ro.safetyplease.ui.resources.map_your_zone
 import ro.safetyplease.ui.resources.map_zone_tag
@@ -161,6 +162,21 @@ import ro.safetyplease.ui.resources.map_zoom_in
 import ro.safetyplease.ui.resources.map_zoom_out
 import ro.safetyplease.ui.resources.pages_map_text
 import ro.safetyplease.ui.resources.pages_title
+import ro.safetyplease.ui.resources.maps_credits
+import ro.safetyplease.ui.resources.maps_distance
+import ro.safetyplease.ui.resources.maps_far
+import ro.safetyplease.ui.resources.maps_far_text
+import ro.safetyplease.ui.resources.maps_location_off
+import ro.safetyplease.ui.resources.maps_no_ring
+import ro.safetyplease.ui.resources.maps_off_text
+import ro.safetyplease.ui.resources.maps_osm
+import ro.safetyplease.ui.resources.maps_overview
+import ro.safetyplease.ui.resources.maps_overview_text
+import ro.safetyplease.ui.resources.maps_picked_zone
+import ro.safetyplease.ui.resources.maps_searching
+import ro.safetyplease.ui.resources.maps_stale_hours
+import ro.safetyplease.ui.resources.maps_stale_min
+import ro.safetyplease.ui.resources.maps_stale_text
 import ro.safetyplease.ui.resources.route_go
 import ro.safetyplease.ui.resources.zone_unknown
 import ro.safetyplease.ui.text.NoticeText
@@ -200,12 +216,22 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     var tapped by rememberSaveable { mutableStateOf("") }
     val here = position
     val simulated = settings.simLat != null
+    val fused by vm.c.positioning.fused.collectAsStateWithLifecycle()
+    val locating = remember(now, fused) { vm.phone.locationAllowed() && vm.phone.locationOn() }
+    val meState = remember(fused, now, locating) { MeState.of(fused, vm.c.clock.wallMs(), locating, vm.venue.water) }
+    val simPoint = settings.simLat?.let { lat -> settings.simLon?.let { lon -> GeoPoint(lat, lon) } }
+    // the dot is only ever the phone's position, fresh or old, or the simulated one: a zone picked by hand is highlighted
+    val mapMe = simPoint?.let { MapMe(it.lat, it.lon, Accuracy.UNKNOWN) } ?: MapMe.of(meState)
+    val mePoint = mapMe?.let { GeoPoint(it.lat, it.lon) }
     val autoZone = here?.let { vm.venue.zoneAt(it.lat, it.lon) }
     val manualZone = settings.manualZone
     val myZoneId = autoZone?.id ?: manualZone
-    // away from the venue, distances would run to hundreds of km
+    val where = MapAnywhere.where(meState, simPoint, vm.venue, manualZone, vm.c.clock.wallMs())
     val onSiteFix = onSite(here, vm.venue)
-    val origin = onSiteFix ?: vm.venue.zone(manualZone)?.center
+    // distances run from where you are, anywhere; with no position, from the zone you picked
+    val origin = here ?: vm.venue.zone(manualZone)?.center
+    // the drawn map has only the festival: it opens on you there, or on the zone you picked
+    val siteOrigin = onSiteFix ?: vm.venue.zone(manualZone)?.center
     // only from a real position on the site does a chip walk you there
     val walkMeters = rememberWalkMeters(vm, onSiteFix, WalkTypes)
     // the walking grid is built once, away from the main thread, before a chip or a pin asks for a route
@@ -222,8 +248,13 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     // in text-only mode the drawn map stands in, with its battery note
     val mapKind = if (LocalTextOnly.current) MapKind.FALLBACK else offlineKind
     var engine by remember { mutableStateOf<PingMapEngine?>(null) }
+    val packs by remember(offline) { offline?.packs?.packs ?: MutableStateFlow(emptyList()) }.collectAsStateWithLifecycle()
+    // where the camera last stopped, for the overview's note
+    var cameraAt by remember { mutableStateOf<Pair<GeoPoint, Double>?>(null) }
+    val overviewOnly = cameraAt?.let { (center, zoom) ->
+        MapAnywhere.overviewOnly(zoom, offline?.packs?.detailAt(center.lat, center.lon, zoom) != null)
+    } == true
     val mapOverlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
-    val fix by vm.c.locationFix.collectAsStateWithLifecycle()
     var aboutMap by rememberSaveable { mutableStateOf(false) }
     var pressed by remember { mutableStateOf<GeoPoint?>(null) }
     LayersOverlay(vm, dest.sendTo == null)
@@ -235,12 +266,15 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     val mapFriends = friendSpots.map { MapFriend(it.friend.nodeId.toString(), it.point.lat, it.point.lon, it.ringM.toFloat(), it.age, it.friend.nickname) }
     val friendPoint = dest.friend?.let { id -> friendSpots.firstOrNull { it.friend.nodeId == id }?.point }
 
-    /** What the map opens on: the way to a place, a friend and you, or just you. */
+    /** What the drawn map opens on: the way to a place, a friend and you, or just you. */
     fun openingPoints(): List<GeoPoint> = when {
-        focus == MapFocus.SPOT -> listOfNotNull(origin, vm.venue.nearest(spotType, origin)?.point)
-        friendPoint != null -> listOfNotNull(origin, friendPoint)
-        else -> listOfNotNull(origin)
+        focus == MapFocus.SPOT -> listOfNotNull(siteOrigin, vm.venue.nearest(spotType, origin)?.point)
+        friendPoint != null -> listOfNotNull(siteOrigin, friendPoint)
+        else -> listOfNotNull(siteOrigin)
     }
+
+    /** A pack has streets at [point], at the zoom the map comes to on the festival. */
+    fun detailed(point: GeoPoint): Boolean = offline?.packs?.detailAt(point.lat, point.lon, realZoom(1f)) != null
 
     val pins = remember(incidents.staff, settings.role, colors) {
         if (!settings.role.hasStaffKeys) emptyList()
@@ -251,17 +285,20 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
 
     fun move(points: List<GeoPoint>, most: Float) {
         val real = engine
-        if (mapKind == MapKind.REAL && real != null) real.show(points, realZoom(most), animateMoves)
-        else scope.launch { camera.show(points, most, animateMoves) }
+        if (mapKind == MapKind.REAL && real != null) {
+            real.setFollow(FollowMode.NONE)
+            // where only the overview covers, no closer than it can be read at
+            real.show(points, if (points.all(::detailed)) realZoom(most) else minOf(realZoom(most), MapZoom.OVERVIEW_OPEN), animateMoves)
+        } else scope.launch { camera.show(points, most, animateMoves) }
     }
 
     fun showMine() {
         focus = MapFocus.MINE
-        if (position == null) requestLocation()
+        if (mePoint == null) requestLocation()
         val real = engine
-        if (mapKind == MapKind.REAL && real != null && here != null) {
+        if (mapKind == MapKind.REAL && real != null && mePoint != null) {
             real.setFollow(FollowMode.NORTH_UP)
-        } else move(listOfNotNull(origin), 2.2f)
+        } else move(listOfNotNull(if (mapKind == MapKind.REAL) origin else siteOrigin), 2.2f)
         scope.launch { listState.animateScrollToItem(0) }
     }
 
@@ -289,18 +326,21 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
         if (points.isNotEmpty()) camera.show(points, if (focus == MapFocus.SPOT) 2.6f else 1.5f, animated = false)
     }
 
-    // the real map: the organiser's layer, you with your accuracy, the selection and the incident pins
+    // The real map: the organiser's layer, you as the phone places you, the selection and the incident pins. It opens
+    // on you wherever you are, with the place it was opened for; with no position, on the festival. Opened on you, it
+    // keeps you in the middle until the map is moved, a first position too.
     LaunchedEffect(engine, mapKind) {
         val real = engine ?: return@LaunchedEffect
         real.setVenue(vm.venue) { hex(spotColor(colors, it)) }
-        val points = openingPoints()
-        if (points.isEmpty()) real.fit(vm.venue.bounds, animated = false)
-        else real.show(points, realZoom(if (focus == MapFocus.SPOT) 2.6f else 1.5f), animated = false)
+        real.setOnCameraIdle { center, zoom -> cameraAt = center to zoom }
+        val toward = if (focus == MapFocus.SPOT) vm.venue.nearest(spotType, origin)?.point else friendPoint
+        val opening = MapAnywhere.opening(mePoint ?: siteOrigin, toward, realZoom(if (focus == MapFocus.SPOT) 2.6f else 1.5f), ::detailed)
+        if (opening.points.isEmpty()) real.fit(vm.venue.bounds, animated = false)
+        else real.show(opening.points, opening.maxZoom, animated = false)
+        if (toward == null) real.setFollow(FollowMode.NORTH_UP)
     }
-    LaunchedEffect(engine, here, fix) {
-        // a simulated or expired position has no accuracy of its own
-        val accuracy = fix?.takeIf { here != null && it.lat == here.lat && it.lon == here.lon }?.accuracyM ?: 0f
-        engine?.setMe(here?.let { MapMe(it.lat, it.lon, accuracy) })
+    LaunchedEffect(engine, mapMe) {
+        engine?.setMe(mapMe)
     }
     LaunchedEffect(engine, focus, tapped, myZoneId, spot) {
         engine?.setSelection(if (focus == MapFocus.ZONE) tapped else myZoneId, spot?.point)
@@ -314,12 +354,12 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
     LaunchedEffect(engine, mapOverlay) {
         engine?.setOverlay(mapOverlay)
     }
-    // A finger held on the map, on either kind of map: inside the site, and not while a zone is being chosen to send.
-    // Near a numbered landmark it asks whether the person stands by it; elsewhere it offers the point to a friend or
-    // keeps it as the saved place.
+    // A finger held on the map, not while a zone is being chosen to send: anywhere on the real map, inside the site on
+    // the drawn one. Near a numbered landmark it asks whether the person stands by it; elsewhere it offers the point to
+    // a friend or keeps it as the saved place.
     val choosingZone = dest.sendTo != null
     fun onMapLongPress(point: GeoPoint) {
-        if (choosingZone || !vm.venue.bounds.contains(point.lat, point.lon)) return
+        if (choosingZone || (mapKind != MapKind.REAL && !vm.venue.bounds.contains(point.lat, point.lon))) return
         if (!regasire.longPress(point)) pressed = point
     }
     LaunchedEffect(engine, choosingZone) {
@@ -349,6 +389,14 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
             confirmLabel = stringResource(Res.string.close), onConfirm = { aboutMap = false }, dismissLabel = null,
         ) {
             Text(stringResource(Res.string.map_about_text), style = MaterialTheme.typography.subheadline, color = colors.label)
+            val credits = remember(packs) { MapStyleBuilder.credits(packs) }
+            if (credits.isNotEmpty()) {
+                Text(
+                    stringResource(Res.string.maps_credits), style = MaterialTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.label, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                )
+                credits.forEach { Text("• $it", style = MaterialTheme.typography.footnote, color = colors.secondaryLabel) }
+            }
         }
     }
 
@@ -369,18 +417,19 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                 // the label on top is as wide as its words: the drawn map keeps names and its scale out from under it
                 var pill by remember { mutableStateOf(IntSize.Zero) }
                 val overlay: @Composable BoxScope.() -> Unit = {
-                    val whereText = when {
-                        autoZone != null -> stringResource(Res.string.map_here_at, autoZone.name)
-                        here != null -> stringResource(Res.string.map_outside)
-                        manualZone.isNotEmpty() -> stringResource(Res.string.map_here_at, vm.venue.zoneName(manualZone))
-                        else -> stringResource(Res.string.map_where_tap)
-                    }
                     // clear of the compass in the top right corner
-                    WherePill(
-                        whereText, known = origin != null,
-                        Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 10.dp, end = 48.dp).onSizeChanged { pill = it },
-                    ) { showMine() }
-                    heat?.let { HeatPill(it.level, Modifier.align(Alignment.BottomStart).padding(10.dp)) }
+                    Column(Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 10.dp, end = 48.dp)) {
+                        WherePill(whereText(where), whereTone(where), Modifier.onSizeChanged { pill = it }) { showMine() }
+                        if (mapKind == MapKind.REAL && overviewOnly) OverviewNote(Modifier.padding(top = 6.dp))
+                    }
+                    // the credit the map's data asks for, never under the buttons
+                    Column(
+                        Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 10.dp, end = ControlsReserveWidth),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        heat?.let { HeatPill(it.level, Modifier) }
+                        if (mapKind == MapKind.REAL) MapCredit { aboutMap = true }
+                    }
                     MapControls(
                         Modifier.align(Alignment.BottomEnd).padding(10.dp),
                         onZoomIn = { zoom(true) },
@@ -389,8 +438,8 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     )
                 }
                 val mapModifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp)
-                // taller than the site: room for the top label and the buttons without covering the zones
-                val mapAspect = venueAspect(vm.venue) * 0.8f
+                // the drawn map is taller than the site: room for the top label and the buttons without covering the zones
+                val mapAspect = if (mapKind == MapKind.REAL) RealMapAspect else venueAspect(vm.venue) * 0.8f
                 val frame = mapModifier.fillMaxWidth().aspectRatio(mapAspect).clip(RoundedCornerShape(26.dp))
                 when (mapKind) {
                     MapKind.REAL -> Box(frame) {
@@ -418,7 +467,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                     MapKind.FALLBACK -> VenueMap(
                         venue = vm.venue,
                         modifier = mapModifier,
-                        position = origin,
+                        me = mapMe,
                         pins = pins,
                         friends = mapFriends,
                         myZone = myZoneId,
@@ -514,14 +563,19 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                             val yourZone = stringResource(Res.string.map_your_zone)
                             val source = stringResource(if (simulated) Res.string.map_source_simulated else Res.string.map_source_gps)
                             val manual = stringResource(Res.string.map_source_manual)
-                            val (title, subtitle) = when {
-                                autoZone != null -> autoZone.name to "$yourZone · $source"
-                                here != null -> stringResource(Res.string.map_outside) to stringResource(Res.string.map_outside_text)
-                                manualZone.isNotEmpty() -> vm.venue.zoneName(manualZone) to "$yourZone · $manual"
-                                else -> stringResource(Res.string.map_pick_zone) to stringResource(Res.string.map_pick_zone_text)
+                            val (title, subtitle) = when (where) {
+                                is WhereText.InZone -> where.zone to "$yourZone · $source"
+                                WhereText.OnSite -> stringResource(Res.string.map_outside) to stringResource(Res.string.map_outside_text)
+                                is WhereText.Away -> whereText(where) to stringResource(Res.string.maps_far_text)
+                                is WhereText.Old -> whereText(where) to stringResource(Res.string.maps_stale_text)
+                                is WhereText.Picked -> where.zone to "$yourZone · $manual"
+                                WhereText.Searching -> whereText(where) to stringResource(Res.string.map_pick_zone_text)
+                                WhereText.Off -> whereText(where) to stringResource(Res.string.maps_off_text)
                             }
+                            // a ring the phone gave no size for is a guess, and says so
+                            val guess = if (mapMe?.dashed == true && !simulated) " " + stringResource(Res.string.maps_no_ring) else ""
                             GroupRow(
-                                title, subtitle = subtitle,
+                                title, subtitle = subtitle + guess,
                                 leading = {
                                     IconCircle(Sym.MyLocation, if (origin != null) colors.accent else colors.fill, if (origin != null) colors.onAccent else colors.secondaryLabel, 36.dp)
                                 },
@@ -630,9 +684,61 @@ private fun spotLabel(type: String): String = stringResource(
     },
 )
 
+/** The real map's frame, a little taller than wide: it shows anywhere, not the festival's shape. */
+internal const val RealMapAspect = 0.8f
+
+/** The label on top of the map's words for where you are. */
+@Composable
+private fun whereText(where: WhereText): String = when (where) {
+    is WhereText.InZone -> stringResource(Res.string.map_here_at, where.zone)
+    WhereText.OnSite -> stringResource(Res.string.map_outside)
+    is WhereText.Away -> stringResource(Res.string.maps_far, distanceText(where.meters))
+    is WhereText.Old ->
+        if (where.minutes < 60) stringResource(Res.string.maps_stale_min, where.minutes.toInt())
+        else stringResource(Res.string.maps_stale_hours, (where.minutes / 60).toInt())
+    is WhereText.Picked -> stringResource(Res.string.maps_picked_zone, where.zone)
+    WhereText.Searching -> stringResource(Res.string.maps_searching)
+    WhereText.Off -> stringResource(Res.string.maps_location_off)
+}
+
+/** The label's dot: green for a position, grey for an old one, orange for none. */
+@Composable
+private fun whereTone(where: WhereText): Color = when (where) {
+    is WhereText.Old -> AppTheme.colors.secondaryLabel
+    WhereText.Searching, WhereText.Off -> AppTheme.colors.orange
+    else -> AppTheme.colors.accent
+}
+
+/** Under the top label, where only the world overview covers and the map is closer than it can be read at. */
+@Composable
+private fun OverviewNote(modifier: Modifier) {
+    val colors = AppTheme.colors
+    Column(
+        modifier.shadow(6.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).background(colors.cell)
+            .padding(horizontal = 12.dp, vertical = 7.dp).semantics(mergeDescendants = true) {},
+    ) {
+        Text(
+            stringResource(Res.string.maps_overview), style = MaterialTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.label,
+        )
+        Text(stringResource(Res.string.maps_overview_text), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
+    }
+}
+
+/** "© OpenStreetMap contributors" over the real map, as its data's licence asks; a tap shows every credit. */
+@Composable
+private fun MapCredit(onClick: () -> Unit) {
+    val colors = AppTheme.colors
+    Text(
+        stringResource(Res.string.maps_osm), style = MaterialTheme.typography.caption2, color = colors.label, maxLines = 1,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(colors.cell.copy(alpha = 0.8f))
+            .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
 /** The label on top of the map: where you are at a glance; tapped, it shows you on the map. */
 @Composable
-private fun WherePill(text: String, known: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun WherePill(text: String, tone: Color, modifier: Modifier, onClick: () -> Unit) {
     val colors = AppTheme.colors
     val press = remember { MutableInteractionSource() }
     Row(
@@ -641,7 +747,7 @@ private fun WherePill(text: String, known: Boolean, modifier: Modifier, onClick:
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(if (known) colors.accent else colors.orange))
+        Box(Modifier.size(8.dp).clip(CircleShape).background(tone))
         Spacer(Modifier.width(7.dp))
         Text(
             text, style = MaterialTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold), color = colors.label,
@@ -733,7 +839,7 @@ private fun QuickChip(icon: ImageVector, label: String, meters: Int?, tone: Colo
         )
         if (meters != null) {
             Text(
-                " · " + stringResource(Res.string.map_meters, meters), style = MaterialTheme.typography.subheadline,
+                " · " + distanceText(meters), style = MaterialTheme.typography.subheadline,
                 color = if (selected) Color.White.copy(alpha = 0.85f) else colors.secondaryLabel, maxLines = 1,
             )
         }
@@ -762,7 +868,10 @@ private fun ZoneBadge(venue: Venue, index: Int) {
     }
 }
 
-/** A place sent in a message: the map with the sender's dot and the route to it, then their zone and how far it is from you. */
+/**
+ * A place sent in a message: the map with the place and you, wherever the two are (the drawn map only has the
+ * festival), then its zone and how far it is from you, and the walk there when it is on the festival's paths.
+ */
 @Composable
 fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
     val position by vm.position.collectAsStateWithLifecycle()
@@ -776,17 +885,17 @@ fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
     val zoneName = vm.venue.zoneName(pin.zone)
     val index = vm.venue.zones.indexOfFirst { it.id == pin.zone }
     val camera = remember { MapCamera() }
-    val near = onSite(here, vm.venue)
+    val offline = vm.phone.offlineMap
+    val offlineKind by remember(offline) { offline?.kind ?: MutableStateFlow(MapKind.FALLBACK) }.collectAsStateWithLifecycle()
+    val kind = if (LocalTextOnly.current) MapKind.FALLBACK else offlineKind
+    val fix by vm.c.locationFix.collectAsStateWithLifecycle()
+    // a simulated position has no accuracy of its own
+    val me = here?.let { h -> MapMe(h.lat, h.lon, fix?.takeIf { it.lat == h.lat && it.lon == h.lon }?.accuracyM ?: 0f) }
     val detail = when {
         point == null -> stringResource(Res.string.map_no_position)
-        !vm.venue.bounds.contains(point.lat, point.lon) -> stringResource(Res.string.map_pin_outside)
-        near != null -> stringResource(Res.string.map_distance, distanceMeters(near, point)).replaceFirstChar { it.titlecase() }
+        kind != MapKind.REAL && !vm.venue.bounds.contains(point.lat, point.lon) -> stringResource(Res.string.map_pin_outside)
+        here != null -> stringResource(Res.string.maps_distance, distanceText(distanceMeters(here, point))).replaceFirstChar { it.titlecase() }
         else -> null
-    }
-
-    LaunchedEffect(camera) {
-        snapshotFlow { camera.ready }.first { it }
-        camera.show(listOfNotNull(here, point), 2.4f, animated = false)
     }
 
     NavScreen(
@@ -796,15 +905,54 @@ fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
         leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding)) {
-            VenueMap(
-                venue = vm.venue,
-                modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp),
-                position = here,
-                pins = listOfNotNull(point?.let { MapPin(it, colors.accent) }),
-                highlightZone = pin.zone,
-                camera = camera,
-                target = point,
-            )
+            val mapModifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp)
+            when (kind) {
+                MapKind.REAL -> {
+                    var engine by remember { mutableStateOf<PingMapEngine?>(null) }
+                    Box(mapModifier.fillMaxWidth().aspectRatio(RealMapAspect).clip(RoundedCornerShape(26.dp))) {
+                        // the map view goes with this box; its engine must not outlive it
+                        DisposableEffect(Unit) { onDispose { engine = null } }
+                        offline?.Show(
+                            dark = colors.dark,
+                            palette = MapPalette(
+                                hex(colors.label), hex(colors.cell), hex(colors.accent), hex(colors.green), hex(colors.secondaryLabel),
+                                OverlayColors.of(colors),
+                            ),
+                            modifier = Modifier.fillMaxSize(),
+                            onTap = { _, _ -> },
+                            onReady = { engine = it },
+                        )
+                    }
+                    LaunchedEffect(engine) {
+                        val real = engine ?: return@LaunchedEffect
+                        real.setVenue(vm.venue) { hex(spotColor(colors, it)) }
+                        val shown = listOfNotNull(here, point)
+                        val close = shown.all { offline?.packs?.detailAt(it.lat, it.lon, realZoom(1f)) != null }
+                        if (shown.isNotEmpty()) real.show(shown, if (close) realZoom(2.4f) else MapZoom.OVERVIEW_OPEN, animated = false)
+                    }
+                    LaunchedEffect(engine, point) {
+                        engine?.setSelection(pin.zone, point)
+                        engine?.setMarkers(listOfNotNull(point?.let { MapMarker(PIN_KEY, it, hex(colors.accent)) }))
+                    }
+                    LaunchedEffect(engine, me) { engine?.setMe(me) }
+                }
+                MapKind.PENDING -> Box(mapModifier.fillMaxWidth().aspectRatio(RealMapAspect).clip(RoundedCornerShape(26.dp)).background(colors.cell))
+                MapKind.FALLBACK -> {
+                    LaunchedEffect(camera) {
+                        snapshotFlow { camera.ready }.first { it }
+                        camera.show(listOfNotNull(here, point), 2.4f, animated = false)
+                    }
+                    VenueMap(
+                        venue = vm.venue,
+                        modifier = mapModifier,
+                        me = me,
+                        pins = listOfNotNull(point?.let { MapPin(it, colors.accent) }),
+                        highlightZone = pin.zone,
+                        camera = camera,
+                        target = point,
+                    )
+                }
+            }
             InsetGroup(Modifier.padding(top = 16.dp)) {
                 GroupRow(
                     if (zoneName.isEmpty()) stringResource(Res.string.zone_unknown) else zoneName,
@@ -822,3 +970,6 @@ fun PinScreen(vm: AppViewModel, pin: Dest.Pin) {
         }
     }
 }
+
+/** The key of the sent place's marker: a tap on it opens nothing more. */
+private const val PIN_KEY = "pin"

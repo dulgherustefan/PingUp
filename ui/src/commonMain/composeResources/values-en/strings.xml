@@ -311,12 +311,10 @@
     <string name="status_reopened">Reopened by staff</string>
 
     <string name="map_meeting_point">Meeting point</string>
-    <string name="map_distance">%1$d m from you</string>
     <string name="map_your_zone">Your zone</string>
     <string name="map_you_are_here">You are here</string>
     <string name="map_outside">You’re outside the zones</string>
     <string name="map_outside_text">Your position isn’t in any zone on the map.</string>
-    <string name="map_pick_zone">Where are you?</string>
     <string name="map_pick_zone_text">We don’t have your position yet. Tap the zone you’re in on the map.</string>
     <string name="map_set_zone">I’m here</string>
     <string name="map_source_gps">from GPS</string>
@@ -329,7 +327,6 @@
     <string name="map_you">You</string>
     <string name="map_north">N</string>
     <string name="map_here_at">You’re at %1$s</string>
-    <string name="map_where_tap">Where are you? Tap the map</string>
     <string name="map_zoom_in">Zoom in</string>
     <string name="map_zoom_out">Zoom out</string>
     <string name="map_center_me">Show me on the map</string>

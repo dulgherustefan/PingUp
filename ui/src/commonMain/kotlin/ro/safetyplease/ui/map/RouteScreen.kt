@@ -50,12 +50,14 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.ServiceLayer
 import ro.safetyplease.core.venue.route.Route
 import ro.safetyplease.core.venue.route.Turn
+import ro.safetyplease.core.venue.route.WalkGoal
 import ro.safetyplease.core.venue.route.WalkState
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.common.FriendSpot
 import ro.safetyplease.ui.common.MapCamera
 import ro.safetyplease.ui.common.VenueMap
 import ro.safetyplease.ui.common.rememberWalk
+import ro.safetyplease.ui.common.routeText
 import ro.safetyplease.ui.common.spotColor
 import ro.safetyplease.ui.common.venueAspect
 import ro.safetyplease.ui.common.walkStepText
@@ -79,6 +81,7 @@ import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
 import ro.safetyplease.ui.resources.map_meeting_point
 import ro.safetyplease.ui.resources.map_meters
+import ro.safetyplease.ui.resources.maps_straight_text
 import ro.safetyplease.ui.resources.route_arrive_at
 import ro.safetyplease.ui.resources.route_arrived
 import ro.safetyplease.ui.resources.route_dea
@@ -128,15 +131,18 @@ fun RouteScreen(vm: AppViewModel, target: NavTarget) {
             vm.mapOverlays.clear(OverlayLayer.ROUTE)
         }
     }
-    val track = rememberWalk(vm, target, goal = {
+    fun goal(): WalkGoal? {
         val now = vm.c.clock.wallMs()
         val spots = FriendSpot.of(vm.friendPositions.value, vm.friends.value, now, vm.venue)
-        target.goal(vm.venue, spots, vm.incidents.value.staff, ServiceLayer.closedPoints(vm.c.points.value, now))
-    }) { beacon.vibrate(buzz(it)) }
+        return target.goal(vm.venue, spots, vm.incidents.value.staff, ServiceLayer.closedPoints(vm.c.points.value, now))
+    }
+    val track = rememberWalk(vm, target, goal = ::goal) { beacon.vibrate(buzz(it)) }
     val walk = track.state
 
     val guiding = walk as? WalkState.Guiding
     val route = guiding?.route
+    // off the festival's paths no walk is planned: the way there is a straight line, from wherever you are
+    val straight = position?.takeIf { walk == WalkState.Outside }?.let { from -> straightTo(vm, goal(), from)?.let { listOf(from, it) } }
     val label = when (target) {
         is NavTarget.Friend -> friends.firstOrNull { it.nodeId == target.nodeId }?.nickname
         NavTarget.MeetingPoint -> stringResource(Res.string.map_meeting_point)
@@ -148,9 +154,18 @@ fun RouteScreen(vm: AppViewModel, target: NavTarget) {
         is NavTarget.LastSeen -> stringResource(Res.string.route_last_seen)
         is NavTarget.Defibrillator -> target.name.ifEmpty { stringResource(Res.string.route_dea) }
     } ?: stringResource(Res.string.route_title)
-    LaunchedEffect(route, label) {
-        if (route == null) vm.mapOverlays.clear(OverlayLayer.ROUTE)
-        else vm.mapOverlays.set(OverlayLayer.ROUTE, MapOverlay(routes = listOf(MapRoute(route.points)), pins = listOf(OverlayPin(END_PIN, route.end, target.pin, label))))
+    LaunchedEffect(route, label, straight) {
+        when {
+            route != null -> vm.mapOverlays.set(
+                OverlayLayer.ROUTE,
+                MapOverlay(routes = listOf(MapRoute(route.points)), pins = listOf(OverlayPin(END_PIN, route.end, target.pin, label))),
+            )
+            straight != null -> vm.mapOverlays.set(
+                OverlayLayer.ROUTE,
+                MapOverlay(routes = listOf(MapRoute(straight, RouteStyle.ALTERNATIVE)), pins = listOf(OverlayPin(END_PIN, straight.last(), target.pin, label))),
+            )
+            else -> vm.mapOverlays.clear(OverlayLayer.ROUTE)
+        }
     }
 
     NavScreen(
@@ -160,7 +175,7 @@ fun RouteScreen(vm: AppViewModel, target: NavTarget) {
         leading = { backdrop -> GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop) },
     ) { padding ->
         Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(padding).padding(bottom = 24.dp)) {
-            RouteMap(vm, position, track.accuracyM, route, Modifier.padding(start = Gutter, end = Gutter, top = 8.dp))
+            RouteMap(vm, position, track.accuracyM, route, straight, Modifier.padding(start = Gutter, end = Gutter, top = 8.dp))
             Spacer(Modifier.height(16.dp))
             target.next?.let { next ->
                 AppButton(
@@ -173,7 +188,9 @@ fun RouteScreen(vm: AppViewModel, target: NavTarget) {
                 WalkState.NoPosition -> RouteNote(stringResource(Res.string.route_no_position), null) {
                     AppButton(stringResource(Res.string.route_turn_on), requestLocation, compact = true)
                 }
-                WalkState.Outside -> RouteNote(stringResource(Res.string.route_outside), stringResource(Res.string.route_outside_text))
+                WalkState.Outside ->
+                    if (straight != null) RouteNote(routeText(straight.first(), straight.last()), stringResource(Res.string.maps_straight_text))
+                    else RouteNote(stringResource(Res.string.route_outside), stringResource(Res.string.route_outside_text))
                 WalkState.NoGoal -> RouteNote(stringResource(Res.string.route_no_goal), null)
                 WalkState.Unreachable -> RouteNote(stringResource(Res.string.route_unreachable), stringResource(Res.string.route_unreachable_text))
                 is WalkState.Guiding -> Guidance(vm, state, label, position)
@@ -284,17 +301,31 @@ private fun RouteNote(title: String, text: String?, action: (@Composable () -> U
     }
 }
 
-/** The map of the walk, framed on you and the route each time it is planned: MapLibre where the phone has it, else the drawn map. */
+/** Where [goal] lies seen from [from], off the festival's paths: its point, or the nearest place of its kind. */
+private fun straightTo(vm: AppViewModel, goal: WalkGoal?, from: GeoPoint): GeoPoint? = when (goal) {
+    is WalkGoal.To -> goal.point
+    is WalkGoal.NearestOpen -> vm.venue.nearest(goal.type, from)?.point
+    null -> null
+}
+
+/**
+ * The map of the walk, framed on you and the route each time it is planned, or on the [straight] line to the place
+ * from off the festival's paths: MapLibre where the phone has it, else the drawn map.
+ */
 @Composable
-private fun RouteMap(vm: AppViewModel, me: GeoPoint?, accuracyM: Float, route: Route?, modifier: Modifier) {
+private fun RouteMap(vm: AppViewModel, me: GeoPoint?, accuracyM: Float, route: Route?, straight: List<GeoPoint>?, modifier: Modifier) {
     val colors = AppTheme.colors
     val overlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
     val offline = vm.phone.offlineMap
     val offlineKind by remember(offline) { offline?.kind ?: MutableStateFlow(MapKind.FALLBACK) }.collectAsStateWithLifecycle()
     val kind = if (LocalTextOnly.current) MapKind.FALLBACK else offlineKind
     val animate = !LocalReduceMotion.current
-    val aspect = venueAspect(vm.venue)
-    val frame = listOfNotNull(me) + route?.points.orEmpty()
+    val aspect = if (kind == MapKind.REAL) RealMapAspect else venueAspect(vm.venue)
+    val frame = listOfNotNull(me) + (route?.points ?: straight).orEmpty()
+    // a simulated position has no accuracy of its own: its ring is a dashed guess
+    val mapMe = me?.let { MapMe(it.lat, it.lon, accuracyM) }
+    // framed again when a route is planned, and once when the straight line starts, not at every step along it
+    val framing = route ?: straight?.isNotEmpty()
     when (kind) {
         MapKind.REAL -> {
             var engine by remember { mutableStateOf<PingMapEngine?>(null) }
@@ -313,18 +344,23 @@ private fun RouteMap(vm: AppViewModel, me: GeoPoint?, accuracyM: Float, route: R
                 )
             }
             LaunchedEffect(engine) { engine?.setVenue(vm.venue) { hex(spotColor(colors, it)) } }
-            LaunchedEffect(engine, me, accuracyM) { engine?.setMe(me?.let { MapMe(it.lat, it.lon, accuracyM) }) }
+            LaunchedEffect(engine, mapMe) { engine?.setMe(mapMe) }
             LaunchedEffect(engine, overlay) { engine?.setOverlay(overlay) }
-            LaunchedEffect(engine, route) { if (frame.isNotEmpty()) engine?.show(frame, realZoom(ROUTE_ZOOM), animate) }
+            LaunchedEffect(engine, framing) {
+                val real = engine ?: return@LaunchedEffect
+                if (frame.isEmpty()) return@LaunchedEffect
+                val close = frame.all { offline?.packs?.detailAt(it.lat, it.lon, realZoom(1f)) != null }
+                real.show(frame, if (close) realZoom(ROUTE_ZOOM) else MapZoom.OVERVIEW_OPEN, animate)
+            }
         }
         MapKind.PENDING -> Box(modifier.fillMaxWidth().aspectRatio(aspect).clip(RoundedCornerShape(26.dp)).background(colors.cell))
         MapKind.FALLBACK -> {
             val camera = remember { MapCamera() }
-            LaunchedEffect(camera, route) {
+            LaunchedEffect(camera, framing) {
                 snapshotFlow { camera.ready }.first { it }
                 if (frame.isNotEmpty()) camera.show(frame, ROUTE_ZOOM, animate)
             }
-            VenueMap(venue = vm.venue, modifier = modifier, position = me, camera = camera, mapOverlay = overlay, aspect = aspect)
+            VenueMap(venue = vm.venue, modifier = modifier, me = mapMe, camera = camera, mapOverlay = overlay, aspect = aspect)
         }
     }
 }

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the map anywhere: the position as it is, the world overview, distances past the festival -->
+    <string name="maps_searching">Looking for satellites…</string>
+    <string name="maps_location_off">Location is off</string>
+    <string name="maps_stale_min">Position from %1$d min ago</string>
+    <string name="maps_stale_hours">Position from %1$d h ago</string>
+    <string name="maps_far">%1$s from the festival</string>
+    <string name="maps_picked_zone">You picked: %1$s</string>
+    <string name="maps_no_ring">Your phone didn’t say how precise the position is.</string>
+    <string name="maps_stale_text">The grey dot is the last known position; its circle grows as it gets older.</string>
+    <string name="maps_off_text">Turn location on to see yourself on the map.</string>
+    <string name="maps_far_text">You’re on the world map, outside the festival.</string>
+    <string name="maps_overview">Overview map</string>
+    <string name="maps_overview_text">Here the map only has main roads and towns.</string>
+    <string name="maps_credits">Map data on this phone</string>
+    <string name="maps_km">%1$d km</string>
+    <string name="maps_km_tenths">%1$d.%2$d km</string>
+    <string name="maps_route">%1$s to the %2$s</string>
+    <string name="maps_distance">%1$s from you</string>
+    <string name="maps_straight_text">As the crow flies. Walking directions are only on the festival map.</string>
+    <string name="maps_prepare">Prepare for offline</string>
+    <string name="maps_prepare_text">While you have internet: your phone gets the satellite data and keeps GPS on for a minute and a half, so with no signal it finds you in seconds.</string>
+    <string name="maps_prepare_started">Getting ready. Keep the app open for a minute and a half, under open sky if you can.</string>
+</resources>

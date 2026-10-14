@@ -320,12 +320,10 @@
     <string name="status_reopened">Redeschis de staff</string>
 
     <string name="map_meeting_point">Punct de întâlnire</string>
-    <string name="map_distance">la %1$d m de tine</string>
     <string name="map_your_zone">Zona ta</string>
     <string name="map_you_are_here">Ești aici</string>
     <string name="map_outside">Ești în afara zonelor</string>
     <string name="map_outside_text">Poziția ta nu e în nicio zonă de pe hartă.</string>
-    <string name="map_pick_zone">Unde ești?</string>
     <string name="map_pick_zone_text">Nu avem încă poziția ta. Atinge pe hartă zona în care ești.</string>
     <string name="map_set_zone">Aici sunt eu</string>
     <string name="map_source_gps">din GPS</string>
@@ -338,7 +336,6 @@
     <string name="map_you">Tu</string>
     <string name="map_north">N</string>
     <string name="map_here_at">Ești la %1$s</string>
-    <string name="map_where_tap">Unde ești? Atinge harta</string>
     <string name="map_zoom_in">Mărește harta</string>
     <string name="map_zoom_out">Micșorează harta</string>
     <string name="map_center_me">Arată-mă pe hartă</string>
