@@ -66,6 +66,8 @@ data class PositionData(
     val readers: List<Long> = emptyList(),
     /** "Unde ești?" from a friend we don't share with is answered with our position; off unless the user turns it on. */
     val autoAnswer: Boolean = false,
+    /** The seq of this phone's last lost session or meeting point, kept so that a restart doesn't number from 1 again. */
+    val meetingSeq: Int = MEETING_SEQ_START,
 ) {
     /** START or RENEW from [sender]: the session ends [durationMin] after now, at most [MAX_SHARE_MIN]. */
     fun startedBy(sender: Long, durationMin: Int, precision: Int, nowMs: Long): PositionData {
@@ -136,6 +138,12 @@ data class PositionData(
         /** The longest a session may last, and the longest a position is kept. */
         const val MAX_SHARE_MIN = 120
         const val MAX_RECORD_MS = MAX_SHARE_MIN * 60_000L
+
+        /**
+         * Where the meeting seq starts on a phone that kept none: an older version numbered from 1 after each start, so
+         * this is later than what it can have sent since (fewer than 64 lost sessions and meeting points).
+         */
+        const val MEETING_SEQ_START = 64
     }
 }
 

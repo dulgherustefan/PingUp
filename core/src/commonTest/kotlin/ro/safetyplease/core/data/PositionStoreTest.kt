@@ -75,6 +75,16 @@ class PositionStoreTest {
     }
 
     @Test
+    fun theMeetingSeqIsKeptWithThePositions() = runTest {
+        val file = tmp.root / "seq.json"
+        val store = PositionStore.open(file, backgroundScope)
+        assertEquals(PositionData.MEETING_SEQ_START, store.value.meetingSeq)
+        store.update { it.copy(meetingSeq = 255) }
+        advanceTimeBy(1_000)
+        assertEquals(255, PositionStore.open(file, backgroundScope).value.meetingSeq)
+    }
+
+    @Test
     fun forgettingSomeoneLeavesNothingOfTheirs() {
         val data = PositionData().startedBy(friend, 10, 0, 0).withPosition(record(1, 1)).withReader(friend)
         val gone = data.forget(friend)

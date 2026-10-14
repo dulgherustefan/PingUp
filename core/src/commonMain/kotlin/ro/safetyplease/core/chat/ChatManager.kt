@@ -128,7 +128,6 @@ class ChatManager(
 
     /** Our "Vin la tine" waiting for an answer, by friend: its seq, the precision we will share at, when it went. */
     private val comeOut = HashMap<Long, FriendAsk>()
-    private var meetingSeq = 0
 
     /** The meeting points' msgIds already seen, so a retried copy of one that was replaced doesn't come back. */
     private val meetingsSeen = LinkedHashSet<Pair<Long, Long>>()
@@ -645,10 +644,17 @@ class ChatManager(
         }
     }
 
-    /** The seq of this phone's next meeting point; a lost session's landmark takes one too, so a later proposal wins. */
+    /**
+     * The seq of this phone's next meeting point; a lost session's landmark takes one too, so a later proposal wins. It
+     * goes on across restarts, so friends who heard the last ones don't take the next for an old copy.
+     */
     internal fun nextMeetingSeq(): Int {
-        meetingSeq = (meetingSeq + 1) and 0xFF
-        return meetingSeq
+        var seq = 0
+        positions.update { data ->
+            seq = (data.meetingSeq + 1) and 0xFF
+            data.copy(meetingSeq = seq)
+        }
+        return seq
     }
 
     /** Takes back our own meeting point of [conversation]. */

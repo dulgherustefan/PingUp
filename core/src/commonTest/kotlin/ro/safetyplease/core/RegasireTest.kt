@@ -99,6 +99,10 @@ class RegasireTest {
         private var seed = 1700L
 
         fun finder(name: String) = Finder(TestPhone(name, scope, net, clock, dir, event, seed++), scope, clock, dir, venue)
+
+        /** [phone] after a restart: its identity and its files, a new process. */
+        fun restarted(phone: TestPhone) =
+            Finder(TestPhone("${phone.name}2", scope, net, clock, dir, event, seed++, identity = phone.identity, files = phone.name), scope, clock, dir, venue)
     }
 
     /** Where the phone is, for its finder and for the positions it shares. */
@@ -292,6 +296,77 @@ class RegasireTest {
         a.phone.chat.sendLost(conversation) { id, group -> Inner.LostSession(id, group, LostAction.START, 6, 15, 50, 1) }
         advanceTimeBy(10_000)
         assertEquals(6, b.reg.alerts.value.single().seq, "a new session opens it")
+    }
+
+    @Test
+    fun aPhoneThatRestartedNumbersItsSessionsOnFromWhereItWas() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, _) = group(w)
+        val conversation = a.groupConversation()
+        a.moveTo(w, spot(0, 100))
+        repeat(4) { a.phone.chat.nextMeetingSeq() }
+        assertTrue(a.reg.imLost(conversation))
+        advanceTimeBy(10_000)
+        val first = b.reg.alerts.value.single()
+        a.reg.foundGroup(conversation)
+        advanceTimeBy(10_000)
+
+        // the battery dies; the phone comes back with its identity and its files
+        a.phone.radio.powerOff()
+        val again = w.restarted(a.phone)
+        advanceTimeBy(Regasire.ACTIVATION_INTERVAL_MS)
+        again.moveTo(w, spot(0, 100))
+        assertTrue(again.reg.imLost(conversation))
+        advanceTimeBy(30_000)
+        val second = b.reg.alerts.value.single()
+        assertNotEquals(first.msgId, second.msgId)
+        assertEquals((first.seq + 1) and 0xFF, second.seq, "the count goes on where it was")
+    }
+
+    @Test
+    fun aSessionFromAnOlderPhoneThatRestartedIsHeard() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, _) = group(w)
+        val conversation = a.groupConversation()
+        a.moveTo(w, spot(0, 100))
+        repeat(4) { a.phone.chat.nextMeetingSeq() }
+        assertTrue(a.reg.imLost(conversation))
+        advanceTimeBy(10_000)
+        val first = b.reg.alerts.value.single()
+        a.reg.foundGroup(conversation)
+        advanceTimeBy(10_000)
+        assertTrue(b.reg.alerts.value.isEmpty())
+
+        // an older version numbers from 1 again after each start: after the FOUND, a START with a new msgId is a new session
+        advanceTimeBy(Regasire.ACTIVATION_INTERVAL_MS)
+        a.phone.chat.sendLost(conversation) { id, group -> Inner.LostSession(id, group, LostAction.START, 1, 15, 50, 0) }
+        advanceTimeBy(10_000)
+        val again = b.reg.alerts.value.single()
+        assertEquals(1, again.seq)
+        assertNotEquals(first.msgId, again.msgId)
+        assertNotNull(b.phone.positions.value.sessionOf(a.phone.nodeId, w.clock.wallMs()), "and the share that goes with it")
+    }
+
+    @Test
+    fun anOlderSeqIsHeardOnceTheSessionHeldIsOver() = runTest {
+        val w = World(this, tmp.root, venue)
+        val (a, b, _) = group(w)
+        val conversation = a.groupConversation()
+        a.phone.chat.sendLost(conversation) { id, group -> Inner.LostSession(id, group, LostAction.START, 9, 15, 50, 0) }
+        advanceTimeBy(10_000)
+        assertEquals(9, b.reg.alerts.value.single().seq)
+
+        // while that session runs, an older seq may be a late copy of an older session
+        advanceTimeBy(Regasire.ACTIVATION_INTERVAL_MS)
+        a.phone.chat.sendLost(conversation) { id, group -> Inner.LostSession(id, group, LostAction.START, 1, 15, 50, 0) }
+        advanceTimeBy(10_000)
+        assertEquals(9, b.reg.alerts.value.single().seq)
+
+        // once it is over, nothing older can still be on its way
+        advanceTimeBy(5 * 60_000L)
+        a.phone.chat.sendLost(conversation) { id, group -> Inner.LostSession(id, group, LostAction.START, 2, 15, 50, 0) }
+        advanceTimeBy(10_000)
+        assertEquals(2, b.reg.alerts.value.single().seq)
     }
 
     @Test
