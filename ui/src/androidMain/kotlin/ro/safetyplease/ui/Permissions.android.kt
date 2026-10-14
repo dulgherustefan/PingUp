@@ -66,6 +66,15 @@ actual val UnfindableIsAProblem = true
 
 actual val MeshOnText: StringResource = Res.string.mesh_switch_on
 
+// the mesh service keeps the app running, and its notification says so
+actual val KeepRunningHint: StringResource? = null
+
+actual val CheckinWakeNote: StringResource? = null
+
+// the alarm channels sound through Do Not Disturb where the person allows it, and the full-screen banner covers the rest
+@Composable
+actual fun rememberAlarmsAudible(): Boolean = true
+
 actual val RadioNeedsLocation = Build.VERSION.SDK_INT < Build.VERSION_CODES.S
 
 /** Asked at startup: Bluetooth and notifications. Location is asked only when it's needed. */

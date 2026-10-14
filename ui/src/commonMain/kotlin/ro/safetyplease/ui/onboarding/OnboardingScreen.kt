@@ -90,6 +90,7 @@ import ro.safetyplease.ui.resources.perm_bluetooth_title
 import ro.safetyplease.ui.resources.perm_location_text
 import ro.safetyplease.ui.resources.perm_location_title
 import ro.safetyplease.ui.resources.perm_notifications_title
+import ro.safetyplease.ui.KeepRunningHint
 import ro.safetyplease.ui.NotificationsReason
 
 /** Onboarding page margin, wider than list margins. */
@@ -187,6 +188,7 @@ fun OnboardingScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         Reason(Sym.Place, stringResource(Res.string.perm_location_title), stringResource(Res.string.perm_location_text))
                     }
                 }
+                KeepRunningHint?.let { Hint(stringResource(it), Modifier.padding(top = 28.dp)) }
                 Hint(stringResource(Res.string.onboarding_later), Modifier.padding(top = 28.dp))
             }
         }

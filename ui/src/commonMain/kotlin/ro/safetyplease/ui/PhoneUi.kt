@@ -124,4 +124,10 @@ interface PhoneUi {
 
     /** This build carries the test tools: demo mode, a simulated location. */
     val demoAvailable: Boolean
+
+    /**
+     * The phone's own reports on the app (crashes, hangs, energy), kept on the phone until the person exports them with
+     * the pilot's metrics: the iPhone's MetricKit payloads. None where the phone keeps none.
+     */
+    fun diagnosticFiles(): List<Path> = emptyList()
 }

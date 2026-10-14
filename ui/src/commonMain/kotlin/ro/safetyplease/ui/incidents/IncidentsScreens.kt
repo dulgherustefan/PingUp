@@ -67,6 +67,7 @@ import ro.safetyplease.ui.common.LastSeenBlock
 import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MeButton
 import ro.safetyplease.ui.common.FullScreenAlertsBanner
+import ro.safetyplease.ui.common.AlarmsQuietBanner
 import ro.safetyplease.ui.common.NotificationsOffBanner
 import ro.safetyplease.ui.common.UpdateTimeline
 import ro.safetyplease.ui.common.VenueMap
@@ -310,6 +311,9 @@ fun IncidentsScreen(vm: AppViewModel) {
             }
             item(key = "fullscreen") {
                 FullScreenAlertsBanner(vm.phone, stringResource(Res.string.fsi_off_staff_text), Modifier.padding(start = Gutter, end = Gutter, top = 6.dp, bottom = 10.dp))
+            }
+            item(key = "quiet") {
+                AlarmsQuietBanner(vm.phone, Modifier.padding(start = Gutter, end = Gutter, top = 6.dp, bottom = 10.dp))
             }
             if (staff.isNotEmpty()) {
                 item(key = "filters") {

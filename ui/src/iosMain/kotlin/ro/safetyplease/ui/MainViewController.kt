@@ -15,18 +15,18 @@ private var started: IosApp? = null
 
 /**
  * The process's app, made once: Swift's app delegate calls it at launch, before any screen, so that a launch by iOS in
- * the background for Bluetooth brings the session and the mesh up too.
+ * the background for Bluetooth brings the session and the mesh up too. [restoreCentral] and [restoreServer]: iOS
+ * launched the app to give back those Bluetooth managers (the launch options' Bluetooth keys).
  */
-@Suppress("unused") // called from Swift
-fun startApp(): IosApp = started ?: run {
+fun startApp(restoreCentral: Boolean, restoreServer: Boolean): IosApp = started ?: run {
     pinLanguage(appLanguage())
-    IosApp().also { started = it }
+    IosApp(restoreCentral, restoreServer).also { started = it }
 }
 
 /** What the iPhone app shows: Swift hosts this view controller and nothing else. */
 @Suppress("FunctionName", "unused") // called from Swift
 fun MainViewController(): UIViewController {
-    val app = startApp()
+    val app = startApp(restoreCentral = false, restoreServer = false)
     return ComposeUIViewController {
         // the screen's density with the text size the phone asks for now, also after a change in Settings
         val density = LocalDensity.current.density

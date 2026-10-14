@@ -10,7 +10,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
-import org.jetbrains.compose.resources.getString
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSBundle
 import platform.Foundation.NSCachesDirectory
@@ -41,6 +40,7 @@ import platform.UIKit.UIDeviceBatteryLevelDidChangeNotification
 import platform.UIKit.UIDeviceBatteryState
 import platform.UIKit.UIDeviceBatteryStateDidChangeNotification
 import platform.darwin.NSObject
+import platform.darwin.NSObjectProtocol
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import ro.safetyplease.core.announce.Notice
@@ -111,11 +111,20 @@ class IosPlatform(
 
     override fun radio(scope: CoroutineScope, nodeId: Long): MeshRadio = IosRadio(scope, inFront, ::log)
 
-    override fun notifications(venue: Venue, exercise: Boolean): Notifications = IosNotifications(venue, exercise, appName)
+    /** The session's notifications, made with it; [IosApp] reaches them for what only an iPhone says. */
+    lateinit var notifier: IosNotifications
+        private set
+
+    override fun notifications(venue: Venue, exercise: Boolean): Notifications = IosNotifications(venue, exercise, appName, ::log).also { notifier = it }
+
+    // the battery's observers, kept to be removed with the session; only the main thread touches them
+    private val observers = mutableListOf<NSObjectProtocol>()
+    private var closed = false
 
     /** UIKit gives the level in steps of 5% and no temperature; the simulator has no battery and says it charges. */
     override fun watchBattery(onReading: (BatteryReading) -> Unit) {
         dispatch_async(dispatch_get_main_queue()) {
+            if (closed) return@dispatch_async
             val device = UIDevice.currentDevice
             device.batteryMonitoringEnabled = true
             fun reading(): BatteryReading {
@@ -126,21 +135,33 @@ class IosPlatform(
             }
             onReading(reading())
             for (event in listOf(UIDeviceBatteryLevelDidChangeNotification, UIDeviceBatteryStateDidChangeNotification)) {
-                NSNotificationCenter.defaultCenter.addObserverForName(event, null, NSOperationQueue.mainQueue) { _ -> onReading(reading()) }
+                observers += NSNotificationCenter.defaultCenter.addObserverForName(event, null, NSOperationQueue.mainQueue) { _ -> onReading(reading()) }
             }
         }
+    }
+
+    /**
+     * The session is replaced, for another event or after a wipe: what watched the phone for it stops, so the old one
+     * no longer hears the battery, the network or posts a notification. On the main thread.
+     */
+    fun close() {
+        closed = true
+        observers.forEach(NSNotificationCenter.defaultCenter::removeObserver)
+        observers.clear()
+        network.cancel()
+        if (::notifier.isInitialized) notifier.close()
     }
 
     override suspend fun sampleMobileNetwork(atMs: Long, cell: String): NetworkSample = network.sample(atMs, cell)
 
     // the session asks from its own thread, which may wait for the shared texts
-    override fun noticeTitle(notice: Notice): String = runBlocking { getString(NoticeText.title(notice.topic, notice.level), notice.level) }
+    override fun noticeTitle(notice: Notice): String = runBlocking { IosTexts.text(NoticeText.title(notice.topic, notice.level), notice.level) }
 
     override fun noticeBody(templates: NoticeTemplates, venue: Venue, notice: Notice): String = runBlocking {
-        val text = NoticeText.text(templates, notice, language()) ?: getString(NoticeText.noText)
-        val raw = ControlNoticeText.RESOURCES.associateWith { getString(it) }
+        val text = NoticeText.text(templates, notice, language()) ?: IosTexts.text(NoticeText.noText)
+        val raw = ControlNoticeText.RESOURCES.associateWith { IosTexts.text(it) }
         ControlNoticeText.body(notice, venue, text) { res, args -> ControlNoticeText.fill(raw.getValue(res), args) }
-            ?: if (notice.zone.isEmpty()) text else getString(NoticeText.inZone, venue.zoneName(notice.zone), text)
+            ?: if (notice.zone.isEmpty()) text else IosTexts.text(NoticeText.inZone, venue.zoneName(notice.zone), text)
     }
 
     /** At most [limit] bytes over https; what follows them isn't fetched. */

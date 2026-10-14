@@ -34,6 +34,7 @@ import ro.safetyplease.core.safety.Checkin
 import ro.safetyplease.core.safety.CheckinManager
 import ro.safetyplease.core.safety.CheckinPhase
 import ro.safetyplease.ui.AppViewModel
+import ro.safetyplease.ui.CheckinWakeNote
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.NotificationsOffBanner
 import ro.safetyplease.ui.designsystem.AppButton
@@ -141,6 +142,12 @@ private fun CheckinSetup(vm: AppViewModel, places: List<String>, friends: List<F
     )
     // the question comes as a notification: without them the friends could be told before the person is asked
     NotificationsOffBanner(vm.phone, stringResource(Res.string.checkin_notif_off), Modifier.padding(horizontal = Gutter, vertical = 8.dp))
+    CheckinWakeNote?.let { note ->
+        Text(
+            stringResource(note), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+            modifier = Modifier.padding(horizontal = Gutter, vertical = 8.dp),
+        )
+    }
 
     SectionTitle(stringResource(Res.string.checkin_where), top = 12.dp)
     Pills(Modifier.padding(horizontal = Gutter)) { (defaults + places.filterNot { it in defaults }).forEach { place -> Pill(place, label == place, { label = place }) } }

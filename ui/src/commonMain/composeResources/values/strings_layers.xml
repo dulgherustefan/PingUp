@@ -44,7 +44,7 @@
   <string name="layers_remind_stop">Oprește amintirea</string>
   <string name="layers_remind_lead">Cu %1$d min înainte, plus drumul</string>
   <string name="layers_remind_at">Îți amintesc pe la %1$s</string>
-  <string name="layers_reminder_note">Memento-ul sună cât aplicația rulează: pe Android cu rețeaua pornită, pe iPhone cât e deschisă sau trezită de Bluetooth.</string>
+  <string name="layers_reminder_note">Memento-ul sună la timp: pe Android cât rețeaua e pornită, pe iPhone și cu aplicația în fundal, cu drumul socotit de unde erai când ai ieșit din ea.</string>
   <string name="layers_share_plan">Trimite planul meu</string>
   <string name="layers_plan_message">Planul meu:</string>
   <string name="layers_now_tag">Acum</string>

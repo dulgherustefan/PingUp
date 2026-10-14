@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What only the iPhone app says: iOS runs it in the background only while Bluetooth wakes it -->
+    <string name="iphone_mesh_on">Pornită. Primești mesaje și le duci mai departe pentru alții. Nu închide Ping Up din comutatorul de aplicații și lasă Bluetooth pornit, și în Modul Avion: altfel iPhone-ul nu-l mai pornește singur.</string>
+    <string name="iphone_background_hint">Pe iPhone, Ping Up merge și blocat în buzunar. Ca să rămână așa, nu-l închide din comutatorul de aplicații și lasă Bluetooth pornit, și în Modul Avion.</string>
+    <string name="iphone_checkin_note">Pe iPhone, întrebarea vine la timp și cu aplicația în fundal. Alerta către prieteni pleacă însă doar cât Ping Up e treaz: deschis sau lângă alte telefoane cu Ping Up.</string>
+    <string name="iphone_closed_title">%1$s s-a închis</string>
+    <string name="iphone_closed_text">Deschide-l ca să primești alerte.</string>
+    <string name="iphone_bluetooth_off_title">%1$s nu mai primește alerte</string>
+    <string name="iphone_bluetooth_off_text">Bluetooth e oprit. Pornește-l din Centrul de control sau din Configurări.</string>
+    <string name="iphone_alerts_quiet_title">Alarmele de staff nu se aud</string>
+    <string name="iphone_alerts_quiet_text">Pornește sunetele și notificările urgente pentru Ping Up, ca alarmele să treacă de modul Focus. Cu telefonul pe silențios, ele doar vibrează.</string>
+    <string name="iphone_metrics_diagnostics">Pleacă și rapoartele iPhone-ului despre aplicație (blocări, consum de energie), fără nimic despre tine.</string>
+    <plurals name="iphone_last_phone">
+        <item quantity="one">Ultimul telefon Ping Up a fost în preajmă acum un minut.</item>
+        <item quantity="few">Ultimul telefon Ping Up a fost în preajmă acum %1$d minute.</item>
+        <item quantity="other">Ultimul telefon Ping Up a fost în preajmă acum %1$d de minute.</item>
+    </plurals>
+    <plurals name="iphone_no_phone">
+        <item quantity="one">Niciun telefon Ping Up în preajmă de un minut.</item>
+        <item quantity="few">Niciun telefon Ping Up în preajmă de %1$d minute.</item>
+        <item quantity="other">Niciun telefon Ping Up în preajmă de %1$d de minute.</item>
+    </plurals>
+</resources>

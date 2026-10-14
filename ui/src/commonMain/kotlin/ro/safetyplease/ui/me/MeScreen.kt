@@ -132,6 +132,7 @@ import ro.safetyplease.ui.resources.me_version
 import ro.safetyplease.ui.resources.mesh_switch
 import ro.safetyplease.ui.resources.mesh_switch_off
 import ro.safetyplease.ui.resources.metrics_export_confirm
+import ro.safetyplease.ui.resources.iphone_metrics_diagnostics
 import ro.safetyplease.ui.resources.metrics_export_join
 import ro.safetyplease.ui.resources.metrics_export_text
 import ro.safetyplease.ui.resources.metrics_export_title
@@ -383,8 +384,10 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
             },
         ) {
             val join = if (settings.role == AppRole.CONTROL) "\n\n" + stringResource(Res.string.metrics_export_join) else ""
+            val reports = remember { vm.phone.diagnosticFiles().isNotEmpty() }
+            val diagnostics = if (reports) "\n\n" + stringResource(Res.string.iphone_metrics_diagnostics) else ""
             Text(
-                stringResource(Res.string.metrics_export_text) + join,
+                stringResource(Res.string.metrics_export_text) + join + diagnostics,
                 style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )

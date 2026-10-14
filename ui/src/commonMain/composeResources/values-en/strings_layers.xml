@@ -44,7 +44,7 @@
   <string name="layers_remind_stop">Turn off reminder</string>
   <string name="layers_remind_lead">%1$d min before, plus the walk</string>
   <string name="layers_remind_at">Reminder around %1$s</string>
-  <string name="layers_reminder_note">Reminders ring while the app runs: on Android with the network on, on iPhone while it is open or woken by Bluetooth.</string>
+  <string name="layers_reminder_note">Reminders ring on time: on Android while the network is on, on iPhone even with the app in the background, with the walk counted from where you were when you left it.</string>
   <string name="layers_share_plan">Send my plan</string>
   <string name="layers_plan_message">My plan:</string>
   <string name="layers_now_tag">Now</string>
