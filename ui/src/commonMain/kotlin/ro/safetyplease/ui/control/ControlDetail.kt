@@ -302,7 +302,7 @@ private fun CaseDetail(vm: AppViewModel, case: Case, entries: List<LogEntry>, no
         }
         if (pinActions) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(colors.separator))
-            ActionButtons(case, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), onAction)
+            ActionRow(case, Modifier.padding(vertical = 10.dp), onAction)
         }
     }
 
@@ -398,6 +398,26 @@ private fun ActionButtons(case: Case, modifier: Modifier, onAction: (Action) -> 
                 }
                 if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
+        }
+    }
+}
+
+/**
+ * The same actions pinned under a short pane, a phone's in landscape: one row that scrolls sideways, since rows of two
+ * could take more than the pane has and push the last ones below its edge.
+ */
+@Composable
+private fun ActionRow(case: Case, modifier: Modifier, onAction: (Action) -> Unit) {
+    Row(
+        modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        actions(case).forEachIndexed { i, action ->
+            val primary = i == 0 && case.state != CaseState.CLOSED
+            AppButton(
+                stringResource(actionLabel(action, case)), { onAction(action) },
+                kind = if (primary) ButtonKind.Primary else ButtonKind.Secondary, compact = true,
+            )
         }
     }
 }

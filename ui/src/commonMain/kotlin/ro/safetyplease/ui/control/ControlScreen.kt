@@ -2,6 +2,7 @@ package ro.safetyplease.ui.control
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -65,7 +67,7 @@ import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.common.CategoryCircle
-import ro.safetyplease.ui.common.FullScreenAlertsBanner
+import ro.safetyplease.ui.common.FullScreenAlertsLine
 import ro.safetyplease.ui.common.MapCamera
 import ro.safetyplease.ui.common.MapPin
 import ro.safetyplease.ui.common.MeButton
@@ -80,11 +82,14 @@ import ro.safetyplease.ui.control.queue
 import ro.safetyplease.ui.control.reopened
 import ro.safetyplease.ui.control.urgent
 import ro.safetyplease.ui.designsystem.AppButton
+import ro.safetyplease.ui.designsystem.AppMenu
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
 import ro.safetyplease.ui.designsystem.EmptyState
 import ro.safetyplease.ui.designsystem.GroupDivider
 import ro.safetyplease.ui.designsystem.Gutter
+import ro.safetyplease.ui.designsystem.IconBtn
+import ro.safetyplease.ui.designsystem.MenuRow
 import ro.safetyplease.ui.designsystem.NavHeight
 import ro.safetyplease.ui.designsystem.SegmentedControl
 import ro.safetyplease.ui.designsystem.Sym
@@ -113,7 +118,6 @@ import ro.safetyplease.ui.resources.crowd_signal
 import ro.safetyplease.ui.resources.edition_open
 import ro.safetyplease.ui.resources.filter_active
 import ro.safetyplease.ui.resources.filter_resolved
-import ro.safetyplease.ui.resources.fsi_off_staff_text
 import ro.safetyplease.ui.resources.hotspots_open
 import ro.safetyplease.ui.resources.incident_informational
 import ro.safetyplease.ui.resources.incident_state_closed
@@ -122,6 +126,7 @@ import ro.safetyplease.ui.resources.incidents_empty_title
 import ro.safetyplease.ui.resources.incidents_filter_empty
 import ro.safetyplease.ui.resources.map_title
 import ro.safetyplease.ui.resources.me_network
+import ro.safetyplease.ui.resources.more_options
 import ro.safetyplease.ui.resources.notice_composer_title
 import ro.safetyplease.ui.resources.sev_urgent
 import ro.safetyplease.ui.resources.status_cancelled
@@ -144,6 +149,9 @@ private val WideWidth = 1000.dp
 
 /** Below this width, one pane at a time. */
 private val MediumWidth = 600.dp
+
+/** From this width, at the normal font size, every tool of the header has a button of its own. */
+private val RoomyHeader = 1100.dp
 private val QueueWidth = 340.dp
 private val DetailWidth = 380.dp
 private val PaneGap = 12.dp
@@ -179,6 +187,7 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var composeNotice by remember { mutableStateOf(false) }
     var editZones by remember { mutableStateOf(false) }
     var showHotspots by remember { mutableStateOf(false) }
+    var tools by remember { mutableStateOf(false) }
     var layer by rememberSaveable { mutableStateOf(MapLayer.INCIDENTS) }
     val squares = remember(heard, now) { Coverage.squares(heard.values, now) }
     val selected = selectedId?.let(cases::get)
@@ -186,36 +195,66 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val mapOverlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize().background(colors.grouped).windowInsetsPadding(WindowInsets.safeDrawing)) {
-        Row(Modifier.fillMaxWidth().height(NavHeight).padding(horizontal = Gutter), verticalAlignment = Alignment.CenterVertically) {
-            MeButton(settings.nickname) { vm.open(Dest.Me) }
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(Res.string.control_title), style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    listOf(settings.teamName, networkText(mesh.readyLinks, gate)).filter { it.isNotEmpty() }.joinToString(" · "),
-                    style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        // a Row measures its buttons in order and gives the title what is left: the notice, which sends an evacuation,
+        // comes first so nothing can squeeze it out; on a narrow console the tools used once a shift fold into a menu
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val roomy = maxWidth >= RoomyHeader * LocalDensity.current.fontScale.coerceAtLeast(1f)
+            Row(Modifier.fillMaxWidth().height(NavHeight).padding(horizontal = Gutter), verticalAlignment = Alignment.CenterVertically) {
+                MeButton(settings.nickname) { vm.open(Dest.Me) }
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(Res.string.control_title), style = MaterialTheme.typography.headline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        listOf(settings.teamName, networkText(mesh.readyLinks, gate)).filter { it.isNotEmpty() }.joinToString(" · "),
+                        style = MaterialTheme.typography.footnote, color = colors.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                AppButton(stringResource(Res.string.notice_composer_title), { composeNotice = true }, kind = ButtonKind.Danger, compact = true, icon = Sym.Report)
+                Spacer(Modifier.width(8.dp))
+                // the alarms sound until someone has the incident; the operator can buy ten quiet minutes, never more
+                val muted = mutedMinutes(mutedUntil, now)
+                AppButton(
+                    if (muted > 0) stringResource(Res.string.control_muted, muted) else stringResource(Res.string.control_mute),
+                    { c.mutedUntil.value = if (muted > 0) 0 else c.clock.wallMs() + AlertPlanner.MUTE_MS },
+                    kind = if (muted > 0) ButtonKind.Primary else ButtonKind.Secondary, compact = true, icon = Sym.Bell,
                 )
+                if (roomy) {
+                    Spacer(Modifier.width(8.dp))
+                    AppButton(stringResource(Res.string.control_map_open), { editZones = true }, kind = ButtonKind.Secondary, compact = true, icon = Sym.MapFill)
+                    Spacer(Modifier.width(8.dp))
+                    AppButton(stringResource(Res.string.hotspots_open), { showHotspots = true }, kind = ButtonKind.Secondary, compact = true, icon = Sym.Place)
+                    Spacer(Modifier.width(8.dp))
+                    AppButton(stringResource(Res.string.edition_open), { showReport = true }, kind = ButtonKind.Secondary, compact = true)
+                    Spacer(Modifier.width(8.dp))
+                    AppButton(stringResource(Res.string.control_export), { confirmExport = true }, kind = ButtonKind.Secondary, compact = true)
+                } else {
+                    Spacer(Modifier.width(4.dp))
+                    Box {
+                        IconBtn(Sym.More, stringResource(Res.string.more_options), { tools = true })
+                        AppMenu(tools, { tools = false }) {
+                            MenuRow(stringResource(Res.string.control_map_open), {
+                                tools = false
+                                editZones = true
+                            }, icon = Sym.MapFill)
+                            MenuRow(stringResource(Res.string.hotspots_open), {
+                                tools = false
+                                showHotspots = true
+                            }, icon = Sym.Place)
+                            MenuRow(stringResource(Res.string.edition_open), {
+                                tools = false
+                                showReport = true
+                            }, icon = Sym.Notes)
+                            MenuRow(stringResource(Res.string.control_export), {
+                                tools = false
+                                confirmExport = true
+                            }, icon = Sym.Send)
+                        }
+                    }
+                }
             }
-            // the alarms sound until someone has the incident; the operator can buy ten quiet minutes, never more
-            val muted = mutedMinutes(mutedUntil, now)
-            AppButton(
-                if (muted > 0) stringResource(Res.string.control_muted, muted) else stringResource(Res.string.control_mute),
-                { c.mutedUntil.value = if (muted > 0) 0 else c.clock.wallMs() + AlertPlanner.MUTE_MS },
-                kind = if (muted > 0) ButtonKind.Primary else ButtonKind.Secondary, compact = true, icon = Sym.Bell,
-            )
-            Spacer(Modifier.width(8.dp))
-            AppButton(stringResource(Res.string.edition_open), { showReport = true }, kind = ButtonKind.Secondary, compact = true)
-            Spacer(Modifier.width(8.dp))
-            AppButton(stringResource(Res.string.control_export), { confirmExport = true }, kind = ButtonKind.Secondary, compact = true)
-            Spacer(Modifier.width(8.dp))
-            AppButton(stringResource(Res.string.control_map_open), { editZones = true }, kind = ButtonKind.Secondary, compact = true, icon = Sym.MapFill)
-            Spacer(Modifier.width(8.dp))
-            AppButton(stringResource(Res.string.notice_composer_title), { composeNotice = true }, compact = true, icon = Sym.Report)
-            Spacer(Modifier.width(8.dp))
-            AppButton(stringResource(Res.string.hotspots_open), { showHotspots = true }, kind = ButtonKind.Secondary, compact = true, icon = Sym.Place)
         }
         // a console that locks can't be woken by an unconfirmed urgency's alarm without this
-        FullScreenAlertsBanner(vm.phone, stringResource(Res.string.fsi_off_staff_text), Modifier.padding(start = PaneGap, end = PaneGap, bottom = PaneGap))
+        FullScreenAlertsLine(vm.phone, Modifier.padding(start = PaneGap, end = PaneGap, bottom = PaneGap))
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(start = PaneGap, end = PaneGap, bottom = PaneGap)) {
             val wide = maxWidth >= WideWidth
             val select = { id: String ->
