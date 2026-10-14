@@ -4,6 +4,7 @@ import ro.safetyplease.core.crypto.BoxKeys
 import ro.safetyplease.core.crypto.Certificate
 import ro.safetyplease.core.util.sha256
 import ro.safetyplease.core.util.utf8
+import ro.safetyplease.core.util.validLatLon
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -59,6 +60,13 @@ object Limits {
 
 private fun WireWriter.coord(deg: Double) = i32((deg * 1e6).roundToInt())
 private fun WireReader.coord(): Double = i32() / 1e6
+
+/** Latitude and longitude, read whole; null for a place off the earth, which counts as no place: nobody can be sent there. */
+private fun WireReader.latLon(): Pair<Double, Double>? {
+    val lat = coord()
+    val lon = coord()
+    return if (validLatLon(lat, lon)) lat to lon else null
+}
 
 /** A certificate and its key's signature over the receiver's nonce on this link ([Hello.proofMessage]). */
 class HelloProof(val certificate: Certificate, val signature: ByteArray)
@@ -525,9 +533,9 @@ class IncidentBody(
             val timestamp = r.u32()
             val flags = r.u8()
             val zone = r.string(r.u8(), Limits.ZONE_BYTES)
-            val hasCoords = flags and FLAG_COORDS != 0
-            val lat = if (hasCoords) r.coord() else null
-            val lon = if (hasCoords) r.coord() else null
+            val place = if (flags and FLAG_COORDS != 0) r.latLon() else null
+            val lat = place?.first
+            val lon = place?.second
             val description = r.string(r.u16(), Limits.DESCRIPTION_BYTES)
             val nick = if (flags and FLAG_NICK != 0) r.string(r.u8(), Limits.NICK_BYTES) else null
             val cancelHash = if (flags and FLAG_CANCEL != 0) r.bytes(IncidentCancel.HASH_SIZE) else null
@@ -812,12 +820,10 @@ class UpdateBody(
             val timestamp = r.u32()
             val token = r.bytes(IncidentCancel.TOKEN_SIZE)
             val flags = r.u8()
-            val hasCoords = flags and FLAG_COORDS != 0
-            val lat = if (hasCoords) r.coord() else null
-            val lon = if (hasCoords) r.coord() else null
+            val place = if (flags and FLAG_COORDS != 0) r.latLon() else null
             val zone = if (flags and FLAG_ZONE != 0) r.string(r.u8(), Limits.ZONE_BYTES) else null
             val location = if (flags and FLAG_LOCATION != 0) LocationFields(r.u8(), r.u8()) else null
-            UpdateBody(kind, timestamp, token, zone, lat, lon, location)
+            UpdateBody(kind, timestamp, token, zone, place?.first, place?.second, location)
         }
     }
 }
@@ -1259,13 +1265,13 @@ object InnerCodec {
 
     private fun WireWriter.lastFix(fix: LastFix) = coord(fix.lat).coord(fix.lon).u32(fix.fixedAt).u8(fix.accuracy)
 
-    private fun WireReader.lastFix(): LastFix {
-        val lat = coord()
-        val lon = coord()
+    /** Null for a place off the earth, its bytes read all the same. */
+    private fun WireReader.lastFix(): LastFix? {
+        val place = latLon()
         val fixedAt = u32()
         val accuracy = u8()
         if (accuracy > AccuracyClass.UNKNOWN) throw MalformedException("accuracy")
-        return LastFix(lat, lon, fixedAt, accuracy)
+        return place?.let { (lat, lon) -> LastFix(lat, lon, fixedAt, accuracy) }
     }
 
     private fun WireWriter.group(groupId: Long?, extraFlags: Int) = apply {
@@ -1297,11 +1303,9 @@ object InnerCodec {
             ZONE -> {
                 val (groupId, flags) = r.group(FLAG_COORDS)
                 val zone = r.string(r.u8(), Limits.ZONE_BYTES)
-                val hasCoords = flags and FLAG_COORDS != 0
-                val lat = if (hasCoords) r.coord() else null
-                val lon = if (hasCoords) r.coord() else null
+                val place = if (flags and FLAG_COORDS != 0) r.latLon() else null
                 r.expectEnd()
-                Inner.Zone(msgId, groupId, zone, lat, lon)
+                Inner.Zone(msgId, groupId, zone, place?.first, place?.second)
             }
             PING -> {
                 r.expectEnd()
@@ -1383,7 +1387,9 @@ object InnerCodec {
         val nextUpdate = u8()
         val heading = u8()
         val point = if (flags and POSITION_ABSOLUTE != 0) {
-            PositionPoint.Absolute(coord(), coord())
+            // a position is nothing but its place
+            val (lat, lon) = latLon() ?: throw MalformedException("position")
+            PositionPoint.Absolute(lat, lon)
         } else {
             val a = u8()
             val b = u8()
@@ -1432,7 +1438,7 @@ object InnerCodec {
 
     private fun WireReader.lastGasp(): Inner.LastGasp {
         val battery = u8()
-        val fix = lastFix()
+        val fix = lastFix() ?: throw MalformedException("position")
         expectEnd()
         if (!BatteryLevel.valid(battery)) throw MalformedException("battery")
         return Inner.LastGasp(fix, battery)
@@ -1444,13 +1450,12 @@ object InnerCodec {
         val landmark = u8()
         val venuePoint = flags and MEET_VENUE_POINT != 0
         if (landmark != 0 && venuePoint) throw MalformedException("meeting place")
-        val lat = if (landmark == 0) coord() else null
-        val lon = if (landmark == 0) coord() else null
+        val place = if (landmark == 0) latLon() ?: throw MalformedException("meeting place") else null
         val meetAt = u32().takeIf { it != 0L }
         val expiry = u16()
         expectEnd()
         if (expiry !in 1..MeetingLimits.MAX_EXPIRY_MIN) throw MalformedException("meeting expiry")
-        return Inner.MeetingPoint(msgId, groupId, seq, landmark, lat, lon, venuePoint, meetAt, expiry)
+        return Inner.MeetingPoint(msgId, groupId, seq, landmark, place?.first, place?.second, venuePoint, meetAt, expiry)
     }
 
     private fun WireReader.group(allowedExtra: Int): Pair<Long?, Int> {

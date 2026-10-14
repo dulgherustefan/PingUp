@@ -1,5 +1,6 @@
 package ro.safetyplease.core.protocol
 
+import ro.safetyplease.core.util.validLatLon
 import kotlin.math.roundToInt
 
 /**
@@ -86,7 +87,9 @@ data class ReportExtras(
                 val lon = v.coord()
                 val age = v.u16()
                 val accuracy = v.u8()
-                copy(lastSeen = LastSeen(lat, lon, age, if (accuracy > AccuracyClass.UNKNOWN) AccuracyClass.UNKNOWN else accuracy))
+                // a place off the earth counts as none: nobody can be sent there
+                if (!validLatLon(lat, lon)) this
+                else copy(lastSeen = LastSeen(lat, lon, age, if (accuracy > AccuracyClass.UNKNOWN) AccuracyClass.UNKNOWN else accuracy))
             }
             HAPPENED -> v.u16().let { if (it in 1..MAX_HAPPENED_MIN) copy(happenedMinAgo = it) else this }
             ANONYMOUS -> copy(anonymous = true)
