@@ -50,10 +50,11 @@ class SodiumCrypto(private val randomSource: ((Int) -> ByteArray)? = null) : Cry
         return pinned(seed) { s -> keyPair(Crypto.SIGN_PUBLIC, Crypto.SIGN_SECRET) { pk, sk -> crypto_sign_seed_keypair(pk, sk, s) } }
     }
 
+    // libsodium reads as many bytes from a key or a nonce as their kind has, whatever the array holds: every size is
+    // checked first, and a wrong one fails as a key libsodium refuses does
     override fun box(plain: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray? {
-        // libsodium reads 32 bytes from each key, whatever the array holds
         if (theirPublic.size != Crypto.BOX_PUBLIC || mySecret.size != Crypto.BOX_SECRET) return null
-        val nonce = random(Crypto.BOX_NONCE)
+        val nonce = random(Crypto.BOX_NONCE).takeIf { it.size == Crypto.BOX_NONCE } ?: return null
         val cipher = ByteArray(plain.size + Crypto.BOX_MAC)
         val result = pinned(cipher) { c ->
             pinned(plain) { m ->
@@ -65,7 +66,7 @@ class SodiumCrypto(private val randomSource: ((Int) -> ByteArray)? = null) : Cry
     }
 
     override fun boxOpen(data: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray? {
-        if (data.size < Crypto.BOX_OVERHEAD || theirPublic.size != Crypto.BOX_PUBLIC) return null
+        if (data.size < Crypto.BOX_OVERHEAD || theirPublic.size != Crypto.BOX_PUBLIC || mySecret.size != Crypto.BOX_SECRET) return null
         val nonce = data.copyOfRange(0, Crypto.BOX_NONCE)
         val cipher = data.copyOfRange(Crypto.BOX_NONCE, data.size)
         val plain = ByteArray(cipher.size - Crypto.BOX_MAC)
@@ -85,7 +86,7 @@ class SodiumCrypto(private val randomSource: ((Int) -> ByteArray)? = null) : Cry
     }
 
     override fun sealOpen(data: ByteArray, recipientPublic: ByteArray, recipientSecret: ByteArray): ByteArray? {
-        if (data.size < Crypto.SEAL_OVERHEAD) return null
+        if (data.size < Crypto.SEAL_OVERHEAD || recipientPublic.size != Crypto.BOX_PUBLIC || recipientSecret.size != Crypto.BOX_SECRET) return null
         val plain = ByteArray(data.size - Crypto.SEAL_OVERHEAD)
         val result = pinned(plain) { m ->
             pinned(data) { c -> pinned(recipientPublic) { pk -> pinned(recipientSecret) { sk -> crypto_box_seal_open(m, c, data.size.convert(), pk, sk) } } }
@@ -93,7 +94,9 @@ class SodiumCrypto(private val randomSource: ((Int) -> ByteArray)? = null) : Cry
         return if (result == 0) plain else null
     }
 
+    /** Only this phone's own keys come here, never one from the network: a wrong size is a bug, and stops before libsodium. */
     override fun sign(message: ByteArray, secretKey: ByteArray): ByteArray {
+        require(secretKey.size == Crypto.SIGN_SECRET) { "signing key of ${secretKey.size} bytes" }
         val signature = ByteArray(Crypto.SIGNATURE)
         val result = pinned(signature) { s -> pinned(message) { m -> pinned(secretKey) { sk -> crypto_sign_detached(s, null, m, message.size.convert(), sk) } } }
         check(result == 0)

@@ -7,6 +7,7 @@ import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.toHex
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -34,11 +35,21 @@ class BoxKeysTest {
     }
 
     @Test
-    fun aKeyOfTheWrongSizeIsRefusedToo() {
+    fun aKeyOrANonceOfTheWrongSizeNeverReachesLibsodium() {
+        val other = testCrypto.boxKeyPair()
         assertFalse(BoxKeys.acceptable(null))
         assertFalse(BoxKeys.acceptable(ByteArray(31) { 9 }))
         assertNull(testCrypto.box(byteArrayOf(1), ByteArray(31) { 9 }, me.secretKey))
+        assertNull(testCrypto.box(byteArrayOf(1), other.publicKey, me.secretKey.copyOf(16)))
+        assertNull(cryptoWithRandom { ByteArray(8) }.box(byteArrayOf(1), other.publicKey, me.secretKey), "a short nonce")
         assertNull(testCrypto.seal(byteArrayOf(1), ByteArray(33) { 9 }))
+        val boxed = testCrypto.box(byteArrayOf(1), other.publicKey, me.secretKey)!!
+        assertNull(testCrypto.boxOpen(boxed, me.publicKey, other.secretKey.copyOf(31)))
+        val sealed = testCrypto.seal(byteArrayOf(1), other.publicKey)!!
+        assertNull(testCrypto.sealOpen(sealed, other.publicKey.copyOf(16), other.secretKey))
+        assertNull(testCrypto.sealOpen(sealed, other.publicKey, other.secretKey.copyOf(16)))
+        // only the phone's own keys sign: a wrong one is a bug, stopped before libsodium reads past it
+        assertFailsWith<IllegalArgumentException> { testCrypto.sign(byteArrayOf(1), testCrypto.signKeyPair().secretKey.copyOf(32)) }
     }
 
     @Test
