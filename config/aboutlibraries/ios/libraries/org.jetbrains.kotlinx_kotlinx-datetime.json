@@ -1,0 +1,6 @@
+{
+  "uniqueId": "org.jetbrains.kotlinx:kotlinx-datetime",
+  "name": "kotlinx-datetime",
+  "description": "Includes code derived from the ThreeTen backport project, under the BSD 3-Clause License (ThreeTen backport licence below).",
+  "website": "https://github.com/Kotlin/kotlinx-datetime"
+}

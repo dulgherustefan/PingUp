@@ -1,0 +1,9 @@
+{
+  "uniqueId": "rsms:inter",
+  "name": "Inter",
+  "description": "The app's typeface.",
+  "website": "https://rsms.me/inter/",
+  "licenses": [
+    "inter-ofl"
+  ]
+}

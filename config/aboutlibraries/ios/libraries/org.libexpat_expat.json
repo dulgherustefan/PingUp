@@ -1,0 +1,9 @@
+{
+  "uniqueId": "org.libexpat:expat",
+  "name": "Expat",
+  "description": "XML parsing, inside Skia.",
+  "website": "https://libexpat.github.io",
+  "licenses": [
+    "expat-mit"
+  ]
+}

@@ -77,6 +77,12 @@ jobs:
       - name: iOS tests
         run: ./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test
 
+      # the open source licences screen shows what each app ships: a changed dependency needs `./gradlew exportLicenses`
+      - name: Licences lists
+        run: |
+          ./gradlew exportLicenses
+          git diff --exit-code -- ui/src/androidMain/composeResources/files/licenses.json ui/src/iosMain/composeResources/files/licenses.json
+
       - name: iPhone app
         run: >
           xcodebuild -project iosApp/PingUp.xcodeproj -scheme PingUp -configuration Debug

@@ -1,0 +1,10 @@
+{
+  "uniqueId": "phosphor-icons:core",
+  "name": "Phosphor Icons",
+  "artifactVersion": "2.1.1",
+  "description": "The app's icons.",
+  "website": "https://phosphoricons.com",
+  "licenses": [
+    "phosphor-mit"
+  ]
+}

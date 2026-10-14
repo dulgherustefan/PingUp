@@ -1,0 +1,10 @@
+{
+  "uniqueId": "org.pingup:ping-up",
+  "name": "Ping Up",
+  "description": "This app. Its code is under GPL-3.0-or-later; the texts it shows (information pages, first-aid sheets, the demo map and notices) are under CC BY 4.0. The Ping Up name, logo and mascot are not under these licences.",
+  "website": "https://github.com/dulgherustefan/PingUp",
+  "licenses": [
+    "pingup-gpl",
+    "pingup-cc-by"
+  ]
+}

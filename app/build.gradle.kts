@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.aboutlibraries)
 }
 
 val appName: String = providers.gradleProperty("appName").get()
@@ -153,4 +154,21 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+}
+
+// The open source licences screen lists what the Android app ships, from its release build: `./gradlew exportLicenses`
+// rewrites the list after a dependency changes, and CI checks it's current. What Gradle can't see (fonts, icons, the
+// map's data, native libraries inside the AARs) and the notices some licences ask for are in config/aboutlibraries.
+aboutLibraries {
+    offlineMode = true
+    collect {
+        configPath = rootProject.file("config/aboutlibraries/android")
+        includePlatform = false
+    }
+    export {
+        outputFile = rootProject.file("ui/src/androidMain/composeResources/files/licenses.json")
+        variant = "release"
+        excludeFields.addAll("developers", "funding", "organization", "scm")
+        prettyPrint = true
+    }
 }

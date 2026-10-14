@@ -1,0 +1,10 @@
+{
+  "uniqueId": "org.libsodium:libsodium",
+  "name": "libsodium",
+  "artifactVersion": "1.0.20",
+  "description": "The cryptography of messages and reports, inside lazysodium-android.",
+  "website": "https://libsodium.org",
+  "licenses": [
+    "libsodium-isc"
+  ]
+}

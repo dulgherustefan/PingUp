@@ -91,6 +91,11 @@ sealed interface Dest {
     /** Your profile and settings. */
     data object Me : Dest
     data object Privacy : Dest
+
+    /** The open source licences: Ping Up's own and those of everything it ships, then one component by [id]. */
+    data object Licenses : Dest
+    data class Component(val id: String) : Dest
+
     data object Demo : Dest
 
     /** The event packs on this phone and the one in use. */

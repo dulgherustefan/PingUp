@@ -1,0 +1,6 @@
+{
+  "uniqueId": "net.java.dev.jna:jna",
+  "name": "Java Native Access (JNA)",
+  "description": "Used under the Apache License 2.0, one of its two licences.",
+  "website": "https://github.com/java-native-access/jna"
+}

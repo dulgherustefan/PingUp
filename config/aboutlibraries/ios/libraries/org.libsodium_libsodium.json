@@ -1,0 +1,10 @@
+{
+  "uniqueId": "org.libsodium:libsodium",
+  "name": "libsodium",
+  "artifactVersion": "1.0.22",
+  "description": "The cryptography of messages and reports, built from its signed release.",
+  "website": "https://libsodium.org",
+  "licenses": [
+    "libsodium-isc"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "uniqueId": "notofonts:noto-sans",
+  "name": "Noto Sans",
+  "description": "The glyphs of the map's labels, from protomaps/basemaps-assets.",
+  "website": "https://github.com/protomaps/basemaps-assets",
+  "licenses": [
+    "noto-ofl"
+  ]
+}

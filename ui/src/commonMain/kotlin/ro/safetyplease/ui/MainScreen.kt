@@ -114,6 +114,8 @@ import ro.safetyplease.ui.map.ProgramScreen
 import ro.safetyplease.ui.me.AnchorScreen
 import ro.safetyplease.ui.me.EventScreen
 import ro.safetyplease.ui.me.MeScreen
+import ro.safetyplease.ui.me.ComponentScreen
+import ro.safetyplease.ui.me.LicensesScreen
 import ro.safetyplease.ui.me.PrivacyScreen
 import ro.safetyplease.ui.notices.ControlMapLayer
 import ro.safetyplease.ui.notices.EvacuationBanner
@@ -300,6 +302,8 @@ private fun Screen(vm: AppViewModel, dest: Dest?, role: AppRole, onStartMesh: ()
         is Dest.Incident -> IncidentDetailScreen(vm, dest.id)
         Dest.Me -> MeScreen(vm, onStartMesh)
         Dest.Privacy -> PrivacyScreen(vm)
+        Dest.Licenses -> LicensesScreen(vm)
+        is Dest.Component -> ComponentScreen(vm, dest.id)
         Dest.Event -> EventScreen(vm)
         Dest.Demo -> demo()
         is Dest.Pin -> PinScreen(vm, dest)

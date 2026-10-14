@@ -1,0 +1,6 @@
+{
+  "uniqueId": "androidx.camera:camera-core",
+  "name": "Camera Core",
+  "description": "Includes libyuv: Copyright 2011 The LibYuv Project Authors. All rights reserved. BSD 3-Clause License.",
+  "website": "https://developer.android.com/jetpack/androidx/releases/camera"
+}

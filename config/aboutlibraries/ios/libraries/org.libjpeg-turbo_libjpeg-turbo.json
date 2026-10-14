@@ -1,0 +1,9 @@
+{
+  "uniqueId": "org.libjpeg-turbo:libjpeg-turbo",
+  "name": "libjpeg-turbo",
+  "description": "JPEG images, inside Skia. This software is based in part on the work of the Independent JPEG Group.",
+  "website": "https://libjpeg-turbo.org",
+  "licenses": [
+    "libjpeg-turbo"
+  ]
+}

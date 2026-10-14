@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.android.kmp.library)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.aboutlibraries)
 }
 
 kotlin {
@@ -90,4 +91,26 @@ tasks.register("test") {
     description = "Runs the shared tests on the JVM."
     group = "verification"
     dependsOn("testAndroidHostTest")
+}
+
+// The iPhone's half of the open source licences screen; the Android app's own build writes the other half. Gradle
+// sees only the shared dependencies here, tagged "metadata": those are what the iPhone framework links. What it can't
+// see (fonts, icons, the map's data, Skia's native libraries, libsodium) is in config/aboutlibraries/ios.
+aboutLibraries {
+    offlineMode = true
+    collect {
+        configPath = rootProject.file("config/aboutlibraries/ios")
+        includePlatform = false
+        includeTargets = true
+    }
+    export {
+        outputFile = file("src/iosMain/composeResources/files/licenses.json")
+        excludeFields.addAll("developers", "funding", "organization", "scm")
+        prettyPrint = true
+    }
+}
+
+// both licences lists are written into resources these tasks read: when they run together, the lists come first
+tasks.matching { "Resources" in it.name && !it.name.startsWith("exportLibraryDefinitions") }.configureEach {
+    mustRunAfter("exportLibraryDefinitions", ":app:exportLibraryDefinitions")
 }

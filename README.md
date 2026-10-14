@@ -123,6 +123,6 @@ Copyright © 2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, 
 - **Numele „Ping Up”, logo-ul și mascota** nu intră sub aceste licențe: [TRADEMARKS.md](TRADEMARKS.md). O versiune modificată are alt nume și alt logo.
 - **Ce e făcut de alții** își păstrează licența: fonturile Inter și Noto Sans (OFL-1.1), iconițele Phosphor și cele ale hărții, desenate de Mapzen (MIT), datele hărții, de la OpenStreetMap (ODbL-1.0), scripturile Gradle (Apache-2.0) și bibliotecile din Gradle.
 
-Licența fiecărui fișier e în [REUSE.toml](REUSE.toml), iar textele licențelor în [LICENSES/](LICENSES). Pentru alte condiții, de exemplu Ping Up într-o aplicație care nu e open source, scrie-ne: contactul e în [PRIVACY.md](PRIVACY.md).
+Licența fiecărui fișier e în [REUSE.toml](REUSE.toml), iar textele licențelor în [LICENSES/](LICENSES). În aplicație, „Eu › Licențe open source” arată licența Ping Up și tot ce folosește, cu textul fiecărei licențe; listele le rescrie `./gradlew exportLicenses`. Pentru alte condiții, de exemplu Ping Up într-o aplicație care nu e open source, scrie-ne: contactul e în [PRIVACY.md](PRIVACY.md).
 
 Ping Up nu e un serviciu de urgență și nu înlocuiește 112. E oferit fără nicio garanție (GPL, secțiunile 15 și 16).

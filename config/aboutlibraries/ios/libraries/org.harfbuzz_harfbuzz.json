@@ -1,0 +1,9 @@
+{
+  "uniqueId": "org.harfbuzz:harfbuzz",
+  "name": "HarfBuzz",
+  "description": "Text shaping, inside Skia.",
+  "website": "https://harfbuzz.github.io",
+  "licenses": [
+    "harfbuzz-mit"
+  ]
+}
