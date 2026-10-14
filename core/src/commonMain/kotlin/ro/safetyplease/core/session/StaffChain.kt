@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import okio.Path
 import ro.safetyplease.core.control.DensityBoard
@@ -49,6 +50,8 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.WalkDistance
 import ro.safetyplease.core.venue.distanceMeters
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 /** This phone's own choices for the staff chain. Man-down is on for staff unless they turn it off. */
 @Serializable
@@ -77,6 +80,8 @@ class StaffChain(
     exportDir: Path,
     /** The app is on screen: its own "Ești OK?" can be seen without a notification. */
     private val foreground: StateFlow<Boolean>,
+    /** Where a responder's walks are planned: the session's Dispatchers.Default keeps A* off the mesh thread. */
+    private val planner: CoroutineContext = EmptyCoroutineContext,
 ) {
     val prefs = JsonStore(prefsFile, StaffChainPrefs.serializer(), StaffChainPrefs(), ioScope)
     val priority: PriorityRules = PriorityRules.parse(runCatching { platform.asset(PRIORITY_ASSET) }.getOrNull())
@@ -185,10 +190,14 @@ class StaffChain(
         return DensityVerdict.SEND
     }
 
-    /** The alert as the planner decided it; a responder's names the defibrillator on the way. */
-    fun post(post: AlertPost) {
+    /**
+     * The alert as the planner decided it; a responder's names the defibrillator on the way, whose walks are planned in
+     * [planner] while the caller waits, so the alerts still go out in order.
+     */
+    suspend fun post(post: AlertPost) {
         if (post.route.reason == AlertReason.RESPONDER) {
-            notifications.responderAlert(post, Responders.target(post.incident, position.value, venue, walk()))
+            val target = withContext(planner) { Responders.target(post.incident, position.value, venue, walk()) }
+            notifications.responderAlert(post, target)
         } else {
             notifications.staffAlert(post)
         }

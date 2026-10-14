@@ -9,11 +9,16 @@ import okio.FileSystem
 import okio.SYSTEM
 import ro.safetyplease.core.TempDir
 import ro.safetyplease.core.data.withSuffix
+import ro.safetyplease.core.event.EventKind
+import ro.safetyplease.core.event.PackStatus
+import ro.safetyplease.core.event.StoredPack
 import ro.safetyplease.core.mkdirs
 import ro.safetyplease.core.readText
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** One bad item, a full disk or a heavy pack: the session goes on, and says what happened. */
@@ -66,5 +71,15 @@ class SessionRobustnessTest {
         FileSystem.SYSTEM.deleteRecursively(blocker)
         eventually { !s.storage.value.writeFailed }
         assertTrue("\"Ana\"" in file.readText())
+    }
+
+    @Test
+    fun aPackIsCheckedAsTheCallerWaits() = runBlocking {
+        val s = session(FakePlatform(tmp))
+        val loaded = s.loadEventPack("nu e un pachet")
+        assertEquals(PackStatus.MALFORMED, loaded.status)
+        assertNull(loaded.added)
+        assertTrue(s.events.value.packs.isEmpty())
+        assertFalse(s.usable(StoredPack("00", "fest", 1, EventKind.REAL, "Fest", 0L, "00", "nu e un pachet")))
     }
 }

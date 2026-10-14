@@ -83,6 +83,7 @@ import ro.safetyplease.core.data.PositionStore
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
 import ro.safetyplease.core.data.StoreHealth
+import ro.safetyplease.core.event.Added
 import ro.safetyplease.core.event.EventKind
 import ro.safetyplease.core.event.EventPack
 import ro.safetyplease.core.event.EventPacks
@@ -324,7 +325,7 @@ open class PingUpSession(private val platform: AppPlatform) {
     val regasire = Regasire(
         meshScope, chat, positions, clock, venue, identity.nodeId, searchStore,
         walk = { walkDistance }, mapState = { mapState.value }, myPosition = { positioning.position.value },
-        battery = { battery.state.value.percent.coerceIn(0, 100) }, frame = { positionFrame },
+        battery = { battery.state.value.percent.coerceIn(0, 100) }, frame = { positionFrame }, planner = Dispatchers.Default,
     )
 
     private val checkinStore = JsonStore(dataDir / "checkin.json", CheckinData.serializer(), CheckinData(), ioScope)
@@ -476,7 +477,7 @@ open class PingUpSession(private val platform: AppPlatform) {
     /** "Planul meu" from the event's schedule; its reminders ring from here while the session runs. */
     val program = ProgramReminders(
         meshScope, programStore, event?.id.orEmpty(), event?.schedule.orEmpty(), venue, clock,
-        settings = { settings.value }, fix = { platform.location.value }, walk = { walkDistance },
+        settings = { settings.value }, fix = { platform.location.value }, walk = { walkDistance }, planner = Dispatchers.Default,
     ) { set, walkMin -> notifications.setReminder(set, venue.zoneName(set.stage), walkMin) }
 
     /** Priority, crowd levels, hand-over notes, responders and man-down. */
@@ -484,6 +485,7 @@ open class PingUpSession(private val platform: AppPlatform) {
         meshScope, ioScope, platform, notifications, clock, settings, incidentStore.state, venue, { walkDistance },
         { draft, bypass -> incidents.report(draft, bypass) },
         modeFile("density.json"), modeFile("handover.json"), dataDir / "staff_chain.json", exportDir, foreground,
+        planner = Dispatchers.Default,
     )
 
     /**
@@ -755,7 +757,7 @@ open class PingUpSession(private val platform: AppPlatform) {
                 val now = clock.wallMs()
                 val plan = planner.plan(me, data.staff, own, now, muted)
                 plan.stop.forEach(notifications::cancelStaffAlert)
-                plan.post.forEach(staffChain::post)
+                plan.post.forEach { staffChain.post(it) }
                 val next = plan.nextAt ?: break
                 delay(next - now)
             }
@@ -850,11 +852,16 @@ open class PingUpSession(private val platform: AppPlatform) {
         return copy(role = role, teamName = card.teamName, anchorZone = if (anchor) card.zone else "", staffZone = if (anchor) "" else card.zone)
     }
 
-    /** Checks a pack and keeps it; it is used only once selected. */
-    fun loadEventPack(text: String): Loaded {
-        var loaded: Loaded? = null
-        events.update { shelf -> shelf.load(text, crypto, root, clock.wallMs() / 1000, revokedStore.value.ids).also { loaded = it.second }.first }
-        return loaded!!
+    /**
+     * Checks a pack and keeps it; it is used only once selected. The check (up to 4 MiB of JSON, the plan's image, a
+     * signature over all of it) runs off the caller's thread, so a screen can wait for it.
+     */
+    suspend fun loadEventPack(text: String): Loaded {
+        val check = withContext(Dispatchers.Default) { EventPacks.check(text, crypto, root, clock.wallMs() / 1000, revokedStore.value.ids) }
+        val pack = check.pack ?: return Loaded(check.status, null)
+        var added: Added? = null
+        events.update { shelf -> shelf.with(pack, text).also { added = it.second }.first }
+        return Loaded(PackStatus.VALID, added)
     }
 
     /** A pack from an https link, as the organiser publishes it before the event; null if it can't be fetched. */
@@ -894,9 +901,13 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     fun removeEventPack(hash: String) = events.update { it.without(hash) }
 
-    /** The pack still holds now, so switching to it loads it. */
-    fun usable(pack: StoredPack): Boolean =
+    /**
+     * The pack still holds now, so switching to it loads it. Checking it reads up to 4 MiB of JSON, the plan's image and
+     * a signature over all of it: off the caller's thread.
+     */
+    suspend fun usable(pack: StoredPack): Boolean = withContext(Dispatchers.Default) {
         EventPacks.check(pack.text, crypto, root, clock.wallMs() / 1000, revokedStore.value.ids).status == PackStatus.VALID
+    }
 
     /** An SPR1 code: the certificate ids it newly revokes, or null if this event's keys didn't sign it. */
     fun applyRevocation(payload: ByteArray): List<Long>? = revocations.add(payload)

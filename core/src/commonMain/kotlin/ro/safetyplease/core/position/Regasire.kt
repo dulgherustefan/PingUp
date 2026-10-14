@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import ro.safetyplease.core.announce.MapState
 import ro.safetyplease.core.chat.ChatManager
@@ -38,6 +39,8 @@ import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.WalkDistance
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 /** Someone of [conversation] lost their group and asks to meet at [landmark] (0: the venue's meeting point) until [untilMs]. */
 data class LostAlert(
@@ -98,6 +101,8 @@ class Regasire(
     private val myPosition: () -> GeoFix?,
     private val battery: () -> Int,
     private val frame: () -> PositionFrame,
+    /** Where the walks to the meeting places are planned: the session's Dispatchers.Default keeps A* off the mesh thread. */
+    private val planner: CoroutineContext = EmptyCoroutineContext,
 ) {
     private val _alerts = MutableStateFlow<List<LostAlert>>(emptyList())
     private val _target = MutableStateFlow<LostTarget?>(null)
@@ -167,7 +172,8 @@ class Regasire(
         if (!Conversations.isGroup(conversation) || activationWaitMs() > 0) return@async false
         val before = activatedAtMono
         activatedAtMono = clock.monoMs()
-        val place = meetingFor(conversation)
+        // up to a walk per person and landmark; the mesh goes on meanwhile, and a second tap finds the limit taken
+        val place = withContext(planner) { meetingFor(conversation) }
         val seq = chat.nextMeetingSeq()
         val lost = chat.sendLostWithShare(conversation, SHARE_MIN) { msgId, groupId ->
             Inner.LostSession(msgId, groupId, LostAction.START, seq, SHARE_MIN, battery(), place?.landmark ?: 0)
