@@ -36,6 +36,15 @@ class SendQueue(private val capacity: Int = 128, private val onFull: () -> Unit 
         while (size == 0) signal.receive()
     }
 
+    /** Takes back this phone's own positions still waiting for [recipients]; returns how many. */
+    fun removeOwnPositions(recipients: Set<Long>): Int {
+        val queue = levels[POSITION_LEVEL]
+        val before = queue.size
+        queue.removeAll { it.own && it.position && it.packet.recipient in recipients }
+        size -= before - queue.size
+        return before - queue.size
+    }
+
     /** Highest-priority item right now; call it after the pacing wait, not before. */
     fun poll(): Outbound? {
         for (q in levels) {

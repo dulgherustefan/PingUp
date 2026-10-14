@@ -34,6 +34,21 @@ class PositionBudgetTest {
     }
 
     @Test
+    fun ownPositionsStillWaitingCanBeTakenBackForSomeRecipients() {
+        fun position(id: Long, recipient: Long, own: Boolean = true) =
+            Outbound(Packet(PacketType.PRIVATE, 7, id, 5L, 0L, recipient, true, ByteArray(1)), own, position = true)
+        val q = SendQueue()
+        q.offer(position(1, recipient = 8))
+        q.offer(position(2, recipient = 9))
+        q.offer(Outbound(packet(PacketType.PRIVATE, 3), own = true))
+        q.offer(position(4, recipient = 9, own = false))
+        q.offer(position(5, recipient = 8))
+        assertEquals(2, q.removeOwnPositions(setOf(8L)))
+        assertEquals(3, q.size)
+        assertEquals(listOf(3L, 2L, 4L), List(3) { q.poll()!!.packet.id }, "chat, the other friend's and what we only relay stay")
+    }
+
+    @Test
     fun positionsTakeAQuarterOfTheAirAtMost() {
         val budget = PositionBudget(capacityPerSecond = 2.8)
         // 2.8 a second is 168 a minute: 42 for positions

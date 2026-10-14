@@ -108,6 +108,9 @@ class ChatManager(
     private val policy = PositionPolicy()
     private var positionSeq = 0
     private val startSent = HashMap<Pair<String, Long>, Pair<Int, Long>>()
+
+    /** STOPs not gone yet, by recipient: a share that ended, or got less precise for them, while no link was up. */
+    private val stopsOwed = HashMap<Long, Inner.ShareSession>()
     private val asked = PerFriendLimit(REQUEST_INTERVAL_MS)
     private val answered = PerFriendLimit(REQUEST_INTERVAL_MS)
 
@@ -303,13 +306,18 @@ class ChatManager(
         scope.launch { beginShare(conversation, durationMin, precision) }
     }
 
-    /** [startsAfterMs]: the first START waits this long, for recipients whose DELIVERED of a lost session accepts it. */
+    /**
+     * [startsAfterMs]: the first START waits this long, for recipients whose DELIVERED of a lost session accepts it. A
+     * share that replaces a more precise one takes back the positions still waiting to go at that precision.
+     */
     private fun beginShare(conversation: String, durationMin: Int, precision: Int, startsAfterMs: Long = 0): OutgoingShare? {
         val recipients = recipientsOf(conversation)?.second ?: return null
         if (recipients.isEmpty() || precision !in SharePrecision.EXACT..SharePrecision.ZONE) return null
         val minutes = durationMin.coerceIn(1, PositionData.MAX_SHARE_MIN)
         val share = OutgoingShare(conversation, precision, clock.wallMs() + minutes * 60_000L, nextSeq())
+        val before = shareTargets(clock.wallMs())
         positions.update { data -> data.copy(shares = data.shares.filterNot { it.conversation == conversation } + share) }
+        engine.withdrawPositions(coarser(before, shareTargets(clock.wallMs())))
         startSent.keys.removeAll { it.first == conversation }
         if (startsAfterMs > 0) {
             val mono = clock.monoMs()
@@ -320,18 +328,54 @@ class ChatManager(
         return share
     }
 
-    /** Stops at once. Recipients that no other share still reaches get a STOP; the others' phones end it at expiry anyway. */
+    /**
+     * Stops at once: the positions still waiting to go to its recipients are taken back, and each recipient it reached
+     * more precisely than any share still does gets a STOP, so their phone drops what it holds; one another share still
+     * reaches then gets that share's START again (PROTOCOL.md, section 6.6).
+     */
     fun stopShare(conversation: String) {
         scope.launch { endShare(conversation) }
     }
 
     private fun endShare(conversation: String) {
         val share = positions.value.shares.firstOrNull { it.conversation == conversation } ?: return
+        val before = shareTargets(clock.wallMs())
         positions.update { data -> data.copy(shares = data.shares - share) }
         startSent.keys.removeAll { it.first == conversation }
-        val still = shareTargets(clock.wallMs()).keys
-        for (recipient in recipientsOf(conversation)?.second.orEmpty()) {
-            if (recipient !in still) sendDirect(recipient, Inner.ShareSession(ShareAction.STOP, 0, share.precision, share.seq))
+        val coarser = coarser(before, shareTargets(clock.wallMs()))
+        engine.withdrawPositions(coarser)
+        for (recipient in coarser) stopsOwed[recipient] = Inner.ShareSession(ShareAction.STOP, 0, share.precision, share.seq)
+        sendStops()
+    }
+
+    /** Who lost a share or now gets a less precise one: [before] and [after] give each recipient's most precise. */
+    private fun coarser(before: Map<Long, Int>, after: Map<Long, Int>): Set<Long> =
+        before.filter { (recipient, precision) -> (after[recipient] ?: Int.MAX_VALUE) > precision }.keys
+
+    /**
+     * The STOPs owed, once a link is up. A recipient a share still reaches is offered its START again a little later,
+     * so that the two can't cross on the way.
+     */
+    private fun sendStops() {
+        if (stopsOwed.isEmpty()) return
+        val targets = shareTargets(clock.wallMs())
+        val mono = clock.monoMs()
+        for ((recipient, stop) in stopsOwed.entries.toList()) {
+            if (!knows(recipient)) {
+                stopsOwed.remove(recipient)
+                continue
+            }
+            if (!sendDirect(recipient, stop)) continue
+            stopsOwed.remove(recipient)
+            if (recipient !in targets) continue
+            positions.update { data ->
+                data.copy(shares = data.shares.map { if (recipient in it.accepted) it.copy(accepted = it.accepted - recipient) else it })
+            }
+            for (share in positions.value.shares) {
+                if (recipient in recipientsOf(share.conversation)?.second.orEmpty()) {
+                    startSent[share.conversation to recipient] = 0 to mono + RESTART_AFTER_MS - START_RETRY_MS
+                }
+            }
         }
     }
 
@@ -395,10 +439,11 @@ class ChatManager(
         return targets
     }
 
-    /** What expired ends, START goes to who hasn't accepted yet, and the position goes if the policy says so. */
+    /** What expired ends, owed STOPs and then START go, and the position goes if the policy says so. */
     private fun sharePosition() {
         val now = clock.wallMs()
         positions.update { it.pruned(now) }
+        sendStops()
         offerStarts(now)
         val targets = shareTargets(now)
         if (targets.isEmpty()) return policy.reset()
@@ -1379,6 +1424,9 @@ class ChatManager(
 
         const val START_RETRY_MS = 60_000L
         const val MAX_START_TRIES = 5
+
+        /** A START that follows a STOP to the same phone waits this long, so it can't overtake it through the relays. */
+        const val RESTART_AFTER_MS = 5_000L
 
         /** "Fă-te văzut" and "Vin la tine": one every 2 minutes per friend, asked and heard. */
         const val PING_INTERVAL_MS = 2 * 60_000L
