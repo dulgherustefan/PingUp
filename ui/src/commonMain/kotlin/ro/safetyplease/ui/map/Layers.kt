@@ -25,6 +25,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -335,13 +336,23 @@ private fun PickedCard(vm: AppViewModel, origin: GeoPoint?, services: List<Servi
     }
 }
 
-/** The walk from [origin], worked out once per pair of points and not on every tick of the clock. */
+/** The walk to [to]: its metres, null when no walk gets there; [known] false while it is being planned. */
+private class WalkTo(val to: GeoPoint?, val meters: Int?, val known: Boolean)
+
+/**
+ * The walk from [origin], planned off the main thread once per pair of points and not on every tick of the clock; while
+ * a new place's walk is planned it says nothing, while a new origin's is, the last one stands.
+ */
 @Composable
 private fun walkLine(vm: AppViewModel, origin: GeoPoint?, point: GeoPoint?): String? {
-    val meters = remember(origin, point) { if (origin == null || point == null) null else vm.c.walkDistance.meters(origin, point) }
+    val walk by produceState(WalkTo(null, null, known = false), origin, point) {
+        if (value.to != point) value = WalkTo(point, null, known = false)
+        if (origin == null || point == null) return@produceState
+        value = WalkTo(point, withContext(Dispatchers.Default) { vm.c.walkDistance.meters(origin, point) }, known = true)
+    }
     val unreachable = stringResource(Res.string.layers_no_walk)
-    if (origin == null || point == null) return null
-    return if (meters == null) unreachable else stringResource(Res.string.layers_walk, meters)
+    if (origin == null || point == null || !walk.known) return null
+    return walk.meters?.let { stringResource(Res.string.layers_walk, it) } ?: unreachable
 }
 
 @Composable

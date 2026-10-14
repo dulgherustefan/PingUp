@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +47,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
@@ -59,6 +62,7 @@ import ro.safetyplease.core.announce.Whereabouts
 import ro.safetyplease.core.position.Guide
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Poi
+import ro.safetyplease.core.venue.StraightLine
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.Zone
 import ro.safetyplease.core.venue.compassSector
@@ -341,13 +345,19 @@ private fun Line(text: String, style: TextStyle, bold: Boolean = false, modifier
     text, modifier, style = style, fontWeight = if (bold) FontWeight.Bold else null, color = Ink, textAlign = TextAlign.Center,
 )
 
-/** "120 m spre nord-est", led by an arrow that turns with the phone where it has a compass. */
+/**
+ * "120 m spre nord-est", led by an arrow that turns with the phone where it has a compass. The walk is planned off the
+ * main thread: as the crow flies until the first one is known, then the last one until the next.
+ */
 @Composable
 private fun WayTo(vm: AppViewModel, from: GeoPoint, to: GeoPoint) {
     // the compass has no flow of its own: read it again every second
     rememberNow(1_000)
     val directions = stringArrayResource(Res.array.map_directions)
-    val meters = vm.c.walkDistance.meters(from, to) ?: return
+    val walked by produceState<Int?>(StraightLine.meters(from, to), from, to) {
+        value = withContext(Dispatchers.Default) { vm.c.walkDistance.meters(from, to) }
+    }
+    val meters = walked ?: return
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(Sym.Send, null, Modifier.size(32.dp).rotate(Guide.arrowDeg(Guide.bearing(from, to), vm.phone.heading())), tint = Ink)
         Spacer(Modifier.width(12.dp))

@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,6 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.safety.Card112
@@ -97,7 +100,13 @@ fun Card112Screen(vm: AppViewModel) {
     vm.phone.KeepScreenOn()
 
     val last = fix
-    val card = card112Of(vm, position, last, settings.simLat != null, vm.c.walkDistance)
+    val simulated = settings.simLat != null
+    // the spot at once; the places to walk to as the crow flies until their walks, planned off the main thread, are known
+    val straight = card112Of(vm, position, last, simulated, StraightLine)
+    val walked by produceState<Card112?>(null, position, last, simulated) {
+        value = withContext(Dispatchers.Default) { card112Of(vm, position, last, simulated, vm.c.walkDistance) }
+    }
+    val card = straight?.let { s -> walked?.let { w -> s.copy(landline = w.landline, medical = w.medical) } ?: s }
 
     NavScreen(
         title = stringResource(Res.string.card112_title),
