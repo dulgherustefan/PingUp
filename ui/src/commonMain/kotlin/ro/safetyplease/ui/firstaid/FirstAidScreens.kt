@@ -153,12 +153,9 @@ private fun FirstAidScaffold(vm: AppViewModel, content: @Composable () -> Unit) 
 
 @Composable
 private fun rememberSheets(vm: AppViewModel): List<FirstAidSheet> {
-    // the event pack's sheets, approved by its medical lead, replace the ones the app ships
-    val pack = vm.c.event?.firstAid.orEmpty()
+    // the event pack's sheets, approved by its medical lead, replace the ones the app ships, in their language
     val language = vm.c.language()
-    return remember(language) {
-        if (pack.isEmpty()) loadSheets(vm.c, language) else readSheets(pack.keys.toList(), pack::getValue)
-    }
+    return remember(language) { loadSheets(vm.c, language) }
 }
 
 /** Shown on every sheet the event's medical lead has not approved yet. */

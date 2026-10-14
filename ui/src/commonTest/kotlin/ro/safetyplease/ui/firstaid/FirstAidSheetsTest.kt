@@ -117,4 +117,19 @@ class FirstAidSheetsTest {
         assertEquals("firstaid", sheetDirectory("ro"))
         assertEquals("firstaid", sheetDirectory("de"))
     }
+
+    private val pack = mapOf("01-nu-respira.md" to "# Nu respiră\n\nAprobat: Dr. Ana Pop")
+    private val english = mapOf("01-nu-respira.md" to "# Not breathing")
+
+    @Test
+    fun theEventsApprovedSheetsReplaceTheAppsInTheirLanguage() {
+        assertEquals(pack, sheetFiles("ro", pack) { mapOf("01-nu-respira.md" to "# ro") })
+        assertEquals(english, sheetFiles("en", emptyMap()) { english }, "no pack: the app's own")
+    }
+
+    @Test
+    fun anEnglishPhoneKeepsTheEnglishCopiesWhenThePackHasOnlyRomanianOnes() {
+        assertEquals(english, sheetFiles("en", pack) { english })
+        assertEquals(pack, sheetFiles("en", pack) { emptyMap() }, "without an English copy, the pack's own")
+    }
 }

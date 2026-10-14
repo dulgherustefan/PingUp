@@ -31,9 +31,20 @@ private val StepLine = Regex("""(\d+)\.\s+(.+)""")
 /** English has its own copy of the sheets, with the same file names; every other language reads the Romanian originals. */
 fun sheetDirectory(language: String): String = if (language == "en") "firstaid-en" else "firstaid"
 
-/** The sheets of [language] the app ships with, in file-name order. */
+/** The language of an event pack's sheets: the format is the one of the Romanian originals. */
+private const val PACK_LANGUAGE = "ro"
+
+/**
+ * The sheet files to show in [language]: the event pack's ([pack]), approved by its medical lead, where they are in
+ * that language; elsewhere the app's own copy in it ([bundled]), shown as a draft until approved, rather than sheets
+ * the person can't read. The pack's sheets when the app has none of its own.
+ */
+fun sheetFiles(language: String, pack: Map<String, String>, bundled: () -> Map<String, String>): Map<String, String> =
+    if (pack.isNotEmpty() && language == PACK_LANGUAGE) pack else bundled().ifEmpty { pack }
+
+/** The sheets to show in [language], in file-name order. */
 fun loadSheets(session: PingUpSession, language: String): List<FirstAidSheet> {
-    val files = session.assets(sheetDirectory(language))
+    val files = sheetFiles(language, session.event?.firstAid.orEmpty()) { session.assets(sheetDirectory(language)) }
     return readSheets(files.keys.toList(), files::getValue)
 }
 
