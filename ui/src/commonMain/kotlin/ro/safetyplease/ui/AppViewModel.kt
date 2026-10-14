@@ -172,6 +172,9 @@ object OpenTarget {
     const val HOME = "home"
     const val INCIDENTS = "incidents"
 
+    /** One incident, by id: its page on a staff phone, picked in the queue on the console; from its alert. */
+    const val INCIDENT_PREFIX = "incident:"
+
     /** The report categories, for a new report; the tile, the shortcut and the mesh notification open it. */
     const val REPORT = "report"
 
@@ -196,6 +199,7 @@ object OpenTarget {
 /** Where a link from a notification, the tile or a shortcut lands: a tab and maybe a screen on top; null for neither. */
 fun landing(target: String): Pair<Tab, Dest?>? = when {
     target == OpenTarget.INCIDENTS -> Tab.INCIDENTS to null
+    target.startsWith(OpenTarget.INCIDENT_PREFIX) -> Tab.INCIDENTS to Dest.Incident(target.removePrefix(OpenTarget.INCIDENT_PREFIX))
     target == OpenTarget.REPORT -> Tab.REPORT to null
     target == OpenTarget.DISCREET -> Tab.REPORT to Dest.Discreet
     target.startsWith(OpenTarget.REPORT_PREFIX) -> Tab.REPORT to Dest.ReportSent(target.removePrefix(OpenTarget.REPORT_PREFIX))
@@ -210,6 +214,16 @@ fun landing(target: String): Pair<Tab, Dest?>? = when {
 /** A double tap during a transition must not push the same screen twice. */
 fun MutableList<Dest>.push(dest: Dest) {
     if (lastOrNull() != dest) add(dest)
+}
+
+/**
+ * What a link does to the screens on the stack: a tab alone clears them, so the tab shows; a screen comes to the top,
+ * back to its own copy when one is open, so what lies under it (a draft, a walk) is kept.
+ */
+fun MutableList<Dest>.land(dest: Dest?) {
+    if (dest == null) return clear()
+    val open = lastIndexOf(dest)
+    if (open < 0) push(dest) else while (lastIndex > open) removeAt(lastIndex)
 }
 
 /** Current position: the demo's simulated one wins, otherwise the GPS fix while it's fresh. */
@@ -397,12 +411,21 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
         home(Tab.REPORT)
     }
 
+    /** An incident a link asked the console to show; the console's screen picks it and sets this back to null. */
+    var consoleFocus by mutableStateOf<String?>(null)
+
+    /** A link from a notification, the tile or a shortcut; home leaves whatever is open as it is. */
     fun openTarget(target: String) {
         if (!modals.admits(target)) return
-        stack.clear()
         val (tab, dest) = landing(target) ?: return
+        // the console has its own queue: the incident is picked there
+        if (dest is Dest.Incident && c.settings.value.role == Role.CONTROL) {
+            stack.clear()
+            consoleFocus = dest.id
+            return
+        }
         this.tab = tab
-        dest?.let(::open)
+        stack.land(dest)
     }
 
     // --- zone ---

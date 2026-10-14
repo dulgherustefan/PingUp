@@ -363,13 +363,21 @@ class Notifier(private val context: Context, private val venue: Venue, private v
             else -> CHANNEL_INCIDENT
         }
         val id = incident.incidentId.hashCode()
-        val open = open(MainActivity.OPEN_INCIDENTS, id)
+        val open = open(OpenTarget.INCIDENT_PREFIX + incident.incidentId, id)
+        // on the lock screen only what and where: never the reporter's words, which may be about health or a discreet ask
+        val public = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(marked(title))
+            .setContentText(zone)
+            .build()
         val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(marked(title))
             .setContentText(if (incident.description.isEmpty()) zone else "$zone · ${incident.description}")
             .setAutoCancel(true)
             .setContentIntent(open)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(public)
             .setPriority(if (level == AlertLevel.NOTIFY) NotificationCompat.PRIORITY_DEFAULT else NotificationCompat.PRIORITY_HIGH)
             .setSilent(post.silent)
         if (level == AlertLevel.INSISTENT && !exercise) builder.setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -396,7 +404,7 @@ class Notifier(private val context: Context, private val venue: Venue, private v
         }
         val id = incident.incidentId.hashCode()
         // its alert shows over the lock screen: the responder runs before unlocking
-        val open = open(MainActivity.OPEN_INCIDENTS, id, alert = post.fullScreen && !exercise)
+        val open = open(OpenTarget.INCIDENT_PREFIX + incident.incidentId, id, alert = post.fullScreen && !exercise)
         val builder = NotificationCompat.Builder(context, if (exercise) CHANNEL_VIBRATE else CHANNEL_ALARM)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(marked(title))

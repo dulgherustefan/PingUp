@@ -20,6 +20,7 @@ import ro.safetyplease.core.venue.Zone
 import ro.safetyplease.ui.common.Nearby
 import ro.safetyplease.ui.common.helpOrigin
 import ro.safetyplease.ui.common.onSite
+import ro.safetyplease.ui.map.NavTarget
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -253,7 +254,29 @@ class UiLogicTest {
         assertEquals(Tab.REPORT to Dest.ReportSent("ab12"), landing(OpenTarget.REPORT_PREFIX + "ab12"))
         assertEquals(Tab.MESSAGES to Dest.Conversation("f1"), landing(OpenTarget.CHAT_PREFIX + "f1"))
         assertEquals(Tab.INCIDENTS to null, landing(OpenTarget.INCIDENTS))
+        assertEquals(Tab.INCIDENTS to Dest.Incident("c3"), landing(OpenTarget.INCIDENT_PREFIX + "c3"), "a staff alert opens its own incident")
         assertNull(landing(OpenTarget.HOME), "home keeps the tab the user was on")
+    }
+
+    @Test
+    fun aLinkToAScreenKeepsWhatIsOpenUnderIt() {
+        val stack = mutableListOf<Dest>(Dest.Conversation("f1"), Dest.Walk(NavTarget.MeetingPoint))
+        stack.land(Dest.Incident("c3"))
+        assertEquals(listOf(Dest.Conversation("f1"), Dest.Walk(NavTarget.MeetingPoint), Dest.Incident("c3")), stack, "the draft and the walk stay")
+    }
+
+    @Test
+    fun aLinkToAnOpenScreenGoesBackToIt() {
+        val stack = mutableListOf(Dest.Conversation("f1"), Dest.Profile("f1"), Dest.Sharing)
+        stack.land(Dest.Conversation("f1"))
+        assertEquals(listOf<Dest>(Dest.Conversation("f1")), stack, "its draft is still there")
+    }
+
+    @Test
+    fun aLinkToATabClearsTheScreensOverIt() {
+        val stack = mutableListOf<Dest>(Dest.Conversation("f1"), Dest.Sharing)
+        stack.land(null)
+        assertTrue(stack.isEmpty())
     }
 
     @Test

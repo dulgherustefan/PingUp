@@ -173,7 +173,6 @@ class MainActivity : ComponentActivity() {
         /** The intent comes from the full-screen part of an alert that may show over the lock screen. */
         const val EXTRA_ALERT = "alert"
         const val OPEN_HOME = OpenTarget.HOME
-        const val OPEN_INCIDENTS = OpenTarget.INCIDENTS
         const val OPEN_REPORT = OpenTarget.REPORT
         const val OPEN_DISCREET = OpenTarget.DISCREET
         const val OPEN_REPORT_PREFIX = OpenTarget.REPORT_PREFIX

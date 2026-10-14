@@ -144,7 +144,7 @@ class IosNotifications(private val venue: Venue, private val exercise: Boolean, 
         val insistent = post.route.level == AlertLevel.INSISTENT && !exercise
         post(
             alert(incident.incidentId), marked(title), if (incident.description.isEmpty()) zone else "$zone · ${incident.description}",
-            OpenTarget.INCIDENTS, if (insistent) Level.TIME_SENSITIVE else Level.ACTIVE, sound = !post.silent,
+            OpenTarget.INCIDENT_PREFIX + incident.incidentId, if (insistent) Level.TIME_SENSITIVE else Level.ACTIVE, sound = !post.silent,
         )
     }
 

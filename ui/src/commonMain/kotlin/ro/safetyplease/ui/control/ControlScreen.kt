@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -190,6 +191,15 @@ fun ControlScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     var tools by remember { mutableStateOf(false) }
     var layer by rememberSaveable { mutableStateOf(MapLayer.INCIDENTS) }
     val squares = remember(heard, now) { Coverage.squares(heard.values, now) }
+    // an alert's incident, tapped in its notification: picked as if in the queue
+    val focus = vm.consoleFocus
+    LaunchedEffect(focus) {
+        if (focus == null) return@LaunchedEffect
+        selectedId = focus
+        cases[focus]?.state?.let { filter = it }
+        pane = Pane.INCIDENT
+        vm.consoleFocus = null
+    }
     val selected = selectedId?.let(cases::get)
     val onMap = remember(cases) { cases.values.filter { it.state != CaseState.CLOSED } }
     val mapOverlay by vm.mapOverlays.overlay.collectAsStateWithLifecycle()
