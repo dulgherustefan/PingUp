@@ -1010,7 +1010,10 @@ sealed interface Inner {
     ) : Inner
 }
 
-/** Where an [Inner.Position] puts the sender: metres in the event's grid box, or micro-degrees outside it. */
+/**
+ * Where an [Inner.Position] puts the sender: micro-degrees, or metres in the grid box, which only older builds send
+ * and which the receiver reads in its own box (PROTOCOL.md, section 6.6).
+ */
 sealed interface PositionPoint {
     data class Grid(val x: Int, val y: Int) : PositionPoint {
         init {

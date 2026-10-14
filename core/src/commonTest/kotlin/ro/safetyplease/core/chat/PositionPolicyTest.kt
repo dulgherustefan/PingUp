@@ -40,21 +40,25 @@ class PositionPolicyTest {
     }
 
     @Test
-    fun exactIsTheMetreAndApproximateIsTheCentreOfA128mCell() {
+    fun pointsGoInDegreesEvenInsideTheBox() {
         val p = box.toLatLon(1234, 567)
-        assertEquals(PositionPoint.Grid(1234, 567), frame.point(p.lat, p.lon, approximate = false))
-        // 1234 = 9 x 128 + 82, 567 = 4 x 128 + 55: the cells' centres are 9 x 128 + 64 and 4 x 128 + 64
-        assertEquals(PositionPoint.Grid(1216, 576), frame.point(p.lat, p.lon, approximate = true))
-        val nearby = box.toLatLon(1160, 520)
-        assertEquals(PositionPoint.Grid(1216, 576), frame.point(nearby.lat, nearby.lon, approximate = true), "the same cell, the same point")
+        assertEquals(PositionPoint.Absolute(p.lat, p.lon), frame.point(p.lat, p.lon, approximate = false))
+        // approximate: the centre of a cell of about 128 m, the same for every point in it
+        val masked = frame.point(p.lat, p.lon, approximate = true) as PositionPoint.Absolute
+        val centre = GeoPoint(masked.lat, masked.lon)
+        assertTrue(distanceMeters(p, centre) in 1..PositionFrame.APPROXIMATE_RADIUS_M.toInt(), "near the point, not the point itself")
+        assertEquals(masked, frame.point(centre.lat + 20 / 111_320.0, centre.lon, approximate = true), "the same cell, the same point")
 
-        // outside the box: degrees, and a cell of about 128 m around the true point
         val far = GeoPoint(44.4268, 26.1025)
         assertEquals(PositionPoint.Absolute(44.4268, 26.1025), frame.point(far.lat, far.lon, approximate = false))
-        val masked = frame.latLon(frame.point(far.lat, far.lon, approximate = true))!!
-        assertTrue(distanceMeters(far, masked) <= PositionFrame.APPROXIMATE_RADIUS_M)
-        assertTrue(distanceMeters(far, masked) > 0, "not the point itself")
+        val maskedFar = frame.latLon(frame.point(far.lat, far.lon, approximate = true))!!
+        assertTrue(distanceMeters(far, maskedFar) <= PositionFrame.APPROXIMATE_RADIUS_M)
+        assertTrue(distanceMeters(far, maskedFar) > 0, "not the point itself")
+    }
 
+    @Test
+    fun aGridPointFromAnOlderBuildIsReadInThisPhonesBox() {
+        assertEquals(box.toLatLon(1234, 567), frame.latLon(PositionPoint.Grid(1234, 567)))
         assertNull(PositionFrame.NONE.latLon(PositionPoint.Grid(1, 1)), "a grid point means nothing without the box")
     }
 

@@ -1,5 +1,8 @@
 package ro.safetyplease.core.protocol
 
+import ro.safetyplease.core.chat.PositionFrame
+import ro.safetyplease.core.venue.PositionBox
+import ro.safetyplease.core.venue.distanceMeters
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -21,6 +24,20 @@ class PositionCodecTest {
         val far = Inner.Position(PositionPoint.Absolute(44.4268, 26.1025), 0, PositionMethod.GNSS, 1, 2, 3, Heading.UNKNOWN)
         assertEquals(15, InnerCodec.encode(far).size)
         assertEquals(PositionPoint.Absolute(44.4268, 26.1025), (roundTrip(far) as Inner.Position).point)
+    }
+
+    @Test
+    fun whatThisBuildSendsIsInDegreesEvenInsideTheBoxSoAnotherBoxReadsItRight() {
+        val box = PositionBox(44.0, 26.0)
+        val inside = box.toLatLon(100, 100)
+        val point = PositionFrame(box, 0).point(inside.lat, inside.lon, approximate = false)
+        val bytes = InnerCodec.encode(Inner.Position(point, 1, PositionMethod.GNSS, 0, 0, 0, Heading.UNKNOWN))
+        assertEquals(15, bytes.size)
+        assertEquals(0x01, bytes[1].toInt() and 0xC1, "absolute, the reserved bits clear")
+        // the receiver holds the bundled venue's box, about 1.4 km off the event pack's: a grid point would land there
+        val other = PositionFrame(PositionBox(44.01, 26.01), 0)
+        val back = InnerCodec.decode(bytes) as Inner.Position
+        assertTrue(distanceMeters(other.latLon(back.point)!!, inside) <= 1)
     }
 
     @Test
