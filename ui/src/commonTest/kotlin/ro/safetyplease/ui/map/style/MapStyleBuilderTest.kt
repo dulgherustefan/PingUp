@@ -25,6 +25,7 @@ import ro.safetyplease.ui.map.MapPalette
 import ro.safetyplease.ui.map.OverlayColors
 import ro.safetyplease.ui.readText
 import ro.safetyplease.ui.repoFile
+import kotlin.math.roundToLong
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -89,11 +90,11 @@ class MapStyleBuilderTest {
         prettyPrintIndent = "  "
     }
 
-    /** Numbers as doubles, so 12 and 12.0 compare equal. */
+    /** Numbers to six decimals, so 12 and 12.0 compare equal, and a Float written on another platform too. */
     private fun canonical(element: JsonElement): JsonElement = when (element) {
         is JsonObject -> JsonObject(element.mapValues { canonical(it.value) })
         is JsonArray -> JsonArray(element.map(::canonical))
-        is JsonPrimitive -> if (element.isString) element else element.doubleOrNull?.let(::JsonPrimitive) ?: element
+        is JsonPrimitive -> if (element.isString) element else element.doubleOrNull?.let { JsonPrimitive((it * 1e6).roundToLong()) } ?: element
     }
 
     @Test
@@ -333,7 +334,7 @@ class MapStyleBuilderTest {
             .map { it.jsonObject }
         fun rings(pack: String) = features.filter { it.getValue("properties").jsonObject.text("pack") == pack }
             .map { it.getValue("geometry").jsonObject.getValue("coordinates").jsonArray.single() }
-        assertEquals(listOf(json("[[28.0,44.0],[28.5,44.5],[29.0,44.0],[28.0,44.0]]")), rings("area-ro-constanta").map(::canonical))
+        assertEquals(listOf(canonical(json("[[28,44],[28.5,44.5],[29,44],[28,44]]"))), rings("area-ro-constanta").map(::canonical))
         assertEquals(
             listOf("[[177,-19],[180,-19],[180,-16],[177,-16],[177,-19]]", "[[-180,-19],[-179,-19],[-179,-16],[-180,-16],[-180,-19]]")
                 .map { canonical(json(it)) },
