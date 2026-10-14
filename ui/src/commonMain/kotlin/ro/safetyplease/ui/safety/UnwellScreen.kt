@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -187,26 +188,30 @@ private const val EXHALE_MS = 6_000
 private fun BreathingGuide() {
     val colors = AppTheme.colors
     val still = LocalReduceMotion.current
-    val phase = if (still) {
-        0f
+    // the phase is read where the circle is drawn, not in composition: the screen recomposes only when a breath turns
+    val phase: State<Float>? = if (still) {
+        null
     } else {
-        val transition = rememberInfiniteTransition(label = "breath")
-        val animated by transition.animateFloat(
+        rememberInfiniteTransition(label = "breath").animateFloat(
             0f, 1f, infiniteRepeatable(tween(INHALE_MS + EXHALE_MS, easing = LinearEasing), RepeatMode.Restart), label = "phase",
         )
-        animated
     }
-    val inhaling = phase < INHALE_MS.toFloat() / (INHALE_MS + EXHALE_MS)
     val turn = INHALE_MS.toFloat() / (INHALE_MS + EXHALE_MS)
-    val scale = if (inhaling) 0.6f + 0.4f * phase / turn else 1f - 0.4f * (phase - turn) / (1f - turn)
+    val inhaling by remember(phase) { derivedStateOf { (phase?.value ?: 0f) < turn } }
     Text(stringResource(Res.string.unwell_breathe_title), style = MaterialTheme.typography.headline)
     if (!BREATHING_GUIDE_APPROVED) Text(stringResource(Res.string.unwell_breathe_draft), style = MaterialTheme.typography.footnote, color = colors.orangeInk)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(140.dp), contentAlignment = Alignment.Center) {
             Box(
                 Modifier.size(140.dp).graphicsLayer {
-                    scaleX = if (still) 0.8f else scale
-                    scaleY = if (still) 0.8f else scale
+                    val p = phase?.value
+                    val scale = when {
+                        p == null -> 0.8f
+                        p < turn -> 0.6f + 0.4f * p / turn
+                        else -> 1f - 0.4f * (p - turn) / (1f - turn)
+                    }
+                    scaleX = scale
+                    scaleY = scale
                 }.clip(CircleShape).background(colors.accent.copy(alpha = 0.25f)),
             )
             if (!still) {
