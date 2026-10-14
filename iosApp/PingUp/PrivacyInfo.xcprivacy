@@ -3,8 +3,10 @@
 <!--
   What the app declares to Apple. Nothing reaches its developer and nothing tracks anyone (PRIVACY.md). The API
   reasons come from the symbols the app binary imports (nm -u): NSUserDefaults, for the language the app pins for
-  itself, and stat, fstat and lstat, which the Kotlin runtime and Okio call on the app's own files and on a pack
-  the person picks in Files. Check again with nm after adding a library.
+  itself; stat, fstat and lstat, which the Kotlin runtime and Okio call on the app's own files and on a pack the
+  person picks in Files; and mach_absolute_time, which Kotlin's documentation says Compose Multiplatform may use to
+  measure time inside the app (35F9.1). CI checks the Release binary's imports against this file
+  (tools/check_privacy_api.py); run it again after adding a library.
 -->
 <plist version="1.0">
 <dict>
@@ -22,6 +24,14 @@
 			<key>NSPrivacyAccessedAPITypeReasons</key>
 			<array>
 				<string>CA92.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>35F9.1</string>
 			</array>
 		</dict>
 		<dict>

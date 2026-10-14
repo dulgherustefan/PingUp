@@ -1,6 +1,7 @@
 # On every push, and on pull requests from forks (a branch of this repo is already built by its push):
-# the venue map check, debug build, unit tests and lint, and on a Mac the iOS tests and the iPhone app, so that a
-# change to the shared code made on Windows or Linux can't break the iPhone unseen. Releases stay in release.yml.
+# the venue map check, debug build, unit tests and lint, and on a Mac the iOS tests and the iPhone app, debug for the
+# simulator and as it ships, so that a change to the shared code made on Windows or Linux can't break the iPhone
+# unseen. Releases stay in release.yml.
 name: CI
 
 on:
@@ -32,6 +33,12 @@ jobs:
           python3 tools/test_check_venue.py
           python3 tools/check_venue.py app/src/main/assets/venue.json
 
+      # the iPhone's alarm tones are what their script makes, and the privacy manifest check is right
+      - name: iPhone tones and privacy check
+        run: |
+          python3 tools/make_alarm_sounds.py --check
+          python3 tools/test_check_privacy_api.py
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -54,7 +61,7 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     # a Mac runner costs nothing on a public repository
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
 
@@ -82,3 +89,29 @@ jobs:
           xcodebuild -project iosApp/PingUp.xcodeproj -scheme PingUp -configuration Debug
           -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
           CODE_SIGNING_ALLOWED=NO build -quiet
+
+      # what ships: Release, for a phone, with the Kotlin framework linked for arm64, the entitlements and no demo keys;
+      # unsigned, as no certificate lives here. Its imports are checked against the privacy manifest (ITMS-91053)
+      - name: iPhone app, as it ships
+        run: |
+          xcodebuild -project iosApp/PingUp.xcodeproj -scheme PingUp -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build/xcode \
+            CODE_SIGNING_ALLOWED=NO build -quiet
+          app=build/xcode/Build/Products/Release-iphoneos/PingUp.app
+          if [ -e "$app/assets-debug" ]; then echo "the Release app carries the demo staff keys" && exit 1; fi
+          for tone in pingup_evacuation pingup_pause pingup_alarm pingup_silence; do
+            if [ ! -f "$app/$tone.caf" ]; then echo "the app lacks $tone.caf" && exit 1; fi
+          done
+          python3 tools/check_privacy_api.py "$app/PingUp" iosApp/PingUp/PrivacyInfo.xcprivacy
+
+      # the Xcode project is generated from project.yml: a project edited by hand, or not made again after a change,
+      # is said here; it doesn't fail the build, which used the committed one
+      - name: Xcode project and project.yml
+        continue-on-error: true
+        run: |
+          brew install xcodegen
+          cd iosApp && xcodegen --quiet
+          if ! git diff --quiet -- PingUp.xcodeproj PingUp/Info.plist; then
+            git diff --stat -- PingUp.xcodeproj PingUp/Info.plist
+            echo "::warning::iosApp/PingUp.xcodeproj differs from what xcodegen makes of project.yml: run xcodegen on a Mac and commit the result"
+          fi
