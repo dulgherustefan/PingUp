@@ -441,7 +441,7 @@ class ChatExtrasTest {
             GroupMemberWire(stranger.nodeId, m.identity.box.publicKey, "S"),
         )
         val invite = InnerCodec.encode(Inner.GroupInvite(77L, 99L, "Capcană", members))
-        m.engine.unicast(PacketType.PRIVATE, v.nodeId, testCrypto.box(invite, v.identity.box.publicKey, m.identity.box.secretKey))
+        m.engine.unicast(PacketType.PRIVATE, v.nodeId, testCrypto.box(invite, v.identity.box.publicKey, m.identity.box.secretKey)!!)
         advanceTimeBy(10_000)
 
         val group = v.groups.value.single()
