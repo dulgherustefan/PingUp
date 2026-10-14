@@ -78,6 +78,12 @@ fun cornerRect(corner: MapCorner, canvas: Size, width: Float, height: Float, mar
     return Rect(left, top, left + width, top + height)
 }
 
-/** The first of [candidates] that overlaps none of [avoid]; the first one if all do. */
-fun firstFree(candidates: List<Rect>, avoid: List<Rect>): Rect =
-    candidates.firstOrNull { c -> avoid.none { c.overlaps(it) } } ?: candidates.first()
+/**
+ * The first of [candidates] that overlaps none of [avoid]; if all do, the free spot within [within] nearest to the first
+ * one; failing that, the first one.
+ */
+fun firstFree(candidates: List<Rect>, avoid: List<Rect>, within: Rect? = null): Rect {
+    candidates.firstOrNull { c -> avoid.none { c.overlaps(it) } }?.let { return it }
+    val first = candidates.first()
+    return within?.let { placeClear(first.size, first.topLeft, it, avoid) }?.let { Rect(it, first.size) } ?: first
+}

@@ -98,4 +98,15 @@ class MapLabelsTest {
         assertNotNull(firstFree(corners, corners), "all covered: the usual corner")
         assertEquals(corners[0], firstFree(corners, corners))
     }
+
+    @Test
+    fun withEveryCornerTakenTheScaleBarFindsTheNearestFreeSpot() {
+        val canvas = Size(400f, 300f)
+        val corners = listOf(MapCorner.BottomStart, MapCorner.BottomEnd, MapCorner.TopStart).map { cornerRect(it, canvas, 60f, 20f, 16f, 11f) }
+        // the heat label, the zoom buttons and the label on top
+        val controls = listOf(Rect(0f, 250f, 170f, 300f), Rect(340f, 150f, 400f, 300f), Rect(0f, 0f, 250f, 45f))
+        val bar = firstFree(corners, controls, Rect(Offset.Zero, canvas).deflate(8f))
+        assertTrue(controls.none { bar.overlaps(it) }, "clear of every control: $bar")
+        assertEquals(corners[0].size, bar.size)
+    }
 }

@@ -48,11 +48,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
@@ -364,6 +366,8 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                 item(key = "battery") { LowBatteryBanner(battery, vm.venue, origin, Modifier.padding(start = Gutter, end = Gutter, top = 8.dp)) }
             }
             item(key = "map") {
+                // the label on top is as wide as its words: the drawn map keeps names and its scale out from under it
+                var pill by remember { mutableStateOf(IntSize.Zero) }
                 val overlay: @Composable BoxScope.() -> Unit = {
                     val whereText = when {
                         autoZone != null -> stringResource(Res.string.map_here_at, autoZone.name)
@@ -372,7 +376,10 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                         else -> stringResource(Res.string.map_where_tap)
                     }
                     // clear of the compass in the top right corner
-                    WherePill(whereText, known = origin != null, Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 10.dp, end = 48.dp)) { showMine() }
+                    WherePill(
+                        whereText, known = origin != null,
+                        Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 10.dp, end = 48.dp).onSizeChanged { pill = it },
+                    ) { showMine() }
                     heat?.let { HeatPill(it.level, Modifier.align(Alignment.BottomStart).padding(10.dp)) }
                     MapControls(
                         Modifier.align(Alignment.BottomEnd).padding(10.dp),
@@ -430,6 +437,9 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                         reserved = listOfNotNull(
                             MapReserve(MapCorner.BottomEnd, ControlsReserveWidth, ControlsReserveHeight),
                             heat?.let { MapReserve(MapCorner.BottomStart, HeatReserveWidth, HeatReserveHeight) },
+                            pill.takeIf { it != IntSize.Zero }?.let { size ->
+                                with(LocalDensity.current) { MapReserve(MapCorner.TopStart, size.width.toDp() + PillMargin, size.height.toDp() + PillMargin) }
+                            },
                         ),
                         mapOverlay = mapOverlay,
                         overlay = overlay,
@@ -661,6 +671,9 @@ private fun HeatPill(level: Int, modifier: Modifier) {
 /** The heat label with its 10 dp margin; the map draws no name under it. */
 private val HeatReserveWidth = 170.dp
 private val HeatReserveHeight = 32.dp + 20.dp
+
+/** The top label's 10 dp margin and a little air around it. */
+private val PillMargin = 14.dp
 
 /** The zoom and locate buttons with their 10 dp margin and a little air: the map draws no name under them. */
 private val ControlsReserveWidth = 38.dp + 20.dp

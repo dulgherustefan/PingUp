@@ -571,11 +571,13 @@ fun VenueMap(
             val barWidth = max(barLength, scaleText.size.width + 2.dp.toPx())
             val compassBox = Rect(compass - Offset(compassRadius + 4.dp.toPx(), compassRadius + 4.dp.toPx()), Size(2 * compassRadius + 8.dp.toPx(), 2 * compassRadius + 8.dp.toPx()))
             val corners = reserved.map { cornerRect(it.corner, size, it.width.toPx(), it.height.toPx()) } + compassBox
-            // the scale bar takes the first corner no control covers; its line is 3 dp thick and hangs below the baseline
+            // the scale bar takes the first corner no control covers, or the free spot nearest the usual one when they
+            // all are; its line is 3 dp thick and hangs below the baseline
             val bar = firstFree(
                 listOf(MapCorner.BottomStart, MapCorner.BottomEnd, MapCorner.TopStart)
                     .map { cornerRect(it, size, barWidth, textRise + 3.dp.toPx(), 16.dp.toPx(), 11.dp.toPx()) },
                 corners,
+                Rect(Offset.Zero, size).deflate(8.dp.toPx()),
             )
 
             // each zone's icon and name: stacked, side by side or just the icon, depending on the room; names never end
