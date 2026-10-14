@@ -56,6 +56,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -73,6 +74,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -250,14 +252,17 @@ fun AddFriendScreen(vm: AppViewModel) {
     var bigCode by remember { mutableStateOf(false) }
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
+    val scope = rememberCoroutineScope()
 
     fun handle(text: String) {
         // the camera sees the same code many times per second
         if (text == lastText) return
         lastText = text
-        val result = vm.handleScan(text)
-        outcome = result
-        if (result.success) haptics.confirm() else haptics.reject()
+        scope.launch {
+            val result = vm.handleScan(text)
+            outcome = result
+            if (result.success) haptics.confirm() else haptics.reject()
+        }
     }
 
     val success = outcome?.takeIf { it.success }

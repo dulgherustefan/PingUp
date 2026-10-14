@@ -3,7 +3,6 @@ package ro.safetyplease.core.control
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import ro.safetyplease.core.announce.Notice
-import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.StaffIncident
 import ro.safetyplease.core.protocol.IncidentAck
 import ro.safetyplease.core.util.Clock
@@ -16,7 +15,7 @@ import ro.safetyplease.core.venue.SiteGrid
  * appended.
  */
 class ConsoleRecorder(
-    private val store: JsonStore<ConsoleLog>,
+    private val store: ConsoleLogStore,
     private val grid: SiteGrid,
     private val clock: Clock,
     /** The incident as IncidentManager keeps it, so the RECEIVED signed while opening a report comes after the report. */
@@ -73,6 +72,6 @@ class ConsoleRecorder(
         if (entries.isEmpty()) return
         entries.filter { it.event == LogEvent.REPORT }.mapTo(logged) { it.incidentId }
         entries.filter { it.event == LogEvent.CANCEL_REQUEST }.mapTo(requests) { it.incidentId to it.epoch }
-        store.update { it.copy(entries = it.entries + entries) }
+        store.append(entries)
     }
 }

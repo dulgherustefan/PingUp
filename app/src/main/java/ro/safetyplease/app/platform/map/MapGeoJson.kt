@@ -7,6 +7,7 @@ import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import ro.safetyplease.core.util.validLatLon
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.SiteGrid
 import ro.safetyplease.core.venue.Venue
@@ -87,10 +88,10 @@ object MapGeoJson {
         ),
     )
 
-    fun target(point: GeoPoint?): String = collection(listOfNotNull(point?.let { feature(point(it)) {} }))
+    fun target(point: GeoPoint?): String = collection(listOfNotNull(point?.takeIf(::onEarth)?.let { feature(point(it)) {} }))
 
     fun markers(markers: List<MapMarker>): String = collection(
-        markers.map { marker ->
+        markers.filter { onEarth(it.point) }.map { marker ->
             feature(point(marker.point)) {
                 put("key", marker.key)
                 put("color", marker.color)
@@ -103,7 +104,7 @@ object MapGeoJson {
      * faded, how large and whether grey by age.
      */
     fun friends(friends: List<MapFriend>): String = collection(
-        friends.flatMap { f ->
+        friends.filter { validLatLon(it.lat, it.lon) }.flatMap { f ->
             val center = GeoPoint(f.lat, f.lon)
             val look: JsonObjectBuilder.() -> Unit = {
                 put("id", f.id)
@@ -124,7 +125,7 @@ object MapGeoJson {
 
     /** The features' routes as lines, each with its style: `primary` or `alternative`. */
     fun routes(routes: List<MapRoute>): String = collection(
-        routes.filter { it.points.size >= 2 }.map { route ->
+        routes.filter { it.points.size >= 2 && it.points.all(::onEarth) }.map { route ->
             feature(line(route.points)) { put("style", route.style.code) }
         },
     )
@@ -144,7 +145,7 @@ object MapGeoJson {
 
     /** The features' pins, with the key a tap reports, the kind, its color and the label. */
     fun overlayPins(pins: List<OverlayPin>, color: (PinKind) -> String): String = collection(
-        pins.map { pin ->
+        pins.filter { onEarth(it.point) }.map { pin ->
             feature(point(pin.point)) {
                 put("key", pin.key)
                 put("kind", pin.kind.code)
@@ -167,6 +168,9 @@ object MapGeoJson {
             listOf(feature(polygon(ring(center, me.accuracyM * RING_95))) {}, feature(point(center)) {})
         },
     )
+
+    /** Places from the network may be off the earth; they aren't drawn. */
+    private fun onEarth(p: GeoPoint) = validLatLon(p.lat, p.lon)
 
     private fun coordinate(p: GeoPoint) = buildJsonArray {
         add(p.lon)

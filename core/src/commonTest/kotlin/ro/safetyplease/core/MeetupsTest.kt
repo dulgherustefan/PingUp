@@ -132,7 +132,7 @@ class MeetupsTest {
         val w = World(this, tmp.root)
         val (a, b) = pair(w)
         val lit = InnerCodec.encode(Inner.PingRequest(PingAction.LIGHTING, 10))
-        b.engine.unicast(PacketType.PRIVATE, a.nodeId, testCrypto.box(lit, a.identity.box.publicKey, b.identity.box.secretKey))
+        b.engine.unicast(PacketType.PRIVATE, a.nodeId, testCrypto.box(lit, a.identity.box.publicKey, b.identity.box.secretKey)!!)
         advanceTimeBy(5_000)
         assertTrue(a.chat.lighting.value.isEmpty())
     }

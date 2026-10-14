@@ -40,6 +40,9 @@ class ChatStore(private val dir: Path, private val scope: CoroutineScope) {
     val state: StateFlow<ChatData> get() = _state
     val value: ChatData get() = _state.value
 
+    /** The outbox file's, as [JsonStore.health]: the conversations' files are on the same disk, and written with it. */
+    val health: StateFlow<StoreHealth> get() = outboxStore.health
+
     init {
         (FileSystem.SYSTEM.listOrNull(conversationsDir) ?: emptyList())
             .filter { it.name.endsWith(SUFFIX) && FileSystem.SYSTEM.metadataOrNull(it)?.isRegularFile == true }

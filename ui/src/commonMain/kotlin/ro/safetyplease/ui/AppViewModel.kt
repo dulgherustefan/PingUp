@@ -472,7 +472,8 @@ class AppViewModel(val c: PingUpSession, val phone: PhoneUi) : ViewModel() {
 
     fun myQrText(): String = QrCodes.encodeFriend(c.chat.myCard())
 
-    fun handleScan(text: String): ScanOutcome {
+    /** Suspends only for a gate code, whose pack is checked again off the screen's thread. */
+    suspend fun handleScan(text: String): ScanOutcome {
         QrCodes.decodeFriend(text)?.let { card ->
             return if (c.chat.addFriend(card)) ScanOutcome.FriendAdded(card.nickname) else ScanOutcome.OwnCode
         }

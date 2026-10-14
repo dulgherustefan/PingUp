@@ -34,7 +34,7 @@ class PointBoardTest {
     @Test
     fun aStatusRoundTripsThroughTheControlChannelAndOnlyStaffReadsIt() {
         val status = signed(9, PointLevel.CLOSED)
-        val sealed = ControlMessages.seal(event.staffCrypto, status.encode())
+        val sealed = ControlMessages.seal(event.staffCrypto, status.encode())!!
         val packet = Packet(PacketType.PRIVATE, 6, 1, 0x1234L, 0, ControlChannel.ID, true, sealed)
         val plain = ControlMessages.open(event.staffCrypto, event.secret, packet)!!
         assertEquals(Verdict.VALID, chain.checkPoint(plain))

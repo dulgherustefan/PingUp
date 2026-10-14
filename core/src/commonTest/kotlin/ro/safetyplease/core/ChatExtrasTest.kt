@@ -142,7 +142,7 @@ class ChatExtrasTest {
 
         // type 99 is what an older build makes of a kind added later: its decoder has no case for it
         val unknown = byteArrayOf(99, 0, 0, 0, 0, 0, 0, 0, 42)
-        a.engine.unicast(PacketType.PRIVATE, b.nodeId, testCrypto.box(unknown, b.identity.box.publicKey, a.identity.box.secretKey))
+        a.engine.unicast(PacketType.PRIVATE, b.nodeId, testCrypto.box(unknown, b.identity.box.publicKey, a.identity.box.secretKey)!!)
         advanceTimeBy(10_000)
 
         assertTrue(b.messages.isEmpty())
@@ -174,7 +174,7 @@ class ChatExtrasTest {
             // what a phone up to MEETING_REPLY (16) can't decode at all
             assertTrue(InnerCodec.encode(inner)[0] > Frozen11.LAST_INNER_KIND)
             val answered = b.chatSent()
-            a.engine.unicast(PacketType.PRIVATE, b.nodeId, testCrypto.box(InnerCodec.encode(inner), b.identity.box.publicKey, a.identity.box.secretKey))
+            a.engine.unicast(PacketType.PRIVATE, b.nodeId, testCrypto.box(InnerCodec.encode(inner), b.identity.box.publicKey, a.identity.box.secretKey)!!)
             advanceTimeBy(10_000)
             assertEquals(confirmed, b.chatSent() > answered, "DELIVERED for $inner")
         }

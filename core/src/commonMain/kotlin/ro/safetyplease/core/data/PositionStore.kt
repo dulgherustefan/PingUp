@@ -169,6 +169,9 @@ class PositionStore private constructor(private val file: JsonStore<PositionData
     val state: StateFlow<PositionData> get() = memory
     val value: PositionData get() = memory.value
 
+    /** The file's, as [JsonStore.health]; always fine in memory. */
+    val health: StateFlow<StoreHealth> = file?.health ?: MutableStateFlow(StoreHealth())
+
     fun update(transform: (PositionData) -> PositionData) {
         synchronized(lock) {
             val old = memory.value

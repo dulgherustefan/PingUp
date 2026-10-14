@@ -679,7 +679,7 @@ private object Golden {
     private fun seal(plain: ByteArray, to: ByteArray): ByteArray {
         val ephemeral = crypto.boxKeyPairFromSeed(seed(0xd0))
         val nonce = genericHash(ephemeral.publicKey + to, 24)
-        val boxed = cryptoWithRandom { nonce.copyOf() }.box(plain, to, ephemeral.secretKey)
+        val boxed = cryptoWithRandom { nonce.copyOf() }.box(plain, to, ephemeral.secretKey)!!
         return ephemeral.publicKey + boxed.copyOfRange(nonce.size, boxed.size)
     }
 
@@ -778,7 +778,7 @@ private object Golden {
         ),
     )
 
-    fun boxed(): ByteArray = crypto.box(InnerCodec.encode(text), bob.box.publicKey, alice.box.secretKey)
+    fun boxed(): ByteArray = crypto.box(InnerCodec.encode(text), bob.box.publicKey, alice.box.secretKey)!!
 
     val testPacket = Packet(
         PacketType.TEST, 7, long("0123456789abcdef"), long("f0e1d2c3b4a59687"), TIME, null, false, "ping".encodeToByteArray(),

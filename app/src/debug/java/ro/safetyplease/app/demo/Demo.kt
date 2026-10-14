@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import ro.safetyplease.app.App
@@ -131,7 +132,8 @@ object Demo {
      */
     fun loadPack(context: Context, c: AppContainer, exercise: Boolean = false): Result<String?> {
         val text = packText(context, c, exercise)
-        val loaded = c.loadEventPack(text)
+        // a debug command answers when it is done, as it always did
+        val loaded = runBlocking { c.loadEventPack(text) }
         val added = loaded.added
         if (loaded.status != PackStatus.VALID || added == null) return Result.failure(IllegalStateException(loaded.status.name))
         // an older version or an event key the other kind uses is refused without a word: say which

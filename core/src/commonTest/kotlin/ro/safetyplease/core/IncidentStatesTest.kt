@@ -392,7 +392,7 @@ class IncidentStatesTest {
 
         val id = ByteArray(16) { (it + 1).toByte() }
         val body = IncidentBody(IncidentCategory.MEDICAL, Severity.URGENT, w.clock.wallMs() / 1000, "bar", null, null, "", null)
-        old.publishReport(id, w.event.staffCrypto.sealReport(body.encode()))
+        old.publishReport(id, w.event.staffCrypto.sealReport(body.encode())!!)
         advanceTimeBy(10_000)
         assertEquals(AckStatus.RECEIVED, old.ackStatus(id))
 

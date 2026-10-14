@@ -9,6 +9,7 @@ import okio.IOException
 import okio.Path
 import platform.posix.EINTR
 import platform.posix.F_BARRIERFSYNC
+import platform.posix.O_APPEND
 import platform.posix.O_CREAT
 import platform.posix.O_TRUNC
 import platform.posix.O_WRONLY
@@ -20,9 +21,13 @@ import platform.posix.open
 import platform.posix.strerror
 import platform.posix.write
 
+actual fun writeSynced(path: Path, bytes: ByteArray) = synced(path, bytes, O_WRONLY or O_CREAT or O_TRUNC)
+
+actual fun appendSynced(path: Path, bytes: ByteArray) = synced(path, bytes, O_WRONLY or O_CREAT or O_APPEND)
+
 @OptIn(ExperimentalForeignApi::class)
-actual fun writeSynced(path: Path, bytes: ByteArray) {
-    val fd = open(path.toString(), O_WRONLY or O_CREAT or O_TRUNC, 0x1a4) // 0644
+private fun synced(path: Path, bytes: ByteArray, flags: Int) {
+    val fd = open(path.toString(), flags, 0x1a4) // 0644
     if (fd < 0) throw IOException("open $path: ${strerror(errno)?.toKString()}")
     try {
         var done = 0

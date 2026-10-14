@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.Settings
@@ -15,6 +16,8 @@ import ro.safetyplease.core.venue.GeoFix
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.core.venue.WalkDistance
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 /**
  * The sets a person picked for "Planul meu", by [Program.key], those with "Amintește-mi" on, how many minutes ahead it
@@ -47,6 +50,8 @@ class ProgramReminders(
     private val settings: () -> Settings,
     private val fix: () -> GeoFix?,
     private val walk: () -> WalkDistance,
+    /** Where the walks to the stages are planned: the session's Dispatchers.Default keeps A* off the mesh thread. */
+    private val planner: CoroutineContext = EmptyCoroutineContext,
     private val ring: (ScheduleItem, walkMin: Int) -> Unit,
 ) {
     val state: StateFlow<MyProgram> = store.state.map(::current).stateIn(scope, SharingStarted.Eagerly, current(store.value))
@@ -100,14 +105,17 @@ class ProgramReminders(
         return from?.let { walk().meters(it, stage) }
     }
 
-    private fun ringDue() {
+    private suspend fun ringDue() {
         val program = state.value
         if (program.reminders.isEmpty()) return
-        val from = origin()
-        val due = Program.due(program, schedule, clock.wallMs() / 1000) { walkMeters(from, it) }
+        // the walks are planned away from the caller's thread; the reminders ring back on it
+        val due = withContext(planner) {
+            val from = origin()
+            Program.due(program, schedule, clock.wallMs() / 1000) { walkMeters(from, it) }.map { it to Program.walkMinutes(walkMeters(from, it)) }
+        }
         if (due.isEmpty()) return
-        due.forEach { ring(it, Program.walkMinutes(walkMeters(from, it))) }
-        change { p -> p.copy(fired = p.fired + due.map(Program::key)) }
+        due.forEach { (item, walkMin) -> ring(item, walkMin) }
+        change { p -> p.copy(fired = p.fired + due.map { Program.key(it.first) }) }
     }
 
     private companion object {

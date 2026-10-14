@@ -38,15 +38,19 @@ class SodiumCrypto(private val sodium: LazySodium) : Crypto {
         return KeyPair(pk, sk)
     }
 
-    override fun box(plain: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray {
-        val nonce = sodium.randomBytesBuf(Box.NONCEBYTES)
+    // native libsodium reads as many bytes from a key or a nonce as their kind has, whatever the array holds: every size
+    // is checked first, and a wrong one fails as a key libsodium refuses does
+    override fun box(plain: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray? {
+        if (theirPublic.size != Box.PUBLICKEYBYTES || mySecret.size != Box.SECRETKEYBYTES) return null
+        val nonce = sodium.randomBytesBuf(Box.NONCEBYTES).takeIf { it.size == Box.NONCEBYTES } ?: return null
         val cipher = ByteArray(plain.size + Box.MACBYTES)
-        check(sodium.cryptoBoxEasy(cipher, plain, plain.size.toLong(), nonce, theirPublic, mySecret))
+        // libsodium refuses a small-order key: the shared secret would be all zeros
+        if (!sodium.cryptoBoxEasy(cipher, plain, plain.size.toLong(), nonce, theirPublic, mySecret)) return null
         return nonce + cipher
     }
 
     override fun boxOpen(data: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray? {
-        if (data.size < Crypto.BOX_OVERHEAD || theirPublic.size != Box.PUBLICKEYBYTES) return null
+        if (data.size < Crypto.BOX_OVERHEAD || theirPublic.size != Box.PUBLICKEYBYTES || mySecret.size != Box.SECRETKEYBYTES) return null
         val nonce = data.copyOfRange(0, Box.NONCEBYTES)
         val cipher = data.copyOfRange(Box.NONCEBYTES, data.size)
         val plain = ByteArray(cipher.size - Box.MACBYTES)
@@ -54,20 +58,23 @@ class SodiumCrypto(private val sodium: LazySodium) : Crypto {
         return if (ok) plain else null
     }
 
-    override fun seal(plain: ByteArray, recipientPublic: ByteArray): ByteArray {
+    override fun seal(plain: ByteArray, recipientPublic: ByteArray): ByteArray? {
+        if (recipientPublic.size != Box.PUBLICKEYBYTES) return null
         val cipher = ByteArray(plain.size + Box.SEALBYTES)
-        check(sodium.cryptoBoxSeal(cipher, plain, plain.size.toLong(), recipientPublic))
+        if (!sodium.cryptoBoxSeal(cipher, plain, plain.size.toLong(), recipientPublic)) return null
         return cipher
     }
 
     override fun sealOpen(data: ByteArray, recipientPublic: ByteArray, recipientSecret: ByteArray): ByteArray? {
-        if (data.size < Box.SEALBYTES) return null
+        if (data.size < Box.SEALBYTES || recipientPublic.size != Box.PUBLICKEYBYTES || recipientSecret.size != Box.SECRETKEYBYTES) return null
         val plain = ByteArray(data.size - Box.SEALBYTES)
         val ok = sodium.cryptoBoxSealOpen(plain, data, data.size.toLong(), recipientPublic, recipientSecret)
         return if (ok) plain else null
     }
 
+    /** Only this phone's own keys come here, never one from the network: a wrong size is a bug, and stops before libsodium. */
     override fun sign(message: ByteArray, secretKey: ByteArray): ByteArray {
+        require(secretKey.size == Sign.SECRETKEYBYTES) { "signing key of ${secretKey.size} bytes" }
         val signature = ByteArray(Sign.BYTES)
         check(sodium.cryptoSignDetached(signature, message, message.size.toLong(), secretKey))
         return signature

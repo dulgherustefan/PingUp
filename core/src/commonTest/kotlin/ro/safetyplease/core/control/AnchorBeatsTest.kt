@@ -65,7 +65,7 @@ class AnchorBeatsTest {
     fun onlyStaffOpensAHeartbeatAndOnlyOnTheControlChannel() {
         val event = TestEvent()
         val beat = Heartbeat(batteryPercent = 64, charging = false, temperatureC = 41, quietS = 12, links = 2, crowd = 5, zone = "C3")
-        val sealed = ControlMessages.seal(event.staffCrypto, beat.encode())
+        val sealed = ControlMessages.seal(event.staffCrypto, beat.encode())!!
         fun to(recipient: Long) = Packet(PacketType.PRIVATE, 6, 1, 0x1234L, 0, recipient, true, sealed)
         val packet = to(ControlChannel.ID)
         assertEquals(beat, ControlMessages.open(event.staffCrypto, event.secret, packet)?.let(Heartbeat::decode))

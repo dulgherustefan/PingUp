@@ -1,5 +1,6 @@
 package ro.safetyplease.core.session
 
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -47,6 +48,7 @@ import ro.safetyplease.core.chat.ChatManager
 import ro.safetyplease.core.chat.PositionFrame
 import ro.safetyplease.core.chat.PositionPolicy
 import ro.safetyplease.core.control.ConsoleLog
+import ro.safetyplease.core.control.ConsoleLogStore
 import ro.safetyplease.core.control.ConsoleRecorder
 import ro.safetyplease.core.control.ControlMessages
 import ro.safetyplease.core.control.HeardPeer
@@ -81,6 +83,8 @@ import ro.safetyplease.core.data.JsonStore
 import ro.safetyplease.core.data.PositionStore
 import ro.safetyplease.core.data.Role
 import ro.safetyplease.core.data.Settings
+import ro.safetyplease.core.data.StoreHealth
+import ro.safetyplease.core.event.Added
 import ro.safetyplease.core.event.EventKind
 import ro.safetyplease.core.event.EventPack
 import ro.safetyplease.core.event.EventPacks
@@ -144,10 +148,16 @@ import kotlin.time.Instant
  */
 open class PingUpSession(private val platform: AppPlatform) {
     val clock: Clock = platform.clock
-    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * What a run of the session threw goes to the log, and only that run ends: one bad packet or stored item doesn't
+     * take the app down, nor bring it down again at every start. Cancellation never comes here.
+     */
+    private val uncaught = CoroutineExceptionHandler { _, e -> platform.log("uncaught in the session: ${e.stackTraceToString()}") }
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + uncaught)
 
     /** One thread for mesh, radio, chat and incidents, so network state needs no locks. */
-    val meshScope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1))
+    val meshScope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1) + uncaught)
 
     val crypto: Crypto = platform.crypto
     private val vault = platform.vault
@@ -181,7 +191,8 @@ open class PingUpSession(private val platform: AppPlatform) {
     /** An exercise: banner on every screen, no alarm sound, and its own incidents, cache, console log and staff keys. */
     val exercise: Boolean = event?.exercise == true
 
-    val incidentStore = JsonStore(modeFile("incidents.json"), IncidentData.serializer(), IncidentData(), ioScope)
+    /** Without the fields at their default value: a console keeps thousands of incidents, rewritten at every change. */
+    val incidentStore = JsonStore(modeFile("incidents.json"), IncidentData.serializer(), IncidentData(), ioScope, encodeDefaults = false)
 
     private val venueText: String = event?.venue ?: platform.asset("venue.json")
 
@@ -201,18 +212,14 @@ open class PingUpSession(private val platform: AppPlatform) {
         }
     val grid = SiteGrid.of(venue.bounds, event?.gridMeters ?: SiteGrid.CELL_METERS)
 
-    /** The control console's shift log; written only while this phone is the console. */
-    val consoleLog = JsonStore(
-        modeFile("console_log.json"), ConsoleLog.serializer(), ConsoleLog(), ioScope, ConsoleLog.SCHEMA_VERSION,
-    )
+    /** The control console's shift log, appended to; written only while this phone is the console. */
+    val consoleLog = ConsoleLogStore(modeFile(CONSOLE_LOG), ioScope)
     val console = ConsoleRecorder(consoleLog, grid, clock) { id -> incidentStore.value.staff.firstOrNull { it.incidentId == id } }
 
     /** The other mode's console log, real or exercise, read once for the edition report; never written here. */
     val otherConsoleLog: ConsoleLog by lazy {
         val other = if (exercise) EventKind.REAL else EventKind.EXERCISE
-        JsonStore(
-            dataDir / modeFileName("console_log.json", other), ConsoleLog.serializer(), ConsoleLog(), ioScope, ConsoleLog.SCHEMA_VERSION,
-        ).value
+        ConsoleLogStore.read(dataDir / modeFileName(CONSOLE_LOG, other))
     }
 
     /** When the console last heard each phone; kept while this phone is the console. */
@@ -262,8 +269,13 @@ open class PingUpSession(private val platform: AppPlatform) {
     val log = PacketLog(platform.debug).apply { sink = platform::log }
     val radio = platform.radio(meshScope, identity.nodeId)
 
-    /** The reports and ACKs this phone carries for store-and-forward, so a restart doesn't lose them. */
-    private val meshCache = JsonStore(modeFile("mesh_cache.json"), CachedIncidents.serializer(), CachedIncidents(), ioScope)
+    /**
+     * The reports and ACKs this phone carries for store-and-forward, so a restart doesn't lose them. Written after
+     * every change a relay makes, so without a backup and the fields at their default value: it is only a cache.
+     */
+    private val meshCache = JsonStore(
+        modeFile("mesh_cache.json"), CachedIncidents.serializer(), CachedIncidents(), ioScope, keepsBackup = false, encodeDefaults = false,
+    )
 
     val engine = MeshEngine(
         meshScope, radio, clock, CryptoRandom(crypto), identity.nodeId,
@@ -319,12 +331,13 @@ open class PingUpSession(private val platform: AppPlatform) {
         if (!foreground.value || openConversation != message.conversation) notifications.chatMessage(message, sender)
     }
 
+    private val searchStore = JsonStore(dataDir / "searches.json", ListSerializer(Search.serializer()), emptyList(), ioScope)
+
     /** "M-am pierdut de grup", the last gasp at low battery and a lost person's last position in a report. */
     val regasire = Regasire(
-        meshScope, chat, positions, clock, venue, identity.nodeId,
-        JsonStore(dataDir / "searches.json", ListSerializer(Search.serializer()), emptyList(), ioScope),
+        meshScope, chat, positions, clock, venue, identity.nodeId, searchStore,
         walk = { walkDistance }, mapState = { mapState.value }, myPosition = { positioning.position.value },
-        battery = { battery.state.value.percent.coerceIn(0, 100) }, frame = { positionFrame },
+        battery = { battery.state.value.percent.coerceIn(0, 100) }, frame = { positionFrame }, planner = Dispatchers.Default,
     )
 
     private val checkinStore = JsonStore(dataDir / "checkin.json", CheckinData.serializer(), CheckinData(), ioScope)
@@ -436,10 +449,11 @@ open class PingUpSession(private val platform: AppPlatform) {
     val noticeTemplates: NoticeTemplates =
         event?.notices ?: NoticeTemplates.parse(platform.asset("notices.json")) ?: NoticeTemplates.NONE
 
+    private val noticeStore = JsonStore(modeFile("notices.json"), NoticeBoard.serializer(), NoticeBoard(), ioScope)
+
     /** The organiser's notices: signed here on a console, shown to staff and to participants who opted in. */
     val notices = Notices(
-        meshScope, engine, keyChain, crypto, clock,
-        JsonStore(modeFile("notices.json"), NoticeBoard.serializer(), NoticeBoard(), ioScope),
+        meshScope, engine, keyChain, crypto, clock, noticeStore,
         resends = { settings.value.role == Role.CONTROL },
         onNotice = ::onNotice,
     )
@@ -466,11 +480,12 @@ open class PingUpSession(private val platform: AppPlatform) {
      */
     val walkDistance: WalkDistance = walkRouter.distance({ mapState.value }) { settings.value.role.hasStaffKeys }
 
+    private val programStore = JsonStore(dataDir / "program.json", MyProgram.serializer(), MyProgram(), ioScope)
+
     /** "Planul meu" from the event's schedule; its reminders ring from here while the session runs. */
     val program = ProgramReminders(
-        meshScope, JsonStore(dataDir / "program.json", MyProgram.serializer(), MyProgram(), ioScope), event?.id.orEmpty(),
-        event?.schedule.orEmpty(), venue, clock,
-        settings = { settings.value }, fix = { platform.location.value }, walk = { walkDistance },
+        meshScope, programStore, event?.id.orEmpty(), event?.schedule.orEmpty(), venue, clock,
+        settings = { settings.value }, fix = { platform.location.value }, walk = { walkDistance }, planner = Dispatchers.Default,
     ) { set, walkMin -> notifications.setReminder(set, venue.zoneName(set.stage), walkMin) }
 
     /** Priority, crowd levels, hand-over notes, responders and man-down. */
@@ -478,7 +493,22 @@ open class PingUpSession(private val platform: AppPlatform) {
         meshScope, ioScope, platform, notifications, clock, settings, incidentStore.state, venue, { walkDistance },
         { draft, bypass -> incidents.report(draft, bypass) },
         modeFile("density.json"), modeFile("handover.json"), dataDir / "staff_chain.json", exportDir, foreground,
+        planner = Dispatchers.Default,
     )
+
+    /**
+     * Whether the app's files keep up, its stores together: writes failing (a full disk; what happens meanwhile is kept
+     * in memory and written once there is room), a file that couldn't be read, one that came back from its backup.
+     * For the screens to tell the person; the log says it too.
+     */
+    val storage: StateFlow<StoreHealth> = listOf(
+        settings.health, friends.health, groups.health, blocked.health, chatStore.health, events.health, revokedStore.health,
+        incidentStore.health, consoleLog.health, metricsLog.health, networkLog.health, reporterMetrics.health, meshCache.health,
+        positions.health, searchStore.health, checkinStore.health, noticeStore.health, programStore.health,
+    ).let { all ->
+        combine(all) { states -> states.fold(StoreHealth(), StoreHealth::plus) }
+            .stateIn(ioScope, SharingStarted.Eagerly, all.fold(StoreHealth()) { sum, health -> sum + health.value })
+    }
 
     /** The alerts that already sounded here, by topic: the seq of the last. */
     private val sounded = mutableMapOf<Int, Long>()
@@ -569,6 +599,7 @@ open class PingUpSession(private val platform: AppPlatform) {
             }
         }
         ioScope.launch { logMobileNetwork() }
+        ioScope.launch { storage.collect { if (!it.ok) platform.log("storage: $it") } }
         meshScope.launch {
             // the first value is where the phone was when the notices it holds came: they were decided then
             combine(settings.state, platform.location) { _, _ -> whereabouts() }.distinctUntilChanged().drop(1).collect { soundOnArrival() }
@@ -702,7 +733,8 @@ open class PingUpSession(private val platform: AppPlatform) {
     /** An anchor's heartbeat, to whichever console the mesh reaches. */
     fun sendHeartbeat(beat: Heartbeat) {
         meshScope.launch {
-            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, ControlMessages.seal(staffCrypto, beat.encode()))
+            val sealed = ControlMessages.seal(staffCrypto, beat.encode()) ?: return@launch
+            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, sealed)
         }
     }
 
@@ -718,7 +750,8 @@ open class PingUpSession(private val platform: AppPlatform) {
         sentPoints.update { it + (point to SentPoint(level, now)) }
         if (settings.value.role == Role.CONTROL) offerPoint(status)
         meshScope.launch {
-            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, ControlMessages.seal(staffCrypto, status.encode()))
+            val sealed = ControlMessages.seal(staffCrypto, status.encode()) ?: return@launch
+            engine.unicast(PacketType.PRIVATE, ControlChannel.ID, sealed)
         }
         return true
     }
@@ -738,7 +771,7 @@ open class PingUpSession(private val platform: AppPlatform) {
                 val now = clock.wallMs()
                 val plan = planner.plan(me, data.staff, own, now, muted)
                 plan.stop.forEach(notifications::cancelStaffAlert)
-                plan.post.forEach(staffChain::post)
+                plan.post.forEach { staffChain.post(it) }
                 val next = plan.nextAt ?: break
                 delay(next - now)
             }
@@ -833,11 +866,16 @@ open class PingUpSession(private val platform: AppPlatform) {
         return copy(role = role, teamName = card.teamName, anchorZone = if (anchor) card.zone else "", staffZone = if (anchor) "" else card.zone)
     }
 
-    /** Checks a pack and keeps it; it is used only once selected. */
-    fun loadEventPack(text: String): Loaded {
-        var loaded: Loaded? = null
-        events.update { shelf -> shelf.load(text, crypto, root, clock.wallMs() / 1000, revokedStore.value.ids).also { loaded = it.second }.first }
-        return loaded!!
+    /**
+     * Checks a pack and keeps it; it is used only once selected. The check (up to 4 MiB of JSON, the plan's image, a
+     * signature over all of it) runs off the caller's thread, so a screen can wait for it.
+     */
+    suspend fun loadEventPack(text: String): Loaded {
+        val check = withContext(Dispatchers.Default) { EventPacks.check(text, crypto, root, clock.wallMs() / 1000, revokedStore.value.ids) }
+        val pack = check.pack ?: return Loaded(check.status, null)
+        var added: Added? = null
+        events.update { shelf -> shelf.with(pack, text).also { added = it.second }.first }
+        return Loaded(PackStatus.VALID, added)
     }
 
     /** A pack from an https link, as the organiser publishes it before the event; null if it can't be fetched. */
@@ -861,13 +899,15 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     /**
      * Writes now what the stores keep for 150 ms, before the process may end: another event loading, or the iPhone app
-     * going to the background, where iOS may end it later without a word.
+     * going to the background, where iOS may end it later without a word. Never throws: a write that fails stays
+     * pending ([storage]).
      */
     fun flush() {
         listOf(
-            events, settings, friends, groups, incidentStore, consoleLog, metricsLog, networkLog, reporterMetrics, meshCache, revokedStore,
-            checkinStore,
+            events, settings, friends, groups, incidentStore, metricsLog, networkLog, reporterMetrics, meshCache, revokedStore,
+            checkinStore, searchStore, noticeStore, programStore,
         ).forEach { it.flush() }
+        consoleLog.flush()
         positions.flush()
         chatStore.flush()
         staffChain.flush()
@@ -875,9 +915,13 @@ open class PingUpSession(private val platform: AppPlatform) {
 
     fun removeEventPack(hash: String) = events.update { it.without(hash) }
 
-    /** The pack still holds now, so switching to it loads it. */
-    fun usable(pack: StoredPack): Boolean =
+    /**
+     * The pack still holds now, so switching to it loads it. Checking it reads up to 4 MiB of JSON, the plan's image and
+     * a signature over all of it: off the caller's thread.
+     */
+    suspend fun usable(pack: StoredPack): Boolean = withContext(Dispatchers.Default) {
         EventPacks.check(pack.text, crypto, root, clock.wallMs() / 1000, revokedStore.value.ids).status == PackStatus.VALID
+    }
 
     /** An SPR1 code: the certificate ids it newly revokes, or null if this event's keys didn't sign it. */
     fun applyRevocation(payload: ByteArray): List<Long>? = revocations.add(payload)
@@ -945,5 +989,8 @@ open class PingUpSession(private val platform: AppPlatform) {
         private const val SHIFT_CHECK_MS = 60_000L
         private const val SHARE_TICK_MS = 30_000L
         private const val NO_PACK_DAY_START_HOUR = 6
+
+        /** JSON lines since the log is appended to; the name stays, so an older single-object log is read in place. */
+        private const val CONSOLE_LOG = "console_log.json"
     }
 }

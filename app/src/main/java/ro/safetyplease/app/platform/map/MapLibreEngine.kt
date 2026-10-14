@@ -48,6 +48,7 @@ import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.android.style.sources.ImageSource
 import ro.safetyplease.core.event.SitePlan
+import ro.safetyplease.core.util.validLatLon
 import ro.safetyplease.core.venue.Bounds
 import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.SiteGrid
@@ -164,12 +165,13 @@ class MapLibreEngine(
     override fun setFriends(friends: List<MapFriend>) = put(FRIENDS, MapGeoJson.friends(friends))
 
     override fun setMe(me: MapMe?) {
-        this.me = me
-        put(ME, MapGeoJson.me(me))
-        if (me != null && follow != FollowMode.NONE) {
-            val bearing = if (follow == FollowMode.HEADING_UP) me.headingDeg?.toDouble() ?: map.cameraPosition.bearing else 0.0
+        val shown = me?.takeIf { validLatLon(it.lat, it.lon) }
+        this.me = shown
+        put(ME, MapGeoJson.me(shown))
+        if (shown != null && follow != FollowMode.NONE) {
+            val bearing = if (follow == FollowMode.HEADING_UP) shown.headingDeg?.toDouble() ?: map.cameraPosition.bearing else 0.0
             val zoom = map.cameraPosition.zoom.coerceAtLeast(FOLLOW_ZOOM)
-            move(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder().target(LatLng(me.lat, me.lon)).zoom(zoom).bearing(bearing).build()), true)
+            move(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder().target(LatLng(shown.lat, shown.lon)).zoom(zoom).bearing(bearing).build()), true)
         }
     }
 
@@ -179,16 +181,22 @@ class MapLibreEngine(
         setMe(me)
     }
 
+    // LatLng and LatLngBounds throw for a latitude past 90°, and a place from the network (a friend, a report) may have
+    // one: the camera only ever goes to places on the earth
     override fun fit(bounds: Bounds, animated: Boolean) {
+        val valid = validLatLon(bounds.minLat, bounds.minLon) && validLatLon(bounds.maxLat, bounds.maxLon) &&
+            bounds.minLat <= bounds.maxLat && bounds.minLon <= bounds.maxLon
+        if (!valid) return
         move(CameraUpdateFactory.newLatLngBounds(LatLngBounds.from(bounds.maxLat, bounds.maxLon, bounds.minLat, bounds.minLon), PADDING), animated)
     }
 
     override fun show(points: List<GeoPoint>, maxZoom: Double, animated: Boolean) {
-        if (points.isEmpty()) return
-        val north = points.maxOf { it.lat }
-        val south = points.minOf { it.lat }
-        val east = points.maxOf { it.lon }
-        val west = points.minOf { it.lon }
+        val shown = points.filter { validLatLon(it.lat, it.lon) }
+        if (shown.isEmpty()) return
+        val north = shown.maxOf { it.lat }
+        val south = shown.minOf { it.lat }
+        val east = shown.maxOf { it.lon }
+        val west = shown.minOf { it.lon }
         val fitted = if (north - south < TINY && east - west < TINY) null
         else map.getCameraForLatLngBounds(LatLngBounds.from(north, east, south, west), intArrayOf(PADDING, PADDING, PADDING, PADDING))
         val center = fitted?.target ?: LatLng((north + south) / 2, (east + west) / 2)

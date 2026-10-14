@@ -34,7 +34,12 @@ class StaffCrypto(
     val publicKeys: StaffPublicKeys,
     val chain: KeyChain = KeyChain(crypto, SystemClock, publicKeys.sign),
 ) {
-    fun sealReport(body: ByteArray): ByteArray = crypto.seal(body, chain.reportKey() ?: publicKeys.box)
+    /**
+     * Sealed to the day's report key, or the shared one; to the shared one also when libsodium refuses the day's (a
+     * broken certificate), so the report still goes. Null only if it refuses both.
+     */
+    fun sealReport(body: ByteArray): ByteArray? =
+        chain.reportKey()?.let { crypto.seal(body, it) } ?: crypto.seal(body, publicKeys.box)
 
     fun openReport(sealed: ByteArray, secret: StaffSecretKeys): ByteArray? =
         listOfNotNull(secret.box, secret.legacyBox).firstNotNullOfOrNull { crypto.sealOpen(sealed, it.publicKey, it.secretKey) }
@@ -57,9 +62,12 @@ class StaffCrypto(
 
     fun verifyAck(payload: ByteArray): Boolean = chain.checkAck(payload) == Verdict.VALID
 
-    /** [body] sealed to the reporter's [replyKey], signed like an ACK: under the certificate if there is one. */
-    fun signResponse(incidentId: ByteArray, timestamp: Long, body: ResponseBody, replyKey: ByteArray, secret: StaffSecretKeys): IncidentResponse {
-        val sealed = crypto.seal(body.encode(), replyKey)
+    /**
+     * [body] sealed to the reporter's [replyKey], signed like an ACK: under the certificate if there is one. Null when
+     * libsodium refuses the reply key.
+     */
+    fun signResponse(incidentId: ByteArray, timestamp: Long, body: ResponseBody, replyKey: ByteArray, secret: StaffSecretKeys): IncidentResponse? {
+        val sealed = crypto.seal(body.encode(), replyKey) ?: return null
         val unsigned = IncidentResponse.unsigned(incidentId, timestamp, sealed, secret.certificate)
         val signature = crypto.sign(IncidentResponse.signedMessage(unsigned), secret.sign.secretKey)
         return IncidentResponse(incidentId, timestamp, sealed, secret.certificate, signature)

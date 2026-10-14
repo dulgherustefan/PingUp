@@ -74,7 +74,13 @@ class FakePlatform(
 
     private fun exists(path: Path) = okio.FileSystem.SYSTEM.exists(path)
 
-    override fun log(message: String) = Unit
+    private val logLock = SynchronizedObject()
+    private val logged = mutableListOf<String>()
+
+    /** What the session wrote to the log, from whichever thread. */
+    fun logs(): List<String> = synchronized(logLock) { logged.toList() }
+
+    override fun log(message: String) = synchronized(logLock) { logged += message }
 
     override fun radio(scope: CoroutineScope, nodeId: Long): MeshRadio = FakeRadio().also { radios += it }
 

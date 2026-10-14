@@ -275,10 +275,10 @@ class EventPackTest {
         assertEquals(Verdict.REFUSED, drill.chain().checkAck(realAck))
 
         val body = "exercițiu".encodeToByteArray()
-        val sealed = drillCrypto.sealReport(body)
+        val sealed = drillCrypto.sealReport(body)!!
         assertContentEquals(body, drillCrypto.openReport(sealed, drillMedic))
         assertNull(realCrypto.openReport(sealed, realMedic))
-        assertNull(drillCrypto.openReport(realCrypto.sealReport(body), drillMedic))
+        assertNull(drillCrypto.openReport(realCrypto.sealReport(body)!!, drillMedic))
     }
 
     @Test
@@ -377,5 +377,23 @@ class EventPackTest {
             with("[]", """{"png":"${"A".repeat((EventPacks.PLAN_MAX_BYTES + 2) / 3 * 4 + 4)}",$corners}"""),
         )
         for (body in malformed) assertEquals(PackStatus.MALFORMED, event.check(text = event.text(body)).status, body.takeLast(120))
+    }
+
+    @Test
+    fun aPackWithAZoneNoReportOrNoticeCanNameOrWithoutAShapeIsRefused() {
+        val event = Event()
+        val corners = listOf("""{"lat":44.001,"lon":26.001}""", """{"lat":44.001,"lon":26.002}""", """{"lat":44.002,"lon":26.002}""")
+        fun zone(id: String, sides: Int = 3) = """{"id":"$id","name":"Z","color":"#E5484D","polygon":[${corners.take(sides).joinToString(",")}]}"""
+        fun check(vararg zones: String) =
+            event.check(text = event.text(event.body().replace(""""zones":[]""", """"zones":[${zones.joinToString(",")}]"""))).status
+        assertEquals(PackStatus.VALID, check(zone("a".repeat(32))))
+        assertEquals(PackStatus.VALID, check(zone("ă".repeat(16))), "32 bytes")
+        // an evacuation of that zone alone couldn't be signed, and reports would cut its id short
+        assertEquals(PackStatus.MALFORMED, check(zone("a".repeat(33))))
+        assertEquals(PackStatus.MALFORMED, check(zone("ă".repeat(17))))
+        assertEquals(PackStatus.MALFORMED, check(zone("")))
+        assertEquals(PackStatus.MALFORMED, check(zone("a"), zone("a")))
+        assertEquals(PackStatus.MALFORMED, check(zone("a", sides = 2)))
+        assertEquals(PackStatus.MALFORMED, check(zone("a", sides = 0)))
     }
 }

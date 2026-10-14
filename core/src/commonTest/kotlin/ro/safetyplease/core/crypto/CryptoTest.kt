@@ -29,7 +29,7 @@ class CryptoTest {
         val alice = Identity.generate(crypto)
         val bob = Identity.generate(crypto)
         val plain = "ne vedem la scena principală".utf8()
-        val sealed = crypto.box(plain, bob.box.publicKey, alice.box.secretKey)
+        val sealed = crypto.box(plain, bob.box.publicKey, alice.box.secretKey)!!
         assertEquals(plain.size + Crypto.BOX_OVERHEAD, sealed.size)
         assertContentEquals(plain, crypto.boxOpen(sealed, alice.box.publicKey, bob.box.secretKey))
     }
@@ -38,8 +38,8 @@ class CryptoTest {
     fun boxUsesFreshNonceEveryTime() {
         val a = Identity.generate(crypto)
         val b = Identity.generate(crypto)
-        val one = crypto.box(byteArrayOf(1), b.box.publicKey, a.box.secretKey)
-        val two = crypto.box(byteArrayOf(1), b.box.publicKey, a.box.secretKey)
+        val one = crypto.box(byteArrayOf(1), b.box.publicKey, a.box.secretKey)!!
+        val two = crypto.box(byteArrayOf(1), b.box.publicKey, a.box.secretKey)!!
         assertFalse(one.contentEquals(two))
     }
 
@@ -48,7 +48,7 @@ class CryptoTest {
         val alice = Identity.generate(crypto)
         val bob = Identity.generate(crypto)
         val eve = Identity.generate(crypto)
-        val sealed = crypto.box("secret".utf8(), bob.box.publicKey, alice.box.secretKey)
+        val sealed = crypto.box("secret".utf8(), bob.box.publicKey, alice.box.secretKey)!!
         assertNull(crypto.boxOpen(sealed.copyOf().also { it[30] = (it[30] + 1).toByte() }, alice.box.publicKey, bob.box.secretKey))
         assertNull(crypto.boxOpen(sealed, eve.box.publicKey, bob.box.secretKey), "forged sender")
         assertNull(crypto.boxOpen(sealed, alice.box.publicKey, eve.box.secretKey), "wrong recipient")
@@ -60,7 +60,7 @@ class CryptoTest {
         val staff = crypto.boxKeyPair()
         val other = crypto.boxKeyPair()
         val plain = "raport".utf8()
-        val sealed = crypto.seal(plain, staff.publicKey)
+        val sealed = crypto.seal(plain, staff.publicKey)!!
         assertEquals(plain.size + IncidentReportCodec.SEAL_OVERHEAD, sealed.size)
         assertEquals(IncidentReportCodec.SEAL_OVERHEAD, Crypto.SEAL_OVERHEAD)
         assertContentEquals(plain, crypto.sealOpen(sealed, staff.publicKey, staff.secretKey))
@@ -206,7 +206,7 @@ class CryptoTest {
     fun reportIsReadableOnlyByStaff() {
         val (sc, secret) = staff()
         val (_, otherSecret) = staff()
-        val sealed = sc.sealReport("corp".utf8())
+        val sealed = sc.sealReport("corp".utf8())!!
         assertContentEquals("corp".utf8(), sc.openReport(sealed, secret))
         assertNull(sc.openReport(sealed, otherSecret))
     }

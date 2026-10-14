@@ -21,6 +21,7 @@ import ro.safetyplease.core.crypto.Crypto
 import ro.safetyplease.core.crypto.KeyChain
 import ro.safetyplease.core.crypto.KeyPair
 import ro.safetyplease.core.crypto.StaffPublicKeys
+import ro.safetyplease.core.protocol.Limits
 import ro.safetyplease.core.util.Clock
 import ro.safetyplease.core.util.hexToBytes
 import ro.safetyplease.core.util.sha256
@@ -210,7 +211,7 @@ object EventPacks {
         val sign = o.key("sign") ?: return null
         if (kind == EventKind.EXERCISE && (box.isEmpty() || sign.isEmpty())) return null
         val venue = (o["venue"] as? JsonObject)?.toString() ?: return null
-        val site = runCatching { Venue.parse(venue) }.getOrNull() ?: return null
+        val site = runCatching { Venue.parse(venue) }.getOrNull()?.takeIf(::zonesHold) ?: return null
         val gridObject = o["grid"] as? JsonObject
         val grid = gridObject?.int("cellMeters") ?: SiteGrid.CELL_METERS
         if (grid !in 10..500) return null
@@ -226,6 +227,16 @@ object EventPacks {
             box.takeIf { it.isNotEmpty() }, sign.takeIf { it.isNotEmpty() }, venue, grid, firstAid, pages, hashOf(body), notices,
             positionBox, dayStart ?: (from.floorDiv(DAY_S) * DAY_S), schedule, plan,
         )
+    }
+
+    /**
+     * What tools/check_venue.py asks of the zones and the app relies on: an id of 1 to [Limits.ZONE_BYTES] bytes, which a
+     * report, a notice and a chat message carry, no two alike, and a shape of at least three corners.
+     */
+    private fun zonesHold(venue: Venue): Boolean {
+        val ids = venue.zones.map { it.id }
+        return ids.all { it.isNotEmpty() && it.utf8().size <= Limits.ZONE_BYTES } && ids.toSet().size == ids.size &&
+            venue.zones.all { it.polygon.size >= 3 }
     }
 
     /**

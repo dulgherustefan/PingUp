@@ -672,7 +672,7 @@ class ScenarioTest {
     fun privateMessagesFromStrangersAreDropped() = runTest {
         val w = chain()
         val inner = InnerCodec.encode(Inner.Text(1L, null, "salut"))
-        val boxed = testCrypto.box(inner, w.c.identity.box.publicKey, w.d.identity.box.secretKey)
+        val boxed = testCrypto.box(inner, w.c.identity.box.publicKey, w.d.identity.box.secretKey)!!
         w.d.engine.unicast(PacketType.PRIVATE, w.c.nodeId, boxed)
         advanceTimeBy(5_000)
         assertTrue(w.c.messages.isEmpty())
@@ -686,7 +686,7 @@ class ScenarioTest {
         // A's own intro for C, sent again by D under D's nodeId
         val signed = InnerCodec.introSignedBytes(w.c.nodeId, 9L, a.box.publicKey, a.sign.publicKey, "Mama")
         val replay = Inner.Intro(9L, a.box.publicKey, a.sign.publicKey, "Mama", testCrypto.sign(signed, a.sign.secretKey))
-        w.d.engine.unicast(PacketType.PRIVATE, w.c.nodeId, testCrypto.seal(InnerCodec.encode(replay), w.c.identity.box.publicKey))
+        w.d.engine.unicast(PacketType.PRIVATE, w.c.nodeId, testCrypto.seal(InnerCodec.encode(replay), w.c.identity.box.publicKey)!!)
         advanceTimeBy(5_000)
         assertTrue(w.c.friends.value.isEmpty())
         assertTrue(w.c.messages.isEmpty())
@@ -698,7 +698,7 @@ class ScenarioTest {
         val d = w.d.identity
         val signed = InnerCodec.introSignedBytes(w.b.nodeId, 5L, d.box.publicKey, d.sign.publicKey, "D")
         val intro = Inner.Intro(5L, d.box.publicKey, d.sign.publicKey, "D", testCrypto.sign(signed, d.sign.secretKey))
-        w.d.engine.unicast(PacketType.PRIVATE, w.c.nodeId, testCrypto.seal(InnerCodec.encode(intro), w.c.identity.box.publicKey))
+        w.d.engine.unicast(PacketType.PRIVATE, w.c.nodeId, testCrypto.seal(InnerCodec.encode(intro), w.c.identity.box.publicKey)!!)
         advanceTimeBy(5_000)
         assertTrue(w.c.friends.value.isEmpty())
     }

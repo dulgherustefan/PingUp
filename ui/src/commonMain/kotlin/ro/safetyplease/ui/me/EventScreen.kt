@@ -174,7 +174,8 @@ fun EventScreen(vm: AppViewModel) {
         ConfirmDialog(
             stringResource(Res.string.event_switch_title), text, { switchTo = null }, confirmLabel = stringResource(Res.string.event_switch),
         ) {
-            if (c.usable(pack)) c.switchEvent(pack.hash) else vm.phone.toast(expired, long = true)
+            // checking the pack again takes a moment: off the screen's thread
+            vm.viewModelScope.launch { if (c.usable(pack)) c.switchEvent(pack.hash) else vm.phone.toast(expired, long = true) }
         }
     }
     if (backToBundled) {

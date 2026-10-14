@@ -14,13 +14,16 @@ interface Crypto {
 
     fun signKeyPairFromSeed(seed: ByteArray): KeyPair
 
-    /** crypto_box with a random nonce; returns the nonce followed by the ciphertext. */
-    fun box(plain: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray
+    /**
+     * crypto_box with a random nonce; returns the nonce followed by the ciphertext. Null when libsodium refuses the
+     * keys: a key of the wrong size, or a small-order point ([BoxKeys.acceptable]), which a peer can send on purpose.
+     */
+    fun box(plain: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray?
 
     fun boxOpen(data: ByteArray, theirPublic: ByteArray, mySecret: ByteArray): ByteArray?
 
-    /** Sealed box: anyone can encrypt to the public key and the sender stays anonymous. */
-    fun seal(plain: ByteArray, recipientPublic: ByteArray): ByteArray
+    /** Sealed box: anyone can encrypt to the public key and the sender stays anonymous. Null when libsodium refuses the key, as [box]. */
+    fun seal(plain: ByteArray, recipientPublic: ByteArray): ByteArray?
 
     fun sealOpen(data: ByteArray, recipientPublic: ByteArray, recipientSecret: ByteArray): ByteArray?
 
