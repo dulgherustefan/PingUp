@@ -77,7 +77,10 @@ class MapPackTest {
             val source = style["sources"]!!.jsonObject["protomaps"]!!.jsonObject
             assertEquals("pmtiles://file:///pack/costinesti.pmtiles", source["url"]!!.jsonPrimitive.content)
             assertEquals("15", source["maxzoom"]!!.jsonPrimitive.content)
-            assertEquals("© OpenStreetMap", source["attribution"]!!.jsonPrimitive.content)
+            assertEquals(
+                """<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>""",
+                source["attribution"]!!.jsonPrimitive.content,
+            )
             assertEquals("file:///pack/fonts/{fontstack}/{range}.pbf", style["glyphs"]!!.jsonPrimitive.content)
             val fonts = style["layers"]!!.jsonArray.mapNotNull { (it.jsonObject["layout"] as? JsonObject)?.get("text-font") as? JsonArray }
                 .flatten().map { it.jsonPrimitive.content }.toSet()
@@ -168,6 +171,17 @@ class MapPackTest {
         val manifest = MapManifest.parse("""{"buildDate":"20261012","sha256":"ab","bbox":[1,2,3,4],"maxzoom":15,"tool":"pmtiles"}""")
         assertEquals(MapPack.TILES, manifest.file)
         assertEquals(15, manifest.maxzoom)
+    }
+
+    @Test
+    fun shippedManifestStillReadsNowThatItIsAPackManifest() {
+        val dir = File("src/main/assets/maps/20261013")
+        val manifest = MapManifest.parse(File(dir, MapPack.MANIFEST).readText())
+        assertEquals("20261013", manifest.buildDate)
+        assertEquals(MapPack.TILES, manifest.file)
+        assertEquals(15, manifest.maxzoom)
+        assertEquals(listOf(28.59, 43.92, 28.675, 44.01), manifest.bbox)
+        assertEquals(sha256Hex(File(dir, manifest.file).inputStream()), manifest.sha256)
     }
 
     // --- which map the screen shows ---

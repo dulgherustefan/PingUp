@@ -6,10 +6,10 @@
     python tools/map_extract.py 20261012 --dry-run
 
 Reads only the tiles inside the bounding box, zoom 0 to 15, with HTTP range requests, writes
-costinesti.pmtiles and manifest.json (build date, SHA-256, bbox, max zoom) into
-app/src/main/assets/maps/<date>/, and copies the two styles from tools/map_styles next to them.
+costinesti.pmtiles and manifest.json (the pack's manifest: id, kind, build date, SHA-256, size, bbox, zooms,
+attribution) into app/src/main/assets/maps/<date>/, and copies the two styles from tools/map_styles next to them.
 The app checks the SHA-256 before it opens the map. Fonts and sprites are added by hand: see tools/map_assets.md.
-The data is OpenStreetMap, ODbL: the map must show "© OpenStreetMap".
+The data is OpenStreetMap, ODbL: the map must show "© OpenStreetMap contributors".
 """
 
 import argparse
@@ -21,24 +21,34 @@ import sys
 import urllib.request
 from pathlib import Path
 
-from pmtiles.reader import Reader
-from pmtiles.tile import zxy_to_tileid
-from pmtiles.writer import Writer
-
 BBOX = (28.590, 43.920, 28.675, 44.010)  # west, south, east, north: Costinești to Tuzla, NIBIRU included
 MAX_ZOOM = 15
 TILES = "costinesti.pmtiles"
 ROOT = Path(__file__).resolve().parent.parent
 STYLES = ROOT / "tools" / "map_styles"
+# what the map host sees instead of Python's default agent, which some hosts refuse
+USER_AGENT = "pingup-map-tools/1.0"
+OSM_ATTRIBUTION = '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>'
+# the landcover layer, zooms 0 to 7, comes from ESA WorldCover (CC BY 4.0)
+ESA_ATTRIBUTION = (
+    '<a href="https://esa-worldcover.org/">© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021)'
+    " processed by ESA WorldCover consortium</a>"
+)
+LANDCOVER_MAX_ZOOM = 7
 
 
-def http_source(url):
+def attribution(min_zoom):
+    """What a pack from min_zoom up credits: OpenStreetMap always, ESA WorldCover when it holds the landcover zooms."""
+    return OSM_ATTRIBUTION + (" " + ESA_ATTRIBUTION if min_zoom <= LANDCOVER_MAX_ZOOM else "")
+
+
+def http_source(url, user_agent=USER_AGENT):
     cache = {}
 
     def get_bytes(offset, length):
         key = (offset, length)
         if key not in cache:
-            request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-{offset + length - 1}", "User-Agent": "pingup-map-extract/1.0"})
+            request = urllib.request.Request(url, headers={"Range": f"bytes={offset}-{offset + length - 1}", "User-Agent": user_agent})
             with urllib.request.urlopen(request, timeout=240) as response:
                 if response.status != 206:
                     sys.exit(f"{url} does not answer range requests (HTTP {response.status})")
@@ -70,6 +80,10 @@ def main():
     args = parser.parse_args()
     if len(args.date) != 8 or not args.date.isdigit():
         sys.exit("date must be YYYYMMDD")
+    # imported here so the other map tools can reuse tile_range and http_source without the pmtiles package
+    from pmtiles.reader import Reader
+    from pmtiles.tile import zxy_to_tileid
+    from pmtiles.writer import Writer
 
     url = args.url or f"https://build.protomaps.com/{args.date}.pmtiles"
     reader = Reader(http_source(url))
@@ -118,8 +132,13 @@ def main():
         )
 
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
-    manifest = {"buildDate": args.date, "sha256": digest, "bbox": list(BBOX), "maxzoom": max_zoom, "file": TILES}
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    # the fields the old app reads come first; the rest make it a PackManifest (core/map/MapPacks.kt)
+    manifest = {
+        "buildDate": args.date, "sha256": digest, "bbox": list(BBOX), "maxzoom": max_zoom, "file": TILES,
+        "id": "costinesti", "kind": "EVENT", "bytes": target.stat().st_size, "minzoom": header["min_zoom"],
+        "attribution": attribution(header["min_zoom"]), "label": "Costinești",
+    }
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for style in ("style-light.json", "style-dark.json"):
         shutil.copyfile(STYLES / style, out / style)
     print(f"wrote {out} (sha256 {digest})")

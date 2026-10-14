@@ -7,7 +7,7 @@
       "url": "pmtiles://file://__PACK__/costinesti.pmtiles",
       "minzoom": 0,
       "maxzoom": 15,
-      "attribution": "© OpenStreetMap"
+      "attribution": "<a href=\"https://www.openstreetmap.org/copyright\">© OpenStreetMap contributors</a>"
     }
   },
   "glyphs": "file://__ASSETS__/fonts/{fontstack}/{range}.pbf",

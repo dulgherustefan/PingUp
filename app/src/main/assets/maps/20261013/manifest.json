@@ -8,5 +8,11 @@
     44.01
   ],
   "maxzoom": 15,
-  "file": "costinesti.pmtiles"
+  "file": "costinesti.pmtiles",
+  "id": "costinesti",
+  "kind": "EVENT",
+  "bytes": 1114474,
+  "minzoom": 0,
+  "attribution": "<a href=\"https://www.openstreetmap.org/copyright\">© OpenStreetMap contributors</a> <a href=\"https://esa-worldcover.org/\">© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium</a>",
+  "label": "Costinești"
 }
