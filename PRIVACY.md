@@ -12,7 +12,7 @@ Mesajele către prieteni sunt criptate cap-coadă: telefoanele prin care trec nu
 
 ## Locația
 
-O folosim pe telefon ca să știm în ce zonă ești și ce e aproape. Coordonatele pleacă doar într-un raport sau la prietenii cu care alegi să le împarți, cum scrie mai jos. Prietenii află zona în care ești când se schimbă sau când te întreabă, cât timp e pornit „Spune prietenilor zona mea” (în Eu), iar o zonă trimisă într-un mesaj o văd cei din conversație. Aplicația nu îți urmărește locația în fundal decât cât timp o partajezi.
+O folosim pe telefon ca să știm în ce zonă ești și ce e aproape. Coordonatele pleacă doar într-un raport sau la prietenii cu care alegi să le împarți, cum scrie mai jos. Prietenii află zona în care ești când se schimbă sau când te întreabă, cât timp e pornit „Spune prietenilor zona mea” (în Eu); cine te-a adăugat doar scanându-ți codul o află abia după ce îl confirmi sau îi scanezi și tu codul, iar o zonă trimisă într-un mesaj o văd cei din conversație. Aplicația nu îți urmărește locația în fundal decât cât timp o partajezi.
 
 ## Partajarea locației cu prietenii
 
@@ -20,7 +20,7 @@ E oprită până o pornești tu. Alegi fiecare prieten sau grup cu care o împar
 
 ## Check-in pe drum
 
-E oprit până îl pornești tu. Alegi locul unde ajungi, ora și 1–5 prieteni. La ora aleasă telefonul te întreabă „Ai ajuns?”; dacă nu răspunzi în 10 minute de la întrebare, prietenii aleși primesc o singură alertă, criptată cap-coadă ca un mesaj, cu numele locului, ora și ultima poziție pe care o avea telefonul. Cât timp răspunzi, nu pleacă nimic. Alertele primite de la prieteni rămân pe telefon, cel mult zece. Un raport poate spune și că s-a întâmplat mai devreme (până la 24 de ore în urmă; atunci pleacă fără coordonatele telefonului, doar cu zona aleasă), că e despre altcineva sau că e anonim, fără răspuns: un raport anonim nu are nici poreclă, nici cheie de răspuns, deci echipa nu poate să-ți răspundă.
+E oprit până îl pornești tu. Alegi locul unde ajungi, ora și 1–5 prieteni. La ora aleasă telefonul te întreabă „Ai ajuns?”; dacă nu răspunzi în 10 minute de la întrebare, prietenii aleși primesc o singură alertă, criptată cap-coadă ca un mesaj, cu numele locului, ora și ultima poziție pe care o avea telefonul. Cât timp răspunzi, nu pleacă nimic. Alertele primite de la prieteni rămân pe telefon o zi, cel mult zece. Un raport poate spune și că s-a întâmplat mai devreme (până la 24 de ore în urmă; atunci pleacă fără coordonatele telefonului, doar cu zona aleasă), că e despre altcineva sau că e anonim, fără răspuns: un raport anonim nu are nici poreclă, nici cheie de răspuns, deci echipa nu poate să-ți răspundă.
 
 ## Camera
 
@@ -68,7 +68,7 @@ Messages to friends are end-to-end encrypted: the phones they pass through can�
 
 ## Location
 
-We use it on the phone to know which zone you’re in and what’s nearby. Coordinates leave only in a report or for the friends you choose to share them with, as below. Friends learn your zone when it changes or when they ask, while “Tell friends my zone” is on (in Me), and a zone sent in a message is seen by everyone in the conversation. The app doesn’t track your location in the background, except while you share it.
+We use it on the phone to know which zone you’re in and what’s nearby. Coordinates leave only in a report or for the friends you choose to share them with, as below. Friends learn your zone when it changes or when they ask, while “Tell friends my zone” is on (in Me); someone who added you only by scanning your code learns it once you confirm them or scan their code too, and a zone sent in a message is seen by everyone in the conversation. The app doesn’t track your location in the background, except while you share it.
 
 ## Sharing your location with friends
 
@@ -76,7 +76,7 @@ It’s off until you turn it on. You pick each friend or group you share it with
 
 ## Check-in on the way
 
-It’s off until you turn it on. You pick where you are going, the time and 1 to 5 friends. At that time the phone asks “Did you arrive?”; if you don’t answer within 10 minutes of the question, the friends you picked get one alert, end-to-end encrypted like a message, with the name of the place, the time and the last position the phone had. As long as you answer, nothing is sent. The alerts you get from friends stay on your phone, at most ten. A report can also say that it happened earlier (up to 24 hours ago; it then goes without the phone’s coordinates, only with the zone you pick), that it is about someone else, or that it is anonymous with no reply: an anonymous report has neither a nickname nor a reply key, so the team can’t answer you.
+It’s off until you turn it on. You pick where you are going, the time and 1 to 5 friends. At that time the phone asks “Did you arrive?”; if you don’t answer within 10 minutes of the question, the friends you picked get one alert, end-to-end encrypted like a message, with the name of the place, the time and the last position the phone had. As long as you answer, nothing is sent. The alerts you get from friends stay on your phone for a day, at most ten. A report can also say that it happened earlier (up to 24 hours ago; it then goes without the phone’s coordinates, only with the zone you pick), that it is about someone else, or that it is anonymous with no reply: an anonymous report has neither a nickname nor a reply key, so the team can’t answer you.
 
 ## Camera
 
