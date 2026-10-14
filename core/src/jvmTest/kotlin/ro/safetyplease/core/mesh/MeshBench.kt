@@ -553,10 +553,21 @@ private class Totals(
     )
 }
 
-/** Engine variants the bench compares, joined with `+`; a new algorithm adds its flag here. `ackdelay` is the staff app's. */
+/**
+ * Engine variants the bench compares, joined with `+`: `fanout`, and the experiments `p0ttl` ([MeshConfig.cachedPastTtl]),
+ * `dropcopies` ([MeshConfig.dropQueuedCopies]), `routed` and `routed30` ([MeshConfig.routedUnicast], routes fresh 120 or 30 s),
+ * `bestttl` ([MeshConfig.bestTtl]). `ackdelay` is the staff app's: staff more than 2 hops away wait before RECEIVED.
+ */
 private fun variantConfig(name: String): MeshConfig {
     val flags = name.split('+')
-    return MeshConfig(chatFanOut = "fanout" in flags)
+    return MeshConfig(
+        chatFanOut = "fanout" in flags,
+        cachedPastTtl = "p0ttl" in flags,
+        dropQueuedCopies = "dropcopies" in flags,
+        routedUnicast = "routed" in flags || "routed30" in flags,
+        routeFreshMs = if ("routed30" in flags) 30_000L else MeshEngine.ROUTE_FRESH_MS,
+        bestTtl = "bestttl" in flags,
+    )
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
