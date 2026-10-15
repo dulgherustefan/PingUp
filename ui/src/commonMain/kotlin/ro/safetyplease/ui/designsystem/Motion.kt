@@ -1,16 +1,15 @@
 package ro.safetyplease.ui.designsystem
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VisibilityThreshold
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.interaction.InteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -21,7 +20,10 @@ import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
+import kotlin.time.TimeSource
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * App motion. Screen transitions use springs, so a transition interrupted halfway
@@ -63,19 +65,50 @@ fun rememberLoop(periodMillis: Int, stepsPerSecond: Int = 30): State<Float> {
 
 internal fun loopPhase(elapsedMillis: Long, periodMillis: Int): Float = (elapsedMillis % periodMillis).toFloat() / periodMillis
 
-/** On press the element shrinks slightly and springs back. */
+/**
+ * On press the element shrinks slightly and springs back. A quick tap in a scrolling list reports its press only with
+ * its release; the shrink still gets [MIN_PRESS_MS] before it springs back, so every tap is felt.
+ */
 @Composable
-fun Modifier.pressScale(interaction: InteractionSource, pressed: Float = 0.92f): Modifier {
+fun Modifier.pressScale(interaction: InteractionSource, pressed: Float = 0.96f): Modifier {
     if (LocalReduceMotion.current) return this
-    val down by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        if (down) pressed else 1f, spring(dampingRatio = 0.55f, stiffness = 700f), label = "press",
-    )
+    val scale = remember { Animatable(1f) }
+    LaunchedEffect(interaction, pressed) {
+        var presses = 0
+        var pressedAt = TimeSource.Monotonic.markNow()
+        var release: Job? = null
+        interaction.interactions.collect { event ->
+            when (event) {
+                is PressInteraction.Press -> {
+                    presses++
+                    pressedAt = TimeSource.Monotonic.markNow()
+                    release?.cancel()
+                    launch { scale.animateTo(pressed, spring(stiffness = 1500f)) }
+                }
+                is PressInteraction.Release, is PressInteraction.Cancel -> {
+                    presses = (presses - 1).coerceAtLeast(0)
+                    if (presses == 0) {
+                        val held = pressedAt.elapsedNow().inWholeMilliseconds
+                        release = launch {
+                            delay(pressHoldLeft(held))
+                            scale.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 700f))
+                        }
+                    }
+                }
+            }
+        }
+    }
     return graphicsLayer {
-        scaleX = scale
-        scaleY = scale
+        scaleX = scale.value
+        scaleY = scale.value
     }
 }
+
+/** How long a press shows at the least, so a tap the list reported late is still seen. */
+const val MIN_PRESS_MS = 90L
+
+/** What is left of [MIN_PRESS_MS] after a press held for [heldMs]. */
+internal fun pressHoldLeft(heldMs: Long): Long = (MIN_PRESS_MS - heldMs).coerceAtLeast(0L)
 
 /** True when the phone has "Remove animations" on: transitions become plain fades. */
 val LocalReduceMotion = staticCompositionLocalOf { false }

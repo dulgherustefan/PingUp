@@ -1,6 +1,5 @@
 package ro.safetyplease.ui.map
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -55,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.ln
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -103,16 +103,21 @@ import ro.safetyplease.ui.designsystem.InsetGroup
 import ro.safetyplease.ui.designsystem.LocalReduceMotion
 import ro.safetyplease.ui.designsystem.LocalTextOnly
 import ro.safetyplease.ui.designsystem.NavScreen
+import ro.safetyplease.ui.designsystem.Pop
+import ro.safetyplease.ui.designsystem.Radius
 import ro.safetyplease.ui.designsystem.SectionTitle
+import ro.safetyplease.ui.designsystem.Swap
 import ro.safetyplease.ui.designsystem.SwitchRow
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
+import ro.safetyplease.ui.designsystem.animatedColor
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.initials
 import ro.safetyplease.ui.designsystem.largeFont
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.designsystem.tabular
 import ro.safetyplease.ui.notices.shadeType
 import ro.safetyplease.ui.rememberLocationRequest
 import ro.safetyplease.ui.resources.Res
@@ -131,7 +136,6 @@ import ro.safetyplease.ui.resources.map_meeting_point
 import ro.safetyplease.ui.resources.map_meters
 import ro.safetyplease.ui.resources.map_no_position
 import ro.safetyplease.ui.resources.map_outside
-import ro.safetyplease.ui.resources.map_outside_text
 import ro.safetyplease.ui.resources.map_pick_zone
 import ro.safetyplease.ui.resources.map_pick_zone_text
 import ro.safetyplease.ui.resources.map_pin_outside
@@ -164,7 +168,6 @@ import ro.safetyplease.ui.resources.zone_unknown
 import ro.safetyplease.ui.text.NoticeText
 import ro.safetyplease.ui.text.noticeTitle
 import ro.safetyplease.ui.text.rememberNow
-import kotlin.math.ln
 
 /** Places the quick chips lead to, in chip order. */
 private val SpotTypes = listOf("medical", "exit", Venue.MEETING, "water", "wc", "info", "charge", Venue.DEA)
@@ -383,8 +386,8 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                 }
                 val mapModifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp)
                 // taller than the site: room for the top label and the buttons without covering the zones
-                val mapAspect = venueAspect(vm.venue) * 0.8f
-                val frame = mapModifier.fillMaxWidth().aspectRatio(mapAspect).clip(RoundedCornerShape(26.dp))
+                val mapAspect = (venueAspect(vm.venue) * 0.8f).coerceIn(0.9f, 1.8f)
+                val frame = mapModifier.fillMaxWidth().aspectRatio(mapAspect).clip(RoundedCornerShape(Radius.Card))
                 when (mapKind) {
                     MapKind.REAL -> Box(frame) {
                         // the map view goes with this item; its engine must not outlive it
@@ -463,59 +466,61 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                 }
             }
             item(key = "place") {
-                InsetGroup {
-                    when (focus) {
-                        MapFocus.SPOT -> {
-                            val name = spot?.name?.takeIf { it.isNotEmpty() }
-                                ?: if (spotType == Venue.MEETING) stringResource(Res.string.map_meeting_point) else spotLabel(spotType)
-                            GroupRow(
-                                name,
-                                subtitle = spot?.let { routeText(origin, it.point) },
-                                leading = { IconCircle(typeGlyph(spotType) ?: Sym.Flag, spotColor(colors, spotType), Color.White, 36.dp) },
-                            )
-                        }
-                        MapFocus.ZONE -> {
-                            val index = vm.venue.zones.indexOfFirst { it.id == tapped }
-                            val zone = vm.venue.zones.getOrNull(index)
-                            val canSet = here == null && tapped != myZoneId
-                            // with large fonts the button goes under the name, so the name keeps the row's width
-                            val stacked = largeFont()
-                            GroupRow(
-                                zone?.name ?: stringResource(Res.string.zone_unknown),
-                                subtitle = when {
-                                    tapped == myZoneId && autoZone != null -> stringResource(Res.string.map_you_are_here)
-                                    tapped == myZoneId -> stringResource(Res.string.map_your_zone) + " · " + stringResource(Res.string.map_source_manual)
-                                    origin != null && zone != null -> routeText(origin, zone.center)
-                                    else -> stringResource(Res.string.map_zone_tag)
-                                },
-                                leading = { if (zone != null) ZoneBadge(vm.venue, index) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },
-                                trailing = if (canSet && !stacked) {
-                                    { AppButton(stringResource(Res.string.map_set_zone), { setMine(tapped) }, compact = true) }
-                                } else null,
-                            )
-                            if (canSet && stacked) {
-                                AppButton(
-                                    stringResource(Res.string.map_set_zone), { setMine(tapped) },
-                                    Modifier.padding(start = 64.dp, end = Gutter, bottom = 12.dp), compact = true,
+                InsetGroup(Modifier.padding(top = 12.dp)) {
+                    Swap(Triple(focus, tapped, spotType)) { (shown, _, _) ->
+                        when (shown) {
+                            MapFocus.SPOT -> {
+                                val name = spot?.name?.takeIf { it.isNotEmpty() }
+                                    ?: if (spotType == Venue.MEETING) stringResource(Res.string.map_meeting_point) else spotLabel(spotType)
+                                GroupRow(
+                                    name,
+                                    subtitle = spot?.let { routeText(origin, it.point) },
+                                    leading = { IconCircle(typeGlyph(spotType) ?: Sym.Flag, spotColor(colors, spotType), Color.White, 36.dp) },
                                 )
                             }
-                        }
-                        MapFocus.MINE -> {
-                            val yourZone = stringResource(Res.string.map_your_zone)
-                            val source = stringResource(if (simulated) Res.string.map_source_simulated else Res.string.map_source_gps)
-                            val manual = stringResource(Res.string.map_source_manual)
-                            val (title, subtitle) = when {
-                                autoZone != null -> autoZone.name to "$yourZone · $source"
-                                here != null -> stringResource(Res.string.map_outside) to stringResource(Res.string.map_outside_text)
-                                manualZone.isNotEmpty() -> vm.venue.zoneName(manualZone) to "$yourZone · $manual"
-                                else -> stringResource(Res.string.map_pick_zone) to stringResource(Res.string.map_pick_zone_text)
+                            MapFocus.ZONE -> {
+                                val index = vm.venue.zones.indexOfFirst { it.id == tapped }
+                                val zone = vm.venue.zones.getOrNull(index)
+                                val canSet = here == null && tapped != myZoneId
+                                // with large fonts the button goes under the name, so the name keeps the row's width
+                                val stacked = largeFont()
+                                GroupRow(
+                                    zone?.name ?: stringResource(Res.string.zone_unknown),
+                                    subtitle = when {
+                                        tapped == myZoneId && autoZone != null -> stringResource(Res.string.map_you_are_here)
+                                        tapped == myZoneId -> stringResource(Res.string.map_your_zone) + " · " + stringResource(Res.string.map_source_manual)
+                                        origin != null && zone != null -> routeText(origin, zone.center)
+                                        else -> stringResource(Res.string.map_zone_tag)
+                                    },
+                                    leading = { if (zone != null) ZoneBadge(vm.venue, index) else IconCircle(Sym.Place, colors.fill, colors.label, 36.dp) },
+                                    trailing = if (canSet && !stacked) {
+                                        { AppButton(stringResource(Res.string.map_set_zone), { setMine(tapped) }, compact = true) }
+                                    } else null,
+                                )
+                                if (canSet && stacked) {
+                                    AppButton(
+                                        stringResource(Res.string.map_set_zone), { setMine(tapped) },
+                                        Modifier.padding(start = 64.dp, end = Gutter, bottom = 12.dp), compact = true,
+                                    )
+                                }
                             }
-                            GroupRow(
-                                title, subtitle = subtitle,
-                                leading = {
-                                    IconCircle(Sym.MyLocation, if (origin != null) colors.accent else colors.fill, if (origin != null) colors.onAccent else colors.secondaryLabel, 36.dp)
-                                },
-                            )
+                            MapFocus.MINE -> {
+                                val yourZone = stringResource(Res.string.map_your_zone)
+                                val source = stringResource(if (simulated) Res.string.map_source_simulated else Res.string.map_source_gps)
+                                val manual = stringResource(Res.string.map_source_manual)
+                                val (title, subtitle) = when {
+                                    autoZone != null -> autoZone.name to "$yourZone · $source"
+                                    here != null -> stringResource(Res.string.map_outside) to source
+                                    manualZone.isNotEmpty() -> vm.venue.zoneName(manualZone) to "$yourZone · $manual"
+                                    else -> stringResource(Res.string.map_pick_zone) to stringResource(Res.string.map_pick_zone_text)
+                                }
+                                GroupRow(
+                                    title, subtitle = subtitle,
+                                    leading = {
+                                        IconCircle(Sym.MyLocation, if (origin != null) colors.accent else colors.fill, if (origin != null) colors.onAccent else colors.secondaryLabel, 36.dp)
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -588,9 +593,7 @@ fun MapScreen(vm: AppViewModel, dest: Dest.Map, asTab: Boolean = false) {
                                 }
                             },
                             leading = { ZoneBadge(vm.venue, index) },
-                            trailing = if (mine) {
-                                { Icon(Sym.Check, null, Modifier.size(20.dp), tint = colors.accent) }
-                            } else null,
+                            trailing = { Pop(mine) { Icon(Sym.Check, null, Modifier.size(20.dp), tint = colors.accent) } },
                         )
                         if (index < vm.venue.zones.lastIndex) GroupDivider(start = 64.dp)
                     }
@@ -626,7 +629,7 @@ private fun WherePill(text: String, known: Boolean, modifier: Modifier, onClick:
     val colors = AppTheme.colors
     val press = remember { MutableInteractionSource() }
     Row(
-        modifier.pressScale(press, 0.96f).shadow(6.dp, CircleShape).clip(CircleShape).background(colors.cell)
+        modifier.pressScale(press).shadow(6.dp, CircleShape).clip(CircleShape).background(colors.cell)
             .clickable(press, indication = null, role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -691,7 +694,7 @@ private fun MapButton(icon: ImageVector, label: String, onClick: () -> Unit, tin
         Modifier.size(38.dp).clickable(press, indication = null, role = Role.Button, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, label, Modifier.size(20.dp).pressScale(press, 0.85f), tint = tint)
+        Icon(icon, label, Modifier.size(20.dp).pressScale(press), tint = tint)
     }
 }
 
@@ -700,28 +703,26 @@ private fun MapButton(icon: ImageVector, label: String, onClick: () -> Unit, tin
 private fun QuickChip(icon: ImageVector, label: String, meters: Int?, tone: Color, selected: Boolean, onClick: () -> Unit) {
     val colors = AppTheme.colors
     val press = remember { MutableInteractionSource() }
-    val fill by animateColorAsState(if (selected) tone else colors.cell, label = "chip")
+    val fill = animatedColor(if (selected) tone else colors.cell, "chip")
+    val ink = animatedColor(if (selected) Color.White else colors.label, "chipInk")
     Row(
-        Modifier.pressScale(press, 0.95f).heightIn(min = 40.dp).clip(CircleShape).background(fill)
+        Modifier.pressScale(press).heightIn(min = 44.dp).clip(CircleShape).background(fill)
             .selectable(selected, interactionSource = press, indication = null, role = Role.Tab, onClick = onClick)
             .padding(start = 6.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(28.dp).clip(CircleShape).background(if (selected) Color.White.copy(alpha = 0.22f) else tone),
+            Modifier.size(28.dp).clip(CircleShape).background(animatedColor(if (selected) Color.White.copy(alpha = 0.22f) else tone, "chipDot")),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, null, Modifier.size(16.dp), tint = Color.White)
         }
         Spacer(Modifier.width(8.dp))
-        Text(
-            label, style = MaterialTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold),
-            color = if (selected) Color.White else colors.label, maxLines = 1,
-        )
+        Text(label, style = MaterialTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold), color = ink, maxLines = 1)
         if (meters != null) {
             Text(
-                " · " + stringResource(Res.string.map_meters, meters), style = MaterialTheme.typography.subheadline,
-                color = if (selected) Color.White.copy(alpha = 0.85f) else colors.secondaryLabel, maxLines = 1,
+                " · " + stringResource(Res.string.map_meters, meters), style = MaterialTheme.typography.subheadline.tabular(),
+                color = animatedColor(if (selected) Color.White.copy(alpha = 0.85f) else colors.secondaryLabel, "chipMeters"), maxLines = 1,
             )
         }
     }

@@ -1,5 +1,7 @@
 package ro.safetyplease.ui.designsystem
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,9 +35,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
-import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.time.TimeSource
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -99,27 +103,44 @@ class PressHighlight(private val color: Color) : IndicationNodeFactory {
 
     override fun hashCode() = color.hashCode()
 
+    /**
+     * The highlight comes on at the press and fades out after the release. In a scrolling list a quick tap reports its
+     * press only with its release, so the highlight stays at least [MIN_PRESS_MS], or it would never be seen.
+     */
     private class Node(private val source: InteractionSource, private val color: Color) : Modifier.Node(), DrawModifierNode {
-        private var pressed = false
+        private val shown = Animatable(0f)
 
         override fun onAttach() {
             coroutineScope.launch {
                 var presses = 0
+                var pressedAt = TimeSource.Monotonic.markNow()
+                var fade: Job? = null
                 source.interactions.collect { interaction ->
                     when (interaction) {
-                        is PressInteraction.Press -> presses++
-                        is PressInteraction.Release, is PressInteraction.Cancel -> presses = (presses - 1).coerceAtLeast(0)
-                    }
-                    if ((presses > 0) != pressed) {
-                        pressed = presses > 0
-                        invalidateDraw()
+                        is PressInteraction.Press -> {
+                            presses++
+                            pressedAt = TimeSource.Monotonic.markNow()
+                            fade?.cancel()
+                            shown.snapTo(1f)
+                        }
+                        is PressInteraction.Release, is PressInteraction.Cancel -> {
+                            presses = (presses - 1).coerceAtLeast(0)
+                            if (presses == 0) {
+                                val held = pressedAt.elapsedNow().inWholeMilliseconds
+                                fade = launch {
+                                    delay(pressHoldLeft(held))
+                                    shown.animateTo(0f, tween(Motion.QUICK, easing = Motion.Exit))
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
 
         override fun ContentDrawScope.draw() {
-            if (pressed) drawRect(color)
+            val alpha = shown.value
+            if (alpha > 0f) drawRect(color.copy(alpha = color.alpha * alpha))
             drawContent()
         }
     }

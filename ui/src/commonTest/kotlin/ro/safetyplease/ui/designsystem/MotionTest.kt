@@ -23,4 +23,26 @@ class MotionTest {
         assertEquals(mascotLift(0.2f), mascotLift(0.8f), 0.001f)
         assertTrue(mascotLift(0.999f) > -0.01f)
     }
+
+    @Test
+    fun aTapTheListReportedLateStillShowsForAMoment() {
+        assertEquals(MIN_PRESS_MS, pressHoldLeft(0), "press and release in the same frame")
+        assertEquals(MIN_PRESS_MS - 40, pressHoldLeft(40))
+        assertEquals(0L, pressHoldLeft(MIN_PRESS_MS))
+        assertEquals(0L, pressHoldLeft(600), "a long press lets go at once")
+    }
+
+    @Test
+    fun anArrowTurnsTheShortWayRound() {
+        assertEquals(20f, shortestTurn(350f, 10f), 0.001f, "across north, not 340° back")
+        assertEquals(-20f, shortestTurn(10f, 350f), 0.001f)
+        assertEquals(90f, shortestTurn(0f, 90f), 0.001f)
+        assertEquals(0f, shortestTurn(725f, 5f), 0.001f, "an angle that went round twice")
+        for (from in -720..720 step 37) for (to in 0..359 step 23) {
+            val turn = shortestTurn(from.toFloat(), to.toFloat())
+            assertTrue(turn >= -180f && turn <= 180f, "$from to $to: $turn")
+            val off = ((from + turn - to) % 360f + 360f) % 360f
+            assertTrue(off < 0.01f || off > 359.99f, "$from to $to lands on it: $off")
+        }
+    }
 }

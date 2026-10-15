@@ -1,5 +1,7 @@
 package ro.safetyplease.ui.notices
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -51,10 +53,12 @@ import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.ButtonKind
 import ro.safetyplease.ui.designsystem.IconBtn
+import ro.safetyplease.ui.designsystem.Motion
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.caption1
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.largeTitle
+import ro.safetyplease.ui.designsystem.motionSpec
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title3
 import ro.safetyplease.ui.resources.Res
@@ -107,6 +111,7 @@ private fun NoticeBand(vm: AppViewModel, shown: ShownNotice, modifier: Modifier)
     }
     Column(
         modifier.fillMaxWidth().background(fill).clickable { open = !open }
+            .animateContentSize(motionSpec(tween(Motion.STANDARD, easing = Motion.Standard)))
             .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {

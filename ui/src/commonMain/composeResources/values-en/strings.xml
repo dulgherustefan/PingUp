@@ -68,7 +68,7 @@
     <string name="problem_leaf_title">Other phones can’t find yours</string>
     <string name="problem_leaf_text">Only your phone can connect to the ones around it. Messages and reports still go through.</string>
     <string name="problem_battery_title">Your phone may stop the app in the background</string>
-    <string name="problem_battery_text">Take the app out of battery saving so messages arrive with the screen off too.</string>
+    <string name="problem_battery_text">With the screen off, messages might stop arriving.</string>
     <string name="problem_battery_action">Allow background use</string>
     <string name="problem_dismiss">Got it</string>
     <string name="identity_new_title">You have a new identity</string>
@@ -140,7 +140,7 @@
     <string name="add_friend_tab_code">My code</string>
     <string name="add_friend_tab_scan">Scan</string>
     <string name="add_friend_mine">Your code</string>
-    <string name="add_friend_mine_hint">Show it to your friend. Tap it to make it bigger.</string>
+    <string name="add_friend_mine_hint">Show it to your friend. Tap to enlarge.</string>
     <string name="add_friend_enlarge">Enlarge code</string>
     <string name="add_friend_scan">Your friend’s code</string>
     <string name="add_friend_scan_hint">Point the camera at their code. Works for staff codes too.</string>
@@ -191,7 +191,7 @@
     <string name="report_zone_pick">Choose the zone</string>
     <string name="report_zone_none">No zone</string>
     <string name="report_zone_manual">We don’t have your location. Choose the zone if you know it.</string>
-    <string name="report_zone_outside">You’re outside the zones on the map. We’ll send your location with the report.</string>
+    <string name="report_zone_outside">Outside the map’s zones. Your location goes with the report.</string>
     <string name="report_use_location">Use my location</string>
     <string name="report_location">Your location</string>
     <string name="report_location_gps">GPS position</string>
@@ -215,7 +215,7 @@
     <string name="report_mine_empty_text">Your reports show up here, with their status.</string>
     <string name="report_next_title">What happens next</string>
     <string name="report_next_text">Your report travels to staff from phone to phone.</string>
-    <string name="report_waiting_text">No phone is nearby yet. Your report goes out on its own when one shows up.</string>
+    <string name="report_waiting_text">Your report goes out on its own once a phone is nearby.</string>
     <string name="report_not_112">This doesn’t replace 112: your report goes to staff.</string>
     <string name="emergency_call">Call 112</string>
     <string name="report_escalate_title">No one has confirmed it yet</string>
@@ -227,7 +227,7 @@
     <string name="report_help_stay_text">Ask the people around you for help.</string>
     <string name="report_help_call_text">If you can. You make the call yourself.</string>
     <string name="report_help_meeting">Go to the meeting point</string>
-    <string name="report_help_info">Or to the information point</string>
+    <string name="report_help_info">Or to the info point</string>
     <string name="report_help_info_text">People looking for their friends gather there too.</string>
     <string name="report_stay_title">Stay where you are</string>
     <string name="report_stay_text">When you hear someone coming, raise your phone’s torch.</string>
@@ -243,9 +243,9 @@
     <string name="answer_no">no</string>
     <string name="answer_unknown">don’t know</string>
     <string name="answer_unasked">not answered</string>
-    <string name="report_lost_friend_note">Go to the meeting point or the information point. The report goes to the control room only, for information.</string>
+    <string name="report_lost_friend_note">Or to the info point. The report goes to the control room only, for information.</string>
     <string name="report_lost_child_note">It goes out as urgent to the control room and the teams. Describe the child in the description.</string>
-    <string name="report_lost_friend_sent_text">The report goes to the control room, for information. Meanwhile, go to the meeting point or the information point.</string>
+    <string name="report_lost_friend_sent_text">The report goes to the control room, for information.</string>
     <string name="report_staff_title">Staff report</string>
     <string name="report_staff_team">Sent in the name of %1$s.</string>
     <string name="report_staff_people">How many people</string>
@@ -294,9 +294,8 @@
     <string name="map_your_zone">Your zone</string>
     <string name="map_you_are_here">You are here</string>
     <string name="map_outside">You’re outside the zones</string>
-    <string name="map_outside_text">Your position isn’t in any zone on the map.</string>
     <string name="map_pick_zone">Where are you?</string>
-    <string name="map_pick_zone_text">We don’t have your position yet. Tap the zone you’re in on the map.</string>
+    <string name="map_pick_zone_text">We don’t have your position yet. Tap your zone on the map.</string>
     <string name="map_set_zone">I’m here</string>
     <string name="map_source_gps">from GPS</string>
     <string name="map_source_manual">chosen by you</string>
@@ -574,7 +573,7 @@
     <string name="pages_draft_text">The organiser has not approved it yet. The details marked “source: organiser” are theirs to fill in.</string>
     <string name="pages_approved">Approved by the organiser: %1$s</string>
     <string name="low_battery_title">Battery under %1$s</string>
-    <string name="low_battery_text">The phone scans less often and helps less with relaying messages, so the battery lasts. Reporting works as usual.</string>
+    <string name="low_battery_text">The phone scans less often and relays less, so the battery lasts. Reporting works as usual.</string>
     <string name="low_battery_text_only">The map and animations are off until you charge the phone.</string>
     <string name="low_battery_charger">Nearest charging point: %1$s</string>
     <string name="low_battery_show">Show on the map</string>
@@ -587,7 +586,7 @@
     <string name="autonomy_profile_economy">Economy: scans less often, relays less</string>
     <string name="autonomy_left">Estimated time left</string>
     <string name="autonomy_left_text">At the pace of the last hour, with the current profile.</string>
-    <string name="autonomy_left_measuring">Calculated once the battery has dropped a few percent at the same pace.</string>
+    <string name="autonomy_left_measuring">Shows after a steady drop of a few percent.</string>
     <string name="autonomy_left_charging">The phone is charging.</string>
     <string name="autonomy_minutes">~%1$d min</string>
     <string name="autonomy_hours">~%1$d h</string>
@@ -997,7 +996,7 @@
     <string name="map_about_subtitle">© OpenStreetMap and licences</string>
     <string name="map_about_text">Base map: © OpenStreetMap contributors, data under the Open Database License (ODbL 1.0), via Protomaps. Noto Sans fonts: SIL Open Font License 1.1. Place icons: Mapzen, MIT licence. Map rendering: MapLibre Native, BSD-2-Clause licence. Zones, points and the grid come from the organiser. All licences: Me › Open source licences.</string>
     <string name="me_notices">Notices from the organisers</string>
-    <string name="me_notices_text">Weather and heat alerts, schedule and transport changes, even without signal. Evacuations for your area always show, even with this off.</string>
+    <string name="me_notices_text">Weather, heat, schedule and transport, even without signal. Evacuations for your area always show, even with this off.</string>
     <string name="notice_composer_title">Notice</string>
     <string name="notice_reach">It only reaches phones with Ping Up on the network. It doesn’t replace the stage, the screens or RO-ALERT.</string>
     <string name="notice_no_shift">Only a console with a valid control shift code signs notices.</string>
@@ -1047,6 +1046,7 @@
     <string name="gnss_searching_text">There has been no position for over an hour. It is faster under open sky.</string>
     <string name="share_intro_title">Your location, only for the people you tick.</string>
     <string name="share_intro_text">If you turn sharing on, your phone sends your location, through the phones around you, to the friends you tick, also when the app is closed or not in use. Your location is encrypted: the phones that pass it on, the organiser and we cannot read it. A friend you share it with may attach the last position you sent them to a lost-person report, which goes to the search team. Nothing leaves your phone until you tick a friend. Stop at any time, from the notification or from here, without anyone being told.</string>
+    <string name="sharing_note">Stop at any time, from the notification or from here, without anyone being told.</string>
     <string name="share_intro_choose">Choose who</string>
     <string name="share_intro_later">Not now</string>
     <string name="share_title">Share location</string>
@@ -1065,7 +1065,7 @@
     <string name="share_precision">How exact</string>
     <string name="share_prec_exact">Exact (about 1 m, as good as the GPS)</string>
     <string name="share_prec_approx">Approximate area (about 100 m)</string>
-    <string name="share_prec_zone">Zone only (as today)</string>
+    <string name="share_prec_zone">Zone only</string>
     <string name="share_prec_exact_short">Exact</string>
     <string name="share_prec_approx_short">Approximate area</string>
     <string name="share_prec_zone_short">Zone only</string>
@@ -1131,7 +1131,7 @@
     <string name="ask_wait">Wait a moment</string>
     <string name="seen_lighting">Flashing their torch now</string>
     <string name="seen_title">%1$s wants to see you</string>
-    <string name="seen_text">Flash your torch for 10 s? It blinks and your phone vibrates. Hold it above your head.</string>
+    <string name="seen_text">Your torch flashes for 10 s and your phone vibrates. Hold it above your head.</string>
     <string name="seen_accept">Flash torch</string>
     <string name="seen_auto">Always accept from friends</string>
     <string name="seen_white">White screen</string>

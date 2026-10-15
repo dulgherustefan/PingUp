@@ -25,7 +25,7 @@
     <string name="found_keep">Lasă-l deschis</string>
     <string name="gasp_label">ultimul semnal: baterie %1$s, %2$s</string>
     <string name="landmark_title">Sunt lângă un reper</string>
-    <string name="landmark_text">Când punctul tău e greșit, alege numărul de pe stâlpul de lângă tine. Ține cel mult 10 minute.</string>
+    <string name="landmark_text">Punctul tău e greșit? Alege numărul de pe stâlp. Ține cel mult 10 minute.</string>
     <string name="landmark_active">Ești lângă Reperul %1$s</string>
     <string name="landmark_active_text">Încă %1$s min, sau până GPS-ul arată precis altceva</string>
     <string name="landmark_clear">Renunță</string>

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -17,11 +18,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringArrayResource
@@ -42,6 +43,7 @@ import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.designsystem.turnedTo
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.pos_ago
 import ro.safetyplease.ui.resources.pos_arrow
@@ -115,7 +117,7 @@ fun FriendGuideRow(guide: FriendGuide, headingDeg: Float?, modifier: Modifier = 
     val colors = AppTheme.colors
     Row(modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         if (guide is FriendGuide.Arrow) {
-            Icon(Sym.Send, null, Modifier.size(28.dp).rotate(Guide.arrowDeg(guide.bearingDeg, headingDeg)), tint = colors.accent)
+            Icon(Sym.Send, null, Modifier.size(28.dp).turnedTo(Guide.arrowDeg(guide.bearingDeg, headingDeg)), tint = colors.accent)
         } else {
             Icon(Sym.Place, null, Modifier.size(28.dp), tint = colors.accent)
         }
@@ -151,13 +153,13 @@ fun SharingBar(sharing: SharingNow, statusBar: Boolean, onOpen: () -> Unit) {
         Modifier.fillMaxWidth().background(colors.accent).then(if (statusBar) Modifier.statusBarsPadding() else Modifier)
             .clickable(onClickLabel = stringResource(Res.string.sharing_bar_open), role = Role.Button, onClick = onOpen)
             .semantics { stateDescription = until }
-            .padding(horizontal = Gutter, vertical = 4.dp),
+            .heightIn(min = 36.dp).padding(horizontal = Gutter, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
         Icon(Sym.MyLocation, null, Modifier.size(14.dp), tint = colors.onAccent)
         Spacer(Modifier.width(6.dp))
-        Text(text, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.SemiBold, color = colors.onAccent, maxLines = 1)
+        Text(text, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.SemiBold, color = colors.onAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

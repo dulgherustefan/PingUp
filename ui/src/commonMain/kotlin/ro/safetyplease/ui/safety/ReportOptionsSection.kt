@@ -30,6 +30,8 @@ import ro.safetyplease.ui.designsystem.GroupDivider
 import ro.safetyplease.ui.designsystem.GroupRow
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.InsetGroup
+import ro.safetyplease.ui.designsystem.Pop
+import ro.safetyplease.ui.designsystem.Reveal
 import ro.safetyplease.ui.designsystem.SectionTitle
 import ro.safetyplease.ui.designsystem.SwitchRow
 import ro.safetyplease.ui.designsystem.Sym
@@ -145,7 +147,7 @@ private fun Options(state: ReportOptionsState, later: Boolean, witness: Boolean)
             )
         }
     }
-    if (later && state.laterMin > 0) {
+    Reveal(later && state.laterMin > 0) {
         Column(Modifier.padding(top = 12.dp)) {
             Pills(Modifier.padding(horizontal = Gutter)) {
                 ReportOptions.laterChoices.forEach { minutes -> Pill(durationText(minutes), state.laterMin == minutes, { state.laterMin = minutes }) }
@@ -185,7 +187,7 @@ private fun Identity(state: ReportOptionsState, named: Boolean?, onNamed: (Boole
             state.noReply = true
         }
     }
-    if (state.noReply) {
+    Reveal(state.noReply) {
         Text(
             stringResource(Res.string.report_options_no_reply_note), style = MaterialTheme.typography.footnote, color = colors.redInk,
             modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
@@ -201,6 +203,6 @@ private fun Choice(title: String, subtitle: String, chosen: Boolean, onClick: ()
             selected = chosen
         },
         subtitle = subtitle, onClick = onClick,
-        trailing = { if (chosen) Icon(Sym.CheckCircle, null, tint = AppTheme.colors.accent) },
+        trailing = { Pop(chosen) { Icon(Sym.CheckCircle, null, tint = AppTheme.colors.accent) } },
     )
 }

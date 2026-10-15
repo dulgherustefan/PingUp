@@ -5,8 +5,8 @@
     <string name="checkin_row_text">Spune-le prietenilor dacă nu ajungi</string>
     <string name="checkin_row_running">Ajungi la %1$s până la %2$s</string>
     <string name="checkin_alerts_row">Un prieten n-a confirmat că a ajuns</string>
-    <string name="checkin_intro">Spune-le prietenilor unde mergi. Dacă nu confirmi că ai ajuns, ei primesc o alertă cu ultima ta poziție. Cât timp răspunzi, nu pleacă nimic.</string>
-    <string name="checkin_notif_off">Fără notificări nu vezi întrebarea „Ai ajuns?”, iar prietenii pot fi anunțați fără să fi fost întrebat.</string>
+    <string name="checkin_intro">Dacă nu confirmi că ai ajuns, prietenii primesc o alertă cu ultima ta poziție. Cât timp răspunzi, nu pleacă nimic.</string>
+    <string name="checkin_notif_off">Fără ele nu vezi „Ai ajuns?”, iar prietenii pot fi anunțați fără să fii întrebat.</string>
     <string name="checkin_where">Unde ajungi</string>
     <string name="checkin_place_parking">Parcare</string>
     <string name="checkin_place_station">Gară</string>
@@ -21,7 +21,7 @@
     <string name="checkin_no_friends_text">Check-in-ul anunță prieteni din aplicație. Adaugă unul scanând codul lui.</string>
     <string name="checkin_no_friends_add">Adaugă un prieten</string>
     <string name="checkin_start">Pornește check-in-ul</string>
-    <string name="checkin_note">La ora aleasă telefonul te întreabă „Ai ajuns?”. Dacă nu răspunzi în 10 minute de la întrebare, prietenii aleși primesc alerta, cu ultima ta poziție. Dacă telefonul e oprit la ora aleasă, te întreabă când pornește din nou și îți dă tot 10 minute. Ține aplicația permisă în fundal.</string>
+    <string name="checkin_note">La ora aleasă, telefonul te întreabă „Ai ajuns?”. Fără răspuns în 10 minute, prietenii aleși primesc alerta, cu ultima ta poziție. Dacă telefonul e oprit atunci, te întreabă când pornește și îți dă tot 10 minute. Ține aplicația permisă în fundal.</string>
     <string name="checkin_waiting_title">Ajungi la %1$s în</string>
     <string name="checkin_waiting_who">Până la %1$s · anunți: %2$s</string>
     <string name="checkin_asked_title">Ai ajuns la %1$s?</string>
@@ -64,10 +64,10 @@
     <!-- Opțiuni la raport -->
     <string name="report_options_title">Mai multe despre ce s-a întâmplat</string>
     <string name="report_options_later">S-a întâmplat mai devreme</string>
-    <string name="report_options_later_text">Poți raporta și ce s-a întâmplat în ultimele 24 de ore</string>
+    <string name="report_options_later_text">În ultimele 24 de ore</string>
     <string name="report_options_later_at">Aproximativ la %1$s</string>
     <string name="report_options_witness">Raportez pentru altcineva</string>
-    <string name="report_options_witness_text">Am văzut ce i s-a întâmplat altei persoane</string>
+    <string name="report_options_witness_text">Ca martor</string>
     <string name="report_identity_title">Cine trimite raportul</string>
     <string name="report_identity_named">Cu porecla ta</string>
     <string name="report_identity_named_text">Echipa îți vede porecla și îți poate răspunde.</string>

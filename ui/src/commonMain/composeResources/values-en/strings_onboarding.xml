@@ -18,7 +18,7 @@
     <string name="onboarding_later">We ask for the camera and location only when you need them.</string>
     <string name="onboarding_later_camera">We ask for the camera only when you need it.</string>
     <string name="onboarding_not_now">Not now</string>
-    <string name="onboarding_ready_title">You’re all set, %1$s!</string>
+    <string name="onboarding_ready_title">Ready, %1$s</string>
     <string name="onboarding_ready_text">Add your friends while you’re together: one of you scans the other’s code, and that’s it. Then you can text without signal.</string>
     <string name="onboarding_ready_later">Later</string>
     <string name="onboarding_ready_alone">The network grows with everyone around who has Ping Up.</string>

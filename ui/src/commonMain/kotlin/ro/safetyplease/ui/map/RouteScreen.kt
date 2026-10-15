@@ -33,13 +33,13 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -69,11 +69,14 @@ import ro.safetyplease.ui.designsystem.InsetGroup
 import ro.safetyplease.ui.designsystem.LocalReduceMotion
 import ro.safetyplease.ui.designsystem.LocalTextOnly
 import ro.safetyplease.ui.designsystem.NavScreen
+import ro.safetyplease.ui.designsystem.Reveal
 import ro.safetyplease.ui.designsystem.SectionTitle
+import ro.safetyplease.ui.designsystem.Swap
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.headline
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title2
+import ro.safetyplease.ui.designsystem.turnedTo
 import ro.safetyplease.ui.rememberLocationRequest
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
@@ -99,7 +102,6 @@ import ro.safetyplease.ui.resources.route_turn_on
 import ro.safetyplease.ui.resources.route_unreachable
 import ro.safetyplease.ui.resources.route_unreachable_text
 import ro.safetyplease.ui.text.rememberNow
-import kotlin.math.max
 
 /** How often the arrow follows the compass between fixes. */
 private const val ARROW_TICK_MS = 250L
@@ -193,15 +195,17 @@ private fun Guidance(vm: AppViewModel, walk: WalkState.Guiding, label: String, m
             RouteArrow(vm, me, progress.toward, progress.arrived)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    when {
-                        !progress.arrived -> walkStepText(route.steps[progress.step], label)
-                        progress.close -> stringResource(Res.string.route_arrived)
-                        else -> stringResource(Res.string.route_near)
-                    },
-                    style = MaterialTheme.typography.title2, fontWeight = FontWeight.SemiBold, color = colors.label,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
+                val instruction = when {
+                    !progress.arrived -> walkStepText(route.steps[progress.step], label)
+                    progress.close -> stringResource(Res.string.route_arrived)
+                    else -> stringResource(Res.string.route_near)
+                }
+                Swap(instruction) {
+                    Text(
+                        it, style = MaterialTheme.typography.title2, fontWeight = FontWeight.SemiBold, color = colors.label,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
                 val minutes = Route.minutes(progress.remainingSec)
                 Text(
                     stringResource(Res.string.route_left, progress.remainingM, minutes.first, minutes.last),
@@ -209,12 +213,14 @@ private fun Guidance(vm: AppViewModel, walk: WalkState.Guiding, label: String, m
                 )
             }
         }
-        if (progress.offRoute && !progress.arrived) {
-            GroupDivider(start = Gutter)
-            Text(
-                stringResource(Res.string.route_off), style = MaterialTheme.typography.subheadline, color = colors.orange,
-                modifier = Modifier.padding(horizontal = Gutter, vertical = 12.dp),
-            )
+        Reveal(progress.offRoute && !progress.arrived) {
+            Column {
+                GroupDivider(start = Gutter)
+                Text(
+                    stringResource(Res.string.route_off), style = MaterialTheme.typography.subheadline, color = colors.orange,
+                    modifier = Modifier.padding(horizontal = Gutter, vertical = 12.dp),
+                )
+            }
         }
     }
     if (progress.arrived) return
@@ -230,7 +236,7 @@ private fun Guidance(vm: AppViewModel, walk: WalkState.Guiding, label: String, m
                     Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
                         val turned = turnDeg(step.turn)
                         if (turned == null) Icon(Sym.Flag, null, Modifier.size(22.dp), tint = colors.accent)
-                        else Icon(Sym.Send, null, Modifier.size(22.dp).rotate(turned), tint = colors.accent)
+                        else Icon(Sym.Send, null, Modifier.size(22.dp).turnedTo(turned), tint = colors.accent)
                     }
                 },
             )
@@ -263,7 +269,7 @@ private fun RouteArrow(vm: AppViewModel, me: GeoPoint?, toward: GeoPoint, arrive
     Box(Modifier.size(56.dp).clip(CircleShape).background(colors.accent), contentAlignment = Alignment.Center) {
         when {
             arrived -> Icon(Sym.Flag, null, Modifier.size(28.dp), tint = colors.onAccent)
-            angle != null -> Icon(Sym.Send, null, Modifier.size(30.dp).rotate(angle), tint = colors.onAccent)
+            angle != null -> Icon(Sym.Send, null, Modifier.size(30.dp).turnedTo(angle), tint = colors.onAccent)
             else -> Icon(Sym.Walk, null, Modifier.size(28.dp), tint = colors.onAccent)
         }
     }

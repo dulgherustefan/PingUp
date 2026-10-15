@@ -94,6 +94,7 @@ import ro.safetyplease.ui.resources.share_start
 import ro.safetyplease.ui.resources.share_suggested
 import ro.safetyplease.ui.resources.share_title
 import ro.safetyplease.ui.resources.share_with
+import ro.safetyplease.ui.resources.sharing_note
 import ro.safetyplease.ui.resources.sharing_stop
 import ro.safetyplease.ui.resources.watchers_add
 import ro.safetyplease.ui.resources.watchers_empty
@@ -120,7 +121,7 @@ fun ShareIntroScreen(vm: AppViewModel) {
             Text(stringResource(Res.string.share_intro_title), style = MaterialTheme.typography.title1, color = colors.label, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             Text(
                 stringResource(Res.string.share_intro_text), style = MaterialTheme.typography.body, color = colors.secondaryLabel,
-                modifier = Modifier.padding(top = 12.dp, bottom = 24.dp),
+                textAlign = TextAlign.Center, modifier = Modifier.padding(top = 12.dp, bottom = 24.dp),
             )
             AppButton(
                 stringResource(Res.string.share_intro_choose),
@@ -350,9 +351,10 @@ fun SharingScreen(vm: AppViewModel) {
                 stringResource(Res.string.watchers_add), { vm.openShare() },
                 Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 12.dp), kind = ButtonKind.Secondary,
             )
+            // the full consent text is on the screen that starts sharing; here only how to stop
             Text(
-                stringResource(Res.string.share_intro_text), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
-                modifier = Modifier.padding(Gutter),
+                stringResource(Res.string.sharing_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 12.dp),
             )
         }
     }

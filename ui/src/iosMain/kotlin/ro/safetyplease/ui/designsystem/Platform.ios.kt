@@ -66,3 +66,5 @@ private val FontScales = mapOf(
     UIContentSizeCategoryAccessibilityExtraExtraLarge to 1.7f,
     UIContentSizeCategoryAccessibilityExtraExtraExtraLarge to 1.8f,
 )
+
+actual val EdgeBounce = true

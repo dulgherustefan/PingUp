@@ -74,7 +74,7 @@
     <string name="problem_leaf_title">Telefonul tău nu poate fi găsit de alții</string>
     <string name="problem_leaf_text">Se conectează doar el la telefoanele din jur. Mesajele și rapoartele merg în continuare.</string>
     <string name="problem_battery_title">Telefonul poate opri aplicația în fundal</string>
-    <string name="problem_battery_text">Scoate aplicația din economisirea bateriei, ca mesajele să ajungă și cu ecranul stins.</string>
+    <string name="problem_battery_text">Cu ecranul stins, mesajele s-ar putea să nu mai ajungă.</string>
     <string name="problem_battery_action">Permite rularea în fundal</string>
     <string name="problem_dismiss">Am înțeles</string>
     <string name="identity_new_title">Ai primit o identitate nouă</string>
@@ -148,7 +148,7 @@
     <string name="add_friend_tab_code">Codul meu</string>
     <string name="add_friend_tab_scan">Scanează</string>
     <string name="add_friend_mine">Codul tău</string>
-    <string name="add_friend_mine_hint">Arată-l prietenului tău. Atinge-l ca să îl mărești.</string>
+    <string name="add_friend_mine_hint">Arată-l prietenului. Atinge-l ca să-l mărești.</string>
     <string name="add_friend_enlarge">Mărește codul</string>
     <string name="add_friend_scan">Codul prietenului</string>
     <string name="add_friend_scan_hint">Îndreaptă camera spre codul lui. Merge și pentru codul de staff.</string>
@@ -199,7 +199,7 @@
     <string name="report_zone_pick">Alege zona</string>
     <string name="report_zone_none">Fără zonă</string>
     <string name="report_zone_manual">Nu avem poziția ta. Alege zona dacă o știi.</string>
-    <string name="report_zone_outside">Ești în afara zonelor de pe hartă. Trimitem poziția cu raportul.</string>
+    <string name="report_zone_outside">În afara zonelor de pe hartă. Poziția pleacă cu raportul.</string>
     <string name="report_use_location">Folosește locația mea</string>
     <string name="report_location">Locația ta</string>
     <string name="report_location_gps">Poziția din GPS</string>
@@ -224,7 +224,7 @@
     <string name="report_mine_empty_text">Rapoartele tale apar aici, cu starea lor.</string>
     <string name="report_next_title">Ce urmează</string>
     <string name="report_next_text">Raportul pleacă spre staff din telefon în telefon.</string>
-    <string name="report_waiting_text">Niciun telefon nu e încă în apropiere. Raportul pleacă singur când apare unul.</string>
+    <string name="report_waiting_text">Raportul pleacă singur când apare un telefon în apropiere.</string>
     <string name="report_not_112">Nu înlocuiește 112: raportul ajunge la staff.</string>
     <string name="emergency_call">Sună la 112</string>
     <string name="report_escalate_title">Încă nu a confirmat nimeni</string>
@@ -236,7 +236,7 @@
     <string name="report_help_stay_text">Cere ajutor celor din jur.</string>
     <string name="report_help_call_text">Dacă poți. Apelul îl faci tu.</string>
     <string name="report_help_meeting">Mergi la punctul de întâlnire</string>
-    <string name="report_help_info">Sau la punctul de informații</string>
+    <string name="report_help_info">Sau la punctul de informare</string>
     <string name="report_help_info_text">Acolo se strâng și cei care își caută prietenii.</string>
     <string name="report_stay_title">Rămâi pe loc</string>
     <string name="report_stay_text">Când auzi pe cineva, ridică lanterna telefonului.</string>
@@ -252,9 +252,9 @@
     <string name="answer_no">nu</string>
     <string name="answer_unknown">nu știu</string>
     <string name="answer_unasked">fără răspuns</string>
-    <string name="report_lost_friend_note">Mergi la punctul de întâlnire sau la info. Raportul ajunge doar la camera de control, ca informare.</string>
+    <string name="report_lost_friend_note">Sau la info. Raportul ajunge doar la camera de control, ca informare.</string>
     <string name="report_lost_child_note">Pleacă urgent la camera de control și la echipe. Scrie în descriere cum arată copilul.</string>
-    <string name="report_lost_friend_sent_text">Raportul merge la camera de control, ca informare. Între timp, mergi la punctul de întâlnire sau la info.</string>
+    <string name="report_lost_friend_sent_text">Raportul merge la camera de control, ca informare.</string>
     <string name="report_staff_title">Raport de staff</string>
     <string name="report_staff_team">Pleacă în numele echipei %1$s.</string>
     <string name="report_staff_people">Câte persoane</string>
@@ -303,9 +303,8 @@
     <string name="map_your_zone">Zona ta</string>
     <string name="map_you_are_here">Ești aici</string>
     <string name="map_outside">Ești în afara zonelor</string>
-    <string name="map_outside_text">Poziția ta nu e în nicio zonă de pe hartă.</string>
     <string name="map_pick_zone">Unde ești?</string>
-    <string name="map_pick_zone_text">Nu avem încă poziția ta. Atinge pe hartă zona în care ești.</string>
+    <string name="map_pick_zone_text">Nu avem încă poziția ta. Atinge-ți zona pe hartă.</string>
     <string name="map_set_zone">Aici sunt eu</string>
     <string name="map_source_gps">din GPS</string>
     <string name="map_source_manual">aleasă de tine</string>
@@ -592,7 +591,7 @@
     <string name="pages_draft_text">Organizatorul nu l-a aprobat încă. Datele marcate „sursa: organizatorul” le completează el.</string>
     <string name="pages_approved">Aprobat de organizator: %1$s</string>
     <string name="low_battery_title">Baterie sub %1$s</string>
-    <string name="low_battery_text">Telefonul scanează mai rar și ajută mai puțin la retransmiterea mesajelor, ca bateria să țină. Raportarea merge ca de obicei.</string>
+    <string name="low_battery_text">Telefonul scanează mai rar și retransmite mai puțin, ca bateria să țină. Raportarea merge ca de obicei.</string>
     <string name="low_battery_text_only">Harta și animațiile sunt oprite până încarci telefonul.</string>
     <string name="low_battery_charger">Cel mai apropiat punct de încărcare: %1$s</string>
     <string name="low_battery_show">Arată pe hartă</string>
@@ -605,7 +604,7 @@
     <string name="autonomy_profile_economy">Economic: scanează mai rar, retransmite mai puțin</string>
     <string name="autonomy_left">Timp rămas estimat</string>
     <string name="autonomy_left_text">La ritmul din ultima oră, cu profilul de acum.</string>
-    <string name="autonomy_left_measuring">Se calculează după ce bateria scade cu câteva procente la același ritm.</string>
+    <string name="autonomy_left_measuring">Apare după o scădere constantă de câteva procente.</string>
     <string name="autonomy_left_charging">Telefonul se încarcă.</string>
     <string name="autonomy_minutes">~%1$d min</string>
     <string name="autonomy_hours">~%1$d h</string>
@@ -1020,7 +1019,7 @@
     <string name="map_about_subtitle">© OpenStreetMap și licențe</string>
     <string name="map_about_text">Harta de bază: © OpenStreetMap contributors, date sub Open Database License (ODbL 1.0), prin Protomaps. Fonturile Noto Sans: SIL Open Font License 1.1. Iconițele locurilor: Mapzen, licență MIT. Afișarea hărții: MapLibre Native, licență BSD-2-Clause. Zonele, punctele și grila sunt ale organizatorului. Toate licențele: Eu › Licențe open source.</string>
     <string name="me_notices">Anunțurile organizatorilor</string>
-    <string name="me_notices_text">Alerte de vreme, căldură și schimbări de program sau transport, chiar fără semnal. Evacuările pentru zona ta apar mereu, chiar și cu anunțurile oprite.</string>
+    <string name="me_notices_text">Vreme, căldură, program și transport, chiar fără semnal. Evacuările pentru zona ta apar mereu, chiar și cu anunțurile oprite.</string>
     <string name="notice_composer_title">Anunț</string>
     <string name="notice_reach">Ajunge doar la telefoanele cu Ping Up din rețea. Nu înlocuiește scena, ecranele sau RO-ALERT.</string>
     <string name="notice_no_shift">Doar o consolă cu un cod de tură de control valid semnează anunțuri.</string>
@@ -1070,6 +1069,7 @@
     <string name="gnss_searching_text">N-a mai fost o poziție de peste o oră. Sub cerul liber merge mai repede.</string>
     <string name="share_intro_title">Locația ta, doar pentru cine bifezi.</string>
     <string name="share_intro_text">Dacă pornești partajarea, telefonul tău trimite locația ta, prin telefoanele din jur, către prietenii pe care îi bifezi, și când aplicația e închisă sau nu e folosită. Locația e criptată: telefoanele care o transmit mai departe, organizatorul și noi nu o putem citi. Un prieten cu care o împarți poate atașa ultima poziție pe care i-ai trimis-o la un raport de persoană pierdută, care ajunge la echipa care caută. Nimic nu pleacă din telefon până nu bifezi un prieten. Oprești oricând, din notificare sau de aici, fără ca nimeni să fie anunțat.</string>
+    <string name="sharing_note">Oprești oricând, de aici sau din notificare, fără ca nimeni să fie anunțat.</string>
     <string name="share_intro_choose">Alege cu cine</string>
     <string name="share_intro_later">Nu acum</string>
     <string name="share_title">Partajează locația</string>
@@ -1088,7 +1088,7 @@
     <string name="share_precision">Cât de exact</string>
     <string name="share_prec_exact">Exact (≈ 1 m, cât dă GPS-ul)</string>
     <string name="share_prec_approx">Zonă aproximativă (≈ 100 m)</string>
-    <string name="share_prec_zone">Doar zona (cum e azi)</string>
+    <string name="share_prec_zone">Doar zona</string>
     <string name="share_prec_exact_short">Exact</string>
     <string name="share_prec_approx_short">Zonă aproximativă</string>
     <string name="share_prec_zone_short">Doar zona</string>
@@ -1157,7 +1157,7 @@
     <string name="ask_wait">Așteaptă puțin</string>
     <string name="seen_lighting">Își aprinde lanterna acum</string>
     <string name="seen_title">%1$s vrea să te vadă</string>
-    <string name="seen_text">Aprinzi lanterna 10 s? Clipește și telefonul vibrează. Ține-l deasupra capului.</string>
+    <string name="seen_text">Lanterna clipește 10 s și telefonul vibrează. Ține-l deasupra capului.</string>
     <string name="seen_accept">Aprinde lanterna</string>
     <string name="seen_auto">Acceptă mereu de la prieteni</string>
     <string name="seen_white">Ecran alb</string>

@@ -33,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -50,8 +49,8 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringArrayResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.announce.EvacuationTarget
-import ro.safetyplease.core.announce.ExitChoice
 import ro.safetyplease.core.announce.Evacuations
+import ro.safetyplease.core.announce.ExitChoice
 import ro.safetyplease.core.announce.MapState
 import ro.safetyplease.core.announce.NoticeLevel
 import ro.safetyplease.core.announce.NoticeReach
@@ -82,6 +81,7 @@ import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.designsystem.title1
 import ro.safetyplease.ui.designsystem.title2
 import ro.safetyplease.ui.designsystem.title3
+import ro.safetyplease.ui.designsystem.turnedTo
 import ro.safetyplease.ui.map.MapOverlay
 import ro.safetyplease.ui.map.MapRoute
 import ro.safetyplease.ui.map.OverlayLayer
@@ -91,8 +91,8 @@ import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.evac_banner
 import ro.safetyplease.ui.resources.evac_banner_closed
 import ro.safetyplease.ui.resources.evac_banner_plain
-import ro.safetyplease.ui.resources.evac_exit_number
 import ro.safetyplease.ui.resources.evac_exit_closed
+import ro.safetyplease.ui.resources.evac_exit_number
 import ro.safetyplease.ui.resources.evac_exits
 import ro.safetyplease.ui.resources.evac_exits_all
 import ro.safetyplease.ui.resources.evac_fallback
@@ -322,7 +322,7 @@ private fun WalkLine(vm: AppViewModel, walk: WalkState.Guiding, exit: String, fr
     val heading = vm.phone.heading()
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (from != null && heading != null) {
-            Icon(Sym.Send, null, Modifier.size(32.dp).rotate(Guide.arrowDeg(Guide.bearing(from, progress.toward), heading)), tint = Ink)
+            Icon(Sym.Send, null, Modifier.size(32.dp).turnedTo(Guide.arrowDeg(Guide.bearing(from, progress.toward), heading)), tint = Ink)
             Spacer(Modifier.width(12.dp))
         }
         Line(
@@ -347,7 +347,7 @@ private fun WayTo(vm: AppViewModel, from: GeoPoint, to: GeoPoint) {
     val directions = stringArrayResource(Res.array.map_directions)
     val meters = vm.c.walkDistance.meters(from, to) ?: return
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Sym.Send, null, Modifier.size(32.dp).rotate(Guide.arrowDeg(Guide.bearing(from, to), vm.phone.heading())), tint = Ink)
+        Icon(Sym.Send, null, Modifier.size(32.dp).turnedTo(Guide.arrowDeg(Guide.bearing(from, to), vm.phone.heading())), tint = Ink)
         Spacer(Modifier.width(12.dp))
         val way = stringResource(Res.string.map_route, Guide.round(meters), directions[compassSector(from, to)])
         Line(way, MaterialTheme.typography.title3, bold = true)

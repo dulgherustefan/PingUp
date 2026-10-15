@@ -5,8 +5,8 @@
     <string name="checkin_row_text">Tell your friends if you don’t arrive</string>
     <string name="checkin_row_running">Arriving at %1$s by %2$s</string>
     <string name="checkin_alerts_row">A friend hasn’t confirmed they arrived</string>
-    <string name="checkin_intro">Tell your friends where you are going. If you don’t confirm you arrived, they get an alert with your last position. As long as you answer, nothing is sent.</string>
-    <string name="checkin_notif_off">Without notifications you won’t see “Did you arrive?”, and your friends could be told without you being asked.</string>
+    <string name="checkin_intro">If you don’t confirm you arrived, your friends get an alert with your last position. As long as you answer, nothing is sent.</string>
+    <string name="checkin_notif_off">Without them you won’t see “Did you arrive?”, and friends could be told without you being asked.</string>
     <string name="checkin_where">Where you are going</string>
     <string name="checkin_place_parking">Parking</string>
     <string name="checkin_place_station">Station</string>
@@ -21,7 +21,7 @@
     <string name="checkin_no_friends_text">The check-in tells friends in the app. Add one by scanning their code.</string>
     <string name="checkin_no_friends_add">Add a friend</string>
     <string name="checkin_start">Start the check-in</string>
-    <string name="checkin_note">At the time you chose, the phone asks “Did you arrive?”. If you don’t answer within 10 minutes of the question, the friends you chose get the alert, with your last position. If the phone is off at that time, it asks when it’s back on and still gives you 10 minutes. Keep the app allowed in the background.</string>
+    <string name="checkin_note">At the time you chose, the phone asks “Did you arrive?”. With no answer within 10 minutes, the friends you chose get the alert, with your last position. If the phone is off then, it asks once it’s back on, still giving you 10 minutes. Keep the app allowed in the background.</string>
     <string name="checkin_waiting_title">Arriving at %1$s in</string>
     <string name="checkin_waiting_who">By %1$s · telling: %2$s</string>
     <string name="checkin_asked_title">Did you arrive at %1$s?</string>
@@ -63,10 +63,10 @@
     <!-- Report options -->
     <string name="report_options_title">More about what happened</string>
     <string name="report_options_later">It happened earlier</string>
-    <string name="report_options_later_text">You can also report what happened in the last 24 hours</string>
+    <string name="report_options_later_text">Within the last 24 hours</string>
     <string name="report_options_later_at">Around %1$s</string>
     <string name="report_options_witness">I am reporting for someone else</string>
-    <string name="report_options_witness_text">I saw what happened to another person</string>
+    <string name="report_options_witness_text">As a witness</string>
     <string name="report_identity_title">Who the report is from</string>
     <string name="report_identity_named">With your nickname</string>
     <string name="report_identity_named_text">The team sees your nickname and can answer you.</string>

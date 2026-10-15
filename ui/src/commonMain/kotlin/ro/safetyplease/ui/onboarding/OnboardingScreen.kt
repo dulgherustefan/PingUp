@@ -79,9 +79,8 @@ import ro.safetyplease.ui.common.problem
 import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Avatar
-import ro.safetyplease.ui.designsystem.avatarIndex
 import ro.safetyplease.ui.designsystem.GlassIconButton
-import ro.safetyplease.ui.designsystem.Gutter
+import ro.safetyplease.ui.designsystem.GlassSize
 import ro.safetyplease.ui.designsystem.IconCircle
 import ro.safetyplease.ui.designsystem.InputField
 import ro.safetyplease.ui.designsystem.LocalReduceMotion
@@ -90,6 +89,8 @@ import ro.safetyplease.ui.designsystem.Motion
 import ro.safetyplease.ui.designsystem.NavHeight
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
+import ro.safetyplease.ui.designsystem.TouchTarget
+import ro.safetyplease.ui.designsystem.avatarIndex
 import ro.safetyplease.ui.designsystem.body
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
@@ -442,7 +443,8 @@ private fun StepPage(
         Modifier.fillMaxSize().background(AppTheme.colors.background).safeDrawingPadding().imePadding().semantics { paneTitle = title },
     ) {
         if (onBack != null || step.progress != null) {
-            Box(Modifier.fillMaxWidth().height(NavHeight).padding(horizontal = Gutter)) {
+            // the back circle lines up with the page's text, inside its 48dp touch box
+            Box(Modifier.fillMaxWidth().height(NavHeight).padding(horizontal = PageGutter - (TouchTarget - GlassSize) / 2)) {
                 if (onBack != null) GlassIconButton(Sym.Back, stringResource(Res.string.back), onBack, null, Modifier.align(Alignment.CenterStart))
                 step.progress?.let { StepDots(it, OnboardingStep.COUNTED, Modifier.align(Alignment.Center)) }
             }

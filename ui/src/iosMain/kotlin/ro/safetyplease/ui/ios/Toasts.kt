@@ -1,8 +1,11 @@
 package ro.safetyplease.ui.ios
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -15,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +31,8 @@ import kotlinx.coroutines.delay
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.LocalReduceMotion
+import ro.safetyplease.ui.designsystem.Motion
 import ro.safetyplease.ui.designsystem.glass
 import ro.safetyplease.ui.designsystem.subheadline
 
@@ -46,11 +52,20 @@ class Toasts {
             delay(if (current.long) LONG_MS else SHORT_MS)
             if (shown === current) shown = null
         }
+        // the text stays while the pill fades out, instead of an empty pill fading
+        val last = remember { arrayOfNulls<String>(1) }
+        if (current != null) last[0] = current.text
+        val reduce = LocalReduceMotion.current
         Box(Modifier.fillMaxSize().navigationBarsPadding().padding(start = 24.dp, end = 24.dp, bottom = 96.dp), contentAlignment = Alignment.BottomCenter) {
-            AnimatedVisibility(current != null, enter = fadeIn(), exit = fadeOut()) {
+            AnimatedVisibility(
+                current != null,
+                enter = if (reduce) fadeIn(tween(Motion.QUICK))
+                else fadeIn(tween(Motion.QUICK)) + slideInVertically(tween(Motion.STANDARD, easing = Motion.Enter)) { it / 3 } + scaleIn(tween(Motion.STANDARD, easing = Motion.Enter), initialScale = 0.94f),
+                exit = fadeOut(tween(Motion.QUICK)),
+            ) {
                 // VoiceOver reads it as it comes, as TalkBack reads a toast
                 Text(
-                    current?.text.orEmpty(), style = MaterialTheme.typography.subheadline, color = AppTheme.colors.label, textAlign = TextAlign.Center,
+                    last[0].orEmpty(), style = MaterialTheme.typography.subheadline, color = AppTheme.colors.label, textAlign = TextAlign.Center,
                     modifier = Modifier.widthIn(max = 420.dp).glass(null, RoundedCornerShape(20.dp)).padding(horizontal = 18.dp, vertical = 12.dp)
                         .semantics { liveRegion = LiveRegionMode.Polite },
                 )

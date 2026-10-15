@@ -1,11 +1,16 @@
 package ro.safetyplease.ui.designsystem
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.LocalIndication
@@ -18,6 +23,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -105,6 +111,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.data.MsgStatus
 import ro.safetyplease.ui.resources.Res
@@ -112,7 +119,6 @@ import ro.safetyplease.ui.resources.back
 import ro.safetyplease.ui.resources.cancel
 import ro.safetyplease.ui.resources.confirm
 import ro.safetyplease.ui.resources.more_options
-import kotlin.math.roundToInt
 
 /** Bottom space to leave: the floating tab bar on main screens, the gesture bar elsewhere. */
 val LocalBottomClearance = compositionLocalOf { 0.dp }
@@ -122,6 +128,18 @@ val LocalStatusBarTop = compositionLocalOf<Dp?> { null }
 
 /** Horizontal screen margin. */
 val Gutter = 16.dp
+
+/**
+ * Where the bars put their round buttons: the 48dp touch box sits closer to the edge, so the 38dp circle in it lines
+ * up with the content under the bar.
+ */
+val BarInset: Dp get() = Gutter - (TouchTarget - GlassSize) / 2
+
+/** Corners: cards and banners on the screen, and the tiles and chips inside a screen. */
+object Radius {
+    val Card = 26.dp
+    val Tile = 16.dp
+}
 
 /** Top bar height, excluding the status bar. */
 val NavHeight = 52.dp
@@ -141,21 +159,27 @@ fun AppButton(
     icon: ImageVector? = null,
 ) {
     val c = AppTheme.colors
-    val fill = when {
-        !enabled -> c.fill
-        kind == ButtonKind.Primary -> c.accent
-        kind == ButtonKind.Danger -> c.red
-        else -> c.fill
-    }
-    val ink = when {
-        !enabled -> c.tertiaryLabel
-        kind == ButtonKind.Secondary -> c.label
-        kind == ButtonKind.Primary -> c.onAccent
-        else -> Color.White
-    }
+    val fill = animatedColor(
+        when {
+            !enabled -> c.fill
+            kind == ButtonKind.Primary -> c.accent
+            kind == ButtonKind.Danger -> c.red
+            else -> c.fill
+        },
+        "buttonFill",
+    )
+    val ink = animatedColor(
+        when {
+            !enabled -> c.tertiaryLabel
+            kind == ButtonKind.Secondary -> c.label
+            kind == ButtonKind.Primary -> c.onAccent
+            else -> Color.White
+        },
+        "buttonInk",
+    )
     val press = remember { MutableInteractionSource() }
     Row(
-        modifier.pressScale(press, 0.97f).heightIn(min = if (compact) 36.dp else 50.dp).clip(CircleShape).background(fill)
+        modifier.pressScale(press).heightIn(min = if (compact) 40.dp else 50.dp).clip(CircleShape).background(fill)
             .clickable(press, LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = if (compact) 16.dp else 24.dp),
         horizontalArrangement = Arrangement.Center,
@@ -174,12 +198,18 @@ fun AppButton(
 
 /** Text-only button in the accent color, with a 48dp touch target. */
 @Composable
-fun TextLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = AppTheme.colors.accent) {
+fun TextLink(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    color: Color = AppTheme.colors.accent,
+    style: TextStyle = MaterialTheme.typography.body,
+) {
     Box(
         modifier.heightIn(min = TouchTarget).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, style = MaterialTheme.typography.body, color = color)
+        Text(text, style = style, color = color)
     }
 }
 
@@ -269,20 +299,24 @@ fun NavScreen(
         Layout(
             content = {
                 Box { leading(backdrop) }
-                Text(title, style = MaterialTheme.typography.headline, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Swap(title, contentAlignment = Alignment.Center) {
+                    Text(it, style = MaterialTheme.typography.headline, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
                 Box { trailing(backdrop) }
                 if (subtitle != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         subtitleLeading?.invoke()
-                        Text(
-                            subtitle, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
-                            textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        )
+                        Swap(subtitle, contentAlignment = Alignment.Center) {
+                            Text(
+                                it, style = MaterialTheme.typography.footnote, color = AppTheme.colors.secondaryLabel,
+                                textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             },
             modifier = Modifier.statusBarsPadding().fillMaxWidth().heightIn(min = NavHeight).onSizeChanged { barPx = it.height }
-                .padding(horizontal = Gutter),
+                .padding(horizontal = BarInset),
         ) { measurables, constraints ->
             val loose = constraints.copy(minWidth = 0, minHeight = 0)
             val lead = measurables[0].measure(loose)
@@ -357,12 +391,9 @@ fun Avatar(name: String, size: Dp = 56.dp, near: Boolean = false, group: Boolean
                 fontWeight = FontWeight.Medium, maxLines = 1,
             )
         }
-        if (near) {
+        Pop(near, Modifier.align(Alignment.BottomEnd)) {
             val dot = (size * 0.26f).coerceAtLeast(12.dp)
-            Box(
-                Modifier.align(Alignment.BottomEnd).size(dot).clip(CircleShape).background(colors.background).padding(2.dp)
-                    .clip(CircleShape).background(colors.green),
-            )
+            Box(Modifier.size(dot).clip(CircleShape).background(colors.background).padding(2.dp).clip(CircleShape).background(colors.green))
         }
     }
 }
@@ -375,7 +406,9 @@ fun UnreadBadge(count: Int, modifier: Modifier = Modifier, color: Color = AppThe
         contentAlignment = Alignment.Center,
     ) {
         val style = MaterialTheme.typography.footnote
-        Text(if (count > 99) "99+" else count.toString(), style = style.copy(lineHeight = style.fontSize), color = if (color == AppTheme.colors.accent) AppTheme.colors.onAccent else Color.White, maxLines = 1)
+        RollingCount(
+            count, style.copy(lineHeight = style.fontSize), if (color == AppTheme.colors.accent) AppTheme.colors.onAccent else Color.White,
+        ) { if (it > 99) "99+" else it.toString() }
     }
 }
 
@@ -415,11 +448,10 @@ fun InputField(
                 }
             },
         )
-        if (supporting != null) {
-            Text(
-                supporting, style = MaterialTheme.typography.footnote, color = c.secondaryLabel,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp),
-            )
+        RevealValue(supporting) { text ->
+            Swap(text) {
+                Text(it, style = MaterialTheme.typography.footnote, color = c.secondaryLabel, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp))
+            }
         }
     }
 }
@@ -437,7 +469,7 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier, color: Color = App
 @Composable
 fun InsetGroup(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier.fillMaxWidth().padding(horizontal = Gutter).clip(RoundedCornerShape(26.dp)).background(AppTheme.colors.cell),
+        modifier.fillMaxWidth().padding(horizontal = Gutter).clip(RoundedCornerShape(Radius.Card)).background(AppTheme.colors.cell),
         content = content,
     )
 }
@@ -496,7 +528,11 @@ fun GroupRow(
         }
         if (value != null) {
             Spacer(Modifier.width(12.dp))
-            Text(value, style = MaterialTheme.typography.body, color = c.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End)
+            // a long value, such as a festival's name, is cut before it squeezes the title into broken words
+            Text(
+                value, style = MaterialTheme.typography.body, color = c.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End, modifier = Modifier.widthIn(max = 160.dp),
+            )
         }
         if (trailing != null) {
             Spacer(Modifier.width(12.dp))
@@ -514,7 +550,7 @@ fun GroupRow(
 fun IosSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier) {
     val c = AppTheme.colors
     val track by animateColorAsState(if (checked) c.green else c.switchOff, tween(Motion.STANDARD), label = "track")
-    val x by animateDpAsState(if (checked) 22.dp else 2.dp, spring(dampingRatio = 0.75f, stiffness = 500f), label = "thumb")
+    val x by animateDpAsState(if (checked) 22.dp else 2.dp, motionSpec(spring(dampingRatio = 0.75f, stiffness = 500f)), label = "thumb")
     Box(
         modifier.size(width = 51.dp, height = 31.dp).clip(CircleShape).background(track)
             .then(if (onCheckedChange != null) Modifier.toggleable(checked, role = Role.Switch, onValueChange = onCheckedChange) else Modifier),
@@ -543,7 +579,7 @@ fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: 
     val lines = if (largeFont()) 2 else 1
     BoxWithConstraints(modifier.fillMaxWidth().clip(CircleShape).background(c.fill).padding(2.dp).selectableGroup()) {
         val w = maxWidth / options.size
-        val x by animateDpAsState(w * index, spring(dampingRatio = 0.85f, stiffness = 500f), label = "segment")
+        val x by animateDpAsState(w * index, motionSpec(spring(dampingRatio = 0.85f, stiffness = 500f)), label = "segment")
         Box(
             Modifier.matchParentSize().wrapContentWidth(Alignment.Start).offset { IntOffset(x.roundToPx(), 0) }.width(w)
                 .shadow(2.dp, CircleShape, ambientColor = Color(0x14000000), spotColor = Color(0x1F000000))
@@ -552,7 +588,7 @@ fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: 
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
             options.forEach { (value, label) ->
                 Box(
-                    Modifier.weight(1f).fillMaxHeight().heightIn(min = 32.dp).clip(CircleShape)
+                    Modifier.weight(1f).fillMaxHeight().heightIn(min = 40.dp).clip(CircleShape)
                         .selectable(selected = value == selected, role = Role.Tab, onClick = { onSelect(value) })
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     contentAlignment = Alignment.Center,
@@ -571,11 +607,13 @@ fun <T> SegmentedControl(options: List<Pair<T, String>>, selected: T, onSelect: 
 @Composable
 fun ActionTile(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false, background: Color = AppTheme.colors.fill) {
     val c = AppTheme.colors
-    val fill by animateColorAsState(if (selected) c.accent else background, tween(Motion.QUICK), label = "tile")
-    val ink = if (selected) c.onAccent else c.label
+    val fill = animatedColor(if (selected) c.accent else background, "tile")
+    val ink = animatedColor(if (selected) c.onAccent else c.label, "tileInk")
+    val press = remember { MutableInteractionSource() }
     Column(
-        modifier.heightIn(min = 64.dp).clip(RoundedCornerShape(16.dp)).background(fill)
-            .selectable(selected = selected, role = Role.Button, onClick = onClick).padding(start = 6.dp, end = 6.dp, top = 14.dp, bottom = 10.dp),
+        modifier.pressScale(press).heightIn(min = 64.dp).clip(RoundedCornerShape(Radius.Tile)).background(fill)
+            .selectable(selected = selected, interactionSource = press, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
+            .padding(start = 6.dp, end = 6.dp, top = 14.dp, bottom = 10.dp),
         // content starts at the top so icons stay aligned when a neighbor's label wraps to two lines
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Top,
     ) {
@@ -619,7 +657,7 @@ fun Banner(
     onDismiss: () -> Unit = {},
 ) {
     val c = AppTheme.colors
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c.fill).padding(16.dp)) {
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.Card)).background(c.fill).padding(16.dp)) {
         Row(verticalAlignment = Alignment.Top) {
             Icon(if (warning) Sym.Report else Sym.Info, null, Modifier.size(22.dp), tint = if (warning) c.orange else c.accent)
             Spacer(Modifier.width(12.dp))
@@ -629,7 +667,11 @@ fun Banner(
             }
         }
         if (action != null || dismiss != null) {
-            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+            // on a narrow phone or with large text the action goes under the dismiss button rather than being cut
+            FlowRow(
+                Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 if (dismiss != null) AppButton(dismiss, onDismiss, kind = ButtonKind.Secondary, compact = true)
                 if (action != null) AppButton(action, onAction, compact = true)
             }
@@ -645,7 +687,7 @@ fun EmptyState(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     illustration: (@Composable () -> Unit)? = null,
-    action: @Composable () -> Unit = {},
+    action: (@Composable () -> Unit)? = null,
 ) {
     val c = AppTheme.colors
     Column(modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -663,8 +705,10 @@ fun EmptyState(
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
-        Spacer(Modifier.height(20.dp))
-        action()
+        if (action != null) {
+            Spacer(Modifier.height(20.dp))
+            action()
+        }
     }
 }
 
@@ -678,22 +722,65 @@ fun AppDialog(
     dismissLabel: String? = stringResource(Res.string.cancel),
     confirmEnabled: Boolean = true,
     destructive: Boolean = false,
+    confirmKind: ButtonKind? = null,
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
     val c = AppTheme.colors
+    val reduce = LocalReduceMotion.current
+    val shown = remember { MutableTransitionState(false).apply { targetState = true } }
     Dialog(onDismissRequest = onDismiss) {
-        Column(
-            Modifier.widthIn(max = 320.dp).fillMaxWidth().clip(RoundedCornerShape(34.dp)).background(c.dialog)
-                .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 16.dp),
+        // settles in from slightly smaller, as iOS alerts do
+        AnimatedVisibility(
+            shown,
+            enter = if (reduce) fadeIn(tween(Motion.QUICK)) else fadeIn(tween(Motion.QUICK)) + scaleIn(tween(Motion.STANDARD, easing = Motion.Enter), initialScale = 0.94f),
+            exit = fadeOut(tween(90)),
         ) {
-            Text(title, style = MaterialTheme.typography.headline, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-            Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 18.dp), content = content)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (dismissLabel != null) AppButton(dismissLabel, onDismiss, Modifier.weight(1f), kind = ButtonKind.Secondary)
-                AppButton(
-                    confirmLabel, onConfirm, Modifier.weight(1f), enabled = confirmEnabled,
-                    kind = if (destructive) ButtonKind.Danger else ButtonKind.Primary,
+            Column(
+                Modifier.widthIn(max = 320.dp).fillMaxWidth().clip(RoundedCornerShape(34.dp)).background(c.dialog)
+                    .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 16.dp),
+            ) {
+                Text(title, style = MaterialTheme.typography.headline, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 18.dp), content = content)
+                ButtonPair(
+                    dismiss = dismissLabel?.let { { AppButton(it, onDismiss, kind = ButtonKind.Secondary) } },
+                    confirm = {
+                        AppButton(
+                            confirmLabel, onConfirm, enabled = confirmEnabled,
+                            kind = confirmKind ?: if (destructive) ButtonKind.Danger else ButtonKind.Primary,
+                        )
+                    },
                 )
+            }
+        }
+    }
+}
+
+/**
+ * A dialog's buttons: side by side at the same width while both labels fit, otherwise one under the other, the
+ * confirmation on top, so a label like "Partajează 15 min" is never cut.
+ */
+@Composable
+private fun ButtonPair(dismiss: (@Composable () -> Unit)?, confirm: @Composable () -> Unit) {
+    Layout(content = { dismiss?.invoke(); confirm() }) { measurables, constraints ->
+        val gap = 10.dp.roundToPx()
+        val width = constraints.maxWidth
+        if (measurables.size == 1) {
+            val only = measurables[0].measure(Constraints.fixedWidth(width))
+            return@Layout layout(width, only.height) { only.place(0, 0) }
+        }
+        val half = (width - gap) / 2
+        val side = measurables.all { it.maxIntrinsicWidth(Constraints.Infinity) <= half }
+        if (side) {
+            val (first, second) = measurables.map { it.measure(Constraints.fixedWidth(half)) }
+            layout(width, maxOf(first.height, second.height)) {
+                first.place(0, 0)
+                second.place(width - half, 0)
+            }
+        } else {
+            val (first, second) = measurables.map { it.measure(Constraints.fixedWidth(width)) }
+            layout(width, first.height + gap + second.height) {
+                second.place(0, 0)
+                first.place(0, second.height + gap)
             }
         }
     }
@@ -819,12 +906,13 @@ private fun SwipeAction(state: SwipeToDismissBoxState, icon: ImageVector, label:
 /** Small status line: an icon and its words. */
 @Composable
 fun StatusLabel(text: String, modifier: Modifier = Modifier, icon: ImageVector? = null, color: Color = AppTheme.colors.secondaryLabel) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier, verticalAlignment = Alignment.Top) {
         if (icon != null) {
-            Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
+            // on the first line: (20sp line − 16dp icon) / 2
+            Icon(icon, null, tint = color, modifier = Modifier.padding(top = 2.dp).size(16.dp))
             Spacer(Modifier.width(6.dp))
         }
-        Text(text, style = MaterialTheme.typography.subheadline, color = color, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(text, style = MaterialTheme.typography.subheadline, color = color)
     }
 }
 
@@ -854,29 +942,37 @@ fun FullScreen(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
  */
 @Composable
 fun DeliveryIcon(status: MsgStatus, tint: Color, behind: Color, modifier: Modifier = Modifier, iconSize: Dp = 13.dp) {
-    val wide = status == MsgStatus.DELIVERED
-    Canvas(modifier.size(width = if (wide) iconSize * 1.45f else iconSize, height = iconSize)) {
+    val failed = status != MsgStatus.QUEUED && status != MsgStatus.SENT && status != MsgStatus.DELIVERED
+    // once delivered, the second check slides out from under the first and the icon widens with it, so the time
+    // beside it moves along rather than jumping
+    val sent by animateFloatAsState(if (status == MsgStatus.QUEUED) 0f else 1f, tween(Motion.QUICK), label = "sent")
+    val spread by animateFloatAsState(
+        if (status == MsgStatus.DELIVERED) 1f else 0f, motionSpec(spring(dampingRatio = 0.7f, stiffness = 600f)), label = "delivered",
+    )
+    Canvas(modifier.size(width = iconSize * (1f + 0.45f * spread.coerceIn(0f, 1.2f)), height = iconSize)) {
         val s = iconSize.toPx()
         val stroke = Stroke(width = s * 0.09f, cap = StrokeCap.Round, join = StrokeJoin.Round)
         val r = s * 0.42f
         val center = Offset(s / 2, s / 2)
-        when (status) {
-            MsgStatus.QUEUED -> {
-                drawCircle(tint, r, center, style = stroke)
-                drawLine(tint, center, Offset(center.x, center.y - r * 0.6f), stroke.width, StrokeCap.Round)
-                drawLine(tint, center, Offset(center.x + r * 0.45f, center.y + r * 0.2f), stroke.width, StrokeCap.Round)
-            }
-            MsgStatus.SENT -> checkCircle(tint, center, r, stroke)
-            MsgStatus.DELIVERED -> {
-                checkCircle(tint, center, r, stroke)
-                val second = Offset(center.x + s * 0.45f, center.y)
+        if (failed) {
+            drawCircle(tint, r, center, style = stroke)
+            drawLine(tint, Offset(center.x, center.y - r * 0.5f), Offset(center.x, center.y + r * 0.1f), stroke.width, StrokeCap.Round)
+            drawCircle(tint, stroke.width * 0.7f, Offset(center.x, center.y + r * 0.45f))
+            return@Canvas
+        }
+        if (sent < 1f) {
+            val clock = tint.copy(alpha = tint.alpha * (1f - sent))
+            drawCircle(clock, r, center, style = stroke)
+            drawLine(clock, center, Offset(center.x, center.y - r * 0.6f), stroke.width, StrokeCap.Round)
+            drawLine(clock, center, Offset(center.x + r * 0.45f, center.y + r * 0.2f), stroke.width, StrokeCap.Round)
+        }
+        if (sent > 0f) {
+            val check = tint.copy(alpha = tint.alpha * sent)
+            checkCircle(check, center, r, stroke)
+            if (spread > 0f) {
+                val second = Offset(center.x + s * 0.45f * spread, center.y)
                 drawCircle(behind, r + stroke.width, second)
-                checkCircle(tint, second, r, stroke)
-            }
-            else -> {
-                drawCircle(tint, r, center, style = stroke)
-                drawLine(tint, Offset(center.x, center.y - r * 0.5f), Offset(center.x, center.y + r * 0.1f), stroke.width, StrokeCap.Round)
-                drawCircle(tint, stroke.width * 0.7f, Offset(center.x, center.y + r * 0.45f))
+                checkCircle(check, second, r, stroke)
             }
         }
     }

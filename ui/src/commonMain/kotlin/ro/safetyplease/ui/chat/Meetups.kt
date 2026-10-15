@@ -63,6 +63,7 @@ import ro.safetyplease.ui.designsystem.Backdrop
 import ro.safetyplease.ui.designsystem.ButtonKind
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.IosSwitch
+import ro.safetyplease.ui.designsystem.Radius
 import ro.safetyplease.ui.designsystem.SegmentedControl
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
@@ -275,12 +276,12 @@ fun MeetingPin(vm: AppViewModel, proposal: MeetingProposal, now: Long, backdrop:
     val coming = if (proposal.accepted.isEmpty()) null else pluralStringResource(Res.plurals.meet_coming, proposal.accepted.size, proposal.accepted.size)
     val point = proposal.place.point ?: vm.venue.landmark(proposal.place.landmark)?.let { GeoPoint(it.lat, it.lon) }
     Row(
-        modifier.padding(horizontal = Gutter).fillMaxWidth().glass(backdrop, RoundedCornerShape(20.dp))
-            .clip(RoundedCornerShape(20.dp))
+        modifier.padding(horizontal = Gutter).fillMaxWidth().glass(backdrop, RoundedCornerShape(Radius.Card))
+            .clip(RoundedCornerShape(Radius.Card))
             .clickable(enabled = point != null, role = Role.Button) {
                 vm.open(Dest.Pin(point?.lat, point?.lon, "", place.replaceFirstChar { it.uppercase() }))
             }
-            .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+            .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Sym.Flag, null, Modifier.size(22.dp), tint = colors.accent)
@@ -294,7 +295,10 @@ fun MeetingPin(vm: AppViewModel, proposal: MeetingProposal, now: Long, backdrop:
         val accepted = vm.c.identity.nodeId in proposal.accepted
         when {
             mine -> TextLink(stringResource(Res.string.meet_withdraw), { chat.withdrawMeeting(proposal.conversation) })
-            accepted -> Text(stringResource(Res.string.meet_accepted), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
+            accepted -> Text(
+                stringResource(Res.string.meet_accepted), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
+                modifier = Modifier.padding(end = 8.dp),
+            )
             else -> AppButton(stringResource(Res.string.meet_accept), { chat.acceptMeeting(proposal.conversation) }, compact = true)
         }
     }

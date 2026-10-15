@@ -355,8 +355,8 @@ private val LightScheme = scheme(LightColors)
 private val DarkScheme = scheme(DarkColors)
 
 /**
- * Theme follows the system. Touch shows a gray pressed state instead of the Material ripple,
- * and lists don't stretch at the ends.
+ * Theme follows the system. Touch shows a gray pressed state instead of the Material ripple; lists bounce at their ends
+ * on the iPhone only ([EdgeBounce]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -373,10 +373,10 @@ fun AppTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> U
             CompositionLocalProvider(
                 LocalRippleConfiguration provides null,
                 LocalIndication provides PressHighlight(if (dark) Color(0x26FFFFFF) else Color(0x1F000000)),
-                LocalOverscrollFactory provides null,
                 LocalContentColor provides colors.label,
-                content = content,
-            )
+            ) {
+                if (EdgeBounce) content() else CompositionLocalProvider(LocalOverscrollFactory provides null, content = content)
+            }
         }
     }
 }

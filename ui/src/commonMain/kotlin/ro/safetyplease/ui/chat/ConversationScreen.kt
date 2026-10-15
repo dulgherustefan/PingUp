@@ -2,21 +2,28 @@ package ro.safetyplease.ui.chat
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,7 +77,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -92,6 +101,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.max
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.data.ChatMessage
@@ -115,28 +125,39 @@ import ro.safetyplease.ui.designsystem.AppMenu
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Avatar
 import ro.safetyplease.ui.designsystem.Backdrop
+import ro.safetyplease.ui.designsystem.BarInset
 import ro.safetyplease.ui.designsystem.DeliveryIcon
 import ro.safetyplease.ui.designsystem.GlassIconButton
+import ro.safetyplease.ui.designsystem.GlassSize
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.IconBtn
+import ro.safetyplease.ui.designsystem.LocalReduceMotion
 import ro.safetyplease.ui.designsystem.LocalStatusBarTop
 import ro.safetyplease.ui.designsystem.MenuRow
 import ro.safetyplease.ui.designsystem.Motion
 import ro.safetyplease.ui.designsystem.NavHeight
+import ro.safetyplease.ui.designsystem.Radius
+import ro.safetyplease.ui.designsystem.RevealValue
+import ro.safetyplease.ui.designsystem.Swap
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
 import ro.safetyplease.ui.designsystem.TopEdge
 import ro.safetyplease.ui.designsystem.TouchTarget
+import ro.safetyplease.ui.designsystem.animatedColor
 import ro.safetyplease.ui.designsystem.backdropSource
 import ro.safetyplease.ui.designsystem.body
 import ro.safetyplease.ui.designsystem.caption1
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.glass
 import ro.safetyplease.ui.designsystem.headline
+import ro.safetyplease.ui.designsystem.listItem
+import ro.safetyplease.ui.designsystem.motionSpec
+import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.rememberBackdrop
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.screenBackground
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.designsystem.tabular
 import ro.safetyplease.ui.designsystem.title2
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
@@ -166,7 +187,6 @@ import ro.safetyplease.ui.text.Labels
 import ro.safetyplease.ui.text.dayLabel
 import ro.safetyplease.ui.text.hopsText
 import ro.safetyplease.ui.text.rememberNow
-import kotlin.math.max
 
 /** Messages from the same person closer than this form one run of grouped bubbles. */
 private const val RUN_WINDOW_MS = 3 * 60_000L
@@ -267,6 +287,9 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
         else -> pluralStringResource(Res.plurals.group_members, group!!.members.size, group.members.size)
     }
     val lastMine = messages.lastOrNull { it.fromMe && !it.kind.isNotice }
+    // what was there when the conversation opened stays put; what comes after rises in once
+    val shownAtOpen = remember(conversation) { items.mapTo(HashSet()) { it.key } }
+    val risen = remember(conversation) { HashSet<String>() }
     val sendZone = {
         // with no known zone, open the map; the zone picked there is sent to the conversation
         if (vm.sendMyZone(conversation)) haptics.confirm()
@@ -274,7 +297,10 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
     }
     val top = LocalStatusBarTop.current ?: WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val composerHeight = with(density) { composerPx.toDp() }
-    val pinHeight = if (meeting != null) with(density) { pinPx.toDp() } + 8.dp else 0.dp
+    // the list moves down with the pin as it opens, not before
+    val pinHeight by animateDpAsState(
+        if (meeting != null) with(density) { pinPx.toDp() } + 8.dp else 0.dp, motionSpec(tween(Motion.STANDARD, easing = Motion.Standard)), label = "pin",
+    )
     val extras = buildList {
         add(QuickAction(Sym.Flag, stringResource(Res.string.meet_propose)) {
             meetingPicker = true
@@ -299,7 +325,14 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
 
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().backdropSource(backdrop).screenBackground(colors.background)) {
-            if (messages.isEmpty()) {
+            // the phrase tapped on the empty screen becomes the first bubble: the list fades in over it
+            AnimatedContent(
+                messages.isEmpty(), Modifier.fillMaxSize(),
+                transitionSpec = { fadeIn(tween(Motion.STANDARD, easing = Motion.Enter)) togetherWith fadeOut(tween(Motion.QUICK)) },
+                contentAlignment = Alignment.Center,
+                label = "firstMessage",
+            ) { empty ->
+            if (empty) {
                 FirstMessage(
                     title, near = friend != null && nearby.isInRange(friend.nodeId), group = group != null,
                     onQuick = { code ->
@@ -318,25 +351,30 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                 ) {
                     items(items, key = { it.key }) { item ->
                         when (item) {
-                            is ChatItem.Day -> DayHeader(item.timeMs, Modifier.animateItem())
-                            is ChatItem.Message -> MessageItem(
-                                vm, item.message, item.first, item.last, inGroup = group != null,
-                                detail = item.message === lastMine,
-                                onCopy = { text ->
-                                    vm.phone.copyText(text)
-                                },
-                                modifier = Modifier.animateItem().padding(top = if (item.first) 12.dp else 2.dp),
-                            )
+                            is ChatItem.Day -> DayHeader(item.timeMs, listItem())
+                            is ChatItem.Message -> {
+                                // only what arrives while the conversation is open rises in, and only once
+                                val rises = remember { item.key !in shownAtOpen && risen.add(item.key) }
+                                MessageItem(
+                                    vm, item.message, item.first, item.last, inGroup = group != null,
+                                    detail = item.message === lastMine,
+                                    onCopy = { text ->
+                                        vm.phone.copyText(text)
+                                    },
+                                    modifier = listItem().padding(top = if (item.first) 12.dp else 2.dp).rise(rises, item.message.fromMe),
+                                )
+                            }
                         }
                     }
                 }
+            }
             }
         }
 
         TopEdge(top, colors.background, scrolled, bar)
         Row(
             Modifier.statusBarsPadding().fillMaxWidth().heightIn(min = NavHeight).onSizeChanged { barPx = it.height }
-                .padding(horizontal = Gutter),
+                .padding(horizontal = BarInset),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GlassIconButton(Sym.Back, stringResource(Res.string.back), { vm.back() }, backdrop)
@@ -347,14 +385,14 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                     .padding(vertical = 4.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Avatar(title, 40.dp, near = friend != null && nearby.isInRange(friend.nodeId), group = group != null)
+                Avatar(title, GlassSize, near = friend != null && nearby.isInRange(friend.nodeId), group = group != null)
                 Spacer(Modifier.width(12.dp))
-                Column(Modifier.padding(vertical = 4.dp)) {
+                Column {
                     Text(title, style = MaterialTheme.typography.headline, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        subtitle, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium,
-                        color = if (lit) colors.accent else colors.secondaryLabel, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    )
+                    val tone = animatedColor(if (lit) colors.accent else colors.secondaryLabel, "presence")
+                    Swap(subtitle) {
+                        Text(it, style = MaterialTheme.typography.footnote, fontWeight = FontWeight.Medium, color = tone, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
             if (friend != null) {
@@ -365,22 +403,21 @@ fun ConversationScreen(vm: AppViewModel, conversation: String) {
                 }, backdrop)
             }
         }
-        if (meeting != null) {
-            MeetingPin(
-                vm, meeting, now, backdrop,
-                Modifier.statusBarsPadding().padding(top = bar + 4.dp).onSizeChanged { pinPx = it.height },
-            )
+        RevealValue(meeting, Modifier.statusBarsPadding().padding(top = bar + 4.dp)) { shown ->
+            MeetingPin(vm, shown, now, backdrop, Modifier.onSizeChanged { pinPx = it.height })
         }
 
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { composerPx = it.height }
                 .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
         ) {
+            val reduce = LocalReduceMotion.current
             AnimatedVisibility(
                 quick,
                 // the panel opens on a spring, like the keyboard, and closes quickly
-                enter = fadeIn(tween(Motion.STANDARD)) + expandVertically(spring(dampingRatio = 0.85f, stiffness = 420f, visibilityThreshold = IntSize.VisibilityThreshold)),
-                exit = fadeOut(tween(100)) + shrinkVertically(tween(Motion.QUICK, easing = Motion.Exit)),
+                enter = if (reduce) fadeIn(tween(Motion.QUICK))
+                else fadeIn(tween(Motion.STANDARD)) + expandVertically(spring(dampingRatio = 0.85f, stiffness = 420f, visibilityThreshold = IntSize.VisibilityThreshold)),
+                exit = if (reduce) fadeOut(tween(90)) else fadeOut(tween(100)) + shrinkVertically(tween(Motion.QUICK, easing = Motion.Exit)),
             ) {
                 QuickPanel(
                     backdrop,
@@ -440,10 +477,13 @@ private fun Composer(
     val colors = AppTheme.colors
     val hasText = draft.isNotBlank()
     val hint = stringResource(Res.string.chat_hint)
-    val turn by animateFloatAsState(if (quickOpen) 45f else 0f, spring(dampingRatio = 0.6f, stiffness = 500f), label = "plus")
+    val turn by animateFloatAsState(if (quickOpen) 45f else 0f, motionSpec(spring(dampingRatio = 0.6f, stiffness = 500f)), label = "plus")
+    val plusPress = remember { MutableInteractionSource() }
+    val sendPress = remember { MutableInteractionSource() }
     Row(Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
         Box(
-            Modifier.size(TouchTarget).glass(backdrop, CircleShape).clickable(role = Role.Button, onClick = onToggleQuick),
+            Modifier.pressScale(plusPress).size(TouchTarget).glass(backdrop, CircleShape)
+                .clickable(plusPress, LocalIndication.current, role = Role.Button, onClick = onToggleQuick),
             contentAlignment = Alignment.Center,
         ) { Icon(Sym.Add, stringResource(Res.string.chat_quick), Modifier.size(20.dp).rotate(turn), tint = colors.label) }
         Spacer(Modifier.width(12.dp))
@@ -467,17 +507,29 @@ private fun Composer(
                     }
                 },
             )
-            if (!hasText) IconBtn(Sym.Place, stringResource(Res.string.chat_send_zone), onZone)
+            // the zone button folds away as the send button opens, at the same pace, so the field never jumps
+            val reduce = LocalReduceMotion.current
+            AnimatedVisibility(
+                !hasText,
+                enter = if (reduce) fadeIn(tween(Motion.QUICK))
+                else fadeIn(tween(Motion.QUICK)) + expandHorizontally(tween(Motion.QUICK, easing = Motion.Standard), expandFrom = Alignment.Start),
+                exit = if (reduce) fadeOut(tween(90)) else fadeOut(tween(90)) + shrinkHorizontally(tween(Motion.QUICK, easing = Motion.Exit), shrinkTowards = Alignment.Start),
+            ) { IconBtn(Sym.Place, stringResource(Res.string.chat_send_zone), onZone) }
         }
+        val reduce = LocalReduceMotion.current
         AnimatedContent(
             hasText,
-            transitionSpec = { (fadeIn(tween(Motion.QUICK)) + scaleIn(spring(dampingRatio = 0.55f, stiffness = 600f), 0.5f)) togetherWith (fadeOut(tween(90)) + scaleOut(tween(90), 0.6f)) },
+            transitionSpec = {
+                val size = SizeTransform(clip = false) { _, _ -> tween(Motion.QUICK, easing = Motion.Standard) }
+                if (reduce) (fadeIn(tween(Motion.QUICK)) togetherWith fadeOut(tween(90))).using(size)
+                else ((fadeIn(tween(Motion.QUICK)) + scaleIn(spring(dampingRatio = 0.7f, stiffness = 600f), 0.7f)) togetherWith (fadeOut(tween(90)) + scaleOut(tween(90), 0.7f))).using(size)
+            },
             label = "send",
         ) { text ->
             if (text) {
                 Box(
-                    Modifier.padding(start = 12.dp).size(TouchTarget).clip(CircleShape).background(colors.accent)
-                        .clickable(onClickLabel = stringResource(Res.string.send), role = Role.Button, onClick = onSend),
+                    Modifier.padding(start = 12.dp).pressScale(sendPress).size(TouchTarget).clip(CircleShape).background(colors.accent)
+                        .clickable(sendPress, LocalIndication.current, onClickLabel = stringResource(Res.string.send), role = Role.Button, onClick = onSend),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Sym.Send, stringResource(Res.string.send), Modifier.size(20.dp), tint = colors.onAccent) }
             } else {
@@ -501,7 +553,7 @@ private class QuickAction(val icon: ImageVector, val label: String, val onClick:
 private fun QuickPanel(backdrop: Backdrop, extras: List<QuickAction>, onQuick: (Int) -> Unit) {
     val icons = mapOf(QuickCode.WHERE_ARE_YOU to Sym.Help, QuickCode.COMING to Sym.Walk, QuickCode.MEET_AT_POINT to Sym.Flag)
     Column(
-        Modifier.padding(horizontal = Gutter).fillMaxWidth().glass(backdrop, RoundedCornerShape(26.dp)).padding(10.dp),
+        Modifier.padding(horizontal = Gutter).fillMaxWidth().glass(backdrop, RoundedCornerShape(Radius.Card)).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -509,8 +561,10 @@ private fun QuickPanel(backdrop: Backdrop, extras: List<QuickAction>, onQuick: (
                 ActionTile(icons[code] ?: Sym.Chat, stringResource(Labels.quick(code)), { onQuick(code) }, Modifier.weight(1f).fillMaxHeight())
             }
         }
+        // the actions keep the phrases' three columns, so the two rows read as one grid
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (action in extras) ActionTile(action.icon, action.label, action.onClick, Modifier.weight(1f).fillMaxHeight())
+            repeat(QuickPhrases.size - extras.size) { Spacer(Modifier.weight(1f)) }
         }
     }
 }
@@ -598,7 +652,7 @@ private fun MessageItem(
             }
             Box {
                 Column(
-                    Modifier.widthIn(max = if (inGroup) 285.dp else 317.dp)
+                    Modifier.then(if (message.kind == MsgKind.ZONE) Modifier.width(ZoneMapWidth) else Modifier.widthIn(max = if (inGroup) 285.dp else 317.dp))
                         .drawBehind {
                             val outline = shape.createOutline(size, layoutDirection, this)
                             if (mine) {
@@ -705,6 +759,8 @@ private fun BubbleText(text: String, color: Color, bold: Boolean, footer: @Compo
     }
 }
 
+private val ZoneMapWidth = 240.dp
+
 /** Mini map in a shared-zone bubble, with a dot where the sender was. */
 @Composable
 private fun ZoneMap(vm: AppViewModel, message: ChatMessage) {
@@ -713,7 +769,7 @@ private fun ZoneMap(vm: AppViewModel, message: ChatMessage) {
     val point = if (lat != null && lon != null) GeoPoint(lat, lon) else vm.venue.zone(message.zone)?.center
     VenueMap(
         venue = vm.venue,
-        modifier = Modifier.width(240.dp),
+        modifier = Modifier.width(ZoneMapWidth),
         pins = listOfNotNull(point?.let { MapPin(it, AppTheme.colors.accent) }),
         highlightZone = message.zone,
         compact = true,
@@ -724,19 +780,50 @@ private fun ZoneMap(vm: AppViewModel, message: ChatMessage) {
 @Composable
 private fun OwnState(message: ChatMessage, detail: Boolean, onResend: () -> Unit) {
     val colors = AppTheme.colors
-    when {
-        message.status == MsgStatus.FAILED -> Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(Res.string.msg_failed), style = MaterialTheme.typography.footnote, color = colors.redInk)
-            TextLink(stringResource(Res.string.msg_resend), onResend)
+    val state = when {
+        message.status == MsgStatus.FAILED -> OwnWords.FAILED
+        !detail -> OwnWords.NONE
+        message.status == MsgStatus.QUEUED -> OwnWords.QUEUED
+        message.recipients > 1 -> OwnWords.GROUP
+        else -> OwnWords.NONE
+    }
+    Swap(state, contentAlignment = Alignment.TopEnd) { shown ->
+        when (shown) {
+            OwnWords.FAILED -> Row(Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(Res.string.msg_failed), style = MaterialTheme.typography.footnote, color = colors.redInk)
+                TextLink(stringResource(Res.string.msg_resend), onResend, style = MaterialTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold))
+            }
+            OwnWords.QUEUED -> Text(
+                stringResource(Res.string.msg_queued), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                modifier = Modifier.padding(top = 4.dp, end = Gutter),
+            )
+            OwnWords.GROUP -> Text(
+                stringResource(Res.string.msg_group_delivered, message.delivered, message.recipients), style = MaterialTheme.typography.footnote.tabular(),
+                color = colors.secondaryLabel, modifier = Modifier.padding(top = 4.dp, end = Gutter),
+            )
+            OwnWords.NONE -> Spacer(Modifier.width(0.dp))
         }
-        !detail -> Unit
-        message.status == MsgStatus.QUEUED -> Text(
-            stringResource(Res.string.msg_queued), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
-            modifier = Modifier.padding(top = 4.dp, end = Gutter),
-        )
-        message.recipients > 1 -> Text(
-            stringResource(Res.string.msg_group_delivered, message.delivered, message.recipients), style = MaterialTheme.typography.footnote,
-            color = colors.secondaryLabel, modifier = Modifier.padding(top = 4.dp, end = Gutter),
-        )
+    }
+}
+
+private enum class OwnWords { FAILED, QUEUED, GROUP, NONE }
+
+/**
+ * A bubble arriving while the conversation is open: it rises a little from the composer as it fades in, from its own
+ * side. Under reduced motion it only fades, with the list.
+ */
+@Composable
+private fun Modifier.rise(play: Boolean, mine: Boolean): Modifier {
+    if (!play || LocalReduceMotion.current) return this
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { progress.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 500f)) }
+    val lift = with(LocalDensity.current) { 16.dp.toPx() }
+    return graphicsLayer {
+        val p = progress.value
+        translationY = (1f - p) * lift
+        val grow = 0.92f + 0.08f * p
+        scaleX = grow
+        scaleY = grow
+        transformOrigin = TransformOrigin(if (mine) 1f else 0f, 1f)
     }
 }

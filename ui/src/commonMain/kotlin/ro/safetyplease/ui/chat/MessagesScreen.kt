@@ -70,9 +70,13 @@ import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.LocalBottomClearance
 import ro.safetyplease.ui.designsystem.NavScreen
 import ro.safetyplease.ui.designsystem.PinMascot
+import ro.safetyplease.ui.designsystem.Pop
+import ro.safetyplease.ui.designsystem.RevealValue
+import ro.safetyplease.ui.designsystem.Swap
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.UnreadBadge
 import ro.safetyplease.ui.designsystem.headline
+import ro.safetyplease.ui.designsystem.listItem
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.rememberRadioGate
@@ -142,7 +146,7 @@ private fun AddFriendButton(onClick: () -> Unit, modifier: Modifier = Modifier) 
     val colors = AppTheme.colors
     val press = remember { MutableInteractionSource() }
     Row(
-        modifier.pressScale(press, 0.96f).height(56.dp).shadow(8.dp, CircleShape).clip(CircleShape).background(colors.accent)
+        modifier.pressScale(press).height(56.dp).shadow(8.dp, CircleShape).clip(CircleShape).background(colors.accent)
             .clickable(press, LocalIndication.current, role = Role.Button, onClick = onClick).padding(start = 18.dp, end = 22.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -197,51 +201,60 @@ fun MessagesScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     item(key = "identity") {
                         Banner(
                             stringResource(Res.string.identity_new_title), stringResource(Res.string.identity_new_text),
-                            Modifier.padding(horizontal = Gutter, vertical = 6.dp), warning = true,
+                            listItem().padding(horizontal = Gutter, vertical = 6.dp), warning = true,
                             dismiss = stringResource(Res.string.problem_dismiss), onDismiss = { vm.dismissIdentityNotice() },
                         )
                     }
                 }
-                item(key = "problem") { NetworkProblem(vm, nearby.radio, gate, settings.batteryHintDismissed, Modifier.padding(horizontal = Gutter, vertical = 6.dp)) }
+                item(key = "problem") { NetworkProblem(vm, nearby.radio, gate, settings.batteryHintDismissed, listItem()) }
                 when {
+                    // the first thing seen after onboarding, so it sits in the middle with a full-size button
                     rows.isEmpty() -> item(key = "empty") {
-                        EmptyState(
-                            stringResource(Res.string.messages_empty_title), stringResource(Res.string.messages_empty_text),
-                            illustration = { PinMascot(120.dp) },
-                        ) {
-                            AppButton(stringResource(Res.string.messages_empty_action), { vm.open(Dest.AddFriend) }, compact = true)
+                        Box(listItem().fillParentMaxHeight(0.72f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            EmptyState(
+                                stringResource(Res.string.messages_empty_title), stringResource(Res.string.messages_empty_text),
+                                illustration = { PinMascot(120.dp) },
+                            ) {
+                                AppButton(stringResource(Res.string.messages_empty_action), { vm.open(Dest.AddFriend) }, icon = Sym.QrScan)
+                            }
                         }
                     }
                     else -> items(rows, key = { it.id }) { row ->
-                        ConversationItem(vm, row, row.friend != null && nearby.isInRange(row.friend.nodeId), now, Modifier.animateItem())
+                        ConversationItem(vm, row, row.friend != null && nearby.isInRange(row.friend.nodeId), now, listItem())
                     }
                 }
             }
         }
-        // an empty list already shows this button in its empty state
-        if (rows.isNotEmpty()) {
-            AddFriendButton(
-                { vm.open(Dest.AddFriend) },
-                Modifier.align(Alignment.BottomEnd).padding(end = Gutter, bottom = LocalBottomClearance.current + 8.dp),
-            )
+        // an empty list already shows this button in its empty state; with the first friend it pops in
+        Pop(rows.isNotEmpty(), Modifier.align(Alignment.BottomEnd).padding(end = Gutter, bottom = LocalBottomClearance.current + 8.dp)) {
+            AddFriendButton({ vm.open(Dest.AddFriend) })
         }
     }
 }
 
-/** The first thing keeping the mesh from working, with the button that fixes it. */
+/** The first thing keeping the mesh from working, with the button that fixes it; it eases away once fixed. */
 @Composable
 private fun NetworkProblem(vm: AppViewModel, radio: RadioStatus, gate: RadioGate, batteryDismissed: Boolean, modifier: Modifier) {
-    when {
-        gate.problem() != null -> RadioProblemBanner(gate, modifier)
-        radio.bluetoothOn && !radio.canAdvertise && UnfindableIsAProblem -> Banner(
-            stringResource(Res.string.problem_leaf_title), stringResource(Res.string.problem_leaf_text), modifier,
-        )
-        !batteryDismissed && vm.phone.batteryHintNeeded() -> Banner(
-            stringResource(Res.string.problem_battery_title), stringResource(Res.string.problem_battery_text), modifier,
-            action = stringResource(Res.string.problem_battery_action),
-            onAction = vm.phone::requestBatteryExemption,
-            dismiss = stringResource(Res.string.problem_dismiss), onDismiss = { vm.dismissBatteryHint() },
-        )
+    val shown = when {
+        gate.problem() != null -> "radio:${gate.problem()}"
+        radio.bluetoothOn && !radio.canAdvertise && UnfindableIsAProblem -> "leaf"
+        !batteryDismissed && vm.phone.batteryHintNeeded() -> "battery"
+        else -> null
+    }
+    RevealValue(shown, modifier) { kind ->
+        Swap(kind) { current ->
+            val padding = Modifier.padding(horizontal = Gutter, vertical = 6.dp)
+            when {
+                current.startsWith("radio") -> RadioProblemBanner(gate, padding)
+                current == "leaf" -> Banner(stringResource(Res.string.problem_leaf_title), stringResource(Res.string.problem_leaf_text), padding)
+                else -> Banner(
+                    stringResource(Res.string.problem_battery_title), stringResource(Res.string.problem_battery_text), padding,
+                    action = stringResource(Res.string.problem_battery_action),
+                    onAction = vm.phone::requestBatteryExemption,
+                    dismiss = stringResource(Res.string.problem_dismiss), onDismiss = { vm.dismissBatteryHint() },
+                )
+            }
+        }
     }
 }
 
@@ -298,14 +311,26 @@ private fun ConversationItem(vm: AppViewModel, row: ConversationRow, near: Boole
                     snippet, style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
                     minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
-                when {
-                    row.unread > 0 -> UnreadBadge(row.unread, Modifier.padding(start = 6.dp))
-                    last != null && last.fromMe && !last.kind.isNotice -> DeliveryIcon(
-                        last.status, if (last.status == MsgStatus.FAILED) colors.red else colors.secondaryLabel, colors.background,
-                        Modifier.padding(start = 6.dp, top = 3.dp),
-                    )
+                val trailing = when {
+                    row.unread > 0 -> Trailing.UNREAD
+                    last != null && last.fromMe && !last.kind.isNotice -> Trailing.DELIVERY
+                    else -> Trailing.NONE
+                }
+                Swap(trailing, contentAlignment = Alignment.TopEnd) { kind ->
+                    when (kind) {
+                        Trailing.UNREAD -> UnreadBadge(row.unread, Modifier.padding(start = 6.dp))
+                        Trailing.DELIVERY -> last?.let {
+                            DeliveryIcon(
+                                it.status, if (it.status == MsgStatus.FAILED) colors.red else colors.secondaryLabel, colors.background,
+                                Modifier.padding(start = 6.dp, top = 3.dp),
+                            )
+                        }
+                        Trailing.NONE -> Unit
+                    }
                 }
             }
         }
     }
 }
+
+private enum class Trailing { UNREAD, DELIVERY, NONE }

@@ -60,7 +60,7 @@ fun BatteryGroup(vm: AppViewModel) {
         },
     )
     Column {
-        LowBatteryBanner(battery, vm.venue, origin, Modifier.padding(start = Gutter, end = Gutter, bottom = 20.dp)) { vm.open(Dest.Map(spot = "charge")) }
+        LowBatteryBanner(battery, vm.venue, origin, Modifier.padding(start = Gutter, end = Gutter, bottom = 20.dp), withCharger = false)
         InsetGroup {
             GroupRow(
                 stringResource(Res.string.autonomy_level), value = "${battery.percent}%", icon = Sym.Battery,
@@ -70,6 +70,7 @@ fun BatteryGroup(vm: AppViewModel) {
             val minutes = battery.minutesLeft
             GroupRow(
                 stringResource(Res.string.autonomy_left),
+                icon = Sym.Clock,
                 value = if (battery.charging || minutes == null) null else timeLeft(minutes),
                 subtitle = when {
                     battery.charging -> stringResource(Res.string.autonomy_left_charging)
@@ -80,7 +81,7 @@ fun BatteryGroup(vm: AppViewModel) {
             if (charger != null) {
                 GroupDivider()
                 GroupRow(
-                    stringResource(Res.string.autonomy_charger), subtitle = charger, chevron = true,
+                    stringResource(Res.string.autonomy_charger), subtitle = charger, chevron = true, icon = Sym.Place,
                     onClick = { vm.open(Dest.Map(spot = "charge")) },
                 )
             }

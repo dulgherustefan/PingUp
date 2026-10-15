@@ -54,6 +54,7 @@ import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.largeTitle
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
+import ro.safetyplease.ui.designsystem.tabular
 import ro.safetyplease.ui.designsystem.title2
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
@@ -236,7 +237,7 @@ private fun CheckinProgress(vm: AppViewModel, current: Checkin) {
         Text(title, style = MaterialTheme.typography.title2, textAlign = TextAlign.Center)
         if (big.isNotEmpty()) {
             Text(
-                big, style = MaterialTheme.typography.largeTitle, fontWeight = FontWeight.SemiBold, color = colors.label,
+                big, style = MaterialTheme.typography.largeTitle.tabular(), fontWeight = FontWeight.SemiBold, color = colors.label,
                 modifier = Modifier.padding(vertical = 12.dp),
             )
         }

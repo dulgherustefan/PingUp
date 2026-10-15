@@ -1,8 +1,13 @@
 package ro.safetyplease.ui.report
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -109,6 +114,7 @@ import ro.safetyplease.ui.designsystem.AppButton
 import ro.safetyplease.ui.designsystem.AppDialog
 import ro.safetyplease.ui.designsystem.AppMenu
 import ro.safetyplease.ui.designsystem.AppTheme
+import ro.safetyplease.ui.designsystem.Arrive
 import ro.safetyplease.ui.designsystem.Banner
 import ro.safetyplease.ui.designsystem.ButtonKind
 import ro.safetyplease.ui.designsystem.ConfirmDialog
@@ -121,19 +127,26 @@ import ro.safetyplease.ui.designsystem.IconBtn
 import ro.safetyplease.ui.designsystem.InputField
 import ro.safetyplease.ui.designsystem.InsetGroup
 import ro.safetyplease.ui.designsystem.LocalBottomClearance
+import ro.safetyplease.ui.designsystem.LocalReduceMotion
 import ro.safetyplease.ui.designsystem.MenuRow
 import ro.safetyplease.ui.designsystem.Motion
 import ro.safetyplease.ui.designsystem.NavScreen
+import ro.safetyplease.ui.designsystem.Radius
+import ro.safetyplease.ui.designsystem.Reveal
+import ro.safetyplease.ui.designsystem.RevealValue
 import ro.safetyplease.ui.designsystem.SectionTitle
 import ro.safetyplease.ui.designsystem.StatusLabel
+import ro.safetyplease.ui.designsystem.Swap
 import ro.safetyplease.ui.designsystem.SwipeRow
 import ro.safetyplease.ui.designsystem.SwitchRow
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
 import ro.safetyplease.ui.designsystem.TouchTarget
+import ro.safetyplease.ui.designsystem.animatedColor
 import ro.safetyplease.ui.designsystem.body
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
+import ro.safetyplease.ui.designsystem.motionSpec
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.rememberHaptics
 import ro.safetyplease.ui.designsystem.subheadline
@@ -290,16 +303,17 @@ private val FadeZone = 24.dp
 @Composable
 private fun CategoryChip(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
-    val fill by animateColorAsState(if (selected) colors.selection else colors.cell, tween(Motion.QUICK), label = "chip")
-    val ink = if (selected) colors.onSelection else colors.label
+    val fill = animatedColor(if (selected) colors.selection else colors.cell, "chip")
+    val ink = animatedColor(if (selected) colors.onSelection else colors.label, "chipInk")
     val press = remember { MutableInteractionSource() }
+    // tall enough for a label on two lines, so every row of the grid has the same height
     Row(
-        modifier.pressScale(press, 0.97f).heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).background(fill)
+        modifier.pressScale(press).heightIn(min = 56.dp).clip(RoundedCornerShape(Radius.Tile)).background(fill)
             .selectable(selected, interactionSource = press, indication = LocalIndication.current, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, Modifier.size(20.dp), tint = if (selected) ink else colors.accent)
+        Icon(icon, null, Modifier.size(20.dp), tint = animatedColor(if (selected) colors.onSelection else colors.accent, "chipIcon"))
         Spacer(Modifier.width(10.dp))
         Text(
             label, style = MaterialTheme.typography.subheadline, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
@@ -320,14 +334,14 @@ private val ChipGap = 8.dp
 private fun TriageQuestion(question: String, answer: Int, onAnswer: (Int) -> Unit) {
     val colors = AppTheme.colors
     Column(Modifier.padding(start = Gutter, end = Gutter, top = 12.dp)) {
-        Text(question, style = MaterialTheme.typography.headline, color = colors.label, modifier = Modifier.padding(bottom = 8.dp))
+        Text(question, style = MaterialTheme.typography.headline, color = colors.label, modifier = Modifier.padding(start = Gutter, end = Gutter, bottom = 8.dp))
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (option in listOf(Answer.YES, Answer.NO, Answer.UNKNOWN)) {
                 val selected = answer == option
-                val fill by animateColorAsState(if (selected) colors.selection else colors.cell, tween(Motion.QUICK), label = "answer")
+                val fill = animatedColor(if (selected) colors.selection else colors.cell, "answer")
                 val press = remember { MutableInteractionSource() }
                 Box(
-                    Modifier.weight(1f).fillMaxHeight().pressScale(press, 0.97f).heightIn(min = 56.dp).clip(RoundedCornerShape(14.dp))
+                    Modifier.weight(1f).fillMaxHeight().pressScale(press).heightIn(min = 56.dp).clip(RoundedCornerShape(Radius.Tile))
                         .background(fill)
                         .selectable(selected, interactionSource = press, indication = LocalIndication.current, role = Role.RadioButton) {
                             onAnswer(if (selected) Answer.UNASKED else option)
@@ -338,7 +352,7 @@ private fun TriageQuestion(question: String, answer: Int, onAnswer: (Int) -> Uni
                     Text(
                         stringResource(Labels.answer(option)).replaceFirstChar { it.uppercase() },
                         style = MaterialTheme.typography.body, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                        color = if (selected) colors.onSelection else colors.label, textAlign = TextAlign.Center,
+                        color = animatedColor(if (selected) colors.onSelection else colors.label, "answerInk"), textAlign = TextAlign.Center,
                     )
                 }
             }
@@ -500,7 +514,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                 }
                 Text(
                     stringResource(Res.string.report_title), style = MaterialTheme.typography.title2, color = colors.label,
-                    modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 14.dp),
+                    modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp, bottom = 12.dp),
                 )
                 // two columns of low buttons with the icon on the left: they read as a list of options.
                 // With large text a word could break mid-way ("Aglomerat-ie"), so then it's one column.
@@ -538,152 +552,158 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     }
                 }
                 if (vm.venue.safeguarding) {
-                    InsetGroup(Modifier.padding(top = 12.dp)) {
+                    InsetGroup(Modifier.padding(top = 20.dp)) {
                         GroupRow(
                             stringResource(Res.string.discreet_title), subtitle = stringResource(Res.string.discreet_row_text),
                             icon = Sym.Hidden, chevron = true, onClick = { vm.open(Dest.Discreet) },
                         )
                     }
                 }
-                if (category == 0) QuickHelpRows(vm, Modifier.padding(top = 12.dp))
-                if (category == 0) SafetyEntries(vm)
-                if (category != 0) {
-                    Text(
-                        stringResource(Labels.categoryExample(category)).replaceFirstChar { it.uppercase() },
-                        style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
-                        modifier = Modifier.padding(start = Gutter, end = Gutter, top = 12.dp),
-                    )
-                }
-                // the questions sit on the screen with Send, so a medical report stays two or three taps
-                if (category == IncidentCategory.MEDICAL) {
-                    SectionTitle(stringResource(Res.string.report_triage_title), top = 20.dp)
-                    TriageQuestion(stringResource(Res.string.report_triage_responds), responds) { responds = it }
-                    TriageQuestion(stringResource(Res.string.report_triage_breathes), breathes) { breathes = it }
-                    Text(
-                        stringResource(Res.string.report_triage_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
-                        modifier = Modifier.padding(start = Gutter, end = Gutter, top = 8.dp),
-                    )
-                }
-                if (category == IncidentCategory.LOST_FRIEND) {
-                    Banner(
-                        stringResource(Res.string.report_help_meeting), stringResource(Res.string.report_lost_friend_note),
-                        Modifier.padding(start = Gutter, end = Gutter, top = 16.dp),
-                        action = stringResource(Res.string.map_meeting_point), onAction = { vm.open(Dest.Map(spot = Venue.MEETING)) },
-                    )
-                }
-                if (category == IncidentCategory.LOST_CHILD) {
-                    Banner(
-                        stringResource(Res.string.sev_urgent), stringResource(Res.string.report_lost_child_note),
-                        Modifier.padding(start = Gutter, end = Gutter, top = 16.dp), warning = true,
-                    )
-                }
-                if (category != 0) {
-                    InsetGroup(Modifier.padding(top = 20.dp)) { LocationRow(vm, spot, locationCheck, requestLocation) }
-                    Text(
-                        stringResource(Res.string.report_location_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
-                        modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
-                    )
-                    RegasireReportRows(vm, category)
-                }
-                // harassment shows its options at once: "later" and "anonymous" are what such a report most often needs
-                if (!staff && category == IncidentCategory.HARASSMENT) ReportOptionsSection(safety, category, named = !anonymous, onNamed = { anonymous = !it })
-                if (recognisable) {
-                    InputField(
-                        recognition, { recognition = it.take(Recognition.MAX_CHARS) }, stringResource(Res.string.report_recognition),
-                        Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 16.dp).onFocusChanged { describing = it.hasFocus },
-                        supporting = stringResource(Res.string.report_recognition_hint), background = colors.cell,
-                    )
-                }
+                // what the chosen category asks for opens under the buttons
+                Swap(category) { cat ->
+                    Column {
+                        if (cat == 0) QuickHelpRows(vm, Modifier.padding(top = 20.dp))
+                        if (cat == 0) SafetyEntries(vm)
+                        if (cat != 0) {
+                            Text(
+                                stringResource(Labels.categoryExample(cat)).replaceFirstChar { it.uppercase() },
+                                style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                                modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 12.dp),
+                            )
+                        }
+                        // the questions sit on the screen with Send, so a medical report stays two or three taps
+                        if (cat == IncidentCategory.MEDICAL) {
+                            SectionTitle(stringResource(Res.string.report_triage_title), top = 20.dp)
+                            TriageQuestion(stringResource(Res.string.report_triage_responds), responds) { responds = it }
+                            TriageQuestion(stringResource(Res.string.report_triage_breathes), breathes) { breathes = it }
+                            Text(
+                                stringResource(Res.string.report_triage_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                                modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
+                            )
+                        }
+                        if (cat == IncidentCategory.LOST_FRIEND) {
+                            Banner(
+                                stringResource(Res.string.report_help_meeting), stringResource(Res.string.report_lost_friend_note),
+                                Modifier.padding(start = Gutter, end = Gutter, top = 16.dp),
+                                action = stringResource(Res.string.map_meeting_point), onAction = { vm.open(Dest.Map(spot = Venue.MEETING)) },
+                            )
+                        }
+                        if (cat == IncidentCategory.LOST_CHILD) {
+                            Banner(
+                                stringResource(Res.string.sev_urgent), stringResource(Res.string.report_lost_child_note),
+                                Modifier.padding(start = Gutter, end = Gutter, top = 16.dp), warning = true,
+                            )
+                        }
+                        if (cat != 0) {
+                            InsetGroup(Modifier.padding(top = 20.dp)) { LocationRow(vm, spot, locationCheck, requestLocation) }
+                            Text(
+                                stringResource(Res.string.report_location_note), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
+                                modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
+                            )
+                            RegasireReportRows(vm, cat)
+                        }
+                        // harassment shows its options at once: "later" and "anonymous" are what such a report most often needs
+                        if (!staff && cat == IncidentCategory.HARASSMENT) ReportOptionsSection(safety, cat, named = !anonymous, onNamed = { anonymous = !it })
+                        if (recognisable) {
+                            InputField(
+                                recognition, { recognition = it.take(Recognition.MAX_CHARS) }, stringResource(Res.string.report_recognition),
+                                Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 16.dp).onFocusChanged { describing = it.hasFocus },
+                                supporting = stringResource(Res.string.report_recognition_hint), background = colors.cell,
+                            )
+                        }
 
-                if (category != 0 && !showDetails && !staff) {
-                    val summary = listOf(
-                        stringResource(Labels.urgency(severity)),
-                        stringResource(
-                            when {
-                                safety.noReplyFor(category) -> Res.string.report_options_no_reply
-                                anonymous -> Res.string.report_anonymous
-                                else -> Res.string.report_named
-                            },
-                        ),
-                        when {
-                            zone.isEmpty() -> stringResource(Res.string.report_zone_none)
-                            zoneAge != null -> stringResource(Res.string.report_zone_with_age, vm.venue.zoneName(zone), zoneAge)
-                            else -> vm.venue.zoneName(zone)
-                        },
-                    ).joinToString(" · ")
-                    InsetGroup(Modifier.padding(top = 20.dp)) {
-                        GroupRow(
-                            stringResource(Res.string.report_add_details), subtitle = summary, icon = Sym.Notes,
-                            chevron = true, onClick = { showDetails = true },
-                        )
-                    }
-                }
-                if (category != 0 && (showDetails || staff)) {
-                    if (staff) {
-                        SectionTitle(stringResource(Res.string.report_staff_title))
-                        InsetGroup {
-                            PeopleRow(people) { people = it }
-                            GroupDivider()
-                            SwitchRow(
-                                stringResource(Res.string.report_staff_danger), danger, { danger = it },
-                                subtitle = stringResource(Res.string.report_staff_danger_text), icon = Sym.Priority,
-                            )
+                        if (cat != 0) Swap(showDetails || staff) { open ->
+                            if (!open) {
+                                val summary = listOf(
+                                    stringResource(Labels.urgency(severity)),
+                                    stringResource(
+                                        when {
+                                            safety.noReplyFor(cat) -> Res.string.report_options_no_reply
+                                            anonymous -> Res.string.report_anonymous
+                                            else -> Res.string.report_named
+                                        },
+                                    ),
+                                    when {
+                                        zone.isEmpty() -> stringResource(Res.string.report_zone_none)
+                                        zoneAge != null -> stringResource(Res.string.report_zone_with_age, vm.venue.zoneName(zone), zoneAge)
+                                        else -> vm.venue.zoneName(zone)
+                                    },
+                                ).joinToString(" · ")
+                                InsetGroup(Modifier.padding(top = 20.dp)) {
+                                    GroupRow(
+                                        stringResource(Res.string.report_add_details), subtitle = summary, icon = Sym.Notes,
+                                        chevron = true, onClick = { showDetails = true },
+                                    )
+                                }
+                            } else {
+                                if (staff) {
+                                    SectionTitle(stringResource(Res.string.report_staff_title))
+                                    InsetGroup {
+                                        PeopleRow(people) { people = it }
+                                        GroupDivider()
+                                        SwitchRow(
+                                            stringResource(Res.string.report_staff_danger), danger, { danger = it },
+                                            subtitle = stringResource(Res.string.report_staff_danger_text), icon = Sym.Priority,
+                                        )
+                                    }
+                                    Text(
+                                        stringResource(Res.string.report_staff_team, settings.teamName), style = MaterialTheme.typography.footnote,
+                                        color = colors.secondaryLabel, modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
+                                    )
+                                }
+                                SectionTitle(stringResource(Res.string.report_details))
+                                InsetGroup {
+                                    // a "no" to a triage question already made it urgent
+                                    if (!hasFixedUrgency(cat) && triage?.critical != true) {
+                                        SwitchRow(
+                                            stringResource(Res.string.report_urgent), urgent, { urgent = it },
+                                            subtitle = stringResource(Res.string.report_urgent_label), icon = Sym.Priority,
+                                        )
+                                        GroupDivider()
+                                    }
+                                    GroupRow(
+                                        stringResource(Res.string.report_zone),
+                                        subtitle = when {
+                                            zone.isNotEmpty() && autoZone?.id == zone -> stringResource(Res.string.map_source_gps).replaceFirstChar { it.uppercase() }
+                                            zone.isNotEmpty() -> zoneAge?.let { stringResource(Res.string.report_zone_picked_ago, it) }
+                                            // we have a GPS fix outside every zone: the position is still sent with the report
+                                            position != null -> stringResource(Res.string.report_zone_outside)
+                                            else -> stringResource(Res.string.report_zone_manual)
+                                        },
+                                        value = if (zone.isNotEmpty()) vm.venue.zoneName(zone) else null,
+                                        icon = Sym.Place, chevron = true, onClick = { pickZone = true },
+                                    )
+                                    // staff reports go in the team's name; where the options offer it, who the report is from is chosen there
+                                    if (!staff && !offersLaterAndNoReply(cat)) {
+                                        GroupDivider()
+                                        SwitchRow(
+                                            stringResource(Res.string.report_anonymous), anonymous, { anonymous = it },
+                                            subtitle = stringResource(if (anonymous) Res.string.report_anonymous_on else Res.string.report_anonymous_off), icon = Sym.Hidden,
+                                        )
+                                    }
+                                }
+                                if (!staff && cat != IncidentCategory.HARASSMENT) {
+                                    ReportOptionsSection(safety, cat, named = !anonymous, onNamed = { anonymous = !it })
+                                }
+                                InputField(
+                                    description, { description = it.take(Limits.DESCRIPTION_CHARS) },
+                                    stringResource(if (staff) Res.string.report_description_staff else Res.string.report_description),
+                                    Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 20.dp)
+                                        .onFocusChanged { describing = it.hasFocus },
+                                    maxLines = 4,
+                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                                    supporting = "${description.length}/${Limits.DESCRIPTION_CHARS}", background = colors.cell,
+                                )
+                            }
                         }
-                        Text(
-                            stringResource(Res.string.report_staff_team, settings.teamName), style = MaterialTheme.typography.footnote,
-                            color = colors.secondaryLabel, modifier = Modifier.padding(start = Gutter * 2, end = Gutter * 2, top = 8.dp),
-                        )
                     }
-                    SectionTitle(stringResource(Res.string.report_details))
-                    InsetGroup {
-                        // a "no" to a triage question already made it urgent
-                        if (!hasFixedUrgency(category) && triage?.critical != true) {
-                            SwitchRow(
-                                stringResource(Res.string.report_urgent), urgent, { urgent = it },
-                                subtitle = stringResource(Res.string.report_urgent_label), icon = Sym.Priority,
-                            )
-                            GroupDivider()
-                        }
-                        GroupRow(
-                            stringResource(Res.string.report_zone),
-                            subtitle = when {
-                                zone.isNotEmpty() && autoZone?.id == zone -> stringResource(Res.string.map_source_gps).replaceFirstChar { it.uppercase() }
-                                zone.isNotEmpty() -> zoneAge?.let { stringResource(Res.string.report_zone_picked_ago, it) }
-                                // we have a GPS fix outside every zone: the position is still sent with the report
-                                position != null -> stringResource(Res.string.report_zone_outside)
-                                else -> stringResource(Res.string.report_zone_manual)
-                            },
-                            value = if (zone.isNotEmpty()) vm.venue.zoneName(zone) else null,
-                            icon = Sym.Place, chevron = true, onClick = { pickZone = true },
-                        )
-                        // staff reports go in the team's name; where the options offer it, who the report is from is chosen there
-                        if (!staff && !offersLaterAndNoReply(category)) {
-                            GroupDivider()
-                            SwitchRow(
-                                stringResource(Res.string.report_anonymous), anonymous, { anonymous = it },
-                                subtitle = stringResource(if (anonymous) Res.string.report_anonymous_on else Res.string.report_anonymous_off), icon = Sym.Hidden,
-                            )
-                        }
-                    }
-                    if (!staff && category != IncidentCategory.HARASSMENT) {
-                        ReportOptionsSection(safety, category, named = !anonymous, onNamed = { anonymous = !it })
-                    }
-                    InputField(
-                        description, { description = it.take(Limits.DESCRIPTION_CHARS) },
-                        stringResource(if (staff) Res.string.report_description_staff else Res.string.report_description),
-                        Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = 20.dp)
-                            .onFocusChanged { describing = it.hasFocus },
-                        maxLines = 4,
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                        supporting = "${description.length}/${Limits.DESCRIPTION_CHARS}", background = colors.cell,
-                    )
                 }
             }
         }
 
         FloatingFooter((if (typing) keyboard else clearance) + 8.dp, more, { footer = it }, Modifier.align(Alignment.BottomCenter)) {
             // the app doesn't replace 112, so calling it stays one tap away while reporting, except while typing the description
-            if (!(describing && typing)) {
+            Reveal(!(describing && typing)) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         stringResource(Res.string.report_not_112), style = MaterialTheme.typography.footnote, color = colors.secondaryLabel,
@@ -692,7 +712,7 @@ fun ReportScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                     Call112Button(vm::call112, compact = true)
                 }
             }
-            if (waitMs > 0) {
+            Reveal(waitMs > 0) {
                 StatusLabel(
                     pluralStringResource(Res.plurals.report_rate_limited, vm.rateLimitMax(), vm.rateLimitMax(), (waitMs / 60_000 + 1).toInt()),
                     Modifier.padding(bottom = 8.dp),
@@ -862,52 +882,75 @@ private fun Call112Button(onCall: () -> Unit, modifier: Modifier = Modifier, com
 
 /**
  * Report timeline, like order tracking: done steps get a check, the current one a ring with a dot and the time,
- * upcoming ones a gray ring; a thin line between them.
+ * upcoming ones a gray ring; a thin line between them. When help moves a step on, the new mark pops in and the line
+ * fills down to it, so the moment that matters most is seen as it happens.
  */
 @Composable
 fun ReportTimeline(report: MyReport, now: Long, modifier: Modifier = Modifier) {
     val current = reportStep(report)
     val labels = (0..4).map { stepName(it, report) }
     val colors = AppTheme.colors
+    val reduce = LocalReduceMotion.current
     Column(modifier) {
         labels.forEachIndexed { index, label ->
             val done = index < current || current == labels.lastIndex
             val isCurrent = index == current && !done
             val last = index == labels.lastIndex
+            val mark = when {
+                done -> StepMark.DONE
+                isCurrent -> StepMark.CURRENT
+                else -> StepMark.UPCOMING
+            }
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                 Column(Modifier.width(24.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
                     // rings are 20dp, the size of the circle inside the 24dp check icon
-                    Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-                        when {
-                            done -> Icon(Sym.CheckCircle, null, Modifier.size(24.dp), tint = colors.accent)
-                            isCurrent -> Box(Modifier.size(20.dp).border(2.dp, colors.accent, CircleShape), contentAlignment = Alignment.Center) {
+                    AnimatedContent(
+                        mark, Modifier.size(24.dp),
+                        transitionSpec = {
+                            if (reduce) fadeIn(tween(Motion.QUICK)) togetherWith fadeOut(tween(90))
+                            else (scaleIn(spring(dampingRatio = 0.6f, stiffness = 600f), initialScale = 0.6f) + fadeIn(tween(Motion.QUICK))) togetherWith fadeOut(tween(90))
+                        },
+                        contentAlignment = Alignment.Center, label = "step",
+                    ) { shown ->
+                        when (shown) {
+                            StepMark.DONE -> Icon(Sym.CheckCircle, null, Modifier.size(24.dp), tint = colors.accent)
+                            StepMark.CURRENT -> Box(Modifier.size(20.dp).border(2.dp, colors.accent, CircleShape), contentAlignment = Alignment.Center) {
                                 Box(Modifier.size(8.dp).clip(CircleShape).background(colors.accent))
                             }
-                            else -> Box(Modifier.size(20.dp).border(1.5.dp, colors.tertiaryLabel, CircleShape))
+                            StepMark.UPCOMING -> Box(Modifier.size(20.dp).border(1.5.dp, colors.tertiaryLabel, CircleShape))
                         }
                     }
-                    if (!last) Box(Modifier.width(1.5.dp).weight(1f).background(if (index < current) colors.accent else colors.separator))
+                    if (!last) {
+                        val filled by animateFloatAsState(
+                            if (index < current) 1f else 0f, motionSpec(tween(Motion.SLOW, easing = Motion.Standard)), label = "line",
+                        )
+                        Box(Modifier.width(1.5.dp).weight(1f).background(colors.separator)) {
+                            Box(Modifier.fillMaxWidth().fillMaxHeight(filled).background(colors.accent))
+                        }
+                    }
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f).padding(top = 1.dp, bottom = if (last) 0.dp else 22.dp)) {
                     Text(
                         label, style = if (isCurrent) MaterialTheme.typography.headline else MaterialTheme.typography.body,
-                        color = if (done || isCurrent) colors.label else colors.secondaryLabel,
+                        color = animatedColor(if (done || isCurrent) colors.label else colors.secondaryLabel, "stepLabel"),
                     )
-                    if (isCurrent) {
-                        val detail = listOfNotNull(
+                    val detail = if (isCurrent) {
+                        listOfNotNull(
                             stepNote(index)?.let { stringResource(it) },
                             if (report.updatedAt > 0) agoText(report.updatedAt, now) else null,
-                        )
-                        if (detail.isNotEmpty()) {
-                            Text(detail.joinToString(" · "), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel)
-                        }
+                        ).joinToString(" · ").takeIf { it.isNotEmpty() }
+                    } else {
+                        null
                     }
+                    RevealValue(detail) { Text(it, style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel) }
                 }
             }
         }
     }
 }
+
+private enum class StepMark { DONE, CURRENT, UPCOMING }
 
 @Composable
 private fun reportSubtitle(vm: AppViewModel, report: MyReport): String =
@@ -1128,16 +1171,24 @@ private fun MeetingSteps(vm: AppViewModel, origin: GeoPoint?) {
 /** The organisers' answers, newest first; the way to the medical point opens the map. */
 @Composable
 private fun Responses(vm: AppViewModel, report: MyReport) {
+    // a reply that comes in while the report is open slides in at the top; the ones already there just show
+    val seen = remember(report.incidentId) { report.responses.mapTo(HashSet()) { it.receivedAt } }
     SectionTitle(stringResource(Res.string.report_responses_title))
     InsetGroup {
         report.responses.asReversed().forEachIndexed { i, r ->
-            if (i > 0) GroupDivider()
-            val medical = r.code == ResponseCode.GO_TO_MEDICAL
-            GroupRow(
-                stringResource(Replies.response(r.code), Replies.landmarkName(vm.venue, r.landmark)), subtitle = Labels.clock(r.receivedAt),
-                icon = if (medical) Sym.Medical else Sym.Chat, chevron = medical,
-                onClick = if (medical) ({ vm.open(Dest.Map(spot = MEDICAL)) }) else null,
-            )
+            key(r.receivedAt, r.code) {
+                Arrive(r.receivedAt !in seen) {
+                    Column {
+                        if (i > 0) GroupDivider()
+                        val medical = r.code == ResponseCode.GO_TO_MEDICAL
+                        GroupRow(
+                            stringResource(Replies.response(r.code), Replies.landmarkName(vm.venue, r.landmark)), subtitle = Labels.clock(r.receivedAt),
+                            icon = if (medical) Sym.Medical else Sym.Chat, chevron = medical,
+                            onClick = if (medical) ({ vm.open(Dest.Map(spot = MEDICAL)) }) else null,
+                        )
+                    }
+                }
+            }
         }
     }
 }

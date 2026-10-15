@@ -1,6 +1,5 @@
 package ro.safetyplease.ui
 
-import ro.safetyplease.ui.common.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.animateColorAsState
@@ -57,6 +56,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -66,12 +66,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import ro.safetyplease.ui.control.ControlScreen
-import ro.safetyplease.ui.report.MyReportsScreen
-import ro.safetyplease.ui.report.ReportScreen
-import ro.safetyplease.ui.report.ReportSentScreen
 import ro.safetyplease.core.announce.Evacuations
 import ro.safetyplease.core.announce.NoticeReach
+import ro.safetyplease.core.data.Role as AppRole
 import ro.safetyplease.core.incidents.Priority
 import ro.safetyplease.core.mesh.PowerPolicy
 import ro.safetyplease.core.mesh.RadioStatus
@@ -83,10 +80,12 @@ import ro.safetyplease.ui.Tab
 import ro.safetyplease.ui.chat.ConversationScreen
 import ro.safetyplease.ui.chat.MeetupRequests
 import ro.safetyplease.ui.chat.MessagesScreen
+import ro.safetyplease.ui.common.BackHandler
 import ro.safetyplease.ui.common.ExerciseBanner
 import ro.safetyplease.ui.common.ModalBanner
 import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.common.SharingBar
+import ro.safetyplease.ui.control.ControlScreen
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Backdrop
 import ro.safetyplease.ui.designsystem.FullScreen
@@ -95,10 +94,13 @@ import ro.safetyplease.ui.designsystem.LocalReduceMotion
 import ro.safetyplease.ui.designsystem.LocalStatusBarTop
 import ro.safetyplease.ui.designsystem.LocalTextOnly
 import ro.safetyplease.ui.designsystem.Motion
+import ro.safetyplease.ui.designsystem.Pop
+import ro.safetyplease.ui.designsystem.RollingCount
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextFont
 import ro.safetyplease.ui.designsystem.backdropSource
 import ro.safetyplease.ui.designsystem.glass
+import ro.safetyplease.ui.designsystem.motionSpec
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.rememberBackdrop
 import ro.safetyplease.ui.firstaid.FirstAidScreen
@@ -109,13 +111,13 @@ import ro.safetyplease.ui.info.PageScreen
 import ro.safetyplease.ui.info.PagesScreen
 import ro.safetyplease.ui.map.MapScreen
 import ro.safetyplease.ui.map.PinScreen
-import ro.safetyplease.ui.map.RouteScreen
 import ro.safetyplease.ui.map.ProgramScreen
+import ro.safetyplease.ui.map.RouteScreen
 import ro.safetyplease.ui.me.AnchorScreen
-import ro.safetyplease.ui.me.EventScreen
-import ro.safetyplease.ui.me.MeScreen
 import ro.safetyplease.ui.me.ComponentScreen
+import ro.safetyplease.ui.me.EventScreen
 import ro.safetyplease.ui.me.LicensesScreen
+import ro.safetyplease.ui.me.MeScreen
 import ro.safetyplease.ui.me.PrivacyScreen
 import ro.safetyplease.ui.notices.ControlMapLayer
 import ro.safetyplease.ui.notices.EvacuationBanner
@@ -140,6 +142,9 @@ import ro.safetyplease.ui.people.SharingScreen
 import ro.safetyplease.ui.push
 import ro.safetyplease.ui.rememberLocationRequest
 import ro.safetyplease.ui.rememberRadioGate
+import ro.safetyplease.ui.report.MyReportsScreen
+import ro.safetyplease.ui.report.ReportScreen
+import ro.safetyplease.ui.report.ReportSentScreen
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.location_precise_needed
 import ro.safetyplease.ui.resources.map_title
@@ -153,7 +158,6 @@ import ro.safetyplease.ui.staff.StaffChainLayer
 import ro.safetyplease.ui.staffcodes.PointsScreen
 import ro.safetyplease.ui.staffcodes.StaffCodesScreen
 import ro.safetyplease.ui.text.rememberNow
-import ro.safetyplease.core.data.Role as AppRole
 
 /** Screens that slide up as sheets; the rest push in from the right. */
 private fun Dest?.isSheet() = this == Dest.Me || this == Dest.AddFriend || this == Dest.NewGroup
@@ -264,18 +268,24 @@ private fun Screens(
 ) {
     Box(Modifier.fillMaxSize()) {
         val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        if (!onboarded) OnboardingScreen(vm, onStartMesh)
-        else AnimatedContent(
-            targetState = vm.stack.size to vm.stack.lastOrNull(),
-            transitionSpec = {
-                val forward = targetState.first >= initialState.first
-                screenTransition(forward, if (forward) targetState.second else initialState.second, reduce)
-            },
-            label = "screen",
-        ) { (size, dest) ->
-            holder.SaveableStateProvider(entryKey(size, dest)) {
-                CompositionLocalProvider(LocalBottomClearance provides navBottom) {
-                    Screen(vm, dest, role, onStartMesh, demo)
+        AnimatedContent(
+            onboarded,
+            transitionSpec = { fadeIn(tween(Motion.STANDARD, easing = Motion.Enter)) togetherWith fadeOut(tween(Motion.QUICK)) },
+            label = "onboarded",
+        ) { done ->
+            if (!done) OnboardingScreen(vm, onStartMesh)
+            else AnimatedContent(
+                targetState = vm.stack.size to vm.stack.lastOrNull(),
+                transitionSpec = {
+                    val forward = targetState.first >= initialState.first
+                    screenTransition(forward, if (forward) targetState.second else initialState.second, reduce)
+                },
+                label = "screen",
+            ) { (size, dest) ->
+                holder.SaveableStateProvider(entryKey(size, dest)) {
+                    CompositionLocalProvider(LocalBottomClearance provides navBottom) {
+                        Screen(vm, dest, role, onStartMesh, demo)
+                    }
                 }
             }
         }
@@ -394,7 +404,7 @@ private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> U
     val colors = AppTheme.colors
     val index = items.indexOfFirst { it.tab == current }.coerceAtLeast(0)
     // the pill slides to the new tab and settles with a short spring
-    val x by animateDpAsState(TabWidth * index, spring(dampingRatio = 0.72f, stiffness = 380f), label = "tabPill")
+    val x by animateDpAsState(TabWidth * index, motionSpec(spring(dampingRatio = 0.72f, stiffness = 380f)), label = "tabPill")
     // Tab labels scale with the system font size up to 130%; beyond that they don't fit the capsule.
     // TalkBack still reads the full label.
     val fontScale = LocalDensity.current.fontScale
@@ -416,16 +426,16 @@ private fun GlassTabBar(items: List<TabItem>, current: Tab, onSelect: (Tab) -> U
                 ) {
                     Box {
                         Icon(item.icon, null, Modifier.size(25.dp), tint = tint)
-                        if (item.badge > 0) {
+                        Pop(item.badge > 0, Modifier.align(Alignment.TopEnd).offset(x = 11.dp, y = (-5).dp)) {
                             Box(
-                                Modifier.align(Alignment.TopEnd).offset(x = 11.dp, y = (-5).dp).defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
-                                    .clip(CircleShape).background(colors.red).padding(horizontal = 5.dp),
+                                Modifier.defaultMinSize(minWidth = 18.dp, minHeight = 18.dp).clip(CircleShape).background(colors.red).padding(horizontal = 5.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text(
-                                    if (item.badge > 99) "99+" else item.badge.toString(), color = Color.White, fontSize = (11 * tabScale).sp,
-                                    lineHeight = (13 * tabScale).sp, fontFamily = TextFont, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                                )
+                                RollingCount(
+                                    item.badge,
+                                    TextStyle(fontSize = (11 * tabScale).sp, lineHeight = (13 * tabScale).sp, fontFamily = TextFont, fontWeight = FontWeight.SemiBold),
+                                    Color.White,
+                                ) { if (it > 99) "99+" else it.toString() }
                             }
                         }
                     }

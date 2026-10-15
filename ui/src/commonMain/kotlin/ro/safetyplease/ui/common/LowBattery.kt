@@ -2,8 +2,8 @@ package ro.safetyplease.ui.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -21,6 +21,7 @@ import ro.safetyplease.core.venue.GeoPoint
 import ro.safetyplease.core.venue.Venue
 import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Banner
+import ro.safetyplease.ui.designsystem.Radius
 import ro.safetyplease.ui.designsystem.subheadline
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.low_battery_charger
@@ -49,11 +50,13 @@ fun LowBatteryBanner(
     venue: Venue,
     origin: GeoPoint?,
     modifier: Modifier = Modifier,
+    withCharger: Boolean = true,
     onShowCharger: (() -> Unit)? = null,
 ) {
     if (!PowerPolicy.lowBattery(battery.percent, battery.charging)) return
     val textOnly = PowerPolicy.textOnly(battery.percent, battery.charging)
-    val charger = chargerText(venue, origin)
+    // where a row under the banner already names the nearest charger, the banner doesn't repeat it
+    val charger = if (withCharger) chargerText(venue, origin) else null
     val text = buildString {
         append(stringResource(Res.string.low_battery_text))
         if (textOnly) append(" ").append(stringResource(Res.string.low_battery_text_only))
@@ -70,7 +73,7 @@ fun LowBatteryBanner(
 @Composable
 fun TextOnlyMapNote(modifier: Modifier = Modifier) {
     Box(
-        modifier.fillMaxWidth().aspectRatio(3f).clip(RoundedCornerShape(20.dp)).background(AppTheme.colors.fill).padding(16.dp),
+        modifier.fillMaxWidth().heightIn(min = 120.dp).clip(RoundedCornerShape(Radius.Card)).background(AppTheme.colors.fill).padding(16.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(

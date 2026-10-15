@@ -104,7 +104,7 @@ fun PageScreen(vm: AppViewModel, id: String) {
                 )
                 is PageBlock.Bullet -> InsetGroup(Modifier.padding(top = 12.dp)) {
                     part.forEachIndexed { i, bullet ->
-                        if (i > 0) GroupDivider()
+                        if (i > 0) GroupDivider(start = Gutter)
                         Text(
                             bullet.text, style = MaterialTheme.typography.body,
                             modifier = Modifier.padding(horizontal = Gutter, vertical = 12.dp),

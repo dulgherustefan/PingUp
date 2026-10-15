@@ -1,6 +1,5 @@
 package ro.safetyplease.ui.map
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -72,6 +71,7 @@ import ro.safetyplease.ui.designsystem.InputField
 import ro.safetyplease.ui.designsystem.InsetGroup
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
+import ro.safetyplease.ui.designsystem.animatedColor
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.pressScale
 import ro.safetyplease.ui.designsystem.subheadline
@@ -404,15 +404,15 @@ private fun stateLabel(state: ServiceState): StringResource = when (state) {
 private fun LayerChip(icon: ImageVector, label: String, tone: Color, on: Boolean, onToggle: () -> Unit) {
     val colors = AppTheme.colors
     val press = remember { MutableInteractionSource() }
-    val fill by animateColorAsState(if (on) tone else colors.cell, label = "layer")
+    val fill = animatedColor(if (on) tone else colors.cell, "layer")
     Row(
-        Modifier.pressScale(press, 0.95f).heightIn(min = 40.dp).clip(CircleShape).background(fill)
+        Modifier.pressScale(press).heightIn(min = 44.dp).clip(CircleShape).background(fill)
             .toggleable(on, interactionSource = press, indication = null, role = Role.Checkbox) { onToggle() }
             .padding(start = 6.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(28.dp).clip(CircleShape).background(if (on) Color.White.copy(alpha = 0.22f) else tone),
+            Modifier.size(28.dp).clip(CircleShape).background(animatedColor(if (on) Color.White.copy(alpha = 0.22f) else tone, "layerDot")),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, null, Modifier.size(16.dp), tint = Color.White)
@@ -420,7 +420,7 @@ private fun LayerChip(icon: ImageVector, label: String, tone: Color, on: Boolean
         Spacer(Modifier.width(8.dp))
         Text(
             label, style = MaterialTheme.typography.subheadline.copy(fontWeight = FontWeight.SemiBold),
-            color = if (on) Color.White else colors.label, maxLines = 1,
+            color = animatedColor(if (on) Color.White else colors.label, "layerInk"), maxLines = 1,
         )
     }
 }

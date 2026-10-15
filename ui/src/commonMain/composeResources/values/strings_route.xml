@@ -22,7 +22,7 @@
     <string name="route_no_position">Pornește locația ca să vezi drumul.</string>
     <string name="route_turn_on">Pornește locația</string>
     <string name="route_outside">Ești în afara hărții festivalului</string>
-    <string name="route_outside_text">Drumurile pe jos merg doar pe harta festivalului. Când ajungi acolo, drumul apare singur.</string>
+    <string name="route_outside_text">Drumul apare singur când ajungi pe hartă.</string>
     <string name="route_no_goal">Nu știm acum unde e. Drumul apare când primim o poziție.</string>
     <string name="route_unreachable">Nu găsim un drum pe jos până acolo</string>
     <string name="route_unreachable_text">Apa, gardurile sau o zonă închisă de organizator îl blochează. Întreabă pe cineva din staff.</string>

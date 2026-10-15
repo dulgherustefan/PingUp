@@ -38,6 +38,7 @@ import ro.safetyplease.ui.designsystem.EmptyState
 import ro.safetyplease.ui.designsystem.GlassIconButton
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.NavScreen
+import ro.safetyplease.ui.designsystem.Radius
 import ro.safetyplease.ui.designsystem.SectionTitle
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.TextLink
@@ -112,7 +113,7 @@ private fun FriendAlertCard(vm: AppViewModel, alert: FriendAlert, now: Long) {
     }
     val lost = stringResource(Res.string.checkin_alert_lost_text, name, alert.label, where.orEmpty())
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(colors.cell).padding(16.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.Card)).background(colors.cell).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(stringResource(Res.string.checkin_alert_silent, name, alert.label), style = MaterialTheme.typography.headline)

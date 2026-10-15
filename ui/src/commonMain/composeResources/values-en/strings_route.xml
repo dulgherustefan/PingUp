@@ -22,7 +22,7 @@
     <string name="route_no_position">Turn on location to see the way.</string>
     <string name="route_turn_on">Turn on location</string>
     <string name="route_outside">You’re outside the festival map</string>
-    <string name="route_outside_text">Walking routes work only on the festival map. Once you’re there, the route appears by itself.</string>
+    <string name="route_outside_text">The route appears by itself once you’re on the map.</string>
     <string name="route_no_goal">We don’t know where it is right now. The route appears once a position arrives.</string>
     <string name="route_unreachable">No walking route gets there</string>
     <string name="route_unreachable_text">Water, fences or a zone the organiser closed are in the way. Ask a staff member.</string>

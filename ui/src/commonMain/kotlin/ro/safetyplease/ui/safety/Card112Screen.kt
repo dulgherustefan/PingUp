@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import ro.safetyplease.core.safety.Card112
@@ -39,6 +40,7 @@ import ro.safetyplease.ui.designsystem.ButtonKind
 import ro.safetyplease.ui.designsystem.GlassIconButton
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.NavScreen
+import ro.safetyplease.ui.designsystem.Radius
 import ro.safetyplease.ui.designsystem.Sym
 import ro.safetyplease.ui.designsystem.footnote
 import ro.safetyplease.ui.designsystem.headline
@@ -73,7 +75,6 @@ import ro.safetyplease.ui.resources.safety_meters
 import ro.safetyplease.ui.text.agoText
 import ro.safetyplease.ui.text.rememberNow
 import ro.safetyplease.ui.text.wallNowMs
-import kotlin.math.roundToInt
 
 /**
  * "Dacă suni 112, spune:" on the whole screen, to read aloud: where the festival and the spot are, the coordinates, the
@@ -183,7 +184,7 @@ fun cardAccuracyM(fix: GeoFix?, simulated: Boolean): Int = if (fix == null || si
 @Composable
 private fun Fact(label: String, value: String, mono: Boolean = false) {
     val colors = AppTheme.colors
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(colors.cell).padding(16.dp)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.Card)).background(colors.cell).padding(16.dp)) {
         Text(label, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
         Text(
             value, style = MaterialTheme.typography.title2, fontWeight = FontWeight.SemiBold,
@@ -195,7 +196,7 @@ private fun Fact(label: String, value: String, mono: Boolean = false) {
 @Composable
 private fun Help(label: String, place: NearbyPlace, onWalk: () -> Unit) {
     val colors = AppTheme.colors
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(colors.cell).padding(16.dp)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.Card)).background(colors.cell).padding(16.dp)) {
         Text(label, style = MaterialTheme.typography.footnote, color = colors.secondaryLabel)
         Text(
             listOf(place.name, stringResource(Res.string.safety_meters, place.meters)).filter { it.isNotEmpty() }.joinToString(" · "),

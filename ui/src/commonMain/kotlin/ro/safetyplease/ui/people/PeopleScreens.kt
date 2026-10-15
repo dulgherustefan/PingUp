@@ -1,16 +1,23 @@
 package ro.safetyplease.ui.people
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.EaseInOutSine
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -108,6 +115,8 @@ import ro.safetyplease.ui.designsystem.LocalBottomClearance
 import ro.safetyplease.ui.designsystem.LocalReduceMotion
 import ro.safetyplease.ui.designsystem.Motion
 import ro.safetyplease.ui.designsystem.NavScreen
+import ro.safetyplease.ui.designsystem.Radius
+import ro.safetyplease.ui.designsystem.Reveal
 import ro.safetyplease.ui.designsystem.SectionTitle
 import ro.safetyplease.ui.designsystem.SegmentedControl
 import ro.safetyplease.ui.designsystem.StatusLabel
@@ -205,7 +214,7 @@ private fun ScanFrame(modifier: Modifier = Modifier) {
         val transition = rememberInfiniteTransition(label = "scan")
         transition.animateFloat(
             initialValue = 0.18f, targetValue = 0.82f,
-            animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Reverse), label = "scanLine",
+            animationSpec = infiniteRepeatable(tween(1800, easing = EaseInOutSine), RepeatMode.Reverse), label = "scanLine",
         ).value
     }
     Canvas(modifier) {
@@ -244,6 +253,9 @@ fun AddFriendScreen(vm: AppViewModel) {
     var lastText by remember { mutableStateOf("") }
     var sheet by remember { mutableStateOf(false) }
     var bigCode by remember { mutableStateOf(false) }
+    val reduce = LocalReduceMotion.current
+    // kept while the friend-added page fades out after Done
+    var shownSuccess by remember { mutableStateOf<ScanOutcome?>(null) }
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
 
@@ -277,7 +289,30 @@ fun AddFriendScreen(vm: AppViewModel) {
                 },
                 Modifier.padding(top = 8.dp),
             )
-            if (success != null) {
+            // each tab slides in from its own side
+            val page = if (success != null) AddPage.DONE else if (tab == 0) AddPage.CODE else AddPage.SCAN
+            if (success != null) shownSuccess = success
+            AnimatedContent(
+                page,
+                transitionSpec = {
+                    val size = SizeTransform(clip = false) { _, _ -> tween(Motion.STANDARD, easing = Motion.Standard) }
+                    when {
+                        reduce -> (fadeIn(tween(Motion.QUICK)) togetherWith fadeOut(tween(90))).using(size)
+                        targetState == AddPage.DONE ->
+                            ((fadeIn(tween(Motion.QUICK)) + scaleIn(spring(dampingRatio = 0.7f, stiffness = 500f), initialScale = 0.9f)) togetherWith fadeOut(tween(90))).using(size)
+                        else -> {
+                            val toRight = targetState.ordinal > initialState.ordinal
+                            val enter = slideInHorizontally(tween(Motion.STANDARD, easing = Motion.Enter)) { if (toRight) it / 5 else -it / 5 } + fadeIn(tween(Motion.STANDARD))
+                            val exit = slideOutHorizontally(tween(Motion.QUICK, easing = Motion.Exit)) { if (toRight) -it / 5 else it / 5 } + fadeOut(tween(Motion.QUICK))
+                            (enter togetherWith exit).using(size)
+                        }
+                    }
+                },
+                contentAlignment = Alignment.TopCenter, label = "addFriend",
+            ) { shown ->
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            if (shown == AddPage.DONE) {
+                val success = shownSuccess
                 Icon(Sym.CheckCircle, null, Modifier.padding(top = 48.dp).size(64.dp), tint = colors.accent)
                 Text(
                     when (success) {
@@ -302,7 +337,7 @@ fun AddFriendScreen(vm: AppViewModel) {
                         }
                     }, Modifier.fillMaxWidth())
                 }
-            } else if (tab == 0) {
+            } else if (shown == AddPage.CODE) {
                 QrBadge(code, settings.nickname, { bigCode = true }, Modifier.padding(top = 24.dp))
                 Text(
                     stringResource(Res.string.add_friend_mine_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
@@ -313,8 +348,8 @@ fun AddFriendScreen(vm: AppViewModel) {
             } else {
                 if (camera.granted) {
                     Box(
-                        Modifier.padding(top = 24.dp).widthIn(max = 360.dp).fillMaxWidth().aspectRatio(1f)
-                            .clip(RoundedCornerShape(26.dp)).background(Color.Black),
+                        Modifier.padding(top = 24.dp).widthIn(max = QrCardWidth).fillMaxWidth().aspectRatio(1f)
+                            .clip(RoundedCornerShape(Radius.Card)).background(Color.Black),
                     ) {
                         QrScanner(::handle, Modifier.fillMaxSize())
                         ScanFrame(Modifier.fillMaxSize())
@@ -327,9 +362,9 @@ fun AddFriendScreen(vm: AppViewModel) {
                 }
                 Text(
                     stringResource(Res.string.add_friend_scan_hint), style = MaterialTheme.typography.subheadline, color = colors.secondaryLabel,
-                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 320.dp).padding(top = 16.dp),
+                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = QrCardWidth).padding(top = 16.dp),
                 )
-                AnimatedVisibility(outcome != null, enter = fadeIn(tween(Motion.QUICK)) + expandVertically(), exit = fadeOut(tween(100)) + shrinkVertically()) {
+                Reveal(outcome != null) {
                     StatusLabel(
                         stringResource(
                             when (outcome) {
@@ -348,6 +383,8 @@ fun AddFriendScreen(vm: AppViewModel) {
                 }
                 TextLink(stringResource(Res.string.add_friend_text_link), { sheet = true }, Modifier.padding(top = 8.dp))
             }
+            }
+            }
         }
     }
     if (bigCode) BigCodeDialog(code, settings.nickname) { bigCode = false }
@@ -364,6 +401,8 @@ fun AddFriendScreen(vm: AppViewModel) {
     }
 }
 
+private enum class AddPage { CODE, SCAN, DONE }
+
 private val ScanOutcome.success: Boolean
     get() = this is ScanOutcome.FriendAdded || this == ScanOutcome.StaffOn || this == ScanOutcome.AnchorOn ||
         this == ScanOutcome.ControlOn || this == ScanOutcome.RevocationsApplied
@@ -373,7 +412,7 @@ private val ScanOutcome.success: Boolean
 private fun NoCamera(blocked: Boolean, onAllow: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AppTheme.colors
     Column(
-        modifier.widthIn(max = 360.dp).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(26.dp)).background(colors.cell).padding(24.dp),
+        modifier.widthIn(max = QrCardWidth).fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(Radius.Card)).background(colors.cell).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         Icon(Sym.QrScan, null, Modifier.size(44.dp), tint = colors.secondaryLabel)

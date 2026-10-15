@@ -25,7 +25,7 @@
     <string name="found_keep">Keep it open</string>
     <string name="gasp_label">last signal: battery %1$s, %2$s</string>
     <string name="landmark_title">I’m next to a landmark</string>
-    <string name="landmark_text">When your dot is wrong, pick the number on the post next to you. It holds for 10 minutes at most.</string>
+    <string name="landmark_text">Is your dot wrong? Pick the number on the post. It holds for 10 minutes at most.</string>
     <string name="landmark_active">You’re next to Landmark %1$s</string>
     <string name="landmark_active_text">%1$s more min, or until GPS clearly says otherwise</string>
     <string name="landmark_clear">Cancel</string>
