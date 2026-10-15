@@ -93,28 +93,13 @@
     <string name="report_zone_with_age">%1$s, %2$s</string>
     <string name="report_zone_picked_ago">Aleasă %1$s</string>
 
-    <string name="onboarding_welcome">Mesaje fără semnal</string>
-    <string name="onboarding_intro">Scrii prietenilor și chemi ajutor chiar când rețeaua cade. Mesajele sar din telefon în telefon, prin Bluetooth.</string>
-    <string name="onboarding_not_112">Aplicația nu înlocuiește 112: rapoartele ajung la staff-ul festivalului. Într-o urgență, dacă poți, sună la 112.</string>
-    <string name="name_label">Cum te văd prietenii</string>
     <string name="name_placeholder">Numele tău</string>
-    <string name="name_hint">Îl poți schimba oricând.</string>
-    <string name="onboarding_permissions">Ce îți cerem și de ce</string>
-    <string name="perm_bluetooth_title">Bluetooth</string>
-    <string name="perm_bluetooth_text">Ca telefonul să găsească telefoanele din jur și să paseze mesaje. Rețeaua există doar din telefoanele oamenilor.</string>
-    <string name="perm_notifications_title">Notificări</string>
-    <string name="perm_notifications_text">Pentru mesaje noi și pentru starea raportului tău. O notificare rămâne mereu, ca rețeaua să meargă și cu ecranul stins.</string>
-    <string name="perm_notifications_text_short">Pentru mesaje noi și pentru starea raportului tău.</string>
+    <string name="perm_notifications_text">Pentru mesaje noi, starea raportului tău și alertele de evacuare. O notificare rămâne mereu, ca rețeaua să meargă și cu ecranul stins.</string>
+    <string name="perm_notifications_text_short">Pentru mesaje noi, starea raportului tău și alertele de evacuare.</string>
     <string name="notif_off_title">Notificările sunt oprite</string>
     <string name="notif_off_report_text">Cu ecranul stins nu afli când răspunde echipa sau când e cazul să cauți ajutor în altă parte.</string>
     <string name="notif_off_staff_text">Cu ecranul stins, rapoartele noi nu te anunță.</string>
     <string name="notif_off_action">Pornește-le</string>
-    <string name="perm_location_title">Locație</string>
-    <string name="perm_location_text">Pe acest Android, Bluetooth nu poate căuta telefoane fără permisiunea de locație.</string>
-    <string name="onboarding_permissions_text">Rețeaua se face din telefoanele oamenilor din jur. Ca să meargă, aplicația îți cere:</string>
-    <string name="onboarding_later">Camera și locația le cerem doar când ai nevoie de ele.</string>
-    <string name="onboarding_not_now">Nu acum</string>
-    <string name="onboarding_start">Pornește</string>
 
     <string name="messages_empty_title">Niciun prieten încă</string>
     <string name="messages_empty_text">Scanează codul unui prieten și vă puteți scrie. Merge fără internet.</string>

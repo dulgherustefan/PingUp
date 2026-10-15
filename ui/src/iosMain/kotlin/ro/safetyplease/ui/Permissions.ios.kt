@@ -5,15 +5,20 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import platform.CoreBluetooth.CBManager
 import platform.CoreBluetooth.CBManagerAuthorizationDenied
+import platform.CoreBluetooth.CBManagerAuthorizationNotDetermined
 import platform.CoreBluetooth.CBManagerAuthorizationRestricted
 import platform.UIKit.UIApplication
+import platform.UIKit.UIApplicationState
 import platform.UIKit.UIInterfaceOrientationMask
 import platform.UIKit.UIInterfaceOrientationMaskLandscape
 import platform.UIKit.UIInterfaceOrientationMaskPortrait
@@ -65,17 +70,39 @@ actual fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit
     onResult(vm.phone.locationAllowed())
 }
 
-/** Notifications at the end of onboarding; the position and Bluetooth are asked as the mesh first starts, one after the other. */
+/**
+ * Bluetooth, then notifications. Starting the radio is what makes iOS ask for Bluetooth, and nothing says when the
+ * person answered, so the notifications wait until the answer shows; the app is inactive while an alert is up.
+ */
 @Composable
-actual fun rememberStartPermissions(onDone: () -> Unit): () -> Unit {
+actual fun rememberStartPermissions(onStartMesh: () -> Unit, onDone: () -> Unit): () -> Unit {
+    val start by rememberUpdatedState(onStartMesh)
     val done by rememberUpdatedState(onDone)
+    val scope = rememberCoroutineScope()
     return {
-        val options = UNAuthorizationOptionAlert or UNAuthorizationOptionSound or UNAuthorizationOptionBadge
-        UNUserNotificationCenter.currentNotificationCenter().requestAuthorizationWithOptions(options) { _, _ ->
-            dispatch_async(dispatch_get_main_queue()) { done() }
+        start()
+        scope.launch {
+            var waited = 0L
+            while (CBManager.authorization == CBManagerAuthorizationNotDetermined) {
+                delay(ANSWER_POLL_MS)
+                waited += ANSWER_POLL_MS
+                // no alert came up: the radio didn't start, so there is nothing to wait for
+                val alertUp = UIApplication.sharedApplication.applicationState != UIApplicationState.UIApplicationStateActive
+                if (!alertUp && waited >= ALERT_GRACE_MS) break
+            }
+            val options = UNAuthorizationOptionAlert or UNAuthorizationOptionSound or UNAuthorizationOptionBadge
+            UNUserNotificationCenter.currentNotificationCenter().requestAuthorizationWithOptions(options) { _, _ ->
+                dispatch_async(dispatch_get_main_queue()) { done() }
+            }
         }
     }
 }
+
+private const val ANSWER_POLL_MS = 200L
+private const val ALERT_GRACE_MS = 2_000L
+
+// Apple wants a page that comes before its question to have one button, which leads to it; "Don't Allow" is there
+actual val PermissionsSkippable = false
 
 actual val RadioNeedsLocation = false
 

@@ -1,7 +1,17 @@
 package ro.safetyplease.ui.common
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -9,7 +19,9 @@ import ro.safetyplease.core.mesh.MeshState
 import ro.safetyplease.core.mesh.RadioStatus
 import ro.safetyplease.core.util.nodePrefix
 import ro.safetyplease.ui.common.Nearby
+import ro.safetyplease.ui.designsystem.AppTheme
 import ro.safetyplease.ui.designsystem.Banner
+import ro.safetyplease.ui.designsystem.LocalReduceMotion
 import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.mesh_off_text
 import ro.safetyplease.ui.resources.mesh_off_title
@@ -106,4 +118,21 @@ fun networkText(links: Int, gate: RadioGate): String {
         links == 0 -> stringResource(Res.string.net_none)
         else -> pluralStringResource(Res.plurals.phones_around, links, links)
     }
+}
+
+/**
+ * Network dot: green with phones around, gray without, red when the radio can't work.
+ * Static on purpose; only the color animates on state changes, slowly, so it doesn't flicker as phones come and go.
+ */
+@Composable
+fun NetworkDot(links: Int, gate: RadioGate) {
+    val colors = AppTheme.colors
+    val target = when {
+        gate.meshOff -> colors.tertiaryLabel
+        !gate.hasAccess || !gate.bluetoothOn -> colors.red
+        links > 0 -> colors.brand
+        else -> colors.tertiaryLabel
+    }
+    val color by animateColorAsState(target, if (LocalReduceMotion.current) snap() else tween(480), label = "net")
+    Box(Modifier.padding(end = 6.dp).size(7.dp).background(color, CircleShape))
 }

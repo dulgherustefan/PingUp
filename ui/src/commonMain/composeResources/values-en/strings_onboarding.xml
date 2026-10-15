@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_no_signal">No signal</string>
+    <string name="onboarding_welcome">Messages without signal</string>
+    <string name="onboarding_intro">Text your friends and call for help even when the network goes down. Messages hop from phone to phone over Bluetooth.</string>
+    <string name="onboarding_not_112">This app doesn’t replace 112: reports go to the festival staff. In an emergency, call 112 if you can.</string>
+    <string name="onboarding_begin">Get started</string>
+    <string name="onboarding_name_title">What’s your name?</string>
+    <string name="onboarding_name_text">It’s how your friends see you. No account, no phone number.</string>
+    <string name="name_hint">You can change it anytime.</string>
+    <string name="onboarding_permissions">What we ask for and why</string>
+    <string name="onboarding_permissions_text">The network is made of the phones of the people around you. For it to work, the app asks for:</string>
+    <string name="perm_bluetooth_title">Bluetooth</string>
+    <string name="perm_bluetooth_text">So your phone can find the phones around you and pass messages along.</string>
+    <string name="perm_notifications_title">Notifications</string>
+    <string name="perm_location_title">Location</string>
+    <string name="perm_location_text">On this Android version, Bluetooth can’t search for phones without the location permission.</string>
+    <string name="onboarding_later">We ask for the camera and location only when you need them.</string>
+    <string name="onboarding_later_camera">We ask for the camera only when you need it.</string>
+    <string name="onboarding_not_now">Not now</string>
+    <string name="onboarding_ready_title">You’re all set, %1$s!</string>
+    <string name="onboarding_ready_text">Add your friends while you’re together: one of you scans the other’s code, and that’s it. Then you can text without signal.</string>
+    <string name="onboarding_ready_later">Later</string>
+    <string name="onboarding_ready_alone">The network grows with everyone around who has Ping Up.</string>
+    <string name="onboarding_progress">Step %1$d of %2$d</string>
+</resources>

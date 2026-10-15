@@ -16,9 +16,16 @@ expect fun rememberRadioGate(vm: AppViewModel, radio: RadioStatus, onStartMesh: 
 @Composable
 expect fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit = {}): () -> Unit
 
-/** What onboarding asks for once it ends: Bluetooth and notifications; then [onDone], whatever the answers. */
+/**
+ * What onboarding asks for, one system question after the other: what the network needs first (Bluetooth, and location
+ * on Android below 12), then notifications. The network starts once Bluetooth is answered, and [onDone] runs when every
+ * question is, whatever the answers.
+ */
 @Composable
-expect fun rememberStartPermissions(onDone: () -> Unit): () -> Unit
+expect fun rememberStartPermissions(onStartMesh: () -> Unit, onDone: () -> Unit): () -> Unit
+
+/** Whether the page that explains those questions also offers to skip them for now. */
+expect val PermissionsSkippable: Boolean
 
 /** Bluetooth needs the location permission too: Android below 12. */
 expect val RadioNeedsLocation: Boolean

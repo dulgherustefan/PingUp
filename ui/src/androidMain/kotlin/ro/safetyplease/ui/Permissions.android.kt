@@ -157,11 +157,18 @@ actual fun rememberLocationRequest(vm: AppViewModel, onResult: (Boolean) -> Unit
     }
 }
 
+/** Android shows the questions one after the other, and the network starts once they're answered. */
 @Composable
-actual fun rememberStartPermissions(onDone: () -> Unit): () -> Unit {
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { onDone() }
+actual fun rememberStartPermissions(onStartMesh: () -> Unit, onDone: () -> Unit): () -> Unit {
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        onStartMesh()
+        onDone()
+    }
     return { launcher.launch(startPermissions()) }
 }
+
+// whatever is missing shows in the app as a banner with the button that asks again
+actual val PermissionsSkippable = true
 
 @Composable
 actual fun ConsoleWindow() {

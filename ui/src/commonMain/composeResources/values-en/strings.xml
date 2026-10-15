@@ -87,28 +87,13 @@
     <string name="report_zone_with_age">%1$s, %2$s</string>
     <string name="report_zone_picked_ago">Picked %1$s</string>
 
-    <string name="onboarding_welcome">Messages without signal</string>
-    <string name="onboarding_intro">Text your friends and call for help even when the network goes down. Messages hop from phone to phone over Bluetooth.</string>
-    <string name="onboarding_not_112">This app doesn’t replace 112: reports go to the festival staff. In an emergency, call 112 if you can.</string>
-    <string name="name_label">How your friends see you</string>
     <string name="name_placeholder">Your name</string>
-    <string name="name_hint">You can change it anytime.</string>
-    <string name="onboarding_permissions">What we ask for and why</string>
-    <string name="perm_bluetooth_title">Bluetooth</string>
-    <string name="perm_bluetooth_text">So your phone can find the phones around you and pass messages along. The network is made only of people’s phones.</string>
-    <string name="perm_notifications_title">Notifications</string>
-    <string name="perm_notifications_text">For new messages and the status of your report. One notification always stays, so the network keeps working with the screen off.</string>
-    <string name="perm_notifications_text_short">For new messages and the status of your report.</string>
+    <string name="perm_notifications_text">For new messages, the status of your report and evacuation alerts. One notification always stays, so the network keeps working with the screen off.</string>
+    <string name="perm_notifications_text_short">For new messages, the status of your report and evacuation alerts.</string>
     <string name="notif_off_title">Notifications are off</string>
     <string name="notif_off_report_text">With the screen off you won’t hear when the team answers, or when to look for help elsewhere.</string>
     <string name="notif_off_staff_text">With the screen off, new reports won’t alert you.</string>
     <string name="notif_off_action">Turn them on</string>
-    <string name="perm_location_title">Location</string>
-    <string name="perm_location_text">On this Android version, Bluetooth can’t search for phones without the location permission.</string>
-    <string name="onboarding_permissions_text">The network is made of the phones of the people around you. For it to work, the app asks for:</string>
-    <string name="onboarding_later">We ask for the camera and location only when you need them.</string>
-    <string name="onboarding_not_now">Not now</string>
-    <string name="onboarding_start">Start</string>
 
     <string name="messages_empty_title">No friends yet</string>
     <string name="messages_empty_text">Scan a friend’s code and you can text each other. Works without internet.</string>

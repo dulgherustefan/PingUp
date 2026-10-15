@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_no_signal">Fără semnal</string>
+    <string name="onboarding_welcome">Mesaje fără semnal</string>
+    <string name="onboarding_intro">Scrii prietenilor și chemi ajutor chiar și când rețeaua cade. Mesajele sar din telefon în telefon, prin Bluetooth.</string>
+    <string name="onboarding_not_112">Aplicația nu înlocuiește 112: rapoartele ajung la staff-ul festivalului. Într-o urgență, dacă poți, sună la 112.</string>
+    <string name="onboarding_begin">Începe</string>
+    <string name="onboarding_name_title">Cum te cheamă?</string>
+    <string name="onboarding_name_text">Așa te văd prietenii. Fără cont și fără număr de telefon.</string>
+    <string name="name_hint">Îl poți schimba oricând.</string>
+    <string name="onboarding_permissions">Ce îți cerem și de ce</string>
+    <string name="onboarding_permissions_text">Rețeaua se face din telefoanele oamenilor din jur. Ca să meargă, aplicația îți cere:</string>
+    <string name="perm_bluetooth_title">Bluetooth</string>
+    <string name="perm_bluetooth_text">Ca telefonul să găsească telefoanele din jur și să ducă mesajele mai departe.</string>
+    <string name="perm_notifications_title">Notificări</string>
+    <string name="perm_location_title">Locație</string>
+    <string name="perm_location_text">Pe acest Android, Bluetooth nu poate căuta telefoane fără permisiunea de locație.</string>
+    <string name="onboarding_later">Camera și locația le cerem doar când ai nevoie de ele.</string>
+    <string name="onboarding_later_camera">Camera o cerem doar când ai nevoie de ea.</string>
+    <string name="onboarding_not_now">Nu acum</string>
+    <string name="onboarding_ready_title">Gata, %1$s!</string>
+    <string name="onboarding_ready_text">Adaugă-ți prietenii cât sunteți împreună: unul scanează codul celuilalt și gata. Apoi vă scrieți și fără semnal.</string>
+    <string name="onboarding_ready_later">Mai târziu</string>
+    <string name="onboarding_ready_alone">Rețeaua crește cu fiecare om din jur care are Ping Up.</string>
+    <string name="onboarding_progress">Pasul %1$d din %2$d</string>
+</resources>

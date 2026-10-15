@@ -1,8 +1,5 @@
 package ro.safetyplease.ui.chat
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,6 +54,7 @@ import ro.safetyplease.ui.AppViewModel
 import ro.safetyplease.ui.Dest
 import ro.safetyplease.ui.UnfindableIsAProblem
 import ro.safetyplease.ui.common.MeButton
+import ro.safetyplease.ui.common.NetworkDot
 import ro.safetyplease.ui.common.RadioGate
 import ro.safetyplease.ui.common.RadioProblemBanner
 import ro.safetyplease.ui.common.networkText
@@ -70,7 +68,6 @@ import ro.safetyplease.ui.designsystem.EmptyState
 import ro.safetyplease.ui.designsystem.GlassIconButton
 import ro.safetyplease.ui.designsystem.Gutter
 import ro.safetyplease.ui.designsystem.LocalBottomClearance
-import ro.safetyplease.ui.designsystem.LocalReduceMotion
 import ro.safetyplease.ui.designsystem.NavScreen
 import ro.safetyplease.ui.designsystem.PinMascot
 import ro.safetyplease.ui.designsystem.Sym
@@ -137,23 +134,6 @@ fun messageStateLabel(status: MsgStatus): StringResource = when (status) {
     MsgStatus.SENT -> Res.string.msg_sent
     MsgStatus.DELIVERED -> Res.string.msg_delivered
     else -> Res.string.msg_failed
-}
-
-/**
- * Network dot: green with phones around, gray without, red when the radio can't work.
- * Static on purpose; only the color animates on state changes, slowly, so it doesn't flicker as phones come and go.
- */
-@Composable
-private fun NetworkDot(links: Int, gate: RadioGate) {
-    val colors = AppTheme.colors
-    val target = when {
-        gate.meshOff -> colors.tertiaryLabel
-        !gate.hasAccess || !gate.bluetoothOn -> colors.red
-        links > 0 -> colors.brand
-        else -> colors.tertiaryLabel
-    }
-    val color by animateColorAsState(target, if (LocalReduceMotion.current) snap() else tween(480), label = "net")
-    Box(Modifier.padding(end = 6.dp).size(7.dp).background(color, CircleShape))
 }
 
 /** Primary action of Messages, at the bottom where the thumb is. */
