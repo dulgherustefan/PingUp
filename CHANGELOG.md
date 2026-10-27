@@ -18,6 +18,7 @@ Rețeaua n-a fost încă măsurată pe telefoane reale, la un eveniment. Ping Up
 - Cardul 112 îți arată locația și în notificare, ca s-o citești în timpul apelului.
 - Evacuarea sună pe toate telefoanele din zonă, chiar și cu anunțurile oprite, trece prin rețea înaintea mesajelor și arată pe hartă drumul spre ieșire.
 - Prima pornire arată cum sar mesajele din telefon în telefon. Aplicația pornește mai repede și are mai puțin text.
+- Dacă Android oprește alertele pe tot ecranul, Eu arată de unde le pornești.
 - „Eu › Licențe open source” arată licența Ping Up și tot ce folosește.
 
 **Pentru staff și camera de control**

@@ -96,6 +96,15 @@ interface PhoneUi {
     /** Asks to exempt the app from battery saving, or opens the settings where that's done. */
     fun requestBatteryExemption()
 
+    /**
+     * Android 14 and later let the person, or the store that installed the app, withhold full-screen alerts: an
+     * evacuation or an urgent alert then comes only as a notification.
+     */
+    fun fullScreenAlertsBlocked(): Boolean
+
+    /** Opens the setting that lets the app's alerts take the screen. */
+    fun openFullScreenAlertSettings()
+
     /** "1.2.3", as the store shows it. */
     val appVersion: String
 

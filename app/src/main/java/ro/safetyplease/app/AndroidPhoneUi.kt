@@ -5,9 +5,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.core.app.NotificationManagerCompat
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.launch
@@ -99,6 +101,14 @@ class AndroidPhoneUi(private val app: Application, private val container: AppCon
     override val batterySteps get() = BatteryExemption.vendor()?.steps
 
     override fun requestBatteryExemption() = BatteryExemption.request(app)
+
+    override fun fullScreenAlertsBlocked(): Boolean = !NotificationManagerCompat.from(app).canUseFullScreenIntent()
+
+    override fun openFullScreenAlertSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
+        val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.fromParts("package", app.packageName, null))
+        runCatching { app.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
 
     override val appVersion: String get() = BuildConfig.VERSION_NAME
 

@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -94,6 +95,8 @@ import ro.safetyplease.ui.resources.layers_saved_place
 import ro.safetyplease.ui.resources.me_auto_answer
 import ro.safetyplease.ui.resources.me_auto_answer_text
 import ro.safetyplease.ui.resources.me_battery
+import ro.safetyplease.ui.resources.me_fullscreen
+import ro.safetyplease.ui.resources.me_fullscreen_text
 import ro.safetyplease.ui.resources.me_edit_name
 import ro.safetyplease.ui.resources.me_leave_staff
 import ro.safetyplease.ui.resources.me_leave_staff_text
@@ -173,6 +176,12 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
     val online by remember(gnss) { gnss?.online ?: MutableStateFlow(false) }.collectAsStateWithLifecycle()
     val searching by remember(gnss) { gnss?.searching ?: MutableStateFlow(false) }.collectAsStateWithLifecycle()
     var versionTaps by remember { mutableIntStateOf(0) }
+    // read again on every return, since the person may have just allowed them in the settings
+    var fullScreenBlocked by remember { mutableStateOf(vm.phone.fullScreenAlertsBlocked()) }
+    LifecycleResumeEffect(Unit) {
+        fullScreenBlocked = vm.phone.fullScreenAlertsBlocked()
+        onPauseOrDispose { }
+    }
     val unlocked = stringResource(Res.string.demo_unlocked)
     val haptics = rememberHaptics()
     val scroll = rememberScrollState()
@@ -230,6 +239,13 @@ fun MeScreen(vm: AppViewModel, onStartMesh: () -> Unit) {
                         GroupRow(
                             stringResource(Res.string.me_battery), subtitle = stringResource(steps), icon = Sym.Battery, chevron = true,
                             onClick = vm.phone::requestBatteryExemption,
+                        )
+                    }
+                    if (fullScreenBlocked) {
+                        GroupDivider()
+                        GroupRow(
+                            stringResource(Res.string.me_fullscreen), subtitle = stringResource(Res.string.me_fullscreen_text), icon = Sym.Bell,
+                            chevron = true, onClick = vm.phone::openFullScreenAlertSettings,
                         )
                     }
                 }

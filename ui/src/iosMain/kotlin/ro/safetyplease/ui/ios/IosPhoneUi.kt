@@ -123,6 +123,10 @@ class IosPhoneUi(private val app: IosApp, private val location: IosLocation, val
 
     override fun requestBatteryExemption() = Unit
 
+    override fun fullScreenAlertsBlocked() = false
+
+    override fun openFullScreenAlertSettings() = Unit
+
     override val appVersion: String = info("CFBundleShortVersionString")
 
     override val appName: String = info("CFBundleDisplayName").ifEmpty { info("CFBundleName") }

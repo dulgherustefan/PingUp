@@ -404,6 +404,8 @@
         <item quantity="other">%1$d de pachete ale altora au trecut prin telefonul tău.</item>
     </plurals>
     <string name="me_battery">Baterie</string>
+    <string name="me_fullscreen">Alertele pe tot ecranul</string>
+    <string name="me_fullscreen_text">Oprite pe acest telefon: o evacuare sau o alertă urgentă vine doar ca notificare. Atinge ca să le pornești.</string>
     <string name="battery_samsung">Samsung oprește aplicațiile din fundal. Setări › Baterie › Limite de utilizare în fundal, apoi scoate Ping Up din „Aplicații în repaus”.</string>
     <string name="battery_xiaomi">Xiaomi oprește aplicațiile din fundal. Setări › Aplicații › Ping Up › Economisire baterie › Fără restricții, apoi pornește și Pornire automată.</string>
     <string name="battery_huawei">Huawei și Honor opresc aplicațiile din fundal. Setări › Baterie › Lansare aplicații › Ping Up: oprește „Gestionează automat” și pornește toate cele trei comutatoare.</string>
