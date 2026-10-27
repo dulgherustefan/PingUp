@@ -112,8 +112,19 @@ base64 -i release.jks
 
 Pe iPhone aplicația se publică prin App Store; ce trebuie pentru prima trimitere e în [APP_STORE.md](APP_STORE.md).
 
-Cheile de staff ale unui eveniment: `python tools/gen_staff_keys.py`. Semințele rămân în `tools/out/`, nu în git.
-Build-ul debug are o pereche separată, publică (`--demo`), pe care release-ul nu o acceptă.
+Cheile de staff ale unui eveniment: `python tools/gen_staff_keys.py` (`pip install pynacl "qrcode[pil]"`). Semințele rămân în `tools/out/`, nu în git.
+Build-ul debug are o pereche separată, publică (`demo`), pe care release-ul nu o acceptă.
+
+### Cheia rădăcină
+
+Release-ul încarcă pachete de eveniment și coduri de staff pe tură (SPS2) doar dacă `app/src/main/assets/staff_public.json` are cheia publică a rădăcinii; fără ea, `release.yml` se oprește. Rădăcina semnează doar cheile organizatorilor, de câteva ori pe an, așa că sămânța ei nu stă pe laptop, ci în două fișiere criptate cu o parolă, pe două stickuri. Se face o singură dată:
+
+1. Două stickuri goale, Wi-Fi-ul oprit și o parolă de cel puțin 16 caractere (de exemplu cinci cuvinte alese la întâmplare), scrisă pe hârtie.
+2. `python3 tools/gen_staff_keys.py root --out /Volumes/STICK1/pingup-root.json /Volumes/STICK2/pingup-root.json`
+3. `staff_public.json` intră în commit (are doar cheia publică); id-ul cheii afișat se notează lângă parolă.
+4. Stickurile stau în două locuri diferite, iar hârtia cu parola în al treilea. Fără un stick și parolă nu se mai pot semna organizatori, iar o rădăcină nouă cere o versiune nouă a aplicației.
+
+Un organizator nou: `python3 tools/gen_staff_keys.py organiser --name "Fest SRL" --root /Volumes/STICK1/pingup-root.json`.
 
 Harta unui festival nou se pune în `app/src/main/assets/venue.json` și se verifică cu `python3 tools/check_venue.py app/src/main/assets/venue.json`: zonele nu au voie să se suprapună, id-urile încap în protocol, iar numerele reperelor sunt unice. Aceeași verificare rulează în CI și înainte ca `gen_staff_keys.py pack` să semneze pachetul de eveniment. Formatul e descris în script.
 

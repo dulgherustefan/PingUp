@@ -35,6 +35,11 @@ jobs:
       - name: Tests
         run: ./gradlew test
 
+      # without Ping Up's root key the app loads no event pack and no shift code (README, "Cheia rădăcină")
+      - name: Root key
+        run: |
+          grep -Eq '"root": *"[0-9a-f]{64}"' app/src/main/assets/staff_public.json
+
       - name: Keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}

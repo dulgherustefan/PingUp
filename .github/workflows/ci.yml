@@ -1,6 +1,7 @@
 # On every push, and on pull requests from forks (a branch of this repo is already built by its push):
-# the venue map check, debug build, unit tests and lint, and on a Mac the iOS tests and the iPhone app, so that a
-# change to the shared code made on Windows or Linux can't break the iPhone unseen. Releases stay in release.yml.
+# the tools' tests, the venue map check, debug build, unit tests and lint, and on a Mac the iOS tests and the iPhone
+# app, so that a change to the shared code made on Windows or Linux can't break the iPhone unseen. Releases stay in
+# release.yml.
 name: CI
 
 on:
@@ -27,9 +28,11 @@ jobs:
       - name: Licenses
         uses: fsfe/reuse-action@v6
 
-      - name: Venue map
+      - name: Tools and venue map
         run: |
-          python3 tools/test_check_venue.py
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet pynacl
+          for test in tools/test_*.py; do "$RUNNER_TEMP/venv/bin/python" "$test"; done
           python3 tools/check_venue.py app/src/main/assets/venue.json
 
       - uses: actions/setup-java@v6

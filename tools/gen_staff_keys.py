@@ -6,9 +6,10 @@ git) and only travel inside staff QR codes. PROTOCOL.md, sections 9 and 11, desc
 
   pip install pynacl "qrcode[pil]"
 
-The chain (run once per step; each step keeps its seeds in tools/out/chain.json):
-  python tools/gen_staff_keys.py root                      # Ping Up's root key; keep its seed offline
-  python tools/gen_staff_keys.py organiser --name "Fest SRL"
+The chain (run once per step; each step keeps its seeds in tools/out/chain.json, except the root's):
+  python tools/gen_staff_keys.py root --out /Volumes/STICK1/pingup-root.json /Volumes/STICK2/pingup-root.json
+  python tools/gen_staff_keys.py organiser --name "Fest SRL" --root /Volumes/STICK1/pingup-root.json
+The root seed goes only into those files, sealed with a passphrase; chain.json keeps its public key.
   python tools/gen_staff_keys.py event --name "Fest 2026" --start 2026-07-10 --days 3 --day-start 10:00
 Rebuild the app after "root" and "event": they change staff_public.json.
 
@@ -34,6 +35,7 @@ Legacy (SPS1): one shared key pair for the whole build, every team and anchor ge
 
 import argparse
 import base64
+import getpass
 import hashlib
 import json
 import os
@@ -44,7 +46,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 try:
-    from nacl import bindings
+    from nacl import bindings, pwhash, secret
+    from nacl.exceptions import CryptoError
 except ImportError:
     sys.exit('PyNaCl is missing: pip install pynacl "qrcode[pil]"')
 
@@ -71,6 +74,10 @@ ZONE_BYTES = 32
 MAX_REVOKED = 32
 HAS_REPORT_KEY, HAS_REPORT_SEED, HAS_LEGACY_SEED = 0x01, 0x02, 0x04
 PACK_FORMAT = "pingup-event"
+ROOT_FORMAT = "pingup-root"
+# libsodium's cost for sensitive data, 1 GiB and about ten seconds: the root file is opened a few times a year
+ROOT_KDF = (pwhash.argon2id.OPSLIMIT_SENSITIVE, pwhash.argon2id.MEMLIMIT_SENSITIVE)
+MIN_PASSPHRASE = 16
 
 
 def secret_dir() -> None:
@@ -143,15 +150,80 @@ def chain_state(*needed: str) -> dict:
     return state
 
 
-def cmd_root(_args) -> None:
+def root_key(passphrase: str, salt: bytes, ops: int, mem: int) -> bytes:
+    return pwhash.argon2id.kdf(secret.SecretBox.KEY_SIZE, passphrase.encode("utf-8"), salt, opslimit=ops, memlimit=mem)
+
+
+def seal_root(seed: bytes, passphrase: str) -> dict:
+    """The root file: the seed in a secretbox whose key comes from the passphrase (Argon2id)."""
+    ops, mem = ROOT_KDF
+    salt = os.urandom(pwhash.argon2id.SALTBYTES)
+    box = secret.SecretBox(root_key(passphrase, salt, ops, mem)).encrypt(seed)
+    return {"format": ROOT_FORMAT, "version": 1, "public": sign_pair(seed)[0].hex(), "kdf": "argon2id13",
+            "opslimit": ops, "memlimit": mem, "salt": salt.hex(), "box": bytes(box).hex(),
+            "created": datetime.now().date().isoformat()}
+
+
+def open_root(record: dict, passphrase: str) -> bytes:
+    if record.get("format") != ROOT_FORMAT or record.get("version") != 1:
+        sys.exit("Not a Ping Up root file.")
+    key = root_key(passphrase, bytes.fromhex(record["salt"]), record["opslimit"], record["memlimit"])
+    try:
+        seed = secret.SecretBox(key).decrypt(bytes.fromhex(record["box"]))
+    except CryptoError:
+        sys.exit("Wrong passphrase for the root file.")
+    if sign_pair(seed)[0].hex() != record["public"]:
+        sys.exit("The root file is damaged: its seed doesn't give its public key.")
+    return seed
+
+
+def new_passphrase() -> str:
+    first = getpass.getpass(f"Passphrase for the root file (at least {MIN_PASSPHRASE} characters, e.g. five random words): ")
+    if len(first) < MIN_PASSPHRASE:
+        sys.exit(f"Use at least {MIN_PASSPHRASE} characters.")
+    if getpass.getpass("Again: ") != first:
+        sys.exit("The two passphrases differ.")
+    return first
+
+
+def cmd_root(args) -> None:
     secret_dir()
     state = load_json(CHAIN)
     if "root" in state:
         sys.exit("A root key exists already; delete tools/out/chain.json to start a new chain.")
+    paths = [Path(out) for out in args.out]
+    taken = [str(path) for path in paths if path.exists()]
+    if taken:
+        sys.exit(f"A root file is never overwritten: {', '.join(taken)}")
     seed = os.urandom(32)
-    state["root"] = {"seed": seed.hex()}
+    passphrase = new_passphrase()
+    print("sealing the seed (about ten seconds)")
+    text = json.dumps(seal_root(seed, passphrase), indent=2) + "\n"
+    for path in paths:
+        with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "w", encoding="utf-8") as f:
+            f.write(text)
+        print(f"root file -> {path}")
+    public = sign_pair(seed)[0]
+    state["root"] = {"public": public.hex()}
     save_json(CHAIN, state)
-    update_public(root=sign_pair(seed)[0].hex())
+    update_public(root=public.hex())
+    print(f"root key id {key_id(public).hex()}")
+
+
+def root_seed(state: dict, path: str | None) -> bytes:
+    """Chains made before the root file (exercises, the demo) keep the seed in chain.json; the others need the stick."""
+    if "seed" in state["root"]:
+        return bytes.fromhex(state["root"]["seed"])
+    if not path:
+        sys.exit("The root key is offline: give its file, --root /Volumes/<stick>/pingup-root.json")
+    if not Path(path).exists():
+        sys.exit(f"{path} doesn't exist.")
+    record = load_json(Path(path))
+    if record.get("public") != state["root"]["public"]:
+        sys.exit(f"{path} holds another root key than this chain's.")
+    passphrase = getpass.getpass("Passphrase of the root file: ")
+    print("opening the root file (about ten seconds)")
+    return open_root(record, passphrase)
 
 
 def cmd_organiser(args) -> None:
@@ -159,7 +231,7 @@ def cmd_organiser(args) -> None:
     seed = os.urandom(32)
     now = int(datetime.now().timestamp())
     cert = certificate(ROLE_ORGANISER, sign_pair(seed)[0], now, now + args.years * 366 * 86400, args.name,
-                       bytes.fromhex(state["root"]["seed"]))
+                       root_seed(state, args.root))
     state["organiser"] = {"seed": seed.hex(), "cert": cert.hex()}
     save_json(CHAIN, state)
     print(f"organiser {args.name}: certificate {cert_id(cert)}")
@@ -359,13 +431,15 @@ def cmd_demo(_args) -> None:
     print(f"demo keys -> {DEMO_PUBLIC.relative_to(ROOT)}, {DEMO.relative_to(ROOT)} (debug build only)")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("root", help="Ping Up's root key")
+    p = sub.add_parser("root", help="Ping Up's root key, sealed with a passphrase")
+    p.add_argument("--out", nargs="+", required=True, help="the root files, one on each stick, never on the laptop")
     p = sub.add_parser("organiser", help="an organiser key, signed by the root")
     p.add_argument("--name", required=True)
     p.add_argument("--years", type=int, default=1)
+    p.add_argument("--root", help="the root file (on its stick)")
     p = sub.add_parser("event", help="the event key and one report key per day, signed by the organiser")
     p.add_argument("--name", required=True)
     p.add_argument("--start", required=True, help="first day, YYYY-MM-DD")
@@ -403,7 +477,7 @@ def main() -> None:
     p.add_argument("--control", nargs="*", default=[])
     p.add_argument("--new", action="store_true", help="new shared keys (old SPS1 codes stop working)")
     sub.add_parser("demo", help="the debug build's shared pair")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     {"root": cmd_root, "organiser": cmd_organiser, "event": cmd_event, "issue": cmd_issue, "revoke": cmd_revoke,
      "pack": cmd_pack, "legacy": cmd_legacy, "demo": cmd_demo}[args.command](args)
 
