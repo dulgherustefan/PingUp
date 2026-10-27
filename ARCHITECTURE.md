@@ -3,23 +3,26 @@
 Ping Up are trei module Gradle și aplicația de iPhone. Regula de bază: tot ce face aplicația să meargă stă în `:core`, care nu are voie să importe nimic din Android; ecranele stau în `:ui`, aceleași pe ambele telefoane, iar `:app` aduce doar ce ține de Android (Bluetooth, locație, keystore, notificări, serviciul din prim-plan). `:core` și `:ui` sunt Kotlin Multiplatform: același cod se compilează pentru Android și pentru iPhone. `iosApp/` e aplicația de iPhone, care găzduiește ecranele și dă sesiunii telefonul.
 
 ```
-          :app  (Android)
-   ┌──────────────────────────────┐
-   │ ui/          ecranele         │
-   │ service/     serviciul mesh   │
-   │ platform/    Bluetooth, GPS,  │──── implementează interfețele din :core
-   │              keystore         │     (AppPlatform, Radio, Crypto, Clock)
-   │ AppContainer sesiunea comună  │
-   └──────────────┬───────────────┘
-                  │ depinde de
-   ┌──────────────▼───────────────┐
-   │ :core  (Kotlin Multiplatform) │
-   │ protocol → mesh → chat,       │
-   │                   incidents   │
-   │ crypto, data, venue, util     │
-   │ session: PingUpSession        │
-   └──────────────────────────────┘
+   ┌──────────────────────────────┐   ┌──────────────────────────────┐
+   │ :app  (Android)              │   │ iosApp/  (iPhone)            │
+   │ service/   serviciul mesh    │   │ găzduiește ecranele din :ui  │
+   │ platform/  Bluetooth, GPS,   │   │ și dă sesiunii telefonul     │
+   │            keystore          │   │                              │
+   └──────────────┬───────────────┘   └──────────────┬───────────────┘
+                  └────────────────┬─────────────────┘
+                                   │ depind de
+   ┌───────────────────────────────▼─────────────────────────────────┐
+   │ :ui  (Compose Multiplatform): ecranele, AppViewModel,           │
+   │ designsystem; în iosMain, telefonul pentru iPhone               │
+   └───────────────────────────────┬─────────────────────────────────┘
+                                   │
+   ┌───────────────────────────────▼─────────────────────────────────┐
+   │ :core  (Kotlin Multiplatform): protocol → mesh → chat,          │
+   │ incidents; crypto, data, venue, util; session: PingUpSession    │
+   └─────────────────────────────────────────────────────────────────┘
 ```
+
+`platform/` din `:app` și `ui/src/iosMain/.../ios/` implementează interfețele din `:core` (`AppPlatform`, `Radio`, `Crypto`, `Clock`).
 
 ## `:core`: logica, fără Android
 
@@ -49,7 +52,7 @@ Testele de aici stau în `commonTest` și rulează pe JVM, fără emulator (`./g
 
 ## `:ui`: ecranele comune
 
-`ui/src/commonMain/`, în Compose Multiplatform: toate ecranele, `AppViewModel` și navigarea (`MainScreen`), câte un pachet pe funcționalitate (`chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `control/`...), cu tema și componentele în `designsystem/`. Ce cer de la telefon fără să fie sesiune trece prin `PhoneUi` (pornirea rețelei, permisiunile, 112, share sheet-ul, lanterna, toast-urile, harta offline, diagnosticul GNSS, ritmul GPS-ului la un raport sau la o partajare); unde telefonul nu are ce da, ca harta MapLibre pe iPhone, membrul e null și ecranul folosește harta desenată (`VenueMap`). Ce desenează funcționalitățile peste hartă (trasee, stările zonelor, pinuri, planul organizatorului) e un `MapOverlay`: fiecare își pune stratul lui în `MapOverlays` (din `AppViewModel`), iar ambele hărți, MapLibre pe Android (`PingMapEngine.setOverlay`) și `VenueMap`, desenează straturile unite; panoul de straturi de sub hartă (`map/Layers`) are căutarea, butoanele de straturi, cardul locului ales și drumul spre ecranul Program, iar o apăsare lungă pe hartă oferă locul unui prieten sau îl salvează. Orice „Du-mă” trece prin `vm.navigate(NavTarget)` (`map/NavTarget`: un prieten, punctul de întâlnire sau un reper, cel mai apropiat loc deschis de un tip, un loc cu nume, un incident, ultima poziție dintr-un raport de persoană pierdută, defibrilatorul în drum spre pacient) și deschide ecranul de rută (`map/RouteScreen`); `common/Walk` urmărește drumul fixare cu fixare, același pentru ecranul de rută și pentru evacuare, iar modul de evacuare (`notices/EvacuationMode`) duce singur spre ieșirea pe care planul o dă zonei, pe stratul lui de hartă, cât ține evacuarea, fie și minimizată. Dialogurile care se deschid singure stau câte unul pe ecran, după prioritate (`ModalArbiter`): evacuarea și „Ești OK?”, alerta de intervenție, anunțul urgent, prietenii („M-am pierdut”, „Te caută”, check-in-ul ratat), apoi cererile („Fă-te văzut”, „Vin la tine”); celelalte așteaptă în sursa lor, unul la care s-a răspuns nu se mai deschide, iar peste un drum pornit dintr-un dialog o alertă mai importantă rămâne bandă deasupra ecranului; ce trebuie să fie un ecran al telefonului e `expect`/`actual` în `androidMain/` și `iosMain/`: camera care citește coduri QR (CameraX cu zxing, AVFoundation), alegerea fișierelor, PDF-ul raportului (`PdfDocument`, contextul PDF din UIKit, cu așezarea în pagină comună în `ReportLayout`), permisiunile, consola în landscape, blur-ul. Codul QR se desenează din `qrcode-kotlin`, același pe ambele telefoane. Textele, în română și engleză, stau o singură dată pentru ambele aplicații, în `composeResources/values*/strings.xml`, iar cele ale unei funcționalități noi în fișierul ei, `strings_<nume>.xml` (`route`, `control`, `regasire`, `layers`, `safety`, `staff`), ca lucrul în paralel să nu se ciocnească. Pe Android, codul din afara ecranelor (notificările) le citește tot de acolo, ca `R.string`, copiate la build. Limba aplicației se fixează la pornire, pe Android în `AppLocale`, pe iPhone în `pinLanguage`, ca textele să-și ia și regulile de plural din ea: un telefon în germană primește româna cu pluralul românesc. Compose Multiplatform completează doar `%1$s` și `%1$d` și afișează escape-urile Android (`\'`, `\"`) așa cum sunt, de aceea textele folosesc numai argumente numerotate și ghilimelele și apostroful tipografice; `TranslationTest` verifică. Testele logicii ecranelor (navigarea, consola, rapoartele, harta, paginile, fișele de prim ajutor) stau în `ui/src/commonTest` și rulează pe JVM (`./gradlew :ui:test`) și pe simulatorul de iPhone (`./gradlew :ui:iosSimulatorArm64Test`); în `androidHostTest` rămân doar cele cu biblioteci Java (zxing, `java.text`).
+`ui/src/commonMain/`, în Compose Multiplatform: toate ecranele, `AppViewModel` și navigarea (`MainScreen`), câte un pachet pe funcționalitate (`chat/`, `people/`, `report/`, `incidents/`, `map/`, `me/`, `control/`...), cu tema și componentele în `designsystem/`. Ce cer de la telefon fără să fie sesiune trece prin `PhoneUi` (pornirea rețelei, permisiunile, 112, share sheet-ul, lanterna, toast-urile, harta offline, diagnosticul GNSS, ritmul GPS-ului la un raport sau la o partajare); unde telefonul nu are ce da, ca harta MapLibre pe iPhone, membrul e null și ecranul folosește harta desenată (`VenueMap`). Ce desenează funcționalitățile peste hartă (trasee, stările zonelor, pinuri, planul organizatorului) e un `MapOverlay`: fiecare își pune stratul lui în `MapOverlays` (din `AppViewModel`), iar ambele hărți, MapLibre pe Android (`PingMapEngine.setOverlay`) și `VenueMap`, desenează straturile unite; panoul de straturi de sub hartă (`map/Layers`) are căutarea, butoanele de straturi, cardul locului ales și drumul spre ecranul Program, iar o apăsare lungă pe hartă oferă locul unui prieten sau îl salvează. Orice „Du-mă” trece prin `vm.navigate(NavTarget)` (`map/NavTarget`: un prieten, punctul de întâlnire sau un reper, cel mai apropiat loc deschis de un tip, un loc cu nume, un incident, ultima poziție dintr-un raport de persoană pierdută, defibrilatorul în drum spre pacient) și deschide ecranul de rută (`map/RouteScreen`); `common/Walk` urmărește drumul fixare cu fixare, același pentru ecranul de rută și pentru evacuare, iar modul de evacuare (`notices/EvacuationMode`) duce singur spre ieșirea pe care planul o dă zonei, pe stratul lui de hartă, cât ține evacuarea, fie și minimizată. Dialogurile care se deschid singure stau câte unul pe ecran, după prioritate (`ModalArbiter`): evacuarea și „Ești OK?”, alerta de intervenție, anunțul urgent, prietenii („M-am pierdut”, „Te caută”, check-in-ul ratat), apoi cererile („Fă-te văzut”, „Vin la tine”); celelalte așteaptă în sursa lor, unul la care s-a răspuns nu se mai deschide, iar peste un drum pornit dintr-un dialog o alertă mai importantă rămâne bandă deasupra ecranului; ce trebuie să fie un ecran al telefonului e `expect`/`actual` în `androidMain/` și `iosMain/`: camera care citește coduri QR (CameraX cu zxing, AVFoundation), alegerea fișierelor, PDF-ul raportului (`PdfDocument`, contextul PDF din UIKit, cu așezarea în pagină comună în `ReportLayout`), permisiunile, consola în landscape, blur-ul. Codul QR se desenează din `qrcode-kotlin`, același pe ambele telefoane. Textele, în română și engleză, stau o singură dată pentru ambele aplicații, în `composeResources/values*/strings.xml`, iar cele ale unei funcționalități noi în fișierul ei, `strings_<nume>.xml` (`route`, `control`, `regasire`, `layers`, `safety`, `staff`, `onboarding`), ca lucrul în paralel să nu se ciocnească. Pe Android, codul din afara ecranelor (notificările) le citește tot de acolo, ca `R.string`, copiate la build. Limba aplicației se fixează la pornire, pe Android în `AppLocale`, pe iPhone în `pinLanguage`, ca textele să-și ia și regulile de plural din ea: un telefon în germană primește româna cu pluralul românesc. Compose Multiplatform completează doar `%1$s` și `%1$d` și afișează escape-urile Android (`\'`, `\"`) așa cum sunt, de aceea textele folosesc numai argumente numerotate și ghilimelele și apostroful tipografice; `TranslationTest` verifică. Testele logicii ecranelor (navigarea, consola, rapoartele, harta, paginile, fișele de prim ajutor) stau în `ui/src/commonTest` și rulează pe JVM (`./gradlew :ui:test`) și pe simulatorul de iPhone (`./gradlew :ui:iosSimulatorArm64Test`); în `androidHostTest` rămân doar cele cu biblioteci Java (zxing, `java.text`).
 
 ## `:app`: Android
 
@@ -58,7 +61,7 @@ Testele de aici stau în `commonTest` și rulează pe JVM, fără emulator (`./g
 | Pachet | Ce face |
 |---|---|
 | `App`, `MainActivity`, `AppContainer`, `AndroidPlatform`, `AndroidPhoneUi` | Pornirea. `AppContainer` e sesiunea comună (`PingUpSession`) cu piesele Android pe tipurile lor; `AndroidPlatform` îi dă telefonul: Keystore, BLE, notificări, GPS, bateria, asset-urile; `AndroidPhoneUi` dă ecranelor comune ce cer de la telefon. |
-| `platform/` | Adaptoarele Android: `ble/` (radio BLE GATT, peste `core/ble/`), `location/` (GNSS pe ciclu de lucru, diagnosticul și datele orbitelor descărcate cât e internet), `map/` (harta MapLibre cu datele zonei în APK), `keystore/`, `network/` (rețeaua mobilă, pentru jurnalul de pilot), `power/`, `share/` (fișierele exportate, spre share sheet), `torch/`. |
+| `platform/` | Adaptoarele Android: `ble/` (radio BLE GATT, peste `core/ble/`), `location/` (GNSS pe ciclu de lucru, diagnosticul și datele orbitelor descărcate cât e internet), `map/` (harta MapLibre cu datele zonei în APK), `keystore/`, `motion/` (senzorul de mișcare), `network/` (rețeaua mobilă, pentru jurnalul de pilot), `power/`, `share/` (fișierele exportate, spre share sheet), `torch/`. |
 | `service/` | Serviciul din prim-plan care ține rețeaua pornită și notificările. |
 | `text/` | `SharedTexts`: textele comune citite din codul Android din afara ecranelor. |
 
@@ -100,7 +103,7 @@ Totul rămâne pe telefon, nimic nu circulă pe mesh. `BatteryMonitor` (`platfor
 
 ## De ce așa
 
-- **Trei module, nu zece.** Ghidul Android avertizează că modulele prea mărunte aduc doar „build complexity and boilerplate” [1]. La aproape 15.000 de linii, o împărțire pe funcționalități ca în Now in Android [3] ar fi exagerată; separarea logică / Android aduce aproape tot câștigul. `:ui` există pentru că ecranele trebuie să ruleze și pe iPhone.
+- **Trei module, nu zece.** Ghidul Android avertizează că modulele prea mărunte aduc doar „build complexity and boilerplate” [1]. La ~52.000 de linii (fără teste) și patru oameni, o împărțire pe funcționalități ca în Now in Android [3] ar fi tot exagerată; separarea logică / Android aduce aproape tot câștigul. `:ui` există pentru că ecranele trebuie să ruleze și pe iPhone.
 - **Logica separată de platformă,** ca la Briar: protocolul `bramble-core` e Java pur, iar `bramble-android` aduce doar adaptoarele [4]. Așa se testează rapid și se poate refolosi pe altă platformă.
 - **Straturi UI și date** sunt „strongly recommended” în recomandările Android [2]; DI manual e acceptat pentru aplicații de mărimea asta [2].
 - **Pachete pe funcționalități în `ui/`** și separarea `designsystem` / `common` urmează Now in Android (`core:designsystem`, `core:ui`, `feature:*`) [3].

@@ -6,7 +6,7 @@ Mulțumim că vrei să ajuți la Ping Up. Pe scurt:
 
 1. Pentru ceva mai mare decât o greșeală de scriere, deschide întâi un issue, ca să vorbim despre idee înainte de cod.
 2. Lucrează pe o ramură a ta și trimite un pull request.
-3. Înainte, rulează ce rulează și CI-ul: `./gradlew assembleDebug test lint` și, pe un Mac, `./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test` (vezi „Cum rulezi proiectul” în README).
+3. Înainte, rulează ce rulează și CI-ul: `./gradlew assembleDebug test lint`, testele uneltelor (`python3 tools/test_*.py`, cu `pip install pynacl`), `reuse lint` și, pe un Mac, `./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test` (vezi „Cum rulezi proiectul” în README).
 4. Mesajele commiturilor sunt scurte, în engleză, cu literă mică, și spun ce face schimbarea.
 5. Nu pune în git chei, coduri de staff sau date personale.
 6. Dacă adaugi sau schimbi o dependență, rulează `./gradlew exportLicenses`: rescrie listele din ecranul „Licențe open source” (CI-ul verifică). Ce nu vede Gradle (fonturi, iconițe, date, cod nativ) se adaugă în `config/aboutlibraries`.
@@ -34,7 +34,7 @@ Thank you for wanting to help with Ping Up. In short:
 
 1. For anything bigger than a typo, open an issue first, so we can talk about the idea before the code.
 2. Work on a branch of your own and send a pull request.
-3. Before that, run what CI runs: `./gradlew assembleDebug test lint` and, on a Mac, `./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test` (see "Cum rulezi proiectul" in the README).
+3. Before that, run what CI runs: `./gradlew assembleDebug test lint`, the tools' tests (`python3 tools/test_*.py`, with `pip install pynacl`), `reuse lint` and, on a Mac, `./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test` (see "Cum rulezi proiectul" in the README).
 4. Commit messages are short, in English, lowercase, and say what the change does.
 5. Don't put keys, staff codes or personal data in git.
 6. If you add or change a dependency, run `./gradlew exportLicenses`: it rewrites the lists of the "Open source licences" screen (CI checks it). What Gradle can't see (fonts, icons, data, native code) goes in `config/aboutlibraries`.

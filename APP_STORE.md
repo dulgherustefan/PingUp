@@ -7,9 +7,9 @@ Ce trebuie pentru prima trimitere a aplicației iPhone, după regulile Apple din
 - Manifestul de confidențialitate (`iosApp/PingUp/PrivacyInfo.xcprivacy`): fără tracking, fără date colectate, motivele pentru API-urile pe care Apple le cere declarate.
 - Textele pentru permisiuni, în română și engleză: Bluetooth (și cu telefonul în buzunar), camera (doar pentru coduri QR), locația (în rapoarte și la prietenii aleși).
 - Modurile de fundal sunt doar cele două de Bluetooth, folosite exact pentru rețea (regula 2.5.4).
-- Notificările urgente (Time Sensitive) sunt doar în build-ul Release și doar pentru incidente urgente; nu cer formular la Apple.
+- Notificările urgente (Time Sensitive) sunt doar în build-ul Release și doar pentru ce nu poate aștepta: incidentele urgente, întrebarea și alerta de check-in și anunțurile care sună, ca evacuarea; nu cer formular la Apple.
 - Ecranul de lansare, iconița, iOS 16 sau mai nou, build-ul Release pentru telefoane verificat nesemnat cu Xcode 27 (Apple cere Xcode 26 sau mai nou la upload).
-- În aplicație: blocare din profil și „Raportează la staff” pentru hărțuirea venită prin aplicație (regula 1.2); „Nu înlocuiește 112” și butonul „Sună la 112” lângă raport (regula 5.1.5: aplicația nu e un serviciu de urgență); locația pleacă doar cu un raport sau, criptată cap-coadă, la prietenii aleși în Eu › Partajarea locației, iar fără permisiune se alege zona de pe hartă (5.1.1).
+- În aplicație: blocare din profil și „Raportează la staff” pentru hărțuirea venită prin aplicație (regula 1.2); „Nu înlocuiește 112” și butonul „Sună la 112” lângă raport (regula 5.1.5: aplicația nu e un serviciu de urgență); locația pleacă doar cu un raport sau, criptată cap-coadă, la prietenii aleși: în Eu › Partajarea locației, într-o alertă de check-in ratat și, timp de 15 minute, la grup după „M-am pierdut de grup”; fără permisiune se alege zona de pe hartă (5.1.1).
 - Licența: codul e GPL-3.0-or-later. Condițiile App Store contrazic GPL-ul doar pentru cine distribuie codul GPL al altcuiva; noi publicăm codul nostru, ca autori, deci nu e conflict (așa publică și Signal, Mullvad sau Proton). De aceea, cod din afară intră doar cu acordul din `CONTRIBUTING.md`. La „License Agreement” rămâne EULA standard a Apple.
 
 ## De făcut înainte de trimitere
@@ -43,7 +43,7 @@ Cheia lipsește intenționat din `Info.plist` până la decizie.
 | Întrebare | Răspuns |
 |---|---|
 | Messaging and Chat | Yes |
-| User-Generated Content | No (chatul e doar între prieteni adăugați cu codul QR) |
+| User-Generated Content | No (chatul e doar între prieteni adăugați cu codul QR și în grupurile pe care le fac din prietenii lor) |
 | Medical or Treatment Information | Infrequent (fișele de prim ajutor) |
 | Alcohol, Tobacco, or Drug Use or References | Infrequent (pagina despre reducerea riscurilor) |
 | Mature/Suggestive Themes | None |
@@ -70,15 +70,19 @@ with one phone locked: [URL]
 1. Phone A: Messages > Add friend > My code. Phone B: Messages > Add friend > Scan. One scan makes them friends; chat.
 2. Phone B: tap the profile button (top left) > I have a staff code, and scan the attached staff code. This unlocks the
    staff screens and the control console.
-3. Phone A: Report > Medical > Send report. Phone B shows a Time Sensitive alert, used only for incident alerts.
+3. Phone A: Report > Medical > Send report. Phone B shows a Time Sensitive alert, used only for urgent incidents,
+   check-in alerts and evacuation notices.
 
-Chat exists only between people who scanned each other's code in person: there is no public, random or anonymous chat.
+Chat exists only between people who scanned each other's code in person, and in groups one of them makes from their
+friends: there is no public, random or anonymous chat.
 From a friend's or a group's profile, users can block them or report harassment to the event staff on site.
 Contact: stdulgh@gmail.com
 
-Location goes only with a report the user sends, as the report screen says, or, end-to-end encrypted, to the friends
-the user picks under Me > Location sharing, while the app is open; without permission the user picks a zone on the map. Ping Up is not an emergency service: onboarding and the report screen say it doesn't replace 112 and
-offer a Call 112 button. The first-aid sheets were approved by [name, role].
+Location goes only with a report the user sends, as the report screen says, or, end-to-end encrypted, to friends the
+user picks: under Me > Location sharing while the app is open, in a missed check-in alert, and to their group for 15
+minutes after "I lost my group"; without permission the user picks a zone on the map. Ping Up is not an emergency
+service: onboarding and the report screen say it doesn't replace 112 and offer a Call 112 button. The first-aid sheets
+were approved by [name, role].
 ```
 
 ## Surse

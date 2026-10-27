@@ -47,7 +47,7 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat assembleDebug test
 ```
 
-`test` rulează testele din ambele module. Apoi instalezi pe telefon (cu USB debugging activat):
+`test` rulează testele din toate modulele (`:core`, `:ui`, `:app`). Apoi instalezi pe telefon (cu USB debugging activat):
 ```
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
@@ -94,11 +94,11 @@ Se poate instala si de pe [ping-up.org](https://ping-up.org)
 ## Release
 
 Un tag `v1.2.3` pornește `.github/workflows/release.yml`: teste, APK de release semnat, release pe GitHub cu
-`ping-up.apk`, SHA-256-ul și amprenta certificatului. Site-ul îl preia singur în câteva minute.
+`ping-up.apk`, SHA-256-ul și amprenta certificatului. Notele release-ului sunt secțiunea versiunii din [CHANGELOG.md](CHANGELOG.md). Site-ul îl preia singur în câteva minute.
 
 ```
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 O singură dată, cheia de semnare (păstreaz-o: fără ea nu mai poți publica actualizări peste instalările existente):
@@ -154,12 +154,12 @@ Phones connect to each other over Bluetooth Low Energy and form a mesh: a messag
 - **Location only by choice:** in a report, or shared with chosen friends for a set time.
 - **Offline first-aid sheets and information pages**, in Romanian and English.
 
-**Status:** Android releases are on [GitHub Releases](https://github.com/dulgherustefan/PingUp/releases) and [ping-up.org](https://ping-up.org) (latest v0.4.0). The iPhone app shares the same code and runs on the simulator; the mesh still needs testing on real phones and in the field.
+**Status:** Android releases are on [GitHub Releases](https://github.com/dulgherustefan/PingUp/releases) and [ping-up.org](https://ping-up.org). The iPhone app shares the same code and runs on the simulator; the mesh still needs testing on real phones and in the field.
 
 **Build:** with JDK 21 (or Android Studio's), `./gradlew assembleDebug test` builds the Android app and runs the tests. On a Mac with Xcode 26 or newer, `brew install xcodegen`, then `cd iosApp && xcodegen && open PingUp.xcodeproj`; `./gradlew :core:iosSimulatorArm64Test :ui:iosSimulatorArm64Test` runs the tests on iOS.
 
 **Code:** `core/` holds the protocol, the mesh, the cryptography, chat and incidents in shared Kotlin; `ui/` holds the screens (Compose Multiplatform) for both phones; `app/` is the Android app and `iosApp/` the iPhone one. The wire protocol, with golden test vectors for other implementations, is specified in [PROTOCOL.md](PROTOCOL.md).
 
-**Licence:** the code is under [GPL-3.0-or-later](LICENSE); the documentation, the protocol and the texts in the app are under [CC BY 4.0](LICENSES/CC-BY-4.0.txt); the name, logo and mascot are not licensed ([TRADEMARKS.md](TRADEMARKS.md)). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Privacy: [PRIVACY.md](PRIVACY.md).
+**Licence:** the code is under [GPL-3.0-or-later](LICENSE); the documentation, the protocol with its test vectors and the app's content (information pages, first-aid sheets, the demo map, notices) are under [CC BY 4.0](LICENSES/CC-BY-4.0.txt); the name, logo and mascot are not licensed ([TRADEMARKS.md](TRADEMARKS.md)). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). Privacy: [PRIVACY.md](PRIVACY.md).
 
 Ping Up is not an emergency service and does not replace 112.
