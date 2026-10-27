@@ -27,6 +27,8 @@ import ro.safetyplease.ui.resources.Res
 import ro.safetyplease.ui.resources.back
 import ro.safetyplease.ui.resources.privacy_camera_text
 import ro.safetyplease.ui.resources.privacy_camera_title
+import ro.safetyplease.ui.resources.privacy_checkin_text
+import ro.safetyplease.ui.resources.privacy_checkin_title
 import ro.safetyplease.ui.resources.privacy_contact_text
 import ro.safetyplease.ui.resources.privacy_contact_title
 import ro.safetyplease.ui.resources.privacy_delete_text
@@ -57,6 +59,7 @@ private val sections = listOf(
     Res.string.privacy_sent_title to Res.string.privacy_sent_text,
     Res.string.privacy_location_title to Res.string.privacy_location_text,
     Res.string.privacy_sharing_title to Res.string.privacy_sharing_text,
+    Res.string.privacy_checkin_title to Res.string.privacy_checkin_text,
     Res.string.privacy_camera_title to Res.string.privacy_camera_text,
     Res.string.privacy_internet_title to Res.string.privacy_internet_text,
     Res.string.privacy_metrics_title to Res.string.privacy_metrics_text,

@@ -15,12 +15,23 @@ class PrivacyTest {
             .map { it.textContent.replace("\\'", "'").replace("\\\"", "\"") }
     }
 
+    private val appTexts get() = privacyTexts("../ui/src/commonMain/composeResources/values/strings.xml") +
+        privacyTexts("../ui/src/commonMain/composeResources/values-en/strings.xml")
+
     @Test
     fun theRepositoryPolicySaysWhatTheAppSays() {
         // links read as their text, as in the app
         val policy = File("../PRIVACY.md").readText().replace(Regex("""\[([^]]+)]\([^)]+\)"""), "$1")
-        val texts = privacyTexts("../ui/src/commonMain/composeResources/values/strings.xml") + privacyTexts("../ui/src/commonMain/composeResources/values-en/strings.xml")
+        val texts = appTexts
         assertTrue("no privacy texts", texts.isNotEmpty())
         for (text in texts) assertTrue(text, text in policy)
+    }
+
+    @Test
+    fun theAppHasEverySectionOfThePolicy() {
+        val headings = File("../PRIVACY.md").readLines().filter { it.startsWith("## ") }.map { it.removePrefix("## ") }
+        val texts = appTexts
+        assertTrue("no sections", headings.isNotEmpty())
+        for (heading in headings) assertTrue(heading, heading in texts)
     }
 }

@@ -12,11 +12,11 @@ Mesajele către prieteni sunt criptate cap-coadă: telefoanele prin care trec nu
 
 ## Locația
 
-O folosim pe telefon ca să știm în ce zonă ești și ce e aproape. Coordonatele pleacă doar într-un raport sau la prietenii cu care alegi să le împarți, cum scrie mai jos. Prietenii află zona în care ești când se schimbă sau când te întreabă, cât timp e pornit „Spune prietenilor zona mea” (în Eu), iar o zonă trimisă într-un mesaj o văd cei din conversație. Aplicația nu îți urmărește locația în fundal decât cât timp o partajezi.
+O folosim pe telefon ca să știm în ce zonă ești și ce e aproape. Coordonatele pleacă doar într-un raport, într-o alertă de check-in sau la prietenii cu care alegi să le împarți, cum scrie mai jos. Prietenii află zona în care ești când se schimbă sau când te întreabă, cât timp e pornit „Spune prietenilor zona mea” (în Eu), iar o zonă trimisă într-un mesaj o văd cei din conversație. Aplicația nu îți urmărește locația în fundal decât cât timp o partajezi.
 
 ## Partajarea locației cu prietenii
 
-E oprită până o pornești tu. Alegi fiecare prieten sau grup cu care o împarți, cât timp (15 minute, o oră, până la sfârșitul zilei de festival sau până o oprești) și cât de exact: poziția exactă, o zonă aproximativă de vreo 100 de metri sau doar zona. Poziția e criptată cap-coadă pentru prietenii aleși: telefoanele prin care trece și organizatorul nu o pot citi. Un prieten cu care o împarți poate atașa ultima poziție pe care i-ai trimis-o la un raport de persoană pierdută, care ajunge la echipa care caută. Telefonul unui prieten păstrează doar ultima ta poziție, cel mult 2 ore. O oprești oricând, din „Cine mă vede acum” sau, pe Android, din notificare, iar prietenul nu e anunțat. Tot în Eu poți porni răspunsul automat la „Unde ești?”: prietenii care te întreabă primesc atunci zona ta aproximativă.
+E oprită până o pornești tu. Alegi fiecare prieten sau grup cu care o împarți, cât timp (15 minute, o oră, până la sfârșitul zilei de festival sau până o oprești) și cât de exact: poziția exactă, o zonă aproximativă de vreo 100 de metri sau doar zona. Poziția e criptată cap-coadă pentru prietenii aleși: telefoanele prin care trece și organizatorul nu o pot citi. Un prieten cu care o împarți poate atașa ultima poziție pe care i-ai trimis-o la un raport de persoană pierdută, care ajunge la echipa care caută. Telefonul unui prieten păstrează doar ultima ta poziție, cel mult 2 ore. O oprești oricând, din „Cine mă vede acum” sau, pe Android, din notificare, iar prietenul nu e anunțat. Tot în Eu poți porni răspunsul automat la „Unde ești?”: prietenii care te întreabă primesc atunci zona ta aproximativă. Când apeși „M-am pierdut de grup”, grupul primește 15 minute poziția ta exactă, ca să te găsească.
 
 ## Check-in pe drum
 
@@ -28,7 +28,7 @@ Doar pentru scanarea codurilor QR. Nicio imagine nu e salvată și nu pleacă di
 
 ## Internetul
 
-Rețeaua Ping Up merge fără internet. Telefonul îl folosește doar în două cazuri, ambele alese de tine: când încarci pachetul unui eveniment de pe un link, îl descarcă de la adresa aceea; iar pe telefoanele organizatorilor, jurnalul rețelei mobile, oprit dacă nu îl pornești, face la 2 minute o cerere mică la adresa pe care o întreabă și sistemul telefonului, ca să vadă dacă merg datele mobile: connectivitycheck.gstatic.com pe Android, captive.apple.com pe iPhone. Ca la orice cerere pe internet, serverul vede adresa IP a telefonului.
+Rețeaua Ping Up merge fără internet. Telefonul îl folosește în trei cazuri. Când încarci pachetul unui eveniment de pe un link, îl descarcă de la adresa aceea. Pe telefoanele organizatorilor, jurnalul rețelei mobile, oprit dacă nu îl pornești, face la 2 minute o cerere mică la adresa pe care o întreabă și sistemul telefonului, ca să vadă dacă merg datele mobile: connectivitycheck.gstatic.com pe Android, captive.apple.com pe iPhone. Iar pe Android, cât are internet, aplicația îi cere sistemului, o dată la fiecare pornire, să descarce de la serverele lui datele despre orbitele sateliților GPS, ca la festival poziția să vină repede și fără internet. Ca la orice cerere pe internet, serverul vede adresa IP a telefonului.
 
 ## Metricile pilotului
 
@@ -50,7 +50,7 @@ Totul rămâne pe telefon până îl ștergi. Un mesaj care nu ajunge în 24 de 
 
 Ping Up e făcut de Dulgheru Ștefan Alexandru, Ilie-Goga Radu, Cîrciumaru Radu și Farkaș Andrei-Oliver. Scrie-ne la [stdulgh@gmail.com](mailto:stdulgh@gmail.com) sau pe [github.com/dulgherustefan/PingUp/issues](https://github.com/dulgherustefan/PingUp/issues).
 
-Actualizată pe 13 octombrie 2026. Același text e în aplicație, la Eu › Confidențialitate.
+Actualizată pe 27 octombrie 2026. Același text e în aplicație, la Eu › Confidențialitate.
 
 ---
 
@@ -68,11 +68,11 @@ Messages to friends are end-to-end encrypted: the phones they pass through can�
 
 ## Location
 
-We use it on the phone to know which zone you’re in and what’s nearby. Coordinates leave only in a report or for the friends you choose to share them with, as below. Friends learn your zone when it changes or when they ask, while “Tell friends my zone” is on (in Me), and a zone sent in a message is seen by everyone in the conversation. The app doesn’t track your location in the background, except while you share it.
+We use it on the phone to know which zone you’re in and what’s nearby. Coordinates leave only in a report, in a check-in alert or for the friends you choose to share them with, as below. Friends learn your zone when it changes or when they ask, while “Tell friends my zone” is on (in Me), and a zone sent in a message is seen by everyone in the conversation. The app doesn’t track your location in the background, except while you share it.
 
 ## Sharing your location with friends
 
-It’s off until you turn it on. You pick each friend or group you share it with, for how long (15 minutes, an hour, until the end of the festival day or until you stop it) and how exactly: your exact position, an approximate area of about 100 metres, or just the zone. Your position is end-to-end encrypted for the friends you picked: the phones it passes through and the organiser can’t read it. A friend you share it with may attach the last position you sent them to a lost-person report, which goes to the search team. A friend’s phone keeps only your last position, for at most 2 hours. You can stop it at any time from “Who sees me now” or, on Android, from the notification, and your friend isn’t told. Also in Me you can turn on the automatic answer to “Where are you?”: friends who ask then get your approximate area.
+It’s off until you turn it on. You pick each friend or group you share it with, for how long (15 minutes, an hour, until the end of the festival day or until you stop it) and how exactly: your exact position, an approximate area of about 100 metres, or just the zone. Your position is end-to-end encrypted for the friends you picked: the phones it passes through and the organiser can’t read it. A friend you share it with may attach the last position you sent them to a lost-person report, which goes to the search team. A friend’s phone keeps only your last position, for at most 2 hours. You can stop it at any time from “Who sees me now” or, on Android, from the notification, and your friend isn’t told. Also in Me you can turn on the automatic answer to “Where are you?”: friends who ask then get your approximate area. When you tap “I lost my group”, your group gets your exact position for 15 minutes, so they can find you.
 
 ## Check-in on the way
 
@@ -84,7 +84,7 @@ Only for scanning QR codes. No image is saved or leaves the phone.
 
 ## Internet
 
-The Ping Up network works without the internet. The phone uses it in two cases only, both your choice: when you load an event pack from a link, it downloads it from that address; and on organisers’ phones, the mobile network log, off unless turned on, makes a small request every 2 minutes to the address the phone’s system itself asks, to see whether mobile data works: connectivitycheck.gstatic.com on Android, captive.apple.com on an iPhone. As with any request on the internet, the server sees the phone’s IP address.
+The Ping Up network works without the internet. The phone uses it in three cases. When you load an event pack from a link, it downloads it from that address. On organisers’ phones, the mobile network log, off unless turned on, makes a small request every 2 minutes to the address the phone’s system itself asks, to see whether mobile data works: connectivitycheck.gstatic.com on Android, captive.apple.com on an iPhone. And on Android, while there is internet, the app asks the system, once each time it starts, to download the GPS satellites’ orbit data from its servers, so that at the festival the position comes quickly without the internet too. As with any request on the internet, the server sees the phone’s IP address.
 
 ## Pilot metrics
 
@@ -106,4 +106,4 @@ Everything stays on the phone until you delete it. A message that hasn’t arriv
 
 Ping Up is made by Dulgheru Ștefan Alexandru, Ilie-Goga Radu, Cîrciumaru Radu and Farkaș Andrei-Oliver. Write to us at [stdulgh@gmail.com](mailto:stdulgh@gmail.com) or on [github.com/dulgherustefan/PingUp/issues](https://github.com/dulgherustefan/PingUp/issues).
 
-Updated on October 13, 2026. The same text is in the app, under Me › Privacy.
+Updated on October 27, 2026. The same text is in the app, under Me › Privacy.
