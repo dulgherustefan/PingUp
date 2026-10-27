@@ -110,7 +110,7 @@ base64 -i release.jks
 
 În Settings → Secrets and variables → Actions: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Opțional, `SITE_DEPLOY_HOOK`: un deploy hook al site-ului din Vercel (proiectul site-ului → Settings → Git → Deploy Hooks), ca după fiecare release site-ul să se construiască din nou, cu versiunea nouă scrisă și în pagină.
 
-Pe iPhone aplicația se publică prin App Store; ce trebuie pentru prima trimitere e în [APP_STORE.md](APP_STORE.md).
+Pe iPhone aplicația se publică prin App Store; ce trebuie pentru prima trimitere e în [APP_STORE.md](APP_STORE.md). Pentru Google Play, lista e în [GOOGLE_PLAY.md](GOOGLE_PLAY.md).
 
 Cheile de staff ale unui eveniment: `python tools/gen_staff_keys.py` (`pip install pynacl "qrcode[pil]"`). Semințele rămân în `tools/out/`, nu în git.
 Build-ul debug are o pereche separată, publică (`demo`), pe care release-ul nu o acceptă.
