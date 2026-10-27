@@ -115,18 +115,18 @@ Pe iPhone aplicația se publică prin App Store; ce trebuie pentru prima trimite
 Cheile de staff ale unui eveniment: `python tools/gen_staff_keys.py` (`pip install pynacl "qrcode[pil]"`). Semințele rămân în `tools/out/`, nu în git.
 Build-ul debug are o pereche separată, publică (`demo`), pe care release-ul nu o acceptă.
 
+Harta unui festival nou se pune în `app/src/main/assets/venue.json` sau, fără o versiune nouă a aplicației, în pachetul de eveniment (`gen_staff_keys.py pack --venue`). Se verifică cu `python3 tools/check_venue.py app/src/main/assets/venue.json`: zonele nu au voie să se suprapună, id-urile au cel mult 32 de octeți, iar numerele reperelor sunt unice. Aceeași verificare rulează în CI și înainte ca `pack` să semneze pachetul. Formatul e descris în script.
+
 ### Cheia rădăcină
 
 Release-ul încarcă pachete de eveniment și coduri de staff pe tură (SPS2) doar dacă `app/src/main/assets/staff_public.json` are cheia publică a rădăcinii; fără ea, `release.yml` se oprește. Rădăcina semnează doar cheile organizatorilor, de câteva ori pe an, așa că sămânța ei nu stă pe laptop, ci în două fișiere criptate cu o parolă, pe două stickuri. Se face o singură dată:
 
 1. Două stickuri goale, Wi-Fi-ul oprit și o parolă de cel puțin 16 caractere (de exemplu cinci cuvinte alese la întâmplare), scrisă pe hârtie.
 2. `python3 tools/gen_staff_keys.py root --out /Volumes/STICK1/pingup-root.json /Volumes/STICK2/pingup-root.json`
-3. `staff_public.json` intră în commit (are doar cheia publică); id-ul cheii afișat se notează lângă parolă.
-4. Stickurile stau în două locuri diferite, iar hârtia cu parola în al treilea. Fără un stick și parolă nu se mai pot semna organizatori, iar o rădăcină nouă cere o versiune nouă a aplicației.
+3. `staff_public.json` intră în commit (are doar chei publice). Scriptul afișează id-ul cheii: notează-l lângă parolă.
+4. Stickurile stau în două locuri diferite, iar hârtia cu parola în al treilea. Dacă se pierd parola sau amândouă stickurile, nu se mai pot semna organizatori, iar o rădăcină nouă cere o versiune nouă a aplicației.
 
-Un organizator nou: `python3 tools/gen_staff_keys.py organiser --name "Fest SRL" --root /Volumes/STICK1/pingup-root.json`.
-
-Harta unui festival nou se pune în `app/src/main/assets/venue.json` și se verifică cu `python3 tools/check_venue.py app/src/main/assets/venue.json`: zonele nu au voie să se suprapună, id-urile încap în protocol, iar numerele reperelor sunt unice. Aceeași verificare rulează în CI și înainte ca `gen_staff_keys.py pack` să semneze pachetul de eveniment. Formatul e descris în script.
+Un organizator nou: `python3 tools/gen_staff_keys.py organiser --name "Fest SRL" --root /Volumes/STICK1/pingup-root.json`. Cheile organizatorului și ale evenimentului rămân în `tools/out/chain.json`, care nu intră în git: păstrează-l, pentru că fără el pasul `organiser` nu pornește, iar un organizator nou îl înlocuiește pe cel vechi.
 
 ## Licență
 Copyright © 2026 Dulgheru Ștefan Alexandru, Cîrciumaru Radu, Ilie-Goga Radu, Farkaș Andrei-Oliver.
