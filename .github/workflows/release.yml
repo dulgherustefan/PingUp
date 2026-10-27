@@ -63,11 +63,14 @@ jobs:
           fi
           "$tools/aapt2" dump badging "$apk" | grep -q "versionName='${GITHUB_REF_NAME#v}'"
           cp "$apk" ping-up.apk
+          # what's new: the tag's section of CHANGELOG.md, then the hash and the certificate
+          awk -v tag="## $GITHUB_REF_NAME" 'index($0, tag) == 1 { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md > notes.md
           {
+            echo
             echo "SHA-256: \`$(sha256sum ping-up.apk | cut -d' ' -f1)\`"
             echo
             echo "Certificate (SHA-256): \`$(grep -m1 'certificate SHA-256 digest' certs.txt | awk '{print $NF}')\`"
-          } > notes.md
+          } >> notes.md
           cat notes.md
 
       - name: Release
